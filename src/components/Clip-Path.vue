@@ -1,14 +1,3 @@
-<template>
-    <div @click="updateView" class="switch_box">
-        <input v-model="isDark" class="switch_input" type="checkbox" />
-        <span class="slider round">
-            <i>
-                <component :is="isDark ? MoonIcon : SunIcon" />
-            </i>
-        </span>
-    </div>
-</template>
-
 <script setup lang="ts">
 import { ref } from 'vue';
 import MoonIcon from '@/components/icons/Moon.vue';
@@ -77,6 +66,17 @@ function updateView(event: MouseEvent) {
     });
 }
 </script>
+
+<template>
+    <div @click="updateView" class="switch_box">
+        <input v-model="isDark" class="switch_input" type="checkbox" />
+        <span class="slider round">
+            <i>
+                <component :is="isDark ? MoonIcon : SunIcon" />
+            </i>
+        </span>
+    </div>
+</template>
 
 <style scoped>
 .switch_box {

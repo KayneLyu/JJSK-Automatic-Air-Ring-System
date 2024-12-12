@@ -1,9 +1,12 @@
-import { app, BrowserWindow } from "electron";
+import { ipcMain, app, BrowserWindow } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 function setupRendererCommunicator(win2) {
   win2.webContents.on("did-finish-load", () => {
     win2.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
+  });
+  ipcMain.on("win-minimize", () => {
+    win2.minimize();
   });
 }
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,6 +19,8 @@ let win;
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    autoHideMenuBar: true,
+    // frame: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs")
     }
