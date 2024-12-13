@@ -8,6 +8,17 @@ function setupRendererCommunicator(win2) {
   ipcMain.on("win-minimize", () => {
     win2.minimize();
   });
+  ipcMain.on("win-maximize", () => {
+    const windowIsMax = win2.isMaximized();
+    if (windowIsMax) {
+      win2.restore();
+    } else {
+      win2.maximize();
+    }
+  });
+  ipcMain.on("win-close", () => {
+    app.quit();
+  });
 }
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path.join(__dirname, "..");
@@ -20,7 +31,9 @@ function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
     autoHideMenuBar: true,
-    // frame: false,
+    width: 1280,
+    height: 1024,
+    frame: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs")
     }

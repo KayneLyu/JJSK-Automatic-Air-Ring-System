@@ -22,7 +22,8 @@
     "baseUrl": "./",
     "paths": {
       "@/*": ["src/*"]
-    }
+    },
+    "types": ["element-plus/global"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue","src","electron"],
   "references": [{ "path": "./tsconfig.node.json" }]

@@ -1,10 +1,10 @@
 <script setup lang='ts'>
-import ToolBar from "./toolbar.vue";
+import HeaderComponent from './header.vue';
 </script>
 
 <template>
     <div>
-        <ToolBar />
+        <HeaderComponent />
     </div>
 </template>
 

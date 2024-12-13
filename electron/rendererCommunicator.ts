@@ -7,8 +7,21 @@ export function setupRendererCommunicator(win: BrowserWindow) {
     win.webContents.send('main-process-message', new Date().toLocaleString());
   });
 
-  ipcMain.on("win-minimize", ()=> {
+  ipcMain.on("win-minimize", () => {
     win.minimize();
+  })
+
+  ipcMain.on("win-maximize", () => {
+    const windowIsMax = win.isMaximized();
+    if (windowIsMax) {
+      win.restore()
+    } else {
+      win.maximize();
+    }
+  })
+
+  ipcMain.on("win-close", () => {
+    app.quit();
   })
 
   // 添加其他通信逻辑

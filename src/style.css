@@ -22,6 +22,8 @@
   --container-back: rgb(217 217 217 / 12%);
   --tag-back: #ebebeb2e;
   --border-color: #a9a9a9;
+  --tool-bar: #1899E1;
+  --tool-btn-color: #fff;
 }
 * {
   margin: 0;
@@ -42,6 +44,7 @@ html.dark {
   --container-back: rgb(39 39 39 / 50%);
   --tag-back: #161616;
   --border-color: #fff;
+  --tool-bar: #000;
 }
 
 ::view-transition-old(root),
