@@ -25,6 +25,6 @@
     },
     "types": ["element-plus/global"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue","src","electron"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue","src","electron", "auto-imports.d.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

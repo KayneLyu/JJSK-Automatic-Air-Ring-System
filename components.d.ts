@@ -7,9 +7,15 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    Arrowdown: typeof import('./src/components/icons/Arrowdown.vue')['default']
     ClipPath: typeof import('./src/components/Clip-Path.vue')['default']
     Close: typeof import('./src/components/icons/Close.vue')['default']
+    Dropdown: typeof import('./src/components/icons/Dropdown.vue')['default']
+    ElDropdown: typeof import('element-plus/es')['ElDropdown']
+    ElDropdownItem: typeof import('element-plus/es')['ElDropdownItem']
+    ElDropdownMenu: typeof import('element-plus/es')['ElDropdownMenu']
     ElIcon: typeof import('element-plus/es')['ElIcon']
+    Lang: typeof import('./src/components/icons/Lang.vue')['default']
     Maximize: typeof import('./src/components/icons/Maximize.vue')['default']
     Maxmize: typeof import('./src/components/icons/Maxmize.vue')['default']
     Minimize: typeof import('./src/components/icons/Minimize.vue')['default']

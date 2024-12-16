@@ -1,0 +1,1 @@
+type ILanguageType = 'zhCn' | 'en'

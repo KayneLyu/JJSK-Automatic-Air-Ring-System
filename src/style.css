@@ -18,12 +18,13 @@
   /* --theme-color: #161616; */
   --theme-color: #213547;
   --theme-background: #ffffff;
-  /* --container-back: rgb(235 235 235 / 50%); */
   --container-back: rgb(217 217 217 / 12%);
   --tag-back: #ebebeb2e;
   --border-color: #a9a9a9;
-  --tool-bar: #1899E1;
+  --tool-bar: #1899e1;
   --tool-btn-color: #fff;
+  --color-tool-btn-bg: #d5d5d571;
+  --height-header: 30px;
 }
 * {
   margin: 0;
@@ -36,6 +37,10 @@ html {
   color: var(--theme-color);
   background: var(--theme-background);
   scrollbar-width: thin;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 html.dark {
@@ -44,7 +49,8 @@ html.dark {
   --container-back: rgb(39 39 39 / 50%);
   --tag-back: #161616;
   --border-color: #fff;
-  --tool-bar: #000;
+  --color-tool-btn-bg: #b9b9b94a;
+  --tool-bar: #0538b2;
 }
 
 ::view-transition-old(root),

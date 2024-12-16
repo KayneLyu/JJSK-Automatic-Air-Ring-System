@@ -36,10 +36,14 @@ const windowControls = (method: string) => {
 ul {
    display: flex;
    li {
+      height: 100%;
       padding: 2px 14px;
       cursor: pointer;
+      box-sizing: border-box;
+      height: var(--height-header);
+      line-height: var(--height-header);
       &:hover {
-         background: #dedede;
+         background: var(--color-tool-btn-bg);
       }
       &:last-of-type:hover {
          background: red;
