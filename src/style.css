@@ -13,6 +13,9 @@
 }  */
 
 :root {
+  --clr: #eaf2f8;
+  --menu-bg: #fff;
+  --text-color: #4D4D4F;
   --back-blur: 16px;
   --html-font: 16px;
   /* --theme-color: #161616; */
@@ -51,6 +54,9 @@ html.dark {
   --border-color: #fff;
   --color-tool-btn-bg: #b9b9b94a;
   --tool-bar: #0538b2;
+  --clr: #1F1F1F;
+  --menu-bg: #181818;
+  --text-color: #E5EAF3;
 }
 
 ::view-transition-old(root),
@@ -91,6 +97,9 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+#app {
+  min-height: 100vh;
 }
 
 @media (prefers-color-scheme: light) {

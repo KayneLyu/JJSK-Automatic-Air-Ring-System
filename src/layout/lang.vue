@@ -4,6 +4,7 @@ import { getCurrentInstance } from 'vue'
 // import { ElMessage } from 'element-plus' // 手动引入 ElMessage 会导致样式丢失
 import LangIcon from '@/components/icons/Lang.vue';
 import ArrowDown from '@/components/icons/Arrowdown.vue';
+// import { ElNotification } from 'element-plus'
 
 const LangType: Record<ILanguageType, string> = {
     zhCn: "中文",
@@ -12,12 +13,22 @@ const LangType: Record<ILanguageType, string> = {
 
 const store = useLangStore()
 const { proxy } = getCurrentInstance() as any
+
+const open1 = () => {
+        ElNotification({
+            title: 'Custom Position',
+            message: "I'm at the top right corner",
+            position: 'bottom-left',
+        })
+    }
 const handleCommand = (value: ILanguageType) => {
     if (store.language === value) return
     proxy.$i18n.locale = value
     store.changeLang(value)
+
+    open1()
     ElMessage.closeAll()
-    ElMessage.success(`${value === 'en' ? '英文' : '中文'}切换成功！`)
+    ElMessage.success(`${value === 'en' ? '英文' : '中文'} 切换成功！`)
 }
 </script>
 
@@ -49,18 +60,21 @@ const handleCommand = (value: ILanguageType) => {
     cursor: pointer;
     min-width: 150px;
 }
+
 .el-icon {
     color: #fff;
     font-size: 18px;
     vertical-align: middle;
     margin-right: 3px;
 }
+
 .el-icon-arrow {
     color: #fff;
     font-size: 16px;
     margin-left: 10px;
     vertical-align: middle;
 }
+
 .el-dropdown-link {
     color: #fff;
     font-size: 15px;

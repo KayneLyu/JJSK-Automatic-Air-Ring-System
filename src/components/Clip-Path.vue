@@ -12,24 +12,23 @@ declare global {
 }
 
 let isDark = ref(false)
-
 function changeTheme() {
     // 切换页面主题
     isDark.value = !isDark.value;
     document.documentElement.classList.toggle("dark");
     // const bg = document.querySelector('.kan_fixed') as HTMLElement;
     // const snakeAnimate = document.querySelector('.snake_animate') as HTMLImageElement;
-    if (isDark.value) {
-        // bg.style.backgroundImage = 'none'
-        // snakeAnimate.src= snakeDark
-        return
-    }
+    // if (isDark.value) {
+    //     bg.style.backgroundImage = 'none'
+    //     snakeAnimate.src= snakeDark
+    //     return
+    // }
     // bg.style.backgroundImage = `url(${backgroundBg})`
     // snakeAnimate.src= snake
 }
 
 function updateView(event: MouseEvent) {
-    //在不支持的浏览器里不做动画
+    // 在不支持的浏览器里不做动画
     if (!document.startViewTransition) {
         changeTheme();
         return;
@@ -39,9 +38,7 @@ function updateView(event: MouseEvent) {
     transition.ready.then(() => {
         const x = event.clientX;
         const y = event.clientY;
-        console.log('x',x,y,event);
-        
-        //计算按钮到最远点的距离用作裁剪圆形的半径
+        // 计算按钮到最远点的距离用作裁剪圆形的半径
         const endRadius = Math.hypot(
             Math.max(x, innerWidth - x),
             Math.max(y, innerHeight - y)
@@ -50,7 +47,7 @@ function updateView(event: MouseEvent) {
             `circle(0px at ${x}px ${y}px)`,
             `circle(${endRadius}px at ${x}px ${y}px)`,
         ];
-        //开始动画
+        // 开始动画
         document.documentElement.animate(
             {
                 clipPath: isDark.value ? [...clipPath].reverse() : clipPath,
@@ -65,6 +62,7 @@ function updateView(event: MouseEvent) {
         );
     });
 }
+
 </script>
 
 <template>
