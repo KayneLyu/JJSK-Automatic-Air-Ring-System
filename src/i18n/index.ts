@@ -5,7 +5,7 @@ import en from './lang/en'
 
 const i18n = createI18n({
   legacy: false, // 设置为 false，启用 composition API 模式
-  locale: sessionStorage.getItem('localeLang') || 'en',
+  locale: sessionStorage.getItem('localeLang') || 'zhCn',
   messages: {
     zhCn,
     en,

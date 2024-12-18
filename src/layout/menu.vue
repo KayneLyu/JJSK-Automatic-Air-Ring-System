@@ -1,111 +1,117 @@
 <script setup lang='ts'>
-import { computed } from 'vue';
+import { ref } from 'vue';
 import { useRoute } from 'vue-router';
 import ControlsIcon from '@/components/icons/Controls.vue';
 import HorizonIcon from '@/components/icons/Horizon.vue';
+import AnnularIcon from '@/components/icons/Annular.vue';
+import VerticalIcon from '@/components/icons/Vertical.vue';
+import AlarmIcon from '@/components/icons/Alarm.vue';
+import ProductIcon from '@/components/icons/Product.vue';
+import UnfoldIcon from '@/components/icons/Unfold.vue';
 
-// type IMenuItem = {
-//     name: string
-//     color: string
-//     location: string
-//     icon: Component
-// }
 const menuItemList = [
     {
-        name: "menu.product",
+        name: "menu.control",
         color: "#b145e9",
-        // color: "#001dc3",
-        location: "/horizon",
+        location: "/",
         icon: ControlsIcon,
+    },
+    {
+        name: "menu.annular",
+        color: "#ffa117",
+        location: "/annular",
+        icon: AnnularIcon,
     },
     {
         name: "menu.horizon",
         color: "#2196f3",
-        location: "/",
+        location: "/horizon",
         icon: HorizonIcon,
     },
-    // {
-    //   name: "menu.ring",
-    //   color: "#ffa117",
-    //   location: "/loop",
-    //   icon: <PieChartOutlined />,
-    // },
-    // {
-    //   name: "menu.history",
-    //   color: "#0fc70f",
-    //   location: "/history",
-    //   icon: <FundViewOutlined />,
-    // },
-    // {
-    //   name: "menu.auto",
-    //   color: "#b145e9",
-    //   location: "/auto",
-    //   icon: <DashboardOutlined />,
-    // },
-    // {
-    //   name: "menu.alarm",
-    //   color: "#f44336",
-    //   location: "/alarm",
-    //   icon: <AlertOutlined />,
-    // },
+    {
+        name: "menu.vertical",
+        color: "#0fc70f",
+        location: "/vertical",
+        icon: VerticalIcon,
+    },
+    {
+        name: "menu.product",
+        color: "#24ADF3",
+        location: "/product",
+        icon: ProductIcon,
+    },
+    {
+        name: "menu.alarm",
+        color: "#f44336",
+        location: "/alarm",
+        icon: AlarmIcon,
+    },
 ]
 
 const route = useRoute();
+const isFold = ref(false)
+
+// 阻止按住ctrl 跳转默认事件
+const preventDefault = (e: MouseEvent) => {
+    if (e.ctrlKey) {
+        e.preventDefault();
+    }
+}
 
 </script>
 
 <template>
     <div class="sidebar">
-        <ul>
+        <ul :style="{ width: isFold ? '190px' : '70px' }">
             <li class="logo"></li>
             <div class="menu-list">
-                <li v-for="(item, index) in menuItemList" :key="index" :class="{ 'active': route.path === item.location }" :style="{'--bg':item.color}">
+                <li v-for="(item, index) in menuItemList" :key="index" @click="preventDefault"
+                    :class="{ 'active': route.path === item.location }" :style="{ '--bg': item.color }">
                     <RouterLink :to="item.location">
                         <div className="icon">
-                            <i>
+                            <el-icon :size="40">
                                 <component :is="item.icon" />
-                            </i>
+                            </el-icon>
                         </div>
-                        <div className="text">{{ item.name }}</div>
+                        <div className="text">{{ $t(item.name) }}</div>
                     </RouterLink>
                 </li>
             </div>
+            <li @click="() => isFold = !isFold" class="unfold">
+                <el-icon :size="28" :class="isFold ? 'rotate_animate' : 'rotate_animate_back'">
+                    <UnfoldIcon />
+                </el-icon>
+            </li>
         </ul>
     </div>
 </template>
 
 <style scoped lang="less">
 .sidebar {
-    width: 180px;
     height: 100%;
     background-color: var(--menu-bg);
     transition: 0.5s;
     padding-left: 10px;
     overflow: hidden;
-}
-i {
-    font-size: 28px;
-}
-.sidebar.active {
-    width: 300px;
-}
 
-.sidebar ul {
-    position: relative;
-    height: 100%;
-}
+    ul {
+        position: relative;
+        height: 100%;
+        transition: all 0.3s ease-in-out;
 
-.sidebar ul li {
-    position: relative;
-    list-style: none;
-    margin-top: 20px;
-    -webkit-tap-highlight-color: transparent;
-}
+        li {
+            position: relative;
+            list-style: none;
+            margin-top: 20px;
+            -webkit-tap-highlight-color: transparent;
 
-.sidebar ul li.active {
-    background-color: var(--clr);
-    border-top-left-radius: 50px;
-    border-bottom-left-radius: 50px;
+            &.active {
+                background-color: var(--clr);
+                border-top-left-radius: 50px;
+                border-bottom-left-radius: 50px;
+            }
+        }
+    }
 }
 
 .sidebar ul li.active::before {
@@ -160,12 +166,9 @@ i {
     display: flex;
     justify-content: center;
     align-items: center;
-    // min-width: 60px;
-    // height: 70px;
-    // font-size: 1.5em;
     color: var(--text-color);
     transition: 0.5s;
-    padding-left: 10px;
+    padding-left: 11px;
 }
 
 .sidebar ul li a .text {
@@ -173,10 +176,10 @@ i {
     height: 70px;
     display: flex;
     align-items: center;
-    font-size: 1em;
-    color: var( --text-color);
-    padding-left: 25px;
-    text-transform: uppercase;
+    font-size: 16px;
+    color: var(--text-color);
+    padding-left: 20px;
+    // text-transform: uppercase; 大写
     letter-spacing: 0.05em;
     transition: 0.5s;
 }
@@ -185,8 +188,14 @@ i {
     color: #fff;
 }
 
+.sidebar ul li.active:hover a .icon {
+    color: #fff;
+}
+
 .sidebar ul li.active a .text {
     color: var(--bg);
+    font-weight: 700;
+    padding-left: 25px;
 }
 
 .sidebar ul li:hover a .icon,
@@ -204,73 +213,44 @@ i {
     transition: 0.5s;
 }
 
-.sidebar ul li:hover.active a .icon::before {
-    background-color: var(--menu-bg);
+.sidebar ul .unfold {
+    position: absolute;
+    bottom: 70px;
+    right: 5px;
+    padding: 5px;
+    cursor: pointer;
 }
 
-// .bottom {
-//     position: absolute;
-//     bottom: 0;
-//     width: 100%;
+.rotate_animate {
+    animation: rotate_icon 0.3s forwards;
+}
+
+@keyframes rotate_icon {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(180deg);
+    }
+}
+
+.rotate_animate_back {
+    animation: rotate_icon_back 0.3s forwards;
+}
+
+@keyframes rotate_icon_back {
+    0% {
+        transform: rotate(180deg);
+    }
+
+    100% {
+        transform: rotate(0deg);
+    }
+}
+
+// .sidebar ul li:hover.active a .icon::before {
+//     background-color: var(--menu-bg);
 // }
 
-// .imgBx {
-//     position: relative;
-//     width: 40px;
-//     height: 40px;
-//     border-radius: 40px;
-//     overflow: hidden;
-// }
-
-// .imgBx img {
-//     position: absolute;
-//     top: 0;
-//     left: 0;
-//     width: 100%;
-//     height: 100%;
-//     object-fit: cover;
-// }
-
-// .menuToggle {
-//     position: absolute;
-//     top: 20px;
-//     right: 20px;
-//     width: 50px;
-//     height: 50px;
-//     background-color: #31a4ff;
-//     display: flex;
-//     justify-content: center;
-//     align-items: center;
-//     z-index: 1000;
-// }
-
-// .menuToggle::before {
-//     content: '';
-//     position: absolute;
-//     width: 30px;
-//     height: 3px;
-//     background-color: #fff;
-//     transform: translateY(-9px);
-//     transition: 0.5s;
-//     box-shadow: 0 9px 0 #fff;
-// }
-
-// .menuToggle::after {
-//     content: '';
-//     position: absolute;
-//     width: 30px;
-//     height: 3px;
-//     background-color: #fff;
-//     transform: translateY(9px);
-//     transition: 0.5s;
-// }
-
-// .menuToggle.active::before {
-//     transform: translateY(0) rotate(45deg);
-//     box-shadow: 0 0 0 #fff;
-// }
-
-// .menuToggle.active::after {
-//     transform: translateY(0) rotate(-45deg);
-// }
 </style>

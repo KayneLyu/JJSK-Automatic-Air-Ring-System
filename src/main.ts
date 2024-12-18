@@ -13,7 +13,7 @@ app.use(pinia)
 app.use(router)
 app.mount('#app')
 
-// createApp(App).mount('#app').$nextTick(() => {
+// app.mount('#app').$nextTick(() => {
 //   window.ipcRenderer.on('main-process-message', (_event, message) => {
 //     console.log(message)
 //   })

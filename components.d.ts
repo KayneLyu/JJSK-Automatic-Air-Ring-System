@@ -7,7 +7,10 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    Alarm: typeof import('./src/components/icons/Alarm.vue')['default']
+    Annular: typeof import('./src/components/icons/Annular.vue')['default']
     Arrowdown: typeof import('./src/components/icons/Arrowdown.vue')['default']
+    Arrowright: typeof import('./src/components/icons/Arrowright.vue')['default']
     ClipPath: typeof import('./src/components/Clip-Path.vue')['default']
     Close: typeof import('./src/components/icons/Close.vue')['default']
     Controls: typeof import('./src/components/icons/Controls.vue')['default']
@@ -20,8 +23,11 @@ declare module 'vue' {
     Maximize: typeof import('./src/components/icons/Maximize.vue')['default']
     Minimize: typeof import('./src/components/icons/Minimize.vue')['default']
     Moon: typeof import('./src/components/icons/Moon.vue')['default']
+    Product: typeof import('./src/components/icons/Product.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     Sun: typeof import('./src/components/icons/Sun.vue')['default']
+    Unfold: typeof import('./src/components/icons/Unfold.vue')['default']
+    Vertical: typeof import('./src/components/icons/Vertical.vue')['default']
   }
 }
