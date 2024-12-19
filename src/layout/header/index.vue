@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import ClipPath from "@/components/Clip-Path.vue";
+import ClipPath from "./Clip-Path.vue";
 import WindowControls from './toolbar.vue';
 import LangCheckOut from './lang.vue';
 

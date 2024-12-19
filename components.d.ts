@@ -14,6 +14,7 @@ declare module 'vue' {
     ClipPath: typeof import('./src/components/Clip-Path.vue')['default']
     Close: typeof import('./src/components/icons/Close.vue')['default']
     Controls: typeof import('./src/components/icons/Controls.vue')['default']
+    ElCard: typeof import('element-plus/es')['ElCard']
     ElDropdown: typeof import('element-plus/es')['ElDropdown']
     ElDropdownItem: typeof import('element-plus/es')['ElDropdownItem']
     ElDropdownMenu: typeof import('element-plus/es')['ElDropdownMenu']

@@ -93,18 +93,16 @@ const preventDefault = (e: MouseEvent) => {
     transition: 0.5s;
     padding-left: 10px;
     overflow: hidden;
-
     ul {
         position: relative;
+        overflow: hidden;
         height: 100%;
         transition: all 0.3s ease-in-out;
-
         li {
             position: relative;
             list-style: none;
-            margin-top: 20px;
+            margin-bottom: 20px;
             -webkit-tap-highlight-color: transparent;
-
             &.active {
                 background-color: var(--clr);
                 border-top-left-radius: 50px;
@@ -140,7 +138,7 @@ const preventDefault = (e: MouseEvent) => {
 
 
 .sidebar ul li.logo {
-    margin-bottom: 50px;
+    margin-bottom: 80px;
 }
 
 .sidebar ul li.logo .icon {
@@ -215,7 +213,7 @@ const preventDefault = (e: MouseEvent) => {
 
 .sidebar ul .unfold {
     position: absolute;
-    bottom: 70px;
+    bottom: 10px;
     right: 5px;
     padding: 5px;
     cursor: pointer;

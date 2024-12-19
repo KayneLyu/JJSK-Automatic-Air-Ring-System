@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useLangStore } from '@/store/lang'
 import MoonIcon from '@/components/icons/Moon.vue';
 import SunIcon from '@/components/icons/Sun.vue';
 
@@ -10,12 +11,14 @@ declare global {
         };
     }
 }
-
+const store = useLangStore()
 let isDark = ref(false)
 function changeTheme() {
     // 切换页面主题
     isDark.value = !isDark.value;
     document.documentElement.classList.toggle("dark");
+
+    store.theme = isDark.value ? 'dark' : 'light'
     // const bg = document.querySelector('.kan_fixed') as HTMLElement;
     // const snakeAnimate = document.querySelector('.snake_animate') as HTMLImageElement;
     // if (isDark.value) {
