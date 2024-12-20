@@ -28,10 +28,11 @@ import ContentComponent from './content/index.vue';
 .layout_content {
     display: flex;
     flex: 1;
-
+    overflow: hidden;
     .layout_menu {
         height: 100%;
     }
+
     .layout_main {
         flex: 1;
         background-color: var(--clr);

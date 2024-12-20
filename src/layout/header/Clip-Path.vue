@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useLangStore } from '@/store/lang'
+import { onMounted } from 'vue';
+import { useConfigStore } from '@/store/config'
 import MoonIcon from '@/components/icons/Moon.vue';
 import SunIcon from '@/components/icons/Sun.vue';
 
@@ -11,14 +11,18 @@ declare global {
         };
     }
 }
-const store = useLangStore()
-let isDark = ref(false)
+const store = useConfigStore()
+
+onMounted(() => {
+    if (store.isDark) {
+        document.documentElement.classList.add("dark")
+    }
+})
+
 function changeTheme() {
     // 切换页面主题
-    isDark.value = !isDark.value;
     document.documentElement.classList.toggle("dark");
-
-    store.theme = isDark.value ? 'dark' : 'light'
+    store.isDark = !store.isDark
     // const bg = document.querySelector('.kan_fixed') as HTMLElement;
     // const snakeAnimate = document.querySelector('.snake_animate') as HTMLImageElement;
     // if (isDark.value) {
@@ -53,12 +57,12 @@ function updateView(event: MouseEvent) {
         // 开始动画
         document.documentElement.animate(
             {
-                clipPath: isDark.value ? [...clipPath].reverse() : clipPath,
+                clipPath: store.isDark ? [...clipPath].reverse() : clipPath,
             },
             {
                 duration: 400,
                 easing: "ease-in",
-                pseudoElement: isDark.value
+                pseudoElement: store.isDark
                     ? "::view-transition-old(root)"
                     : "::view-transition-new(root)",
             }
@@ -70,10 +74,10 @@ function updateView(event: MouseEvent) {
 
 <template>
     <div @click="updateView" class="switch_box">
-        <input v-model="isDark" class="switch_input" type="checkbox" />
+        <input v-model="store.isDark" class="switch_input" type="checkbox" />
         <span class="slider round">
             <i>
-                <component :is="isDark ? MoonIcon : SunIcon" />
+                <component :is="store.isDark ? MoonIcon : SunIcon" />
             </i>
         </span>
     </div>
@@ -103,10 +107,10 @@ function updateView(event: MouseEvent) {
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: transparent;
+    background-color: #a4a4a475;
     transition: .4s;
     border-radius: 12px;
-    border: 1px solid #ccc;
+    border: 1px solid #e6e6e6;
 }
 
 .slider i {

@@ -1,30 +1,27 @@
-/* @media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: var(--vt-c-black);
-    --color-background-soft: var(--vt-c-black-soft);
-    --color-background-mute: var(--vt-c-black-mute);
-
-    --color-border: var(--vt-c-divider-dark-2);
-    --color-border-hover: var(--vt-c-divider-dark-1);
-
-    --color-heading: var(--vt-c-text-dark-1);
-    --color-text: var(--vt-c-text-dark-2);
-  }
-}  */
+    /* --primary-100:#d4eaf7;
+    --primary-200:#b6ccd8;
+    --primary-300:#3b3c3d;
+    --accent-100:#71c4ef;
+    --accent-200:#00668c;
+    --text-100:#1d1c1c;
+    --text-200:#313d44;
+    --bg-100:#fffefb;
+    --bg-200:#f5f4f1;
+    --bg-300:#cccbc8; */
+      
 
 :root {
-  --clr: #eaf2f8;
-  --menu-bg: #fff;
-  --text-color: #4D4D4F;
+  --clr: #F5F5F5;
+  --menu-bg: #fffefb;
+  --text-color: #3b3c3d;
   --back-blur: 16px;
   --html-font: 16px;
-  /* --theme-color: #161616; */
   --theme-color: #213547;
   --theme-background: #ffffff;
   --container-back: rgb(217 217 217 / 12%);
   --tag-back: #ebebeb2e;
   --border-color: #a9a9a9;
-  --tool-bar: #1899e1;
+  --tool-bar: #cccbc8;
   --tool-btn-color: #fff;
   --color-tool-btn-bg: #d5d5d571;
   --height-header: 30px;
@@ -102,7 +99,7 @@ body {
   min-height: 100vh;
 }
 
-@media (prefers-color-scheme: light) {
+/* @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
     background-color: #ffffff;
@@ -113,4 +110,4 @@ body {
   button {
     background-color: #f9f9f9;
   }
-}
+} */

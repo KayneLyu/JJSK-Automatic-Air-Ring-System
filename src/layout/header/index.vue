@@ -36,6 +36,7 @@ import LangCheckOut from './lang.vue';
 <style scoped lang="less">
 .header {
   display: flex;
+  position: sticky;
   height: var(--height-header);
   justify-content: space-between;
   align-items: center;

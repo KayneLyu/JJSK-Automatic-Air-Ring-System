@@ -1,6 +1,6 @@
 import { onBeforeUnmount, watch, useTemplateRef, onMounted } from 'vue';
 import * as echarts from 'echarts/core';
-import { useLangStore } from '@/store/lang'
+import { useConfigStore } from '@/store/config'
 import type { EChartsCoreOption } from 'echarts/core';
 
 // 用于防抖的辅助函数（可根据实际情况调整防抖时间间隔）
@@ -20,16 +20,15 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption) => {
     let chartInstanceRef: echarts.ECharts | null = null
     let observer: ResizeObserver | null = null
 
-    const store = useLangStore();
+    const store = useConfigStore();
     // 初始化图表函数，提取出来方便复用和单独处理逻辑
     const initChart = () => {
         if (chartRef.value) {
             try {
-                chartInstanceRef = echarts.init(chartRef.value, store.theme);
+                chartInstanceRef = echarts.init(chartRef.value, store.isDark? 'dark' : '');
                 chartInstanceRef.setOption(options);
             } catch (error) {
-                console.error('初始化 Echarts 图表时出错：', error);
-                throw error;
+                ElMessage.error('初始化图表时出错!');
             }
             // 创建 ResizeObserver 实例并添加监听（只在初始化时进行）
             if (!observer) {
@@ -42,9 +41,9 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption) => {
             }
         }
     };
-    const updateCharts = () => {
+    const updateCharts = (newOptions: EChartsCoreOption) => {
         if (chartRef.value) {
-            chartInstanceRef?.setOption(options);
+            chartInstanceRef?.setOption(newOptions);
         }
     }
 

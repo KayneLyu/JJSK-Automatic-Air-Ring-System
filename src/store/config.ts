@@ -1,12 +1,14 @@
 import { defineStore } from 'pinia'
 type ILanguage = {
   language: ILanguageType
+  isDark: boolean
 }
 
-export const useLangStore = defineStore('language', {
+export const useConfigStore = defineStore('config', {
   state: (): ILanguage => {
     return {
       language: 'zhCn',
+      isDark: false,
     }
   },
   actions: {

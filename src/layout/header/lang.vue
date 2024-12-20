@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { useLangStore } from '@/store/lang'
-import { getCurrentInstance } from 'vue'
-// import { ElMessage } from 'element-plus' // 手动引入 ElMessage 会导致样式丢失
+import { useLangStore } from '@/store/lang.ts'
+import { inject , Ref } from 'vue'
 import LangIcon from '@/components/icons/Lang.vue';
 import ArrowDown from '@/components/icons/Arrowdown.vue';
+import { I18n } from 'vue-i18n';
+// import { ElMessage } from 'element-plus' // 手动引入 ElMessage 会导致样式丢失
 // import { ElNotification } from 'element-plus'
 
 const LangType: Record<ILanguageType, string> = {
@@ -12,21 +13,20 @@ const LangType: Record<ILanguageType, string> = {
 }
 
 const store = useLangStore()
-const { proxy } = getCurrentInstance() as any
-
-const open1 = () => {
+const i18n = inject('$i18n') as I18n;
+const openNotification = () => {
         ElNotification({
-            title: 'Custom Position',
-            message: "I'm at the top right corner",
+            title: 'Language',
+            message: "check out language success !",
             position: 'bottom-left',
         })
     }
+    
 const handleCommand = (value: ILanguageType) => {
     if (store.language === value) return
-    proxy.$i18n.locale = value
+    (i18n.global.locale as Ref<string>).value = value;
     store.changeLang(value)
-
-    open1()
+    openNotification()
     ElMessage.closeAll()
     ElMessage.success(`${value === 'en' ? '英文' : '中文'} 切换成功！`)
 }

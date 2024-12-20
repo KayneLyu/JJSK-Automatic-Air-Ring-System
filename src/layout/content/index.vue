@@ -25,6 +25,8 @@ import Header from './header.vue';
     height: 100%;
     .layout_views {
         flex: 1;
+        box-sizing: border-box;
+        padding: 10px;
     }
 }
 .fade-enter-active,
