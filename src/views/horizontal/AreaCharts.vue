@@ -13,7 +13,6 @@ import { LineChart } from 'echarts/charts';
 import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts';
-import type { EChartsCoreOption } from 'echarts/core';
 
 type ECOption = echarts.ComposeOption<
     | TitleComponentOption
@@ -47,7 +46,7 @@ let option: ECOption = {
     // 边距设置
     grid: {
         left: "1%",
-        right: "3%",
+        right: "2%",
         bottom: "3%",
         top: "5%",
         containLabel: true,
@@ -85,11 +84,11 @@ let option: ECOption = {
             formatter: function (value) {
                 return value + "%";
             },
-            color: function (value: any): string {
-                return value == 5 || value == -1 * 5
-                    ? "red"
-                    : "black";
-            },
+            // color: function (value: any): string {
+            //     return value == 5 || value == -1 * 5
+            //         ? "red"
+            //         : "black";
+            // },
         },
         axisTick: {},
         minorTick: {
@@ -168,7 +167,7 @@ const updateCharts = useChartsInit('chartContainer', option)
 </script>
 
 <template>
-    <div class="chartContainer" ref="chartContainer" style="width: 100%;; height: 100%;"></div>
+    <div  ref="chartContainer" style="width: 100%;; height: 100%;"></div>
 </template>
 
 <style scoped></style>

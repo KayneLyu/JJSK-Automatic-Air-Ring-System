@@ -7,6 +7,7 @@ import './style.css'
 import App from './App.vue'
 // i18n
 import i18n from '@/i18n';
+import 'element-plus/theme-chalk/dark/css-vars.css'
 
 const app = createApp(App)
 const pinia = createPinia()

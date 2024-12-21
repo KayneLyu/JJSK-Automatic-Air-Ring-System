@@ -52,6 +52,5 @@ ul {
 }
 .icon_style {
    font-size: 14px;
-   color: red;
 }
 </style>

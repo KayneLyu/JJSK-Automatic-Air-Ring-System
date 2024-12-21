@@ -62,21 +62,21 @@ const handleCommand = (value: ILanguageType) => {
 }
 
 .el-icon {
-    color: #fff;
+    color:var(--tool-btn-color);
     font-size: 18px;
     vertical-align: middle;
     margin-right: 3px;
 }
 
 .el-icon-arrow {
-    color: #fff;
+    color:var(--tool-btn-color);
     font-size: 16px;
     margin-left: 10px;
     vertical-align: middle;
 }
 
 .el-dropdown-link {
-    color: #fff;
+    color:var(--tool-btn-color);
     font-size: 15px;
 }
 </style>

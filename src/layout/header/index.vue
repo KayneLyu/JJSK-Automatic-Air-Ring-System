@@ -62,9 +62,9 @@ import LangCheckOut from './lang.vue';
 .title_container {
   .text {
     font-size: 13px;
-    color: #fff;
-    letter-spacing: 1px;
-    margin-left: 10px;
+    color: var(--tool-btn-color);
+    letter-spacing: 2px;
+    margin-left: 12px;
   }
 }
 
