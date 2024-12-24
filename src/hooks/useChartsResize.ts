@@ -3,7 +3,7 @@ import * as echarts from 'echarts/core';
 import { useConfigStore } from '@/store/config'
 import type { EChartsCoreOption } from 'echarts/core';
 
-const useInitCharts = (containerName: string, options: EChartsCoreOption) => {
+const useChartsResize = (containerName: string) => {
     const chartRef = useTemplateRef<HTMLElement>(containerName);
     let chartInstanceRef: echarts.ECharts | null = null
     let observer: ResizeObserver | null = null
@@ -13,8 +13,7 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption) => {
     const initChart = () => {
         if (chartRef.value) {
             try {
-                chartInstanceRef = echarts.init(chartRef.value, store.isDark ? 'dark' : '');
-                chartInstanceRef.setOption(options);
+                chartInstanceRef = echarts.init(chartRef.value, store.isDark? 'dark' : '');
             } catch (error) {
                 ElMessage.error('初始化图表时出错!');
             }
@@ -35,16 +34,6 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption) => {
         }
     }
 
-    const selectSeriesIndex = (dataIndex: number) => {
-        if (chartInstanceRef) {
-            chartInstanceRef.dispatchAction({
-                type: "showTip",
-                seriesIndex: 0, //两个图标同时展示
-                dataIndex: dataIndex,
-            });
-        }
-    }
-
     const dropCharts = () => {
         if (observer) {
             observer.disconnect();
@@ -56,12 +45,6 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption) => {
         }
     };
 
-    // 监听store.theme的变化，以便更新echarts实例的主题
-    watch(store, (newTheme) => {
-        dropCharts()
-        initChart()
-    });
-
     onMounted(() => {
         initChart()
     })
@@ -71,10 +54,7 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption) => {
         dropCharts()
     });
 
-    return {
-        updateCharts,
-        selectSeriesIndex
-    }
+    return chartInstanceRef
 };
 
-export default useInitCharts;
+export default useChartsResize;

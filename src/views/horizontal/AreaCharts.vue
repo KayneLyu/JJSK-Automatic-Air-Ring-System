@@ -32,7 +32,6 @@ echarts.use([
 let option: ECOption = {
     animation: false,
     title: {
-        // text: `风环控制前扫描图  ${startTime} ${endTime}`,
         text: "自动风环扫描图",
         top: "2%",
         right: "0%",
@@ -151,7 +150,7 @@ let option: ECOption = {
     ],
 };
 const chartContainer = ref<HTMLElement | null>(null)
-const updateCharts = useChartsInit('chartContainer', option)
+const { updateCharts } = useChartsInit('chartContainer', option)
 // setTimeout(() => {
 //     updateCharts({
 //         series: [

@@ -2,6 +2,7 @@
 import HorizonCharts from './AreaCharts.vue';
 import HeatState from './HeatsState.vue';
 import ThickInfo from './ThickInfo.vue';
+
 </script>
 
 <template>
@@ -75,7 +76,7 @@ import ThickInfo from './ThickInfo.vue';
          </div>
          <div class="info_card">
             <el-card class="card_content">
-               <ThickInfo />
+               <!-- <ThickInfo /> -->
             </el-card>
          </div>
       </div>
@@ -91,7 +92,6 @@ import ThickInfo from './ThickInfo.vue';
 
 .charts_content {
    margin-top: 9px;
-
    &:first-of-type {
       margin: 0;
    }
@@ -114,16 +114,12 @@ import ThickInfo from './ThickInfo.vue';
    .info_card {
       width: 200px;
       height: 100%;
-
-      // background-color: red;
       .card_content {
          background: #f5f4f1;
          height: 100%;
       }
    }
 }
-
-
 
 :deep(.el-card__body) {
    height: 99%;

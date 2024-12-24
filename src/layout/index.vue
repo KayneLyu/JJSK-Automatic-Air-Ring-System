@@ -12,8 +12,15 @@ import ContentComponent from './content/index.vue';
                 <MenuComponent />
             </div>
             <div class="layout_main">
-                <ContentComponent />
+                <div class="layout_views">
+                    <ContentComponent />
+                </div>
+
+                <div class="layout_footer">
+                    自动风环状态: 
+                </div>
             </div>
+
         </div>
     </div>
 </template>
@@ -29,6 +36,7 @@ import ContentComponent from './content/index.vue';
     display: flex;
     flex: 1;
     overflow: hidden;
+
     .layout_menu {
         height: 100%;
     }
@@ -36,6 +44,20 @@ import ContentComponent from './content/index.vue';
     .layout_main {
         flex: 1;
         background-color: var(--clr);
+        display: flex;
+        flex-direction: column;
+        .layout_views {
+            flex: 1;
+        }
+        .layout_footer {
+            display: flex;
+            align-items: center;
+            height: 22px;
+            width: 100%;
+            background-color: var(--menu-bg);
+            border-left: 1px solid #9d9d9d17;
+            font-size: 12px;
+        }
     }
 }
 </style>

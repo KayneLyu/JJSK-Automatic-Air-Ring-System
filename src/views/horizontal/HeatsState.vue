@@ -2,29 +2,26 @@
 import { ref } from 'vue';
 import * as echarts from 'echarts/core';
 import {
-    GridComponent,
     TitleComponent,
     TitleComponentOption,
-    TooltipComponentOption,
+    GridComponent,
     GridComponentOption,
-    DatasetComponentOption,
 } from 'echarts/components';
-import { LineChart } from 'echarts/charts';
+import { BarChart, BarSeriesOption } from 'echarts/charts';
 import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts';
 
 type ECOption = echarts.ComposeOption<
     | TitleComponentOption
-    | TooltipComponentOption
     | GridComponentOption
-    | DatasetComponentOption
+    | BarSeriesOption
 >;
 
 echarts.use([
     TitleComponent,
     GridComponent,
-    LineChart,
+    BarChart,
     CanvasRenderer,
     UniversalTransition
 ]);
@@ -32,7 +29,6 @@ echarts.use([
 
 const xAxisData = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,34, 35, 36, 37, 38, ]
 let option: ECOption = {
-    // title: title,
     animation:false,
     title: {
         text: "当前风环通道状态",
@@ -47,7 +43,7 @@ let option: ECOption = {
     },
     grid: {
         left: "0.5%",
-        right: "3%",
+        right: "2%",
         bottom: "4%",
         top: "5%",
         containLabel: true,
@@ -65,7 +61,6 @@ let option: ECOption = {
                 show: true,
             },
             axisLabel: {
-                // interval: 6,
                 formatter: (value) => {
                     return value + "°";
                 },
@@ -117,7 +112,7 @@ let option: ECOption = {
     ]
 };
 const chartContainer = ref<HTMLElement | null>(null)
-const updateCharts = useChartsInit('chartContainer', option)
+const { updateCharts } = useChartsInit('chartContainer', option)
 // setTimeout(() => {
 //     updateCharts({
 //         series: [
