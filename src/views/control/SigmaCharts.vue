@@ -185,7 +185,7 @@ onMounted
 </script>
 
 <template>
-    <div ref="chartContainer" style="width: 100%;  height: 200px;"></div>
+    <div ref="chartContainer" style="width: 99%;  height: 200px;"></div>
 </template>
 
 <style scoped>
