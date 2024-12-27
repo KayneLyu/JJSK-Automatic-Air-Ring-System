@@ -41,6 +41,14 @@ function createWindow() {
     // win.loadFile('dist/index.html')
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
+
+  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    const newHeaders = {
+     ...details.responseHeaders,
+      'Content - Security - Policy': "default - src 'self'; connect - src 'self' http://localhost:10010"
+    };
+    callback({ responseHeaders: newHeaders });
+  });
 }
 
 // Quit when all windows are closed, except on macOS. There, it's common

@@ -32,15 +32,15 @@ export const toTheEdge = () => {
 /**
  * 轮询数据
  */
-export const getInfoInterval = () => {
-    return formateResult<IIntervalInfo>(postRequest("/api/thk/getInfo"))
+export const getThickInfo = () => {
+    return formateResult<IThickInfoData>(postRequest("/api/thk/getInfo"))
 }
 
 /**
  * 设置热量
  */
 export const setAutoRingHeats = (params: number[]) => {
-    return formateResult<IIntervalInfo>(postRequest("/api/airRing/setHeats", params))
+    return formateResult(postRequest("/api/airRing/setHeats", params))
 }
 
 /**

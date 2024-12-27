@@ -23,6 +23,7 @@ declare module 'vue' {
     ElIcon: typeof import('element-plus/es')['ElIcon']
     ElProgress: typeof import('element-plus/es')['ElProgress']
     ElRow: typeof import('element-plus/es')['ElRow']
+    ElSegmented: typeof import('element-plus/es')['ElSegmented']
     ElStatistic: typeof import('element-plus/es')['ElStatistic']
     Horizon: typeof import('./src/components/icons/Horizon.vue')['default']
     Lang: typeof import('./src/components/icons/Lang.vue')['default']

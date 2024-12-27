@@ -46,6 +46,13 @@ function createWindow() {
   } else {
     win.loadFile(path.join(RENDERER_DIST, "index.html"));
   }
+  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    const newHeaders = {
+      ...details.responseHeaders,
+      "Content - Security - Policy": "default - src 'self'; connect - src 'self' http://localhost:10010"
+    };
+    callback({ responseHeaders: newHeaders });
+  });
 }
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {

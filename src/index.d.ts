@@ -1,6 +1,6 @@
 type ILanguageType = 'zhCn' | 'en'
 
-interface IIntervalInfo {
+interface IThickInfoData {
     AD: number, //采集器 的模拟量采集值 ,
     Thk: number, //厚度 um ,
     K: number, //厚度放大倍数 ,
@@ -24,26 +24,28 @@ interface IIntervalInfo {
     ErrCode: number
 }
 
-interface IIntervalData {
-    thick: number,
-    adValue: number,
-    position: number,
-    moveSpeed: number,
-    rotateSpeed: number,
-    pastTime: number,
-    isRotationCW: boolean,
-    productionSpeed: number,
-    width: number,
-    airCollection: number,
-    // 运行状态 FIX 定点; ORG 归边; FORW 前进;BACKW 后退;STOP 停止;RUNNING 运行至; DISCONNECTED 连接断开; CORR 修正; SCAN 扫描; ,
-    buttonStatus: "SCAN" | "FIX" | "ORG" | "FORW" | "BACKW" | "RUNNING" | "DISCONNECTED " | "CORR" | "STOP",
-    LastScanDataId: number,
-    PosLength: number,
-    AngleOfRotation: number,
-    ErrCode: number,
-    K: number
+interface IThickInfoInterval {
+    AD: number, //采集器的模拟量采集值 ,
+    Thk: number, //厚度 um ,
+    K: number, //厚度放大倍数 ,
+    PosMm: number, //number //探头位置 mm ,
+    // PosLenMm: number, //机架总长度 mm ,
+    PosDetector: number, //探头位置 
+    Velocity: number,//探头速度 m/min ,
+    Width: number //膜宽度 mm ,
+    FilmVelocity: number,//生产速度 m/min ,
+    ControllerState: string, //运行状态 ,
+    IsFlyAdConnected: boolean//采集器 连接状态 ,
+    IsRotationCW: boolean//旋转架 是 顺时针 clockwise ,
+    ARoundTimeOfRotation: number //旋转一圈时间 min ,
+    PastTimeOfRotation: number //转向发生到现在已经过去的时间 min ,
+    AngleOfRotation: number //旋转角度 ° ,
+    // LastScanDataId: number //数据库中 扫描数据表 最新的ID
+    // ErrCode: number
 }
 
+
+// 旧数据
 interface IFrameData {
     ID: number, //每幅图标识ID
     Time: string  //测量数据开始时间,

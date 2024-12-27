@@ -15,7 +15,6 @@ import ContentComponent from './content/index.vue';
                 <div class="layout_views">
                     <ContentComponent />
                 </div>
-
                 <div class="layout_footer">
                     自动风环状态: 
                 </div>
