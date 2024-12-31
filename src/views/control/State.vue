@@ -1,16 +1,9 @@
 <script setup lang='ts'>
-import { TransitionPresets, useTransition } from '@vueuse/core'
 import { ref } from 'vue'
 import { useApiDataStore } from '@/store/polling-data';
 import SurveyingIcon from '@/components/icons/Surveying.vue';
 import RotationIcon from '@/components/icons/Rotate.vue';
 const store = useApiDataStore()
-const source = ref(0)
-
-const output = useTransition(store.apiData.AD, {
-    duration: 1000,
-    transition: TransitionPresets.easeOutExpo,
-})
 
 </script>
 
@@ -57,7 +50,7 @@ const output = useTransition(store.apiData.AD, {
                 </el-col>
                 <el-col :span="1">
                     <div class="icon_box icon_rotation">
-                        <el-icon :size="40">
+                        <el-icon :size="42">
                             <RotationIcon />
                         </el-icon>
                     </div>

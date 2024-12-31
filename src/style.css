@@ -25,6 +25,8 @@
   --tool-btn-color: #fff;
   --color-tool-btn-bg: #ededed71;
   --height-header: 30px;
+  --accent-100:#71c4ef;
+  --content-bg: #f5f4f1;
 }
 * {
   margin: 0;
@@ -112,3 +114,6 @@ body {
     background-color: #f9f9f9;
   }
 } */
+.el-card {
+  background-color: var(--content-bg)!important;
+}

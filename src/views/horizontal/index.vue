@@ -112,7 +112,7 @@ import ThickInfo from './ThickInfo.vue';
    }
 
    .info_card {
-      width: 200px;
+      width: 220px;
       height: 100%;
       .card_content {
          background: #f5f4f1;
