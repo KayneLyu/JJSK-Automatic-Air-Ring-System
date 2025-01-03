@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia';
 
 type IPollingData = {
-    apiData: IThickInfoInterval;
+    apiThickData: IThickInfoInterval;
 }
-export const useApiDataStore = defineStore('apiData', {
+export const useApiDataStore = defineStore('apiThickData', {
     state: (): IPollingData => {
         return {
-            apiData: {
+            apiThickData: {
                 AD: 0, //采集器的模拟量采集值 ,
                 Thk: 0, //厚度 um ,
                 K: 0, //厚度放大倍数 ,
@@ -26,7 +26,7 @@ export const useApiDataStore = defineStore('apiData', {
     },
     actions: {
         updateApiData(newData: IThickInfoInterval) {
-            this.apiData = newData;
+            this.apiThickData = newData;
         }
     },
 });

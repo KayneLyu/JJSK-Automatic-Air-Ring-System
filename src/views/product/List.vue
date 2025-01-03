@@ -1,13 +1,25 @@
 <script setup lang='ts'>
+import { PropType } from 'vue';
 
+
+const props = defineProps<{
+    chooseProcess:(name: string) => void,
+    activeName: string,
+    productList: Array<IProductData>
+}>()
+
+
+const deleteProduct = () => {
+    
+}
 </script>
 
 <template>
     <div class="items_list">
         <el-scrollbar height="800px" noresize>
-            <div v-for="item in 20" :key="item" class="scrollbar-item">
+            <div v-for="(item, index) in productList" :key="index" class="scrollbar-item" :class="{ 'scrollbar-item-active': item.name === activeName }" @click="chooseProcess(item.name)">
                 <p>
-                    {{ "ABCD" }}
+                    {{ item.name }}
                 </p>
             </div>
         </el-scrollbar>
@@ -49,5 +61,9 @@
    display: flex;
    justify-content: flex-end;
    margin-top: 20px;
+}
+.scrollbar-item-active {
+    background: #409EFF!important;
+    color: #fff!important;
 }
 </style>

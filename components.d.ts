@@ -10,8 +10,6 @@ declare module 'vue' {
     Alarm: typeof import('./src/components/icons/Alarm.vue')['default']
     Annular: typeof import('./src/components/icons/Annular.vue')['default']
     Arrowdown: typeof import('./src/components/icons/Arrowdown.vue')['default']
-    Arrowright: typeof import('./src/components/icons/Arrowright.vue')['default']
-    ClipPath: typeof import('./src/components/Clip-Path.vue')['default']
     Close: typeof import('./src/components/icons/Close.vue')['default']
     Controls: typeof import('./src/components/icons/Controls.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']

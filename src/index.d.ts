@@ -171,3 +171,11 @@ interface ISaveHeats {
     heats: number[],
     name: string
 }
+
+interface IProductData {
+    name: string,
+    order: string,
+    roll: number,
+    thick: number,
+    tolerance: number,
+}

@@ -24,14 +24,14 @@ const options: Option[] = [
         value: "ORG"
     }
 ]
-watch(() => store.apiData.ControllerState, () => {
+watch(() => store.apiThickData.ControllerState, () => {
     console.log('aaa');
 })
 </script>
 
 <template>
     <div>
-        <el-segmented v-model="store.apiData.ControllerState" :options="options" block>
+        <el-segmented v-model="store.apiThickData.ControllerState" :options="options" block>
             <template #default="{ item }">
                 <div class="">
                     <div>{{ (item as Option).label }}</div>

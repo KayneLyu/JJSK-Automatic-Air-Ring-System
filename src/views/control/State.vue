@@ -21,10 +21,10 @@ const store = useApiDataStore()
                 </el-col>
 
                 <el-col :span="3" class="move_right">
-                    <el-statistic title="测量位置 (mm)" :value="store.apiData.PosMm" />
+                    <el-statistic title="测量位置 (mm)" :value="store.apiThickData.PosMm" />
                 </el-col>
                 <el-col :span="3">
-                    <el-statistic :precision="1" :value="store.apiData.Thk">
+                    <el-statistic :precision="1" :value="store.apiThickData.Thk">
                         <template #title>
                             <div style="display: inline-flex; align-items: center">
                                 <!-- {{$t("layout.title")}} -->
@@ -37,11 +37,11 @@ const store = useApiDataStore()
                     </el-statistic>
                 </el-col>
                 <el-col :span="3">
-                    <el-statistic :precision="1" title="移动速度(m/min)" :value="store.apiData.Velocity" />
+                    <el-statistic :precision="1" title="移动速度(m/min)" :value="store.apiThickData.Velocity" />
                 </el-col>
 
                 <el-col :span="3">
-                    <el-statistic group-separator="" title="采集值" :value="store.apiData.AD">
+                    <el-statistic group-separator="" title="采集值" :value="store.apiThickData.AD">
                         <template #suffix>
                             <el-icon style="vertical-align: -0.125em">
                             </el-icon>
@@ -59,16 +59,16 @@ const store = useApiDataStore()
                     <el-statistic :precision="1" title="旋转速度(min/R)" :value="100" />
                 </el-col>
                 <el-col :span="3">
-                    <el-statistic :precision="1" title="生产速度(m/min)" :value="store.apiData.FilmVelocity" />
+                    <el-statistic :precision="1" title="生产速度(m/min)" :value="store.apiThickData.FilmVelocity" />
                 </el-col>
                 <el-col :span="3">
-                    <el-statistic title="薄膜宽度(mm)" :value="store.apiData.Width" />
+                    <el-statistic title="薄膜宽度(mm)" :value="store.apiThickData.Width" />
                 </el-col>
             </el-row>
         </div>
         <div class="progress">
-            <el-progress :show-text="false" :duration="20" striped-flow :percentage="store.apiData.PosDetector"
-                :stroke-width="15" :striped="store.apiData.ControllerState !== 'FIX'" />
+            <el-progress :show-text="false" :duration="20" striped-flow :percentage="store.apiThickData.PosDetector"
+                :stroke-width="15" :striped="store.apiThickData.ControllerState !== 'FIX'" />
         </div>
     </el-card>
 </template>
