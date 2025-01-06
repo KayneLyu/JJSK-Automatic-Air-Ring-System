@@ -81,7 +81,7 @@ export const setCheckEnable = (params: string) => {
 /**
  * 设置放大倍数
  */
-export const magnification = (params: string) => {
+export const magnification = (params: number) => {
     return formateResult(postRequest("/api/thk/setK", params))
 }
 

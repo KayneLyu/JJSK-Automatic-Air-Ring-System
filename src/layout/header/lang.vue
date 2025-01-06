@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useLangStore } from '@/store/lang.ts'
+import { useConfigStore } from '@/store/config'
 import { inject , Ref } from 'vue'
 import LangIcon from '@/components/icons/Lang.vue';
 import ArrowDown from '@/components/icons/Arrowdown.vue';
@@ -12,7 +12,7 @@ const LangType: Record<ILanguageType, string> = {
     en: "English",
 }
 
-const store = useLangStore()
+const store = useConfigStore()
 const i18n = inject('$i18n') as I18n;
 const openNotification = () => {
         ElNotification({

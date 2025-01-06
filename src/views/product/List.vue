@@ -1,17 +1,12 @@
 <script setup lang='ts'>
-import { PropType } from 'vue';
-
 
 const props = defineProps<{
     chooseProcess:(name: string) => void,
+    deleteProcess: (name: string) => void,
     activeName: string,
     productList: Array<IProductData>
 }>()
 
-
-const deleteProduct = () => {
-    
-}
 </script>
 
 <template>
@@ -24,7 +19,7 @@ const deleteProduct = () => {
             </div>
         </el-scrollbar>
         <div class="delete_btn">
-            <el-button type="danger" size="large">
+            <el-button @click="deleteProcess(activeName)" type="danger" size="large">
                 {{ $t("product.delete") }}
             </el-button>
         </div>

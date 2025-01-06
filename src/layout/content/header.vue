@@ -1,10 +1,11 @@
 <script setup lang='ts'>
- 
+ import { useConfigStore } from "@/store/config";
+const store = useConfigStore()
 </script>
 
 <template>
  <div class="header"> 
-
+   {{ store.product }} - {{ store.order }} - {{ store.roll }}
  </div>
 </template>
 

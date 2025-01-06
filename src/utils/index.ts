@@ -1,7 +1,7 @@
 // 用于防抖的辅助函数（可根据实际情况调整防抖时间间隔）
-function debounce(func: Function, delay: number) {
+export function debounce(func: Function, delay: number) {
     let timer: ReturnType<typeof setTimeout>;
-    return function(this: any,...args: any[]) {
+    return function (this: any, ...args: any[]) {
         if (timer) {
             clearTimeout(timer);
         }
@@ -9,4 +9,16 @@ function debounce(func: Function, delay: number) {
             func.apply(this, args);
         }, delay);
     };
+}
+
+export function getLocalstorage(name: string, params: string) {
+    const getLocalData = localStorage.getItem('config')
+    if (getLocalData) {
+        const data = JSON.parse(getLocalData)
+        console.log('data', data, data[name] );
+        
+        return data[name] || params
+    } else {
+        return params
+    }
 }

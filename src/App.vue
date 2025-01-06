@@ -6,8 +6,6 @@ import Layouts from "@/layout/index.vue";
 import { useApiDataStore } from '@/store/polling-data';
 import { formateThickData } from '@/utils/format-data';
 
-
-
 const store = useApiDataStore()
 const getThickData = async () => {
   try {

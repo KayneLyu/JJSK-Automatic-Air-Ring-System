@@ -1,14 +1,20 @@
 import { defineStore } from 'pinia'
 type ILanguage = {
   language: ILanguageType
-  isDark: boolean
+  isDark: boolean,
+  product: string,
+  order: string,
+  roll: number
 }
 
 export const useConfigStore = defineStore('config', {
   state: (): ILanguage => {
     return {
-      language: 'zhCn',
+      language: 'en',
       isDark: false,
+      product: 'ABCD',
+      order: '00000001',
+      roll: 1
     }
   },
   actions: {

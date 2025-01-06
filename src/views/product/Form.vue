@@ -2,36 +2,64 @@
 import { ref, reactive, watch } from 'vue';
 import { ArrowDown, ArrowUp, Eleme } from '@element-plus/icons-vue'
 import { useApiDataStore } from '@/store/polling-data';
+import { useConfigStore } from "@/store/config";
+import { magnification } from '@/api';
 
 import { db } from '@/utils/dexie';
 
 const props = defineProps<{
-    process: null | IProductData
+    process: null | IProductData,
+    getProductList: () => void
 }>()
 
 const store = useApiDataStore()
+const configStore = useConfigStore()
 const form = reactive({
-    name: 'ABCD',
-    order: '123456',
+    name: 'ABCDE',
+    order: '00000001',
     roll: 1,
     thick: 80,
     tolerance: 5,
     scale: store.apiThickData.K
 });
 
-watch(props,(newVal) =>{
-    if(newVal.process){
+watch(props, (newVal) => {
+    if (newVal.process) {
         form.name = newVal.process.name
         form.order = newVal.process.order
         form.roll = newVal.process.roll
         form.thick = newVal.process.thick
-        form.tolerance = newVal.process.tolerance
+        form.tolerance = newVal.process.tolerance,
+        form.scale = store.apiThickData.K
     }
-})
+},
+    {
+        immediate: true
+    }
+)
 
 const buttonLoading = ref(false)
 const showCompute = ref(false)
-// 保存配置
+
+// 计算并设置放大倍数
+const computeScale = () => {
+    buttonLoading.value = true
+    const displayValue = 80
+    setTimeout(() => {
+        const scale = (form.thick / displayValue) * store.apiThickData.K
+        form.scale = 1.2
+        buttonLoading.value = false
+        ElNotification({
+         title: '提示',
+         message: "计算完成,如需生效请点击应用按钮 !",
+         position: 'top-right',
+         type: "success",
+         offset: 70
+      })
+    }, 2000)
+}
+
+// 应用、保存配置
 const onSubmit = async () => {
     const saveData = {
         name: form.name,
@@ -40,22 +68,31 @@ const onSubmit = async () => {
         thick: form.thick,
         tolerance: form.tolerance
     }
+    configStore.product = form.name
+    configStore.order = form.order
+    configStore.roll = form.roll
     try {
         await db.product.put(saveData)
-        console.log('save product success')
+        await magnification(form.scale)
+        props.getProductList()
+        ElNotification({
+         title: '提示',
+         message: "应用成功 !",
+         position: 'top-right',
+         type: "success",
+         offset: 70
+      })
     } catch (error) {
-        console.log('save product error:', error)
+        ElNotification({
+         title: '提示',
+         message: "应用失败 !",
+         position: 'top-right',
+         type: "error",
+         offset: 70
+      })
     }
 }
 
-// 计算并设置放大倍数
-const computeScale = () => {
-    buttonLoading.value = true
-    setTimeout(() => {
-        form.scale = 1.2
-        buttonLoading.value = false
-    }, 2000)
-}
 </script>
 
 <template>
@@ -66,16 +103,16 @@ const computeScale = () => {
         <el-form-item :label="$t('product.order')">
             <el-input v-model="form.order" />
         </el-form-item>
-        <el-form-item label="卷号">
+        <el-form-item :label="$t('product.roll')">
             <el-input-number v-model="form.roll" :min="0" :max="1000" :precision="0" />
         </el-form-item>
-        <el-form-item label="厚度">
+        <el-form-item :label="$t('product.thick')">
             <el-input-number v-model="form.thick" :min="10" :max="500" :precision="1" />
         </el-form-item>
-        <el-form-item label="公差">
+        <el-form-item :label="$t('product.tolerance')">
             <el-input-number v-model="form.tolerance" :min="1" :max="50" :precision="0" />
         </el-form-item>
-        <el-form-item label="放大倍数">
+        <el-form-item :label="$t('product.scale')">
             <el-input-number class="scale" v-model="form.scale" :step="0.1" :min="1" :max="50" :precision="3" />
             <el-button style="margin-left: 20px;" type="primary" size="large" @click="() => showCompute = !showCompute">
                 修正
@@ -84,10 +121,10 @@ const computeScale = () => {
                 </el-icon>
             </el-button>
         </el-form-item>
-        <el-form-item v-if="showCompute" label="真实值">
+        <el-form-item v-if="showCompute" :label="$t('product.actual')">
             <el-input-number v-model="form.thick" :min="10" :max="500" :precision="1" />
         </el-form-item>
-        <el-form-item v-if="showCompute" label="显示值">
+        <el-form-item v-if="showCompute" :label="$t('product.display')">
             <el-input-number v-model="form.thick" :min="10" :max="500" :precision="1" />
             <el-button @click="computeScale" :loading="buttonLoading" :loading-icon="Eleme"
                 style="margin-left: 20px;  font-size: 15px;" type="warning" size="large">
@@ -103,7 +140,6 @@ const computeScale = () => {
 <style scoped lang="less">
 .scale {
     color: red;
-
     :deep(.el-input__inner) {
         color: rgb(255, 0, 0);
         font-weight: 700;

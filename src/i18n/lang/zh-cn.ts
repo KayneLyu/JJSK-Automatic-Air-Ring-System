@@ -24,8 +24,7 @@ export default {
         compute: "计算",
         actual: "真实值",
         display: "显示值",
-        setting:　"计算＆设置",
+        setting:　"计算",
         counting: "计算中...",
-
     }
 }
