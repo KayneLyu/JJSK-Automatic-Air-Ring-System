@@ -1,6 +1,6 @@
 <script setup lang='ts'>
- import { useConfigStore } from "@/store/config";
-const store = useConfigStore()
+ import { useProduct } from "@/store/product";
+const store = useProduct()
 </script>
 
 <template>

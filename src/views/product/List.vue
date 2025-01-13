@@ -19,7 +19,7 @@ const props = defineProps<{
             </div>
         </el-scrollbar>
         <div class="delete_btn">
-            <el-button @click="deleteProcess(activeName)" type="danger" size="large">
+            <el-button :disabled="productList.length < 1 " @click="deleteProcess(activeName)" type="danger" size="large">
                 {{ $t("product.delete") }}
             </el-button>
         </div>
@@ -41,11 +41,9 @@ const props = defineProps<{
         border-radius: 4px;
         cursor: pointer;
         margin: 10px;
-
         p {
             padding-left: 10px;
         }
-
         &:hover {
             background: #d4eaf7;
         }

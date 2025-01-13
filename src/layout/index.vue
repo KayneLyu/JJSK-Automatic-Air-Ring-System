@@ -15,9 +15,7 @@ import ContentComponent from './content/index.vue';
                 <div class="layout_views">
                     <ContentComponent />
                 </div>
-                <div class="layout_footer">
-                    自动风环状态: 
-                </div>
+                
             </div>
 
         </div>
@@ -48,15 +46,7 @@ import ContentComponent from './content/index.vue';
         .layout_views {
             flex: 1;
         }
-        .layout_footer {
-            display: flex;
-            align-items: center;
-            height: 22px;
-            width: 100%;
-            background-color: var(--menu-bg);
-            border-left: 1px solid #9d9d9d17;
-            font-size: 12px;
-        }
+        
     }
 }
 </style>

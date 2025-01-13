@@ -16,7 +16,7 @@ const getThickData = async () => {
     }
     // console.log('thickdata',data);
   } catch (error) {
-    console.log('error:', error);
+    // console.log('error:', error);
   }
 }
 const getAirRingData = async () => {
@@ -24,7 +24,7 @@ const getAirRingData = async () => {
     const data = await getAirRingInfo();
     // console.log('airring',data);
   } catch (error) {
-    console.log('error:', error);
+    // console.log('error:', error);
   }
 }
 const { start, stop, isPending } = useTimeoutFn(() => {

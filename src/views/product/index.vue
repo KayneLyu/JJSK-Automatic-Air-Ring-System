@@ -3,13 +3,16 @@ import { ref, onMounted } from 'vue';
 import ProductList from './List.vue';
 import ProductForm from './Form.vue';
 import { db } from '@/utils/dexie';
-import { useConfigStore } from '@/store/config';
+import { useProduct } from '@/store/product';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const activeName = ref('')
 const process = ref<IProductData | null>(null)
 const productList = ref<IProductData[]>([])
 
-const store = useConfigStore()
+const store = useProduct()
 const getProductList = async () => {
    try {
       const data = await db.product.toArray()
@@ -21,9 +24,8 @@ const getProductList = async () => {
       }
    } catch (error) {
       ElNotification({
-         title: '提示',
-         message: "获取配置列表失败 !",
-         position: 'top-right',
+         title: t("notification.error"),
+         message: t("notification.fetFail"),
          type: "error",
          offset: 70
       })
@@ -38,24 +40,44 @@ const chooseProcess = (name: string) => {
    }
 }
 
-const deleteProcess = async (name: string) => {
-   if (!name) {
-      return
-   }
-   if (activeName.value === store.product || productList.value.length <= 1) {
-      ElNotification({
-         title: '提示',
-         message: "不能删除正在应用中的配置 !",
-         position: 'top-right',
-         type: "error",
-         offset: 70
+const deleteProcess = (name: string) => {
+   ElMessageBox.confirm(
+      t('notification.confirmDelete'),
+      t('notification.info'),
+      {
+         confirmButtonText: t('notification.confirm'),
+         cancelButtonText:  t('notification.cancel'),
+         type: 'warning',
+      }
+   )
+      .then(async () => {
+         if (activeName.value === store.product || productList.value.length <= 1) {
+            ElNotification({
+               title: t('notification.error'),
+               message: t('notification.cantDelete'),
+               type: "error",
+               offset: 70
+            })
+            return
+         }
+         try {
+            await db.product.delete(name)
+            getProductList()
+            ElNotification({
+               title: t('notification.info'),
+               message: t('notification.success'),
+               type: "success",
+               offset: 70
+            })
+         } catch (error) {
+            ElNotification({
+               title: t('notification.info'),
+               message: t('notification.failed'),
+               type: "error",
+               offset: 70
+            })
+         }
       })
-      return
-   }
-   try {
-      await db.product.delete(name)
-      getProductList()
-   } catch (error) { }
 }
 
 onMounted(() => {

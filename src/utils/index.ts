@@ -22,3 +22,11 @@ export function getLocalstorage(name: string, params: string) {
         return params
     }
 }
+
+export function isValidNumber(value: any): boolean {
+    if (typeof value !== 'number') {
+        return false;
+    }
+    // 排除NaN和Infinity情况
+    return !isNaN(value) && value !== Infinity && value !== -Infinity;
+}

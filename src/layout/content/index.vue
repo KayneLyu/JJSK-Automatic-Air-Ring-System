@@ -1,5 +1,6 @@
 <script setup lang='ts'>
 import Header from './header.vue';
+import Footer from './footer.vue';
 </script>
 
 <template>
@@ -14,6 +15,9 @@ import Header from './header.vue';
                 </transition>
             </router-view>
         </div>
+        <div class="layout_footer">
+            <Footer />
+        </div>
     </div>
 </template>
 
@@ -23,12 +27,14 @@ import Header from './header.vue';
     flex-direction: column;
     width: 100%;
     height: 100%;
+
     .layout_views {
         flex: 1;
         box-sizing: border-box;
         padding: 10px;
     }
 }
+
 .fade-enter-active,
 .fade-leave-active {
     transition: opacity 0.2s ease;
@@ -38,4 +44,6 @@ import Header from './header.vue';
 .fade-leave-to {
     opacity: 0;
 }
+
+
 </style>

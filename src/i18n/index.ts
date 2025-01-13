@@ -6,7 +6,7 @@ import { getLocalstorage } from '@/utils/index.ts';
 
 const i18n = createI18n({
   legacy: false, // 设置为 false，启用 composition API 模式
-  locale: getLocalstorage('language','en'),
+  locale: getLocalstorage('language','zhCn'),
   messages: {
     zhCn,
     en,

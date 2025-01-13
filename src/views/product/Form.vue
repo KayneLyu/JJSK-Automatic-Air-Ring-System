@@ -2,18 +2,21 @@
 import { ref, reactive, watch } from 'vue';
 import { ArrowDown, ArrowUp, Eleme } from '@element-plus/icons-vue'
 import { useApiDataStore } from '@/store/polling-data';
-import { useConfigStore } from "@/store/config";
+import { useProduct } from "@/store/product";
 import { magnification } from '@/api';
-
+import { isValidNumber } from '@/utils';
 import { db } from '@/utils/dexie';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
     process: null | IProductData,
     getProductList: () => void
 }>()
 
+const { t } = useI18n()
+
 const store = useApiDataStore()
-const configStore = useConfigStore()
+const productStore = useProduct()
 const form = reactive({
     name: 'ABCDE',
     order: '00000001',
@@ -23,7 +26,7 @@ const form = reactive({
     scale: store.apiThickData.K
 });
 
-watch(props, (newVal) => {
+watch(props, async(newVal) => {
     if (newVal.process) {
         form.name = newVal.process.name
         form.order = newVal.process.order
@@ -42,25 +45,34 @@ const buttonLoading = ref(false)
 const showCompute = ref(false)
 
 // 计算并设置放大倍数
-const computeScale = () => {
+const computeScale = async() => {
+    if(!isValidNumber(store.apiThickData.K)) {
+        ElNotification({
+            title:  t("notification.error"),
+            message: t("notification.invalidNumber"),
+            type: "error",
+            offset: 70
+        })
+        return
+    }
     buttonLoading.value = true
-    const displayValue = 80
+    const displayValue = 80　//　厚度平均值
     setTimeout(() => {
         const scale = (form.thick / displayValue) * store.apiThickData.K
         form.scale = 1.2
         buttonLoading.value = false
         ElNotification({
-         title: '提示',
-         message: "计算完成,如需生效请点击应用按钮 !",
-         position: 'top-right',
-         type: "success",
-         offset: 70
-      })
+            title: t("notification.info"),
+            message: t("notification.calcComplete"),
+            type: "success",
+            offset: 70
+        })
     }, 2000)
 }
 
 // 应用、保存配置
 const onSubmit = async () => {
+    buttonLoading.value = true
     const saveData = {
         name: form.name,
         order: form.order,
@@ -68,28 +80,28 @@ const onSubmit = async () => {
         thick: form.thick,
         tolerance: form.tolerance
     }
-    configStore.product = form.name
-    configStore.order = form.order
-    configStore.roll = form.roll
     try {
-        await db.product.put(saveData)
         await magnification(form.scale)
+        await db.product.put(saveData)
+        productStore.product = form.name
+        productStore.order = form.order
+        productStore.roll = form.roll
         props.getProductList()
         ElNotification({
-         title: '提示',
-         message: "应用成功 !",
-         position: 'top-right',
-         type: "success",
-         offset: 70
-      })
+            title: t("notification.info"),
+            message: t("notification.success"),
+            type: "success",
+            offset: 70
+        })
+        buttonLoading.value = false
     } catch (error) {
         ElNotification({
-         title: '提示',
-         message: "应用失败 !",
-         position: 'top-right',
-         type: "error",
-         offset: 70
-      })
+            title: t("notification.info"),
+            message: t("notification.failed"),
+            type: "error",
+            offset: 70
+        })
+        buttonLoading.value = false
     }
 }
 
@@ -115,7 +127,7 @@ const onSubmit = async () => {
         <el-form-item :label="$t('product.scale')">
             <el-input-number class="scale" v-model="form.scale" :step="0.1" :min="1" :max="50" :precision="3" />
             <el-button style="margin-left: 20px;" type="primary" size="large" @click="() => showCompute = !showCompute">
-                修正
+                {{$t("product.revise")}}
                 <el-icon style="margin-left: 5px;">
                     <component :is="showCompute ? ArrowUp : ArrowDown" />
                 </el-icon>
@@ -128,11 +140,11 @@ const onSubmit = async () => {
             <el-input-number v-model="form.thick" :min="10" :max="500" :precision="1" />
             <el-button @click="computeScale" :loading="buttonLoading" :loading-icon="Eleme"
                 style="margin-left: 20px;  font-size: 15px;" type="warning" size="large">
-                {{ buttonLoading ? $t('product.counting') : $t('product.setting') }}
+                {{ $t('product.setting') }}
             </el-button>
         </el-form-item>
         <el-form-item>
-            <el-button style="margin-top: 30px;" type="primary" @click="onSubmit">{{ $t("product.save") }}</el-button>
+            <el-button :loading="buttonLoading" :loading-icon="Eleme" style="margin-top: 30px;" type="primary" @click="onSubmit">{{ $t("product.save") }}</el-button>
         </el-form-item>
     </el-form>
 </template>

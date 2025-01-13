@@ -1,5 +1,3 @@
-type ILanguageType = 'zhCn' | 'en'
-
 interface IThickInfoData {
     AD: number, //采集器 的模拟量采集值 ,
     Thk: number, //厚度 um ,
@@ -179,3 +177,5 @@ interface IProductData {
     thick: number,
     tolerance: number,
 }
+
+type ILanguageType = 'zhCn' | 'en'

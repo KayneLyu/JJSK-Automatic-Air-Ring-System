@@ -17,7 +17,6 @@ electron.contextBridge.exposeInMainWorld("ipcRenderer", {
     const [channel, ...omit] = args;
     return electron.ipcRenderer.invoke(channel, ...omit);
   }
-  // ...
 });
 function domReady(condition = ["complete", "interactive"]) {
   return new Promise((resolve) => {
