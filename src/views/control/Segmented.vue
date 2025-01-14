@@ -30,12 +30,11 @@ watch(() => store.apiThickData.ControllerState, () => {
 </script>
 
 <template>
-    <div>
-        <el-segmented v-model="store.apiThickData.ControllerState" :options="options" block>
+    <div class="controls_container">
+        <el-segmented v-model="store.apiThickData.ControllerState" :options="options" block size="large">
             <template #default="{ item }">
                 <div class="">
                     <div>{{ (item as Option).label }}</div>
-                    <!-- <div>{{ $t(`${(item as Option).label}`) }}</div> -->
                 </div>
             </template>
         </el-segmented>
@@ -43,5 +42,8 @@ watch(() => store.apiThickData.ControllerState, () => {
 </template>
 
 <style scoped lang="less">
-
+.controls_container {
+    width: 300px;
+    border: 1px solid #333;
+}
 </style>

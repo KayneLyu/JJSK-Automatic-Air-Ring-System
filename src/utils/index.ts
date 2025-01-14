@@ -30,3 +30,21 @@ export function isValidNumber(value: any): boolean {
     // 排除NaN和Infinity情况
     return !isNaN(value) && value !== Infinity && value !== -Infinity;
 }
+
+// 控制环形图起始角度
+export const resetOrderDeg = (index: number) => {
+    let arr: string[] =[]
+    for (let index = 0; index < 120; index++) {
+        arr.push(index * 3 + '°')
+    }
+    if (arr.length <= 0) {
+        return arr
+    }
+    if (index == 0) {
+        return arr
+    }
+    const firstArr = arr.slice(0, index)
+    const lastArr = arr.slice(index, arr.length + 1)
+    const newArr = lastArr.concat(firstArr)
+    return newArr
+}

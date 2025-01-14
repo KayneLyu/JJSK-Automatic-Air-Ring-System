@@ -11,7 +11,7 @@ const props = defineProps<{
 
 <template>
     <div class="items_list">
-        <el-scrollbar height="800px" noresize>
+        <el-scrollbar height="780px" noresize>
             <div v-for="(item, index) in productList" :key="index" class="scrollbar-item" :class="{ 'scrollbar-item-active': item.name === activeName }" @click="chooseProcess(item.name)">
                 <p>
                     {{ item.name }}

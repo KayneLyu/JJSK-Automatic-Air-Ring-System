@@ -8,8 +8,6 @@ import {
     TooltipComponentOption,
     GridComponent,
     GridComponentOption,
-    DataZoomComponent,
-    DataZoomComponentOption,
 } from "echarts/components";
 import { LineChart, LineSeriesOption } from "echarts/charts";
 import { UniversalTransition } from "echarts/features";
@@ -22,7 +20,6 @@ echarts.use([
     TitleComponent,
     TooltipComponent,
     GridComponent,
-    DataZoomComponent,
     LineChart,
     CanvasRenderer,
     UniversalTransition,
@@ -32,7 +29,6 @@ type EChartsOption = echarts.ComposeOption<
     | TitleComponentOption
     | TooltipComponentOption
     | GridComponentOption
-    | DataZoomComponentOption
     | LineSeriesOption
 >;
 
@@ -64,21 +60,10 @@ let option: EChartsOption = {
             return ``;
         },
     },
-    // dataZoom: [
-    //     {
-    //         type: "inside",
-    //         start: 0,
-    //         end: 100,
-    //     },
-    //     {
-    //         start: 0,
-    //         end: 100,
-    //     },
-    // ],
     grid: {
-        left: "0%",
+        left: "2%",
         right: "3%",
-        bottom: "5%",
+        bottom: "15%",
         top: "5%",
         containLabel: true,
     },

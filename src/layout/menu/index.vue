@@ -120,7 +120,7 @@ const preventDefault = (e: MouseEvent) => {
     width: 20px;
     height: 20px;
     border-bottom-right-radius: 20px;
-    box-shadow: 5px 5px 0 5px var(--clr);
+    box-shadow: 5px 5px 0 4px var(--clr);
     background-color: transparent;
 }
 
@@ -132,10 +132,9 @@ const preventDefault = (e: MouseEvent) => {
     width: 20px;
     height: 20px;
     border-top-right-radius: 20px;
-    box-shadow: 5px -5px 0 5px var(--clr);
+    box-shadow: 5px -5px 0 4px var(--clr);
     background-color: transparent;
 }
-
 
 .sidebar ul li.logo {
     margin-bottom: 80px;

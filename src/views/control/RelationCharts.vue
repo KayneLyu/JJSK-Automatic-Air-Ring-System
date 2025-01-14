@@ -370,7 +370,9 @@ const { updateCharts } = useChartsInit('chartContainer', option)
 </script>
 
 <template>
-    <div ref="chartContainer" style="width: 99%;  height:400px;"></div>
+    <div ref="chartContainer" style="width: 99%;  height:99%;"></div>
 </template>
 
-<style scoped></style>
+<style scoped>
+
+</style>
