@@ -2,10 +2,12 @@ import Dexie, { Table } from "dexie";
 
 class MySubClassDexie extends Dexie {
   public product!: Table<IProductData>;
+  public Frame!: Table<IFrameThickData>;
   constructor() {
     super('JJSKDatabase');
     this.version(1).stores({
-      product:"name"
+      product:"name",
+      Frame:"id++, date"
     });
   }
 }

@@ -24,6 +24,7 @@ import { UniversalTransition } from "echarts/features";
 import { CanvasRenderer } from "echarts/renderers";
 import { useI18n } from 'vue-i18n';
 import useChartsInit from '@/hooks/useInitCharts';
+import { useProduct } from '@/store/product';
 echarts.use([
     TitleComponent,
     TooltipComponent,
@@ -57,6 +58,7 @@ interface IProps {
 }
 
 const { t } = useI18n();
+const store = useProduct();
 
 let option: EChartsOption = {
     animation: false,
@@ -86,16 +88,16 @@ let option: EChartsOption = {
         {
             top: 25,
             left: 60,
-            right: 30,
-            height: "30%",
+            right: "2%",
+            height: "32%",
         },
         {
             left: 60,
-            right: 30,
-            bottom: 1,
-            top: "40%",
+            right: "2%",
+            top: "45%",
             height: "50%",
         },
+
     ],
     brush: {
         toolbox: undefined,
@@ -256,10 +258,10 @@ let option: EChartsOption = {
             }
         },
         {
-            // max: warningLine * 4,
-            // min: warningLine * -4,
+            max: store.tolerance * 4,
+            min: store.tolerance  * -4,
             minInterval: 1,
-            // maxInterval: warningLine,
+            maxInterval: store.tolerance ,
             axisTick: {
                 show: false,
             },

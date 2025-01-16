@@ -1,8 +1,27 @@
 <script setup lang='ts'>
+import { onMounted, ref } from 'vue';
 import HorizonCharts from './AreaCharts.vue';
 import HeatState from './HeatsState.vue';
 import ThickInfo from './ThickInfo.vue';
+import { formatFrameData } from '@/utils/format-data';
+import { getFrame } from '@/api/';
+import { db } from '@/utils/dexie';
+import { formateList } from '@/utils/ChartsData';
 
+const frameData = ref<[number,string][]>([])
+const getFrameFromApi = async () => {
+   try {
+      const res = await db.Frame.get(1);
+      if (res) {
+         frameData.value = formateList(res)
+      }
+   } catch (error) {
+
+   }
+}
+onMounted(() => {
+   getFrameFromApi()
+})
 </script>
 
 <template>
@@ -10,7 +29,7 @@ import ThickInfo from './ThickInfo.vue';
       <div class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-               <HorizonCharts />
+               <HorizonCharts :frameData="frameData" />
             </el-card>
          </div>
          <div class="info_card">
@@ -22,7 +41,7 @@ import ThickInfo from './ThickInfo.vue';
       <div class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-               <HorizonCharts />
+               <HorizonCharts :frameData="frameData"/>
             </el-card>
          </div>
          <div class="info_card">
@@ -34,7 +53,7 @@ import ThickInfo from './ThickInfo.vue';
       <div class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-               <HorizonCharts />
+               <HorizonCharts :frameData="frameData"/>
             </el-card>
          </div>
          <div class="info_card">
@@ -46,7 +65,7 @@ import ThickInfo from './ThickInfo.vue';
       <div class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-               <HorizonCharts />
+               <HorizonCharts :frameData="frameData"/>
             </el-card>
          </div>
          <div class="info_card">
@@ -58,7 +77,7 @@ import ThickInfo from './ThickInfo.vue';
       <div class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-               <HorizonCharts />
+               <HorizonCharts :frameData="frameData"/>
             </el-card>
          </div>
          <div class="info_card">
@@ -92,6 +111,7 @@ import ThickInfo from './ThickInfo.vue';
 
 .charts_content {
    margin-top: 9px;
+
    &:first-of-type {
       margin: 0;
    }
@@ -114,6 +134,7 @@ import ThickInfo from './ThickInfo.vue';
    .info_card {
       width: 220px;
       height: 100%;
+
       .card_content {
          background: #f5f4f1;
          height: 100%;
@@ -123,7 +144,6 @@ import ThickInfo from './ThickInfo.vue';
 
 :deep(.el-card__body) {
    height: 99%;
-   // width: 100%;
    padding: unset !important;
 }
 </style>

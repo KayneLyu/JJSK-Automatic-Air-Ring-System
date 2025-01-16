@@ -12,6 +12,7 @@
     "@types/echarts": "^4.9.22",
     "@vueuse/core": "^12.2.0",
     "axios": "^1.7.9",
+    "dayjs": "^1.11.13",
     "dexie": "^4.0.10",
     "echarts": "^5.5.1",
     "element-plus": "^2.8.8",

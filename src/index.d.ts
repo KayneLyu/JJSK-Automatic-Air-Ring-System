@@ -22,12 +22,12 @@ interface IThickInfoData {
     ErrCode: number
 }
 
+// 轮询测厚仪数据
 interface IThickInfoInterval {
     AD: number, //采集器的模拟量采集值 ,
     Thk: number, //厚度 um ,
     K: number, //厚度放大倍数 ,
     PosMm: number, //number //探头位置 mm ,
-    // PosLenMm: number, //机架总长度 mm ,
     PosDetector: number, //探头位置 
     Velocity: number,//探头速度 m/min ,
     Width: number //膜宽度 mm ,
@@ -39,11 +39,10 @@ interface IThickInfoInterval {
     PastTimeOfRotation: number //转向发生到现在已经过去的时间 min ,
     AngleOfRotation: number //旋转角度 ° ,
     // LastScanDataId: number //数据库中 扫描数据表 最新的ID
-    // ErrCode: number
 }
 
 
-// 旧数据
+// 旧数据 获取一幅图数据
 interface IFrameData {
     ID: number, //每幅图标识ID
     Time: string  //测量数据开始时间,
@@ -59,41 +58,26 @@ interface IFrameData {
     Thicks: number[] //1幅数据
 }
 
-interface ILastedFrameDataCard {
-    timeStart: string,
-    timeEnd: string,
-    average: boolean
-    sigma: number
-    max: number
-    min: number
-    speed: number
-    width: number
-    rotation: number
-    isRotationCW: boolean
-    sigmaPercent: number
-    minPercent: number
-    maxPercent: number
-    datalist: number[],
-    mean: number,
-    id?: number,
+// 一幅图数据
+interface IFrameThickData {
+    frameId: number,
     date: string,
-    frameId: number
+    startTime: string,
+    endTime: string,
+    speed: number,
+    width: number,
+    rotateSpeed: number,
+    sigmaVal: number,
+    sigmaPercent: number,
+    mean: number,
+    minVal: number,
+    minPercent: number,
+    maxVal: number,
+    maxPercent: number,
+    datalist: number[],
 }
 
 
-// interface IFrameDataCard {
-//         average: number,
-//         sigma: number,
-//         max: number,
-//         min: number,
-//         speed: number,
-//         width: number,
-//         rotation: number,
-//         isRotationCW: boolean,
-//         sigmaPercent: number,
-//         minPercent: number,
-//         maxPercent: number,
-// }
 
 
 interface IAlarmsData {
@@ -159,6 +143,8 @@ interface IAirRingInfo {
     IsAirDoorMode: boolean // 风环使用风门方式控制
 }
 
+
+
 interface IHeats {
     id: number,
     heats: number[]
@@ -170,6 +156,7 @@ interface ISaveHeats {
     name: string
 }
 
+// 产品配置
 interface IProductData {
     name: string,
     order: string,

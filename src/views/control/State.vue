@@ -40,8 +40,11 @@ const store = useApiDataStore()
                     </el-statistic>
                 </el-col>
 
-                <el-col :span="3">
-                    <el-statistic group-separator="" title="采集值" :value="store.apiThickData.AD" />
+                <el-col :span="2">
+                    <el-statistic group-separator="" title="AD" :value="store.apiThickData.AD" />
+                </el-col>
+                <el-col :span="2">
+                    <el-statistic group-separator="" title="空气AD" :value="store.apiThickData.AD" />
                 </el-col>
                 <el-col :span="1">
                     <div class="icon_box icon_rotation">
@@ -51,7 +54,7 @@ const store = useApiDataStore()
                     </div>
                 </el-col>
                 <el-col :span="3" class="move_right">
-                    <el-statistic :precision="1" title="旋转速度" :value="100">
+                    <el-statistic :precision="1" title="旋转速度" :value="10">
                         <template #suffix>
                             <span class="unit">min/R</span>
                         </template>
@@ -71,31 +74,25 @@ const store = useApiDataStore()
                         </template>
                     </el-statistic>
                 </el-col>
+                
             </el-row>
         </div>
         <div class="progress">
             <el-progress :show-text="false" :duration="20" striped-flow :percentage="store.apiThickData.PosDetector"
-                :stroke-width="15" :striped="store.apiThickData.ControllerState !== 'FIX'" />
+                :stroke-width="10" :striped="store.apiThickData.ControllerState !== 'FIX'" />
         </div>
     </el-card>
 </template>
 
 <style scoped lang="less">
-.state_card {}
-
 :deep(.el-card__body) {
-    // width: 100%;
-    padding: 15px;
+    padding: 10px;
 }
 
 .icon_box {
     height: 100%;
     display: flex;
     align-items: center;
-}
-
-.icon_rotation {
-    // padding-left: 20px;
 }
 
 .progress {

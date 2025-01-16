@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-
+import { Delete } from '@element-plus/icons-vue'
 const props = defineProps<{
     chooseProcess:(name: string) => void,
     deleteProcess: (name: string) => void,
@@ -19,7 +19,7 @@ const props = defineProps<{
             </div>
         </el-scrollbar>
         <div class="delete_btn">
-            <el-button :disabled="productList.length < 1 " @click="deleteProcess(activeName)" type="danger" size="large">
+            <el-button :icon="Delete" :disabled="productList.length < 1 " @click="deleteProcess(activeName)" type="danger" size="large">
                 {{ $t("product.delete") }}
             </el-button>
         </div>

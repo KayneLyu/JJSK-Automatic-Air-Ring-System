@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import * as echarts from 'echarts/core';
 import {
     GridComponent,
@@ -8,17 +8,20 @@ import {
     TooltipComponentOption,
     GridComponentOption,
     DatasetComponentOption,
+    VisualMapComponent,
+    VisualMapComponentOption
 } from 'echarts/components';
 import { LineChart } from 'echarts/charts';
 import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts';
-
+import { useProduct } from '@/store/product';
 type ECOption = echarts.ComposeOption<
     | TitleComponentOption
     | TooltipComponentOption
     | GridComponentOption
     | DatasetComponentOption
+    | VisualMapComponentOption
 >;
 
 echarts.use([
@@ -26,8 +29,15 @@ echarts.use([
     GridComponent,
     LineChart,
     CanvasRenderer,
-    UniversalTransition
+    UniversalTransition,
+    VisualMapComponent,
 ]);
+
+const store = useProduct();
+
+const props = defineProps<{
+    frameData: [number, string][]
+}>()
 
 let option: ECOption = {
     animation: false,
@@ -74,8 +84,8 @@ let option: ECOption = {
     ],
     yAxis: {
         type: "value",
-        min: 5 * -4,
-        max: 5 * 4,
+        min: store.tolerance * -4,
+        max: store.tolerance * 4,
         maxInterval: 5,
         minInterval: 1,
         axisLabel: {
@@ -105,35 +115,35 @@ let option: ECOption = {
             },
         },
     },
-    // visualMap:{
-    //   right: 0,
-    //   top:-20,
-    //   pieces:[
-    //     { 
-    //       gt: -warningLine,
-    //       lte: warningLine,
-    //       color: 'rgba(168,176,246, 0.9)'
-    //     },
-    //   ],
-    //   outOfRange: {
-    //     color: 'rgba(255, 8, 8, 0.6)',
-    //   },
-    // },
+    visualMap: {
+        right: 0,
+        top: -20,
+        pieces: [
+            {
+                gt: -store.tolerance,
+                lte: store.tolerance,
+                color: 'rgba(168,176,246, 0.9)'
+            },
+        ],
+        outOfRange: {
+            color: 'rgb(194, 0, 39)',
+        },
+    },
     series: [
         {
             name: "实际轮廓(%)",
             type: "line",
             smooth: true,
             symbol: "none",
-            data: [],
             lineStyle: {
                 width: 2,
                 color: "#0770FF",
             },
             showSymbol: false,
             areaStyle: {
-                color: "rgba(168,176,246, 0.9)",
+                // color: "rgba(168,176,246, 0.9)",
             },
+            data: props.frameData
         },
         {
             xAxisIndex: 0,
@@ -162,11 +172,17 @@ const { updateCharts } = useChartsInit('chartContainer', option)
 //     ]
 //     })
 // },0)
-
+watch(props, () => {
+    updateCharts({ series: [{ data: props.frameData }] })
+},
+    // {
+    //     immediate: true
+    // }
+)
 </script>
 
 <template>
-    <div  ref="chartContainer" style="width: 100%;; height: 100%;"></div>
+    <div ref="chartContainer" style="width: 100%;; height: 100%;"></div>
 </template>
 
 <style scoped></style>
