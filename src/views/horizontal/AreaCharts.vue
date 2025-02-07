@@ -168,6 +168,7 @@ const { updateCharts } = useChartsInit('chartContainer', option)
 //             data: [1000, 1000, 901, 934, 1290, 1330, 1320],
 //             type: 'line',
 //             areaStyle: {}
+
 //         }
 //     ]
 //     })
