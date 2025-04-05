@@ -18,7 +18,7 @@ const { t } = useI18n()
 const store = useApiDataStore()
 const productStore = useProduct()
 const form = reactive({
-    name: 'ABCDE',
+    productName: 'ABCDE',
     order: '00000001',
     roll: 1,
     thick: 80,
@@ -26,14 +26,12 @@ const form = reactive({
     scale: store.apiThickData.K
 });
 
-watch(props, async(newVal) => {
+watch(props, async (newVal) => {
     if (newVal.process) {
-        form.name = newVal.process.name
-        form.order = newVal.process.order
-        form.roll = newVal.process.roll
-        form.thick = newVal.process.thick
-        form.tolerance = newVal.process.tolerance,
-        form.scale = store.apiThickData.K
+        Object.assign(form, {
+            ...newVal.process, // 解构新值
+            scale: store.apiThickData.K // 确保 scale 使用最新的值
+        });
     }
 },
     {
@@ -45,10 +43,10 @@ const buttonLoading = ref(false)
 const showCompute = ref(false)
 
 // 计算并设置放大倍数
-const computeScale = async() => {
-    if(!isValidNumber(store.apiThickData.K)) {
+const computeScale = async () => {
+    if (!isValidNumber(store.apiThickData.K)) {
         ElNotification({
-            title:  t("notification.error"),
+            title: t("notification.error"),
             message: t("notification.invalidNumber"),
             type: "error",
             offset: 70
@@ -73,19 +71,10 @@ const computeScale = async() => {
 // 应用、保存配置
 const onSubmit = async () => {
     buttonLoading.value = true
-    const saveData = {
-        name: form.name,
-        order: form.order,
-        roll: form.roll,
-        thick: form.thick,
-        tolerance: form.tolerance
-    }
     try {
         await magnification(form.scale)
-        await db.product.put(saveData)
-        productStore.product = form.name
-        productStore.order = form.order
-        productStore.roll = form.roll
+        await db.product.put({ ...form })
+        productStore.updateProduction(form)
         props.getProductList()
         ElNotification({
             title: t("notification.info"),
@@ -110,7 +99,7 @@ const onSubmit = async () => {
 <template>
     <el-form size="large" :model="form" label-width="100" style="max-width: 500px">
         <el-form-item :label="$t('product.name')">
-            <el-input v-model="form.name" />
+            <el-input v-model="form.productName" />
         </el-form-item>
         <el-form-item :label="$t('product.order')">
             <el-input v-model="form.order" />
@@ -127,7 +116,7 @@ const onSubmit = async () => {
         <el-form-item :label="$t('product.scale')">
             <el-input-number class="scale" v-model="form.scale" :step="0.1" :min="1" :max="50" :precision="3" />
             <el-button style="margin-left: 20px;" type="primary" size="large" @click="() => showCompute = !showCompute">
-                {{$t("product.revise")}}
+                {{ $t("product.revise") }}
                 <el-icon style="margin-left: 5px;">
                     <component :is="showCompute ? ArrowUp : ArrowDown" />
                 </el-icon>
@@ -144,7 +133,8 @@ const onSubmit = async () => {
             </el-button>
         </el-form-item>
         <el-form-item>
-            <el-button :loading="buttonLoading" :loading-icon="Eleme" style="margin-top: 30px;" type="primary" @click="onSubmit">{{ $t("product.save") }}</el-button>
+            <el-button :loading="buttonLoading" :loading-icon="Eleme" style="margin-top: 30px;" type="primary"
+                @click="onSubmit">{{ $t("product.save") }}</el-button>
         </el-form-item>
     </el-form>
 </template>
@@ -152,6 +142,7 @@ const onSubmit = async () => {
 <style scoped lang="less">
 .scale {
     color: red;
+
     :deep(.el-input__inner) {
         color: rgb(255, 0, 0);
         font-weight: 700;

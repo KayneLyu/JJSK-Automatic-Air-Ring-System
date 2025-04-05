@@ -37,6 +37,8 @@ declare module 'vue' {
     Maximize: typeof import('./src/components/icons/Maximize.vue')['default']
     Minimize: typeof import('./src/components/icons/Minimize.vue')['default']
     Moon: typeof import('./src/components/icons/Moon.vue')['default']
+    Position: typeof import('./src/components/icons/Position.vue')['default']
+    Positon: typeof import('./src/components/Positon.vue')['default']
     Product: typeof import('./src/components/icons/Product.vue')['default']
     Rotate: typeof import('./src/components/icons/Rotate.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

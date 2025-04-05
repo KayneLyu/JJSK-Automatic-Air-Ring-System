@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-
+import packageJson from "@/../package.json";
 </script>
 
 <template>
@@ -8,7 +8,7 @@
             自动风环状态:
         </div>
         <div class="version">
-            v1.0.0
+            {{`v${packageJson.version}`}}
         </div>
     </div>
 </template>

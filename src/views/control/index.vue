@@ -14,9 +14,6 @@ import SigmaInfo from './SigmaInfo.vue';
     </div>
     <div class="operate-charts">
       <CharsOperate />
-      <div class="controls">
-        <Segmented />
-      </div>
     </div>
     <div class="sigma-charts">
       <el-card class="sigma_charts_content">

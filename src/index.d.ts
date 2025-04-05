@@ -158,11 +158,12 @@ interface ISaveHeats {
 
 // 产品配置
 interface IProductData {
-    name: string,
+    productName: string,
     order: string,
     roll: number,
-    thick: number,
     tolerance: number,
+    thick: number,
+    scale: number
 }
 
 type ILanguageType = 'zhCn' | 'en'

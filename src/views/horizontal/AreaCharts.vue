@@ -84,8 +84,8 @@ let option: ECOption = {
     ],
     yAxis: {
         type: "value",
-        min: store.tolerance * -4,
-        max: store.tolerance * 4,
+        min: store.param.tolerance * -4,
+        max: store.param.tolerance * 4,
         maxInterval: 5,
         minInterval: 1,
         axisLabel: {
@@ -120,8 +120,8 @@ let option: ECOption = {
         top: -20,
         pieces: [
             {
-                gt: -store.tolerance,
-                lte: store.tolerance,
+                gt: -store.param.tolerance,
+                lte: store.param.tolerance,
                 color: 'rgba(168,176,246, 0.9)'
             },
         ],

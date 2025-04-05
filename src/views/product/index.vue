@@ -18,7 +18,7 @@ const getProductList = async () => {
       const data = await db.product.toArray()
       if (data.length) {
          productList.value = data
-         chooseProcess(store.product)
+         chooseProcess(store.param.productName)
       } else {
          productList.value = []
       }
@@ -34,7 +34,7 @@ const getProductList = async () => {
 
 const chooseProcess = (name: string) => {
    activeName.value = name
-   const product = productList.value.find(item => item.name === name)
+   const product = productList.value.find(item => item.productName === name)
    if (product) {
       process.value = product
    }
@@ -51,7 +51,7 @@ const deleteProcess = (name: string) => {
       }
    )
       .then(async () => {
-         if (activeName.value === store.product || productList.value.length <= 1) {
+         if (activeName.value === store.param.productName || productList.value.length <= 1) {
             ElNotification({
                title: t('notification.error'),
                message: t('notification.cantDelete'),

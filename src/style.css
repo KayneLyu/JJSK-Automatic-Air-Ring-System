@@ -57,6 +57,7 @@ html.dark {
   --menu-bg: #181818;
   --text-color: #E5EAF3;
   --tool-btn-color: #E5EAF3;
+  --content-bg: #100C2A;
 }
 
 ::view-transition-old(root),

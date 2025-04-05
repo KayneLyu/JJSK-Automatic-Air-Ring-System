@@ -6,7 +6,7 @@ class MySubClassDexie extends Dexie {
   constructor() {
     super('JJSKDatabase');
     this.version(1).stores({
-      product:"name",
+      product:"productName",
       Frame:"id++, date"
     });
   }

@@ -1,7 +1,7 @@
 <script setup lang='ts'>
 import { Delete } from '@element-plus/icons-vue'
-const props = defineProps<{
-    chooseProcess:(name: string) => void,
+defineProps<{
+    chooseProcess: (name: string) => void,
     deleteProcess: (name: string) => void,
     activeName: string,
     productList: Array<IProductData>
@@ -12,14 +12,16 @@ const props = defineProps<{
 <template>
     <div class="items_list">
         <el-scrollbar height="780px" noresize>
-            <div v-for="(item, index) in productList" :key="index" class="scrollbar-item" :class="{ 'scrollbar-item-active': item.name === activeName }" @click="chooseProcess(item.name)">
+            <div v-for="(item, index) in productList" :key="index" class="scrollbar-item"
+                :class="{ 'scrollbar-item-active': item.productName === activeName }" @click="chooseProcess(item.productName)">
                 <p>
-                    {{ item.name }}
+                    {{ item.productName }}
                 </p>
             </div>
         </el-scrollbar>
         <div class="delete_btn">
-            <el-button :icon="Delete" :disabled="productList.length < 1 " @click="deleteProcess(activeName)" type="danger" size="large">
+            <el-button :icon="Delete" :disabled="productList.length < 1" @click="deleteProcess(activeName)"
+                type="danger" size="large">
                 {{ $t("product.delete") }}
             </el-button>
         </div>
@@ -41,9 +43,11 @@ const props = defineProps<{
         border-radius: 4px;
         cursor: pointer;
         margin: 10px;
+
         p {
             padding-left: 10px;
         }
+
         &:hover {
             background: #d4eaf7;
         }
@@ -51,12 +55,13 @@ const props = defineProps<{
 }
 
 .delete_btn {
-   display: flex;
-   justify-content: flex-end;
-   margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px;
 }
+
 .scrollbar-item-active {
-    background: #409EFF!important;
-    color: #fff!important;
+    background: #409EFF !important;
+    color: #fff !important;
 }
 </style>

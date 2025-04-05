@@ -1,22 +1,24 @@
 import { defineStore } from 'pinia'
 type IProduct = {
-    product: string,
-    order: string,
-    roll: number,
-    tolerance: number
+    param: IProductData
 }
 
 export const useProduct = defineStore('product', {
     state: (): IProduct => {
         return {
-            product: 'ABCDE',
-            order: '00000001',
-            roll: 1,
-            tolerance: 5
+            param: {
+                productName: 'ABCDE',
+                order: '00000001',
+                roll: 0,
+                thick: 0,
+                tolerance: 5,
+                scale: 0
+            }
         }
     },
     actions: {
-        changeLang(data: IProduct) {
+        updateProduction(data: IProductData) {
+            Object.assign(this.param, data);
         },
     },
     persist: true,

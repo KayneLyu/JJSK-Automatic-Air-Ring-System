@@ -166,7 +166,7 @@ let option: EChartsOption = {
 
 const chartContainer = ref<HTMLElement | null>(null)
 const {updateCharts }  = useChartsInit('chartContainer', option)
-onMounted
+
 </script>
 
 <template>

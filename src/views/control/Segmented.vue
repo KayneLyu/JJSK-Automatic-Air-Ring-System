@@ -44,6 +44,6 @@ watch(() => store.apiThickData.ControllerState, () => {
 <style scoped lang="less">
 .controls_container {
     width: 300px;
-    border: 1px solid #333;
+    border: 1px solid #c1c1c1;
 }
 </style>

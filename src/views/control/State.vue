@@ -3,6 +3,8 @@ import { ref } from 'vue'
 import { useApiDataStore } from '@/store/polling-data';
 import SurveyingIcon from '@/components/icons/Surveying.vue';
 import RotationIcon from '@/components/icons/Rotate.vue';
+import Segmented from "./Segmented.vue";
+import PositionIcon from '@/components/icons/Position.vue';
 const store = useApiDataStore()
 
 </script>
@@ -61,25 +63,34 @@ const store = useApiDataStore()
                     </el-statistic>
                 </el-col>
                 <el-col :span="3">
-                    <el-statistic :precision="1" title="生产速度" :value="store.apiThickData.FilmVelocity" >
+                    <el-statistic :precision="1" title="生产速度" :value="store.apiThickData.FilmVelocity">
                         <template #suffix>
                             <span class="unit">m/min</span>
                         </template>
                     </el-statistic>
                 </el-col>
                 <el-col :span="3">
-                    <el-statistic title="薄膜宽度" :value="store.apiThickData.Width" >
+                    <el-statistic title="薄膜宽度" :value="store.apiThickData.Width">
                         <template #suffix>
                             <span class="unit">mm</span>
                         </template>
                     </el-statistic>
                 </el-col>
-                
+
             </el-row>
         </div>
-        <div class="progress">
-            <el-progress :show-text="false" :duration="20" striped-flow :percentage="store.apiThickData.PosDetector"
-                :stroke-width="10" :striped="store.apiThickData.ControllerState !== 'FIX'" />
+        <div class="control">
+            <div class="progress">
+                <el-progress :show-text="false" :duration="20" striped-flow :percentage="store.apiThickData.PosDetector"
+                    :stroke-width="20" :striped="store.apiThickData.ControllerState !== 'FIX'">
+                    <span>
+                        <el-icon>
+                            <PositionIcon />
+                        </el-icon> {{ store.apiThickData.PosMm.toFixed(0) }} mm
+                    </span>
+                </el-progress>
+            </div>
+            <Segmented />
         </div>
     </el-card>
 </template>
@@ -95,8 +106,15 @@ const store = useApiDataStore()
     align-items: center;
 }
 
-.progress {
+.control {
+    display: flex;
     margin-top: 15px;
+    align-items: center;
+
+    .progress {
+        flex: 1;
+        margin-right: 30px;
+    }
 }
 
 .move_right {
