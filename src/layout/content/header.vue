@@ -1,6 +1,29 @@
 <script setup lang='ts'>
+import { ref } from 'vue'
+import { Eleme } from '@element-plus/icons-vue'
+import { Vue3Marquee } from 'vue3-marquee'
 import { useProduct } from "@/store/product";
+import { useRouter } from 'vue-router';
+import AlarmIcon from "@/components/icons/Alert.vue";
+
+const router = useRouter()
+
 const store = useProduct()
+
+const warningList = ref<number[]>([])
+const loading = ref(false)
+const fixScaleHandle = async() => {
+  loading.value = true
+  try {
+    
+    setTimeout(() => {
+      loading.value = false
+    }, 5000);
+  } catch (error) {
+    
+  }
+}
+
 </script>
 
 <template>
@@ -9,15 +32,135 @@ const store = useProduct()
       <p>{{ store.param.productName }} </p>
       <p>{{ store.param.order }} - {{ store.param.roll }}</p>
     </div>
+    <div class="target_value">
+      <div class="target_content">
+        <p class="target_tittle">{{ `目标值` }} : </p>
+        <el-input-number class="target_input" :controls="false" v-model = "store.param.thick" />
+        <span>μm</span>
+      </div>
+      <div class="target_content">
+        <p class="target_tittle">放大倍数 : </p>
+        <p>{{ `1.000` }}</p>
+      </div>
+    </div>
+    <div class="update_roll">
+      <!-- <div class="update_roll_content">
+        <p>{{ `${useDateFormat(frameStore.lastFrame.StartTime, dateType).value} ~
+          ${useDateFormat(frameStore.lastFrame.EndTime, dateType).value}` }}</p>
+      </div> -->
+      <el-button :loading-icon="Eleme" :loading="loading" @click="fixScaleHandle"
+        style="width: 100px; height: 32px; letter-spacing: 1px;" type="primary">
+        {{ `一键修正` }}
+      </el-button>
+    </div>
+
+    <div @click="router.push('/alarm')" v-if="warningList.length" class="marquee">
+      <div style="margin:0 10px;">
+        <el-icon :size="34" color="#e82f2f" class="icon_box">
+          <AlarmIcon />
+        </el-icon>
+      </div>
+      <Vue3Marquee :duration="8">
+        <p class="marquee-item" v-for="(item, index) in warningList" :key="index">{{ $t(`warning.${item}`) }}</p>
+      </Vue3Marquee>
+    </div>
   </div>
 </template>
 
 <style scoped lang="less">
 .header {
+  display: flex;
+  align-items: center;
   width: 100%;
   height: 50px;
   border-left: 1px solid #9d9d9d17;
   background-color: var(--menu-bg);
   box-sizing: border-box;
+}
+
+:deep(.el-input__wrapper) {
+  padding-left: 5px!important;
+  padding-right: 5px!important;
+  font-size: 15px;
+}
+
+.target_input {
+  width: 40px;
+  height: 25px;
+  padding: 0 5px;
+}
+
+.product_info {
+  margin-left: 10px;
+  text-align: left;
+
+  p:first-child {
+    font-size: 18px;
+    font-weight: 700;
+  }
+}
+
+.update_roll {
+  text-align: center;
+  margin-left: 20px;
+}
+
+.update_roll_content {
+  p:first-child {
+    font-size: 10px;
+  }
+}
+
+.target_value {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  margin-left: 50px;
+
+  .target_content {
+    display: flex;
+
+    .target_tittle {
+      width: 100px;
+      text-align: right;
+    }
+
+    p:last-child {
+      margin-left: 5px;
+    }
+  }
+}
+
+.marquee {
+  display: flex;
+  align-items: center;
+  background-color: var(--alarm-bg);
+  width: 30vw;
+  height: 90%;
+  cursor: pointer;
+  margin-left: auto;
+  margin-right: 2px;
+  border-radius: 3px;
+
+  .marquee-item {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 20px;
+  }
+}
+
+.icon_box {
+  animation: alert 0.8s linear infinite alternate;
+}
+
+@keyframes alert {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 </style>

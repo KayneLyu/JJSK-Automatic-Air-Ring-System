@@ -3,14 +3,14 @@ type IProduct = {
     param: IProductData
 }
 
-export const useProduct = defineStore('product', {
+export const useProduct = defineStore('production', {
     state: (): IProduct => {
         return {
             param: {
                 productName: 'ABCDE',
                 order: '00000001',
                 roll: 0,
-                thick: 0,
+                thick: 60,
                 tolerance: 5,
                 scale: 0
             }

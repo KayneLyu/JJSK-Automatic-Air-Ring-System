@@ -3382,6 +3382,11 @@ vue-tsc@^2.0.26:
     "@vue/language-core" "2.1.10"
     semver "^7.5.4"
 
+vue3-marquee@^4.2.2:
+  version "4.2.2"
+  resolved "https://registry.npmmirror.com/vue3-marquee/-/vue3-marquee-4.2.2.tgz#e5316591e5412931856d5a7e5aa2b34be4388673"
+  integrity sha512-FeFvGUVInKfFilXFcnl8sDRBJBZCZSNLlQDquJErB9db6W2xICRVqbRV/jtdzsEP0rftarLQhx9MeEAU0+TPuQ==
+
 vue@^3.4.21, vue@^3.5.13:
   version "3.5.13"
   resolved "https://registry.npmmirror.com/vue/-/vue-3.5.13.tgz#9f760a1a982b09c0c04a867903fc339c9f29ec0a"

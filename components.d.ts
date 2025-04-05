@@ -8,11 +8,13 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     Alarm: typeof import('./src/components/icons/Alarm.vue')['default']
+    Alert: typeof import('./src/components/icons/Alert.vue')['default']
     Annular: typeof import('./src/components/icons/Annular.vue')['default']
     Arrowdown: typeof import('./src/components/icons/Arrowdown.vue')['default']
     CharsOperate: typeof import('./src/components/CharsOperate.vue')['default']
     Close: typeof import('./src/components/icons/Close.vue')['default']
     Controls: typeof import('./src/components/icons/Controls.vue')['default']
+    ElBadge: typeof import('element-plus/es')['ElBadge']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCard: typeof import('element-plus/es')['ElCard']
     ElCol: typeof import('element-plus/es')['ElCol']
@@ -34,6 +36,7 @@ declare module 'vue' {
     ElStatistic: typeof import('element-plus/es')['ElStatistic']
     Horizon: typeof import('./src/components/icons/Horizon.vue')['default']
     Lang: typeof import('./src/components/icons/Lang.vue')['default']
+    Latest: typeof import('./src/components/icons/Latest.vue')['default']
     Maximize: typeof import('./src/components/icons/Maximize.vue')['default']
     Minimize: typeof import('./src/components/icons/Minimize.vue')['default']
     Moon: typeof import('./src/components/icons/Moon.vue')['default']

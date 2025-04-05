@@ -49,7 +49,7 @@ defineProps<{
         }
 
         &:hover {
-            background: #d4eaf7;
+            background: var(--item-hover);
         }
     }
 }
