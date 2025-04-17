@@ -8,7 +8,9 @@ import packageJson from "@/../package.json";
             自动风环状态:
         </div>
         <div class="version">
-            {{`v${packageJson.version}`}}
+            <i>
+                {{`v${packageJson.version}`}}
+            </i>
         </div>
     </div>
 </template>
@@ -28,7 +30,5 @@ import packageJson from "@/../package.json";
 }
 .status {
     letter-spacing: 1px;
-}
-.version {
 }
 </style>

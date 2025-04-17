@@ -26,7 +26,7 @@ export const useApiDataStore = defineStore('apiThickData', {
     },
     actions: {
         updateApiData(newData: IThickInfoInterval) {
-            this.apiThickData = newData;
+            Object.assign(this.apiThickData, newData);
         }
     },
 });

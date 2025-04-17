@@ -1,10 +1,11 @@
 <script setup lang='ts'>
 import StateComponent from './State.vue';
 import SigmaCharts from './SigmaCharts.vue';
-import Segmented from "./Segmented.vue";
 import RelationCharts from './RelationCharts.vue';
 import CharsOperate from '@/components/CharsOperate.vue';
 import SigmaInfo from './SigmaInfo.vue';
+import FrameInfo from './frame-info.vue';
+
 </script>
 
 <template>
@@ -24,13 +25,12 @@ import SigmaInfo from './SigmaInfo.vue';
         <SigmaInfo />
       </el-card>
     </div>
+    <div class="frame-info">
+      <FrameInfo />
+    </div>
     <div class="relation-charts">
       <el-card class="relation_content">
-        <div class="thick_info">sss</div>
-
-        <div class="charts">
           <RelationCharts />
-        </div>
       </el-card>
 
       <el-card>
@@ -49,6 +49,7 @@ import SigmaInfo from './SigmaInfo.vue';
 
 .operate-charts {
   display: flex;
+  margin: 6px 0;
 }
 
 .controls {
@@ -60,7 +61,7 @@ import SigmaInfo from './SigmaInfo.vue';
   display: flex;
   .sigma_charts_content {
     flex: 1;
-    margin-right: 10px;
+    margin-right: 6px;
   }
   :deep(.el-card__body) {
     padding: unset;
@@ -69,12 +70,10 @@ import SigmaInfo from './SigmaInfo.vue';
 
 .relation-charts {
   flex: 1;
-  margin-top: 10px;
   display: flex;
   .relation_content {
     flex: 1;
-    height: 100%;
-    margin-right: 10px;
+    margin-right: 6px;
   }
 
   :deep(.el-card__body) {
@@ -95,5 +94,8 @@ import SigmaInfo from './SigmaInfo.vue';
     flex: 1;
     width: 100%;
   }
+}
+.frame-info {
+  margin: 6px 0;
 }
 </style>

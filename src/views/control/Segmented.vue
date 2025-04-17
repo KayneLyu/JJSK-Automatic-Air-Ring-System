@@ -31,7 +31,7 @@ watch(() => store.apiThickData.ControllerState, () => {
 
 <template>
     <div class="controls_container">
-        <el-segmented v-model="store.apiThickData.ControllerState" :options="options" block size="large">
+        <el-segmented style="height: 45px;" v-model="store.apiThickData.ControllerState" :options="options" block size="large">
             <template #default="{ item }">
                 <div class="">
                     <div>{{ (item as Option).label }}</div>

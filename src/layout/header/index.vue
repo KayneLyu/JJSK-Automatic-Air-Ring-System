@@ -9,7 +9,7 @@ import LangCheckOut from './lang.vue';
   <div class="header">
     <div class="title_container">
       <div class="logo">
-
+        <img src="@/assets/charts.svg" alt="">
       </div>
       <div class="text">
         {{ $t("layout.title") }}
@@ -17,7 +17,7 @@ import LangCheckOut from './lang.vue';
     </div>
     <div class="drag_container"></div>
     <div class="functional_container">
-      
+
       <div class="theme_checkout">
         <ClipPath />
       </div>
@@ -60,11 +60,23 @@ import LangCheckOut from './lang.vue';
 }
 
 .title_container {
+  display: flex;
+  align-items: center;
+  .logo {
+    display: flex;
+    align-items: center;
+    img {
+      width: 20px;
+      height: 20px;
+      margin: 0 10px;
+    }
+  }
+
   .text {
+
     font-size: 13px;
     color: var(--tool-btn-color);
     letter-spacing: 2px;
-    margin-left: 12px;
   }
 }
 
