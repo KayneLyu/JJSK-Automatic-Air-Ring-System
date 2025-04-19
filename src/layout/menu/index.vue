@@ -11,9 +11,15 @@ import UnfoldIcon from '@/components/icons/Unfold.vue';
 
 const menuItemList = [
     {
+        name: "menu.horizon",
+        color: "#2196f3",
+        location: "/",
+        icon: HorizonIcon,
+    },
+    {
         name: "menu.control",
         color: "#b145e9",
-        location: "/",
+        location: "/Controls",
         icon: ControlsIcon,
     },
     {
@@ -21,12 +27,6 @@ const menuItemList = [
         color: "#ffa117",
         location: "/annular",
         icon: AnnularIcon,
-    },
-    {
-        name: "menu.horizon",
-        color: "#2196f3",
-        location: "/horizon",
-        icon: HorizonIcon,
     },
     {
         name: "menu.vertical",
@@ -93,16 +93,19 @@ const preventDefault = (e: MouseEvent) => {
     transition: 0.5s;
     padding-left: 10px;
     overflow: hidden;
+
     ul {
         position: relative;
         overflow: hidden;
         height: 100%;
         transition: all 0.3s ease-in-out;
+
         li {
             position: relative;
             list-style: none;
             margin-bottom: 20px;
             -webkit-tap-highlight-color: transparent;
+
             &.active {
                 background-color: var(--clr);
                 border-top-left-radius: 50px;
@@ -165,7 +168,7 @@ const preventDefault = (e: MouseEvent) => {
     align-items: center;
     color: var(--text-color);
     transition: 0.5s;
-    padding-left: 11px;
+    padding-left: 10px;
 }
 
 .sidebar ul li a .text {
@@ -248,6 +251,4 @@ const preventDefault = (e: MouseEvent) => {
 
 // .sidebar ul li:hover.active a .icon::before {
 //     background-color: var(--menu-bg);
-// }
-
-</style>
+// }</style>

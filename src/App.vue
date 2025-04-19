@@ -1,59 +1,48 @@
 <script setup lang="ts">
 import { onBeforeUnmount } from 'vue';
 import { useIntervalFn, useTimeoutFn } from '@vueuse/core'
-import { getThickInfo, getAirRingInfo } from "@/api";
+import { getThickInfo, getAirRingInfo, getFrame } from "@/api";
 import Layouts from "@/layout/index.vue";
 import { useApiDataStore } from '@/store/polling-data';
-import { formateThickData } from '@/utils/format-data';
-import { formatFrameData } from '@/utils/format-data';
-import { getFrame } from '@/api/';
+
 import { db } from '@/utils/dexie';
-
-const getFrameFromApi = async () => {
-   try {
-      const res = await getFrame(null);
-      if (res) {
-         const result = formatFrameData(res);
-         console.log('result', result);
-         await db.Frame.add(result)
-      }
-   } catch (error) {
-
-   }
-}
-
-
 
 const store = useApiDataStore()
 const getThickData = async () => {
   try {
     const data = await getThickInfo();
     if (data) {
-      const formatThick = formateThickData(data)
-      store.updateApiData(formatThick)
+      store.updateApiData(data)
     }
-    // console.log('thickdata',data);
   } catch (error) {
-    // console.log('error:', error);
+    store.apiThickData.ErrCode = 0
   }
 }
 const getAirRingData = async () => {
   try {
     const data = await getAirRingInfo();
-    // console.log('airring',data);
+    if(data) {
+      store.updateAirRingData(data)
+    }
   } catch (error) {
-    // console.log('error:', error);
+    store.apiAirRingData.ErrCode = 32
   }
 }
-const { start, stop, isPending } = useTimeoutFn(() => {
+
+// 开始轮询
+const { start: startThickGauge, stop: stopThickGauge } = useTimeoutFn(() => {
   getThickData();
-  getAirRingData();
-  // getFrameFromApi()
-  start()
+  startThickGauge()
 }, 1000)
 
+const { start: start, stop: stopAirRing, } = useTimeoutFn(() => {
+  getAirRingData();
+  start()
+}, 2000)
+
 onBeforeUnmount(() => {
-  stop()
+  stopThickGauge(),
+  stopAirRing()
 })
 </script>
 

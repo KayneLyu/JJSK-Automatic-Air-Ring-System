@@ -1,26 +1,51 @@
 <script setup lang='ts'>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { useRouter } from 'vue-router';
 import { Eleme } from '@element-plus/icons-vue'
 import { Vue3Marquee } from 'vue3-marquee'
 import { useProduct } from "@/store/product";
-import { useRouter } from 'vue-router';
+import { useApiDataStore } from "@/store/polling-data";
+import { decimalToBinary } from "@/utils/format-data";
 import AlarmIcon from "@/components/icons/Alert.vue";
 
 const router = useRouter()
-
 const store = useProduct()
+const pollingStore = useApiDataStore()
+const warningList = ref<string[]>([])
 
-const warningList = ref<number[]>([])
+watch([() => pollingStore.apiThickData.ErrCode, () => pollingStore.apiAirRingData.ErrCode], ([thickVal, airRingVal]) => {
+  if (thickVal == 0 && airRingVal == 0) {
+    warningList.value = []
+    return
+  }
+  let thickErrList: string[] = []
+  let ariRingErrList: string[] = []
+  if (thickVal !== 0) {
+    thickErrList = decimalToBinary(thickVal).map((item) => {
+      return `warning1.${item}`
+    })
+  }
+  if (airRingVal !== 0) {
+    ariRingErrList = decimalToBinary(airRingVal).map((item) => {
+      return `warning2.${item}`
+    })
+  }
+  warningList.value = [...thickErrList, ...ariRingErrList]
+},
+  {
+    immediate: true
+  }
+)
+
 const loading = ref(false)
-const fixScaleHandle = async() => {
+const fixScaleHandle = async () => {
   loading.value = true
   try {
-    
     setTimeout(() => {
       loading.value = false
     }, 5000);
   } catch (error) {
-    
+
   }
 }
 
@@ -35,7 +60,7 @@ const fixScaleHandle = async() => {
     <div class="target_value">
       <div class="target_content">
         <p class="target_tittle">{{ `目标值` }} : </p>
-        <el-input-number class="target_input" :controls="false" v-model = "store.param.thick" />
+        <el-input-number class="target_input" :controls="false" v-model="store.param.thick" />
         <span>μm</span>
       </div>
       <div class="target_content">
@@ -61,7 +86,7 @@ const fixScaleHandle = async() => {
         </el-icon>
       </div>
       <Vue3Marquee :duration="8">
-        <p class="marquee-item" v-for="(item, index) in warningList" :key="index">{{ $t(`warning.${item}`) }}</p>
+        <p class="marquee-item" v-for="(item, index) in warningList" :key="index">{{ $t(`${item}`) }}</p>
       </Vue3Marquee>
     </div>
   </div>
@@ -79,8 +104,8 @@ const fixScaleHandle = async() => {
 }
 
 :deep(.el-input__wrapper) {
-  padding-left: 5px!important;
-  padding-right: 5px!important;
+  padding-left: 5px !important;
+  padding-right: 5px !important;
   font-size: 15px;
 }
 
@@ -146,7 +171,7 @@ const fixScaleHandle = async() => {
   .marquee-item {
     font-size: 18px;
     font-weight: 700;
-    margin: 0 20px;
+    margin: 0 50px;
   }
 }
 

@@ -22,26 +22,6 @@ interface IThickInfoData {
     ErrCode: number
 }
 
-// 轮询测厚仪数据
-interface IThickInfoInterval {
-    AD: number, //采集器的模拟量采集值 ,
-    Thk: number, //厚度 um ,
-    K: number, //厚度放大倍数 ,
-    PosMm: number, //number //探头位置 mm ,
-    PosDetector: number, //探头位置 
-    Velocity: number,//探头速度 m/min ,
-    Width: number //膜宽度 mm ,
-    FilmVelocity: number,//生产速度 m/min ,
-    ControllerState: string, //运行状态 ,
-    IsFlyAdConnected: boolean//采集器 连接状态 ,
-    IsRotationCW: boolean//旋转架 是 顺时针 clockwise ,
-    ARoundTimeOfRotation: number //旋转一圈时间 min ,
-    PastTimeOfRotation: number //转向发生到现在已经过去的时间 min ,
-    AngleOfRotation: number //旋转角度 ° ,
-    // LastScanDataId: number //数据库中 扫描数据表 最新的ID
-}
-
-
 // 旧数据 获取一幅图数据
 interface IFrameData {
     ID: number, //每幅图标识ID

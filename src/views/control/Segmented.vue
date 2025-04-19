@@ -1,7 +1,8 @@
 
 <script lang="ts" setup>
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useApiDataStore  } from '@/store/polling-data';
+import { startMeasuring, stopMeasuring, toTheEdge } from '@/api';
 
 const store = useApiDataStore()
 type Option = {
@@ -24,16 +25,34 @@ const options: Option[] = [
         value: "ORG"
     }
 ]
-watch(() => store.apiThickData.ControllerState, () => {
-    console.log('aaa');
-})
+const changeState = async (options: string) => {
+    try {
+        switch (options) {
+            // 归零
+            case 'SCAN':
+                await startMeasuring()
+                break;
+            // 扫描
+            case 'FIX':
+                await stopMeasuring()
+                break;
+            // 正行
+            case 'ORG':
+                await toTheEdge()
+                break;
+            default:
+                break;
+        }
+    } catch (error) {
+    }
+}
 </script>
 
 <template>
     <div class="controls_container">
-        <el-segmented style="height: 45px;" v-model="store.apiThickData.ControllerState" :options="options" block size="large">
+        <el-segmented @change="changeState" style="height: 45px;" v-model="store.apiThickData.ControllerState" :options="options" block size="large">
             <template #default="{ item }">
-                <div class="">
+                <div>
                     <div>{{ (item as Option).label }}</div>
                 </div>
             </template>

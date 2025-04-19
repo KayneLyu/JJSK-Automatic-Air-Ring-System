@@ -1,11 +1,21 @@
 <script setup lang='ts'>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useApiDataStore } from '@/store/polling-data';
 import SurveyingIcon from '@/components/icons/Surveying.vue';
 import RotationIcon from '@/components/icons/Rotate.vue';
 import Segmented from "./Segmented.vue";
 import PositionIcon from '@/components/icons/Position.vue';
+
 const store = useApiDataStore()
+const posDetector = ref<number>(0)
+
+watch(() => store.apiThickData.PosMm, (newVal) => {
+    posDetector.value = Number((newVal / store.apiThickData.PosLenMm * 100).toFixed(0))
+},
+    {
+        immediate: true
+    }
+)
 
 </script>
 
@@ -46,7 +56,7 @@ const store = useApiDataStore()
                     <el-statistic group-separator="" title="AD" :value="store.apiThickData.AD" />
                 </el-col>
                 <el-col :span="2">
-                    <el-statistic group-separator="" title="空气AD" :value="store.apiThickData.AD" />
+                    <el-statistic group-separator="" title="空气AD" :value="store.apiThickData.SampleAD" />
                 </el-col>
                 <el-col :span="1">
                     <div class="icon_box icon_rotation">
@@ -81,12 +91,13 @@ const store = useApiDataStore()
         </div>
         <div class="control">
             <div class="progress">
-                <el-progress :show-text="false" :duration="20" striped-flow :percentage="store.apiThickData.PosDetector"
-                    :stroke-width="20" :striped="store.apiThickData.ControllerState !== 'FIX'">
+                <el-progress :text-inside="true" :show-text="false" :duration="20" striped-flow
+                    :percentage="posDetector" :stroke-width="20"
+                    :striped="store.apiThickData.ControllerState !== 'FIX'">
                     <span>
                         <el-icon>
                             <PositionIcon />
-                        </el-icon> {{ store.apiThickData.PosMm.toFixed(0) }} mm
+                        </el-icon> {{ store.apiThickData.PosMm }} mm
                     </span>
                 </el-progress>
             </div>

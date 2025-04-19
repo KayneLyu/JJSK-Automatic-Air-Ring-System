@@ -2,6 +2,11 @@ import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router';
 const routes: RouteRecordRaw[] = [
     {
         path: '/',
+        name: 'Horizon',
+        component: () => import('@/views/horizontal/index.vue')
+    },
+    {
+        path: '/Controls',
         name: 'Controls',
         component: () => import('@/views/control/index.vue')
     },
@@ -10,11 +15,7 @@ const routes: RouteRecordRaw[] = [
         name: 'Annular',
         component: () => import('@/views/annular/index.vue')
     },
-    {
-        path: '/horizon',
-        name: 'Horizon',
-        component: () => import('@/views/horizontal/index.vue')
-    },
+
     {
         path: '/vertical',
         name: 'Vertical',

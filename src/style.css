@@ -28,6 +28,7 @@
   --accent-100:#71c4ef;
   --content-bg: #f5f4f1;
   --item-hover: #d4eaf7;
+  --alarm-bg: #ffe4e4;
 }
 * {
   margin: 0;
@@ -60,6 +61,7 @@ html.dark {
   --tool-btn-color: #E5EAF3;
   --content-bg: #100C2A;
   --item-hover: #555555;
+  --alarm-bg: #492a2a;
 }
 
 ::view-transition-old(root),
