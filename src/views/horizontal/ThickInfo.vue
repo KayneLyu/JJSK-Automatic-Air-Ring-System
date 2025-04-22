@@ -20,6 +20,7 @@
     flex-direction: column;
     justify-content: space-around;
     height: 100%;
+    width: 100%;
     p {
         flex: 1;
         span {

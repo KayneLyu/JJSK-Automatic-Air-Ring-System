@@ -41,7 +41,6 @@ interface IFrameData {
 // 一幅图数据
 interface IFrameThickData {
     frameId: number,
-    date: string,
     startTime: string,
     endTime: string,
     speed: number,

@@ -3,7 +3,7 @@ import * as echarts from 'echarts/core';
 import { useConfigStore } from '@/store/config'
 import type { EChartsCoreOption } from 'echarts/core';
 
-const useInitCharts = (containerName: string, options: EChartsCoreOption) => {
+const useInitCharts = (containerName: string, options: EChartsCoreOption, propsData?: any[]) => {
     const chartRef = useTemplateRef<HTMLElement>(containerName);
     let chartInstanceRef: echarts.ECharts | null = null
     let observer: ResizeObserver | null = null
@@ -15,6 +15,11 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption) => {
             try {
                 chartInstanceRef = echarts.init(chartRef.value, store.isDark ? 'dark' : '');
                 chartInstanceRef.setOption(options);
+                if(propsData?.length) {
+                    chartInstanceRef.setOption({
+                        series: propsData
+                    });
+                }
             } catch (error) {
                 ElMessage.error('初始化图表时出错!');
             }

@@ -1,7 +1,24 @@
 <script setup lang='ts'>
+import { watch } from 'vue';
+import { useApiDataStore } from '@/store/polling-data';
+import { db } from "@/utils/dexie";
+import { getFrame } from "@/api/index";
+import { formatFrameData } from '@/utils/format-data';
 import HeaderComponent from './header/index.vue';
 import MenuComponent from './menu/index.vue';
 import ContentComponent from './content/index.vue';
+
+const store = useApiDataStore();
+
+watch(() => store.apiThickData.LastScanDataId, async (newValue) => {
+    const data = await getFrame(null)
+    if (data && data !== null) {
+        console.log('data', data);
+        const formatValue = formatFrameData(data)
+        await db.Frame.add(formatValue)
+    }
+});
+
 </script>
 
 <template>
@@ -15,7 +32,7 @@ import ContentComponent from './content/index.vue';
                 <div class="layout_views">
                     <ContentComponent />
                 </div>
-                
+
             </div>
 
         </div>
@@ -43,10 +60,11 @@ import ContentComponent from './content/index.vue';
         background-color: var(--clr);
         display: flex;
         flex-direction: column;
+
         .layout_views {
             flex: 1;
         }
-        
+
     }
 }
 </style>

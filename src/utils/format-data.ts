@@ -36,8 +36,7 @@ function timeToSecondsRotate(time: string) {
 export const formatFrameData = (data: IFrameData): IFrameThickData => {
     // 提取公共的时间格式化逻辑
     const startTime = dayjs(data.Time).format("YYYY-MM-DD HH:mm:ss");
-    const endTime = dayjs(data.EndTime).format("HH:mm:ss");
-    const queryDate = dayjs(data.Time).format("YYYY-MM-DD");
+    const endTime = dayjs(data.EndTime).format("YYYY-MM-DD HH:mm:ss");
     // 检查 data.Thicks 是否为空或包含非数字值
     if (!Array.isArray(data.Thicks) || data.Thicks.length === 0) {
         throw new Error("Invalid or empty Thicks array");
@@ -52,7 +51,6 @@ export const formatFrameData = (data: IFrameData): IFrameThickData => {
     const maxPercent = (max - mean) / mean * 100;
     return {
         frameId: data.ID,
-        date: queryDate,
         startTime: startTime,
         endTime: endTime,
         speed: fixedNumber(data.FilmVelocity, 1),

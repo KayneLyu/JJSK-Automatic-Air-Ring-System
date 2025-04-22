@@ -3,8 +3,6 @@ import { ref, watch } from 'vue';
 import * as echarts from 'echarts/core';
 import {
     GridComponent,
-    TitleComponent,
-    TitleComponentOption,
     TooltipComponentOption,
     GridComponentOption,
     DatasetComponentOption,
@@ -17,7 +15,6 @@ import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts';
 import { useProduct } from '@/store/product';
 type ECOption = echarts.ComposeOption<
-    | TitleComponentOption
     | TooltipComponentOption
     | GridComponentOption
     | DatasetComponentOption
@@ -25,7 +22,6 @@ type ECOption = echarts.ComposeOption<
 >;
 
 echarts.use([
-    TitleComponent,
     GridComponent,
     LineChart,
     CanvasRenderer,
@@ -41,17 +37,6 @@ const props = defineProps<{
 
 let option: ECOption = {
     animation: false,
-    title: {
-        text: "自动风环扫描图",
-        top: "2%",
-        right: "0%",
-        backgroundColor: '#29C1E5',
-        borderRadius: 5,
-        textStyle: {
-            color: "black",
-            fontSize: "12px",
-        },
-    },
     // 边距设置
     grid: {
         left: "1%",
@@ -122,7 +107,7 @@ let option: ECOption = {
             {
                 gt: -store.param.tolerance,
                 lte: store.param.tolerance,
-                color: 'rgba(168,176,246, 0.9)'
+                color: 'rgba(168,176,246, 0.7)'
             },
         ],
         outOfRange: {
@@ -141,7 +126,7 @@ let option: ECOption = {
             },
             showSymbol: false,
             areaStyle: {
-                // color: "rgba(168,176,246, 0.9)",
+                // color: "rgba(168,176,246, 0.6)",
             },
             data: props.frameData
         },
@@ -161,17 +146,7 @@ let option: ECOption = {
 };
 const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option)
-// setTimeout(() => {
-//     updateCharts({
-//         series: [
-//         {
-//             data: [1000, 1000, 901, 934, 1290, 1330, 1320],
-//             type: 'line',
-//             areaStyle: {}
-//         }
-//     ]
-//     })
-// },0)
+
 watch(props, () => {
     updateCharts({ series: [{ data: props.frameData }] })
 },
@@ -182,7 +157,29 @@ watch(props, () => {
 </script>
 
 <template>
-    <div ref="chartContainer" style="width: 100%;; height: 100%;"></div>
+    <div class="charts">
+        <div ref="chartContainer" style="width: 100%;; height: 100%;"></div>
+        <div class="tittle">
+            <p style="margin-right: 15px;">横向图</p>
+            <p>ID: </p>
+        </div>
+    </div>
 </template>
 
-<style scoped></style>
+<style scoped lang="less">
+.charts {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+.tittle {
+    display: flex;
+    position: absolute;
+    left: 45px;
+    top: 0px;
+    font-size: 14px;
+    padding: 1px;
+    border-radius: 5px;
+    background-color: #29C1E5;
+}
+</style>
