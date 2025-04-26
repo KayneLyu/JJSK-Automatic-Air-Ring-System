@@ -32,7 +32,7 @@ echarts.use([
 const store = useProduct();
 
 const props = defineProps<{
-    frameData: [number, string][]
+    frameData: [number, number][]
 }>()
 
 let option: ECOption = {
@@ -100,20 +100,6 @@ let option: ECOption = {
             },
         },
     },
-    visualMap: {
-        right: 0,
-        top: -20,
-        pieces: [
-            {
-                gt: -store.param.tolerance,
-                lte: store.param.tolerance,
-                color: 'rgba(168,176,246, 0.7)'
-            },
-        ],
-        outOfRange: {
-            color: 'rgb(194, 0, 39)',
-        },
-    },
     series: [
         {
             name: "实际轮廓(%)",
@@ -126,33 +112,49 @@ let option: ECOption = {
             },
             showSymbol: false,
             areaStyle: {
-                // color: "rgba(168,176,246, 0.6)",
+                color: "rgba(168,176,246, 0.7)",
             },
-            data: props.frameData
+            data: []
         },
         {
-            xAxisIndex: 0,
-            yAxisIndex: 0,
+            name: "实际轮廓(%)",
             type: "line",
             smooth: true,
             symbol: "none",
-            lineStyle: {
-                width: 3,
-                color: "#000cae",
+            showSymbol: false,
+            areaStyle: {
+                color: "#FA476F",
             },
-            data: [],
+            data: []
         },
+        // {
+        //     xAxisIndex: 0,
+        //     yAxisIndex: 0,
+        //     type: "line",
+        //     smooth: true,
+        //     symbol: "none",
+        //     lineStyle: {
+        //         width: 3,
+        //         color: "#000cae",
+        //     },
+        //     data: [],
+        // },
     ],
 };
 const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option)
 
 watch(props, () => {
-    updateCharts({ series: [{ data: props.frameData }] })
+    // 正常区域：
+    const overData = props.frameData.map(v => (v[1] < 5 && v[1] > -5 ? null : v)); 
+    updateCharts({ series: [
+        { data: props.frameData },
+        { data: overData },
+    ] })
 },
-    // {
-    //     immediate: true
-    // }
+    {
+        immediate: true
+    }
 )
 </script>
 
@@ -160,7 +162,7 @@ watch(props, () => {
     <div class="charts">
         <div ref="chartContainer" style="width: 100%;; height: 100%;"></div>
         <div class="tittle">
-            <p style="margin-right: 15px;">横向图</p>
+            <p style="margin-right: 10px;">横向图</p>
             <p>ID: </p>
         </div>
     </div>
@@ -176,9 +178,9 @@ watch(props, () => {
     display: flex;
     position: absolute;
     left: 45px;
-    top: 0px;
-    font-size: 14px;
-    padding: 1px;
+    top: 0;
+    font-size: 12px;
+    padding: 2px;
     border-radius: 5px;
     background-color: #29C1E5;
 }

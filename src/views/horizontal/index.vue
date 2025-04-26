@@ -8,16 +8,15 @@ import { getFrame } from '@/api/';
 import { db } from '@/utils/dexie';
 import { formateList } from '@/utils/ChartsData';
 
-const frameData = ref<[number,string][]>([])
+const frameData = ref<[number,number][]>([])
 const getFrameFromApi = async () => {
    try {
       const res = await db.Frame.get(1);
       if (res) {
          frameData.value = formateList(res)
+         console.log('frameData.value', frameData.value);
       }
-   } catch (error) {
-
-   }
+   } catch (error) { }
 }
 onMounted(() => {
    getFrameFromApi()

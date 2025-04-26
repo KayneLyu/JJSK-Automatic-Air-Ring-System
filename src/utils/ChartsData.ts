@@ -21,7 +21,6 @@ export const setDegArray = (degArray: number[], startDeg: number): number[] => {
     degArray.sort((a, b) => {
         const aAboveStart = a >= startDeg;
         const bAboveStart = b >= startDeg;
-
         if (aAboveStart === bAboveStart) {
             return a - b;
         }
@@ -33,15 +32,13 @@ export const setDegArray = (degArray: number[], startDeg: number): number[] => {
 
 // 横向数据
 export const formateList = (frame: IFrameThickData) => {
-    let thickList: Array<[number, string]> = []
+    let thickList: Array<[number,number]> = []
     for (let i = 0; i < frame.datalist.length; i++) {
-        thickList.push([
-            i,
-            (
-                ((frame.datalist[i] - frame.mean) / frame.mean) *
-                100
-            ).toFixed(1),
-        ]);
+        const value = (
+            ((frame.datalist[i] - frame.mean) / frame.mean) *
+            100
+        ).toFixed(1)
+        thickList.push([i, Number(value)]);
     }
     return thickList
 }
