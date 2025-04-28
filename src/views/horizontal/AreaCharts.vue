@@ -7,7 +7,9 @@ import {
     GridComponentOption,
     DatasetComponentOption,
     VisualMapComponent,
-    VisualMapComponentOption
+    VisualMapComponentOption,
+    MarkLineComponent,
+    MarkLineComponentOption,
 } from 'echarts/components';
 import { LineChart } from 'echarts/charts';
 import { UniversalTransition } from 'echarts/features';
@@ -19,6 +21,7 @@ type ECOption = echarts.ComposeOption<
     | GridComponentOption
     | DatasetComponentOption
     | VisualMapComponentOption
+    | MarkLineComponentOption
 >;
 
 echarts.use([
@@ -27,20 +30,24 @@ echarts.use([
     CanvasRenderer,
     UniversalTransition,
     VisualMapComponent,
+    MarkLineComponent
 ]);
 
 const store = useProduct();
 
 const props = defineProps<{
-    frameData: [number, number][]
+    id: number,
+    frameData: [number, number][],
+    startDate: string,
+    endDate: string
 }>()
 
 let option: ECOption = {
     animation: false,
     // 边距设置
     grid: {
-        left: "1%",
-        right: "2%",
+        left: 5,
+        right: 12,
         bottom: "3%",
         top: "5%",
         containLabel: true,
@@ -76,28 +83,24 @@ let option: ECOption = {
         axisLabel: {
             show: true,
             formatter: function (value) {
-                return value + "%";
+                if (value === -store.param.tolerance || value === store.param.tolerance ) {
+                    return `{special|${value}%}`
+                }
+                return `${value.toFixed(0)}%`
             },
-            // color: function (value: any): string {
-            //     return value == 5 || value == -1 * 5
-            //         ? "red"
-            //         : "black";
-            // },
+            rich: {
+                special: {
+                    color: '#fff',
+                    backgroundColor: '#ff6f6f',
+                    padding: 2,
+                }
+            },
         },
-        axisTick: {},
         minorTick: {
             show: false,
         },
         axisLine: {
             show: true,
-        },
-        splitLine: {
-            lineStyle: {
-                // 使用深浅的间隔色
-                color: ["#d9dbdd", "#d9dbdd", "#d9dbdd", "red", "#d9dbdd", "red"],
-                type: "solid",
-                opacity: 0.4,
-            },
         },
     },
     series: [
@@ -113,6 +116,22 @@ let option: ECOption = {
             showSymbol: false,
             areaStyle: {
                 color: "rgba(168,176,246, 0.7)",
+            },
+            markLine: {
+                silent: true,
+                symbol: 'none', // 不显示标记点
+                lineStyle:
+                {
+                    color: 'red', // 标记线的颜色
+                    type: 'dashed' // 线型
+                },
+                label: {
+                    show: false,
+                },
+                data: [
+                    { yAxis: store.param.tolerance },
+                    { yAxis: -store.param.tolerance },
+                ]
             },
             data: []
         },
@@ -146,11 +165,13 @@ const { updateCharts } = useChartsInit('chartContainer', option)
 
 watch(props, () => {
     // 正常区域：
-    const overData = props.frameData.map(v => (v[1] < 5 && v[1] > -5 ? null : v)); 
-    updateCharts({ series: [
-        { data: props.frameData },
-        { data: overData },
-    ] })
+    const overData = props.frameData.map(v => (v[1] < 5 && v[1] > -5 ? null : v));
+    updateCharts({
+        series: [
+            { data: props.frameData },
+            { data: overData },
+        ]
+    })
 },
     {
         immediate: true
@@ -160,10 +181,10 @@ watch(props, () => {
 
 <template>
     <div class="charts">
-        <div ref="chartContainer" style="width: 100%;; height: 100%;"></div>
+        <div ref="chartContainer" style="width: 99%; height: 100%;"></div>
         <div class="tittle">
             <p style="margin-right: 10px;">横向图</p>
-            <p>ID: </p>
+            <p>ID: {{ props.id }}</p>
         </div>
     </div>
 </template>
@@ -174,6 +195,7 @@ watch(props, () => {
     width: 100%;
     height: 100%;
 }
+
 .tittle {
     display: flex;
     position: absolute;

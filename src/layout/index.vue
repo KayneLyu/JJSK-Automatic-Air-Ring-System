@@ -13,9 +13,8 @@ const store = useApiDataStore();
 watch(() => store.apiThickData.LastScanDataId, async (newValue) => {
     const data = await getFrame(null)
     if (data && data !== null) {
-        console.log('data', data);
         const formatValue = formatFrameData(data)
-        await db.Frame.add(formatValue)
+        await db.Frame.put(formatValue)
     }
 });
 
