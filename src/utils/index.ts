@@ -10,13 +10,11 @@ export function debounce(func: Function, delay: number) {
         }, delay);
     };
 }
-
+// 获取配置
 export function getLocalstorage(name: string, params: string) {
     const getLocalData = localStorage.getItem('config')
     if (getLocalData) {
         const data = JSON.parse(getLocalData)
-        console.log('data', data, data[name] );
-        
         return data[name] || params
     } else {
         return params
@@ -48,3 +46,13 @@ export const resetOrderDeg = (index: number) => {
     const newArr = lastArr.concat(firstArr)
     return newArr
 }
+
+// 封装通用的通知方法
+export const showNotification = (titleKey: string, messageKey: string, type: 'success' | 'error' | 'info' | 'warning') => {
+    ElNotification({
+       title: titleKey,
+       message: messageKey,
+       type,
+       position: 'bottom-left',
+    })
+ };

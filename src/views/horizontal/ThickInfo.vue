@@ -1,14 +1,28 @@
 <script setup lang='ts'>
+import { useConfigStore } from '@/store/config';
 
+const store = useConfigStore()
+
+const props = defineProps<{
+    thickInfo: IFrameThickData
+}>()
 </script>
 
 <template>
-    <div class="thick-info">
-        <p>平均值: <span>{{70}}</span> μm</p>
-        <p>2σ(2*sigma): <span>{{"5"}}%</span></p>
-        <p>最大值: <span>80</span> um</p>
-        <p>最小值: <span>60</span> um</p>
-        <p>薄膜宽度: <span>1800</span> mm</p>
+
+    <div v-if="store.showPercent" class="thick-info">
+        <p>平均值: <span>{{ thickInfo.mean }}</span> μm</p>
+        <p>2σ(2*sigma): <span>{{ thickInfo.sigmaPercent }}<i>%</i></span></p>
+        <p>最大值: <span>{{ thickInfo.maxPercent }}<i>%</i> </span> </p>
+        <p>最小值: <span>{{ thickInfo.minPercent }}<i>%</i> </span> </p>
+        <p>薄膜宽度: <span>{{ thickInfo.width }} <i>mm</i></span> </p>
+    </div>
+    <div v-else class="thick-info">
+        <p>平均值: <span>{{ thickInfo.mean }}</span> μm</p>
+        <p>2σ(2*sigma): <span>{{ thickInfo.sigmaVal }} <i>um</i></span></p>
+        <p>最大值: <span>{{ thickInfo.maxVal }} <i>μm</i></span> </p>
+        <p>最小值: <span>{{ thickInfo.minVal  }} <i>μm</i></span> </p>
+        <p>薄膜宽度: <span>{{ thickInfo.width }} <i>mm</i></span> </p>
     </div>
 </template>
 
@@ -21,11 +35,19 @@
     justify-content: space-around;
     height: 100%;
     width: 100%;
+
     p {
         flex: 1;
+
         span {
             font-size: 16px;
             font-weight: 700;
+
+            i {
+                font-weight: 500;
+                font-size: 14px;
+                font-style: normal;
+            }
         }
     }
 }

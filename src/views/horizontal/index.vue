@@ -6,8 +6,9 @@ import ThickInfo from './ThickInfo.vue';
 import { getFrame } from '@/api/';
 import { db } from '@/utils/dexie';
 import { formateList } from '@/utils/ChartsData';
+import HeatsCardInfo from './HeatsCard.vue';
 
-const frameListData = reactive([
+const frameListData = reactive<IFrameThickData[]>([
    {
       frameId: 0,
       startTime: '',
@@ -91,17 +92,18 @@ const frameListData = reactive([
 ])
 const getFrameList = async () => {
    try {
-      const recentItems = await db.Frame.orderBy('frameId').reverse().limit(4).toArray();
+      const recentItems = await db.Frame.orderBy('frameId').reverse().limit(5).toArray();
       if (recentItems.length) {
          for (let index = 0; index < recentItems.length; index++) {
-            frameListData[recentItems.length- index] = {
+            frameListData[recentItems.length - 1 - index] = {
                ...recentItems[index],
-               datalist: formateList(recentItems[index]) as []
+               datalist: formateList(recentItems[index])
             }
          }
       }
    } catch (error) { }
 }
+
 onMounted(() => {
    getFrameList()
 })
@@ -113,17 +115,17 @@ onMounted(() => {
          <div class="chart_views">
             <el-card class="chartBox">
                <HorizonCharts :startDate="frame.startTime" :endDate="frame.endTime" :id="frame.frameId"
-                  :frameData="frame.datalist" />
+                  :frameData="frame.datalist as [number,number][]" />
             </el-card>
          </div>
          <div class="info_card">
             <el-card class="card_content">
-               <ThickInfo />
+               <ThickInfo :thickInfo="frame"/>
             </el-card>
          </div>
       </div>
 
-      <!-- <div class="charts_content">
+      <div class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
                <HeatState />
@@ -131,11 +133,10 @@ onMounted(() => {
          </div>
          <div class="info_card">
             <el-card class="card_content">
-               <div>
-               </div>
+               <HeatsCardInfo />
             </el-card>
          </div>
-      </div> -->
+      </div>
    </div>
 </template>
 

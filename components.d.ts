@@ -34,6 +34,7 @@ declare module 'vue' {
     ElSegmented: typeof import('element-plus/es')['ElSegmented']
     ElSelect: typeof import('element-plus/es')['ElSelect']
     ElStatistic: typeof import('element-plus/es')['ElStatistic']
+    ElSwitch: typeof import('element-plus/es')['ElSwitch']
     Horizon: typeof import('./src/components/icons/Horizon.vue')['default']
     Lang: typeof import('./src/components/icons/Lang.vue')['default']
     Latest: typeof import('./src/components/icons/Latest.vue')['default']

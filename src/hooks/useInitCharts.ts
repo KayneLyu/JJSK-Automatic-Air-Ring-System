@@ -3,7 +3,10 @@ import * as echarts from 'echarts/core';
 import { useConfigStore } from '@/store/config'
 import type { EChartsCoreOption } from 'echarts/core';
 
-const useInitCharts = (containerName: string, options: EChartsCoreOption, propsData?: any[]) => {
+type IPropsDta = {
+    frameData: [number,number][] | number []
+}
+const useInitCharts = (containerName: string, options: EChartsCoreOption, props?: IPropsDta) => {
     const chartRef = useTemplateRef<HTMLElement>(containerName);
     let chartInstanceRef: echarts.ECharts | null = null
     let observer: ResizeObserver | null = null
@@ -15,9 +18,9 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption, propsD
             try {
                 chartInstanceRef = echarts.init(chartRef.value, store.isDark ? 'dark' : '');
                 chartInstanceRef.setOption(options);
-                if(propsData?.length) {
+                if(props && props.frameData) {
                     chartInstanceRef.setOption({
-                        series: propsData
+                        series: [{data: props.frameData}]
                     });
                 }
             } catch (error) {
@@ -62,7 +65,7 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption, propsD
     };
 
     // 监听store.theme的变化，以便更新echarts实例的主题
-    watch(store, (newTheme) => {
+    watch(() => store.isDark, (newTheme) => {
         dropCharts()
         initChart()
     });

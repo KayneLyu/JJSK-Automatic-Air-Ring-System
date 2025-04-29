@@ -33,7 +33,7 @@ function timeToSecondsRotate(time: string) {
     return Number(rotateSpeed.toFixed(1))
 }
 
-export const formatFrameData = (data: IFrameData): IFrameThickData => {
+export const formatFrameData = (data: IFrameData) => {
     // 提取公共的时间格式化逻辑
     const startTime = dayjs(data.Time).format("YYYY-MM-DD HH:mm:ss");
     const endTime = dayjs(data.EndTime).format("YYYY-MM-DD HH:mm:ss");
@@ -63,7 +63,7 @@ export const formatFrameData = (data: IFrameData): IFrameThickData => {
         minPercent: fixedNumber(minPercent, 1),
         maxVal: fixedNumber(max, 1),
         maxPercent: fixedNumber(maxPercent, 1),
-        datalist: thicks,
+        datalist: thicks
     };
 }
 

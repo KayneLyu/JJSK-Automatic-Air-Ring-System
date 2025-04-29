@@ -16,6 +16,8 @@ import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts';
 import { useProduct } from '@/store/product';
+import dayjs from "dayjs";
+
 type ECOption = echarts.ComposeOption<
     | TooltipComponentOption
     | GridComponentOption
@@ -37,7 +39,7 @@ const store = useProduct();
 
 const props = defineProps<{
     id: number,
-    frameData: [number, number][],
+    frameData: [number,number][],
     startDate: string,
     endDate: string
 }>()
@@ -161,7 +163,7 @@ let option: ECOption = {
     ],
 };
 const chartContainer = ref<HTMLElement | null>(null)
-const { updateCharts } = useChartsInit('chartContainer', option)
+const { updateCharts } = useChartsInit('chartContainer', option, props)
 
 watch(props, () => {
     // 正常区域：
@@ -186,6 +188,12 @@ watch(props, () => {
             <p style="margin-right: 10px;">横向图</p>
             <p>ID: {{ props.id }}</p>
         </div>
+
+        <div class="date_info">
+            <p> {{ props.startDate }}</p>
+            <p style="margin: 0 3px;"> ~ </p>
+            <p> {{ props.endDate && dayjs(props.endDate).format('HH:mm:ss') }}</p>
+        </div>
     </div>
 </template>
 
@@ -196,14 +204,23 @@ watch(props, () => {
     height: 100%;
 }
 
-.tittle {
-    display: flex;
+.tittle, .date_info {
     position: absolute;
+    display: flex;
+    background-color: #409EFF;
+    color: #fff;
+    font-size: 12px;
+    border-radius: 5px;
+    padding: 2px 3px;
+}
+
+.tittle {
     left: 45px;
     top: 0;
-    font-size: 12px;
-    padding: 2px;
-    border-radius: 5px;
-    background-color: #29C1E5;
+    
+}
+.date_info {
+    right: 5px;
+    top: 0;
 }
 </style>

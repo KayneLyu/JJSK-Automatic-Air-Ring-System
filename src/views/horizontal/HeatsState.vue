@@ -43,7 +43,7 @@ let option: ECOption = {
     },
     grid: {
         left: "0.5%",
-        right: "2%",
+        right: 12,
         bottom: "4%",
         top: "5%",
         containLabel: true,
@@ -128,7 +128,7 @@ const { updateCharts } = useChartsInit('chartContainer', option)
 </script>
 
 <template>
-    <div  ref="chartContainer" style="width: 100%;; height: 100%;"></div>
+    <div  ref="chartContainer" style="width: 99%; height: 100%;"></div>
 </template>
 
 <style scoped></style>

@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 type IConfig = {
   language: ILanguageType
   isDark: boolean,
+  showPercent: boolean,
+  markOverValue: boolean
 }
 
 export const useConfigStore = defineStore('config', {
@@ -9,6 +11,8 @@ export const useConfigStore = defineStore('config', {
     return {
       language: 'zhCn',
       isDark: false,
+      showPercent: false,
+      markOverValue: true
     }
   },
   actions: {
