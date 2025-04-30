@@ -5,8 +5,6 @@ import { getThickInfo, getAirRingInfo, getFrame } from "@/api";
 import Layouts from "@/layout/index.vue";
 import { useApiDataStore } from '@/store/polling-data';
 
-import { db } from '@/utils/dexie';
-
 const store = useApiDataStore()
 const getThickData = async () => {
   try {

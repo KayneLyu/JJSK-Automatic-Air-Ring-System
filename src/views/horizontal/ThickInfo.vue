@@ -15,6 +15,7 @@ const props = defineProps<{
         <p>2σ(2*sigma): <span>{{ thickInfo.sigmaPercent }}<i>%</i></span></p>
         <p>最大值: <span>{{ thickInfo.maxPercent }}<i>%</i> </span> </p>
         <p>最小值: <span>{{ thickInfo.minPercent }}<i>%</i> </span> </p>
+        <p>生产速度: <span>{{ thickInfo.speed  }} <i>m/min</i> <b>{{ `${thickInfo.IsBackw ? '正':'反'}` }}</b></span> </p>
         <p>薄膜宽度: <span>{{ thickInfo.width }} <i>mm</i></span> </p>
     </div>
     <div v-else class="thick-info">
@@ -22,6 +23,7 @@ const props = defineProps<{
         <p>2σ(2*sigma): <span>{{ thickInfo.sigmaVal }} <i>um</i></span></p>
         <p>最大值: <span>{{ thickInfo.maxVal }} <i>μm</i></span> </p>
         <p>最小值: <span>{{ thickInfo.minVal  }} <i>μm</i></span> </p>
+        <p>生产速度: <span>{{ thickInfo.speed  }} <i>m/min</i> <b>{{ `${thickInfo.IsBackw ? '正':'反'}` }}</b></span> </p>
         <p>薄膜宽度: <span>{{ thickInfo.width }} <i>mm</i></span> </p>
     </div>
 </template>
@@ -38,7 +40,8 @@ const props = defineProps<{
 
     p {
         flex: 1;
-
+        font-size: 14px;
+        display: flexbox;
         span {
             font-size: 16px;
             font-weight: 700;
@@ -47,6 +50,13 @@ const props = defineProps<{
                 font-weight: 500;
                 font-size: 14px;
                 font-style: normal;
+            }
+            b {
+                font-size: 14px;
+               padding: 2px;
+               background-color: #409EFF;
+               border-radius: 3px; 
+               color: #fff;
             }
         }
     }

@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { ref, watch } from 'vue';
+import { ref, onBeforeUnmount, watch, onMounted } from 'vue';
 import * as echarts from 'echarts/core';
 import {
     GridComponent,
@@ -14,6 +14,8 @@ import {
 import { LineChart } from 'echarts/charts';
 import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
+import { useTimeoutFn } from '@vueuse/core'
+
 import useChartsInit from '@/hooks/useInitCharts';
 import { useProduct } from '@/store/product';
 import dayjs from "dayjs";
@@ -39,9 +41,11 @@ const store = useProduct();
 
 const props = defineProps<{
     id: number,
-    frameData: [number,number][],
+    frameData: [number, number][],
     startDate: string,
-    endDate: string
+    endDate: string,
+    meanVal: number,
+    tempList: [number, number | null][]
 }>()
 
 let option: ECOption = {
@@ -85,7 +89,7 @@ let option: ECOption = {
         axisLabel: {
             show: true,
             formatter: function (value) {
-                if (value === -store.param.tolerance || value === store.param.tolerance ) {
+                if (value === -store.param.tolerance || value === store.param.tolerance) {
                     return `{special|${value}%}`
                 }
                 return `${value.toFixed(0)}%`
@@ -137,43 +141,76 @@ let option: ECOption = {
             },
             data: []
         },
+
         {
-            name: "实际轮廓(%)",
+            name: "即时图",
+            xAxisIndex: 0,
+            yAxisIndex: 0,
             type: "line",
             smooth: true,
             symbol: "none",
-            showSymbol: false,
-            areaStyle: {
-                color: "#FA476F",
+            lineStyle: {
+                width: 4,
+                color: "#000cae",
             },
-            data: []
+            data: [],
         },
     ],
 };
+
+
 const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option, props)
 
-watch(() => props.frameData, (value) => {
-    // 正常区域：
-    const overData = props.frameData.map(v => (v[1] < 5 && v[1] > -5 ? null : v));
+
+// const getTempFrameData = async () => {
+//     try {
+//         const result = await UploadThickness()
+//         if (result.D.length) {
+//             tempData.value = formatTempList(result.D, props.meanVal)
+//         }
+//         updateCharts({
+//             series: [
+//                 { data: props.frameData },
+//                 { data: tempData.value },
+//             ]
+//         })
+//     } catch (error) {
+//         console.log('err', error);
+//     }
+// }
+
+// const { start, stop } = useTimeoutFn(() => {
+//     getTempFrameData()
+//     start()
+// }, 2000)
+
+// onBeforeUnmount(() => {
+//     stop()
+// })
+
+watch(() => props.tempList, (temp) => {
+    console.log('333', temp);
     updateCharts({
         series: [
             { data: props.frameData },
-            { data: overData },
+            { data: temp },
         ]
     })
 },
     {
-        immediate: true
+        immediate: true,
+        deep: true
     }
 )
+
 </script>
 
 <template>
     <div class="charts">
         <div ref="chartContainer" style="width: 99%; height: 100%;"></div>
         <div class="tittle">
-            <p style="margin-right: 10px;">横向图</p>
+            <p style="margin-right: 10px;">横向图1-1</p>
             <p>ID: {{ props.id }}</p>
         </div>
 
@@ -192,7 +229,8 @@ watch(() => props.frameData, (value) => {
     height: 100%;
 }
 
-.tittle, .date_info {
+.tittle,
+.date_info {
     position: absolute;
     display: flex;
     background-color: #409EFF;
@@ -205,8 +243,9 @@ watch(() => props.frameData, (value) => {
 .tittle {
     left: 45px;
     top: 0;
-    
+
 }
+
 .date_info {
     right: 5px;
     top: 0;

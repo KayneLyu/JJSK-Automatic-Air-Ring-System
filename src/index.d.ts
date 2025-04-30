@@ -53,6 +53,7 @@ interface IFrameThickData {
     minPercent: number,
     maxVal: number,
     maxPercent: number,
+    IsBackw: boolean,
     datalist: [number,number][] | number[],
 }
 

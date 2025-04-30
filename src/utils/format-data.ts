@@ -63,6 +63,7 @@ export const formatFrameData = (data: IFrameData) => {
         minPercent: fixedNumber(minPercent, 1),
         maxVal: fixedNumber(max, 1),
         maxPercent: fixedNumber(maxPercent, 1),
+        isForward: data.IsBackw,
         datalist: thicks
     };
 }

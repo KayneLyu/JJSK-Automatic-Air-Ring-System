@@ -1,12 +1,14 @@
 <script setup lang='ts'>
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, onBeforeUnmount } from 'vue';
+import { useTimeoutFn } from '@vueuse/core'
 import HorizonCharts from './AreaCharts.vue';
 import HeatState from './HeatsState.vue';
 import ThickInfo from './ThickInfo.vue';
-import { getFrame } from '@/api/';
+import { getFrame, UploadThickness } from '@/api/';
 import { db } from '@/utils/dexie';
-import { formateList } from '@/utils/ChartsData';
+import { formateList, formatTempList } from '@/utils/ChartsData';
 import HeatsCardInfo from './HeatsCard.vue';
+import TempCharts from './TempCharts.vue';
 
 const frameListData = reactive<IFrameThickData[]>([
    {
@@ -23,6 +25,7 @@ const frameListData = reactive<IFrameThickData[]>([
       minPercent: 0,
       maxVal: 0,
       maxPercent: 0,
+      IsBackw: false,
       datalist: [],
    },
    {
@@ -39,6 +42,7 @@ const frameListData = reactive<IFrameThickData[]>([
       minPercent: 0,
       maxVal: 0,
       maxPercent: 0,
+      IsBackw: false,
       datalist: [],
    },
    {
@@ -55,6 +59,7 @@ const frameListData = reactive<IFrameThickData[]>([
       minPercent: 0,
       maxVal: 0,
       maxPercent: 0,
+      IsBackw: false,
       datalist: [],
    },
    {
@@ -71,6 +76,7 @@ const frameListData = reactive<IFrameThickData[]>([
       minPercent: 0,
       maxVal: 0,
       maxPercent: 0,
+      IsBackw: false,
       datalist: [],
    },
    {
@@ -87,9 +93,13 @@ const frameListData = reactive<IFrameThickData[]>([
       minPercent: 0,
       maxVal: 0,
       maxPercent: 0,
+      IsBackw: false,
       datalist: [],
    },
 ])
+
+let tempData = ref<[number, number | null][]>([])
+
 const getFrameList = async () => {
    try {
       const recentItems = await db.Frame.orderBy('frameId').reverse().limit(5).toArray();
@@ -97,15 +107,41 @@ const getFrameList = async () => {
          for (let index = 0; index < recentItems.length; index++) {
             frameListData[recentItems.length - 1 - index] = {
                ...recentItems[index],
-               datalist: formateList(recentItems[index])
+               datalist: formateList(recentItems[index].datalist as number[], recentItems[index].mean)
             }
          }
       }
    } catch (error) { }
 }
 
+
+//
+const getTempFrameData = async () => {
+    try {
+        const result = await UploadThickness()
+        if (result.D.length) {
+            const index = frameListData.length-1
+            console.log('frameListData[index]', frameListData[index]);
+            
+            tempData.value = formatTempList(result.D, frameListData[index].mean)
+        }
+    } catch (error) {
+        console.log('err', error);
+    }
+}
+
+const { start, stop } = useTimeoutFn(() => {
+    getTempFrameData()
+    start()
+}, 2000)
+
+onBeforeUnmount(() => {
+    stop()
+})
+
 onMounted(() => {
    getFrameList()
+   getTempFrameData()
 })
 </script>
 
@@ -114,13 +150,18 @@ onMounted(() => {
       <div v-for="(frame, index) in frameListData" :key="index" class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-               <HorizonCharts :startDate="frame.startTime" :endDate="frame.endTime" :id="frame.frameId"
-                  :frameData="frame.datalist as [number,number][]" />
+              
+               <TempCharts v-if="index == 4" :temp-list="tempData" :mean-val="frame.mean" :startDate="frame.startTime" :endDate="frame.endTime"
+                  :id="frame.frameId" :frameData="frame.datalist as [number, number][]" />
+
+                   <HorizonCharts v-else :startDate="frame.startTime" :endDate="frame.endTime"
+                  :id="frame.frameId" :frameData="frame.datalist as [number, number][]" />
             </el-card>
+
          </div>
          <div class="info_card">
             <el-card class="card_content">
-               <ThickInfo :thickInfo="frame"/>
+               <ThickInfo :thickInfo="frame" />
             </el-card>
          </div>
       </div>
@@ -137,6 +178,7 @@ onMounted(() => {
             </el-card>
          </div>
       </div>
+
    </div>
 </template>
 

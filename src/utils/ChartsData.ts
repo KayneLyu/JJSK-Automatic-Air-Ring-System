@@ -31,14 +31,34 @@ export const setDegArray = (degArray: number[], startDeg: number): number[] => {
 }
 
 // 横向数据
-export const formateList = (frame: IFrameThickData) => {
-    let thickList: Array<[number,number]> = []
-    for (let i = 0; i < frame.datalist.length; i++) {
+export const formateList = (frame: number[], meanValue: number) => {
+    let thickList: Array<[number, number]> = []
+    for (let i = 0; i < frame.length; i++) {
         const value = (
-            ((frame.datalist[i] - frame.mean) / frame.mean) *
+            ((frame[i] - meanValue) / meanValue) *
             100
         ).toFixed(1)
         thickList.push([i, Number(value)]);
     }
     return thickList
+}
+
+
+// 即时数据
+export const formatTempList = (frame: number[], meanValue: number) => {
+    let tempList: Array<[number, number | null]> = []
+    for (let i = 0; i < frame.length; i++) {
+        let value = null
+        if (typeof frame[i] === 'number') {
+            
+            value = Number((
+                ((frame[i] - meanValue) / meanValue) *
+                100
+            ).toFixed(1))
+            console.log('value', value, meanValue);
+            
+        }
+        tempList.push([i, value]);
+    }
+    return tempList
 }
