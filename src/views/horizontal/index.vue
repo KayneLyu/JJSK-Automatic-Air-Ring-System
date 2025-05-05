@@ -114,10 +114,8 @@ const getFrameList = async () => {
    } catch (error) { }
 }
 
-watch(() => store.apiThickData.LastScanDataId, async() => {
-   setTimeout(() => {
-      getFrameList()
-   }, 0);
+watch(() => store.apiThickData.LastScanDataId, async () => {
+   getFrameList()
 },
    {
       immediate: true

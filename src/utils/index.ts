@@ -31,7 +31,7 @@ export function isValidNumber(value: any): boolean {
 
 // 控制环形图起始角度
 export const resetOrderDeg = (index: number) => {
-    let arr: string[] =[]
+    let arr: string[] = []
     for (let index = 0; index < 120; index++) {
         arr.push(index * 3 + '°')
     }
@@ -50,9 +50,22 @@ export const resetOrderDeg = (index: number) => {
 // 封装通用的通知方法
 export const showNotification = (titleKey: string, messageKey: string, type: 'success' | 'error' | 'info' | 'warning') => {
     ElNotification({
-       title: titleKey,
-       message: messageKey,
-       type,
-       position: 'bottom-left',
+        title: titleKey,
+        message: messageKey,
+        type,
+        position: 'bottom-left',
     })
- };
+};
+
+/**
+ * 截断数组
+ * @param arr 
+ * @param item 
+ * @returns xAxis 
+ */
+export function rearrangeArray(arr: number[], item: number) {
+    const index = arr.indexOf(item);
+    if (index === -1) return [...arr]; // 如果 item 不在数组中，返回原数组的拷贝
+
+    return [...arr.slice(index), ...arr.slice(0, index)];
+}

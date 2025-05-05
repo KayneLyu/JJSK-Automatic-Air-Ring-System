@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount } from 'vue';
 import { useIntervalFn, useTimeoutFn } from '@vueuse/core'
-import { getThickInfo, getAirRingInfo, getFrame } from "@/api";
+import { getThickInfo, getAirRingInfo, getFrame, getAirRingConfig } from "@/api";
 import Layouts from "@/layout/index.vue";
 import { useApiDataStore } from '@/store/polling-data';
 
@@ -19,8 +19,12 @@ const getThickData = async () => {
 const getAirRingData = async () => {
   try {
     const data = await getAirRingInfo();
+    const config = await getAirRingConfig()
     if(data) {
       store.updateAirRingData(data)
+    }
+    if(config) {
+      store.updateAirRingConfig(config)
     }
   } catch (error) {
     store.apiAirRingData.ErrCode = 32

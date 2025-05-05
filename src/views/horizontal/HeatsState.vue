@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { ref } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import * as echarts from 'echarts/core';
 import {
     TitleComponent,
@@ -10,6 +10,9 @@ import {
 import { BarChart, BarSeriesOption } from 'echarts/charts';
 import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
+import { getHeats } from '@/api';
+import useSortChannel from '@/hooks/useSetChannelSort';
+
 import useChartsInit from '@/hooks/useInitCharts';
 
 type ECOption = echarts.ComposeOption<
@@ -26,13 +29,23 @@ echarts.use([
     UniversalTransition
 ]);
 
+const heatsData = ref<number[]>([])
+const getHeatsData = async () => {
+    const data = await getHeats()
+    heatsData.value = data
+}
 
-const xAxisData = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,34, 35, 36, 37, 38, ]
+const { channelOrder } = useSortChannel()
+
+onMounted(() => {
+    getHeatsData()
+})
+
 let option: ECOption = {
-    animation:false,
+    animation: false,
     title: {
-        text: "当前风环通道状态",
-        top: "13%",
+        text: "当前风环通道值",
+        top: "15%",
         right: "0%",
         backgroundColor: '#bae8ff80',
         borderRadius: 5,
@@ -49,6 +62,7 @@ let option: ECOption = {
         containLabel: true,
     },
     xAxis: [
+
         {
             type: 'value',
             min: 0,
@@ -64,27 +78,53 @@ let option: ECOption = {
                 formatter: (value) => {
                     return value + "°";
                 },
-                // color: (value) => {
-                //     return value == startDeg ? "red" : "black";
-                // },
+            },
+            splitLine: {
+                show: false
             },
         },
         {
             type: 'category',
-            data: xAxisData,
-            boundaryGap: false,
-            min: 0,
+            boundaryGap: true,
+            data: channelOrder.value,
             axisLabel: {
-                interval: 4,
-                color: (value) => {
-                    return value == 1 ? "red" : "black";
+                show: true,
+                interval: 0,
+                formatter: function (value) {
+                    const monitorNum = Number(value)
+                    if (monitorNum == 1) {
+                        return `{special|${value}}`
+                    }
+                    if (monitorNum % 5 == 0) {
+                        return `${value}`
+                    } else {
+                        return ``
+                    }
+                },
+                rich: {
+                    special: {
+                        color: '#fff',
+                        backgroundColor: '#ff6f6f',
+                        padding: 2,
+                    }
                 },
                 margin: 3,
                 showMinLabel: true
             },
             axisTick: {
-                inside: true
-            }
+                show: false,
+                alignWithLabel: false,
+            },
+            axisLine: {
+                show: false
+            },
+            splitLine: {
+                show: true,
+                interval: (index, value) => {
+                    const monitorNum = Number(value);
+                    return monitorNum === 1 || monitorNum % 5 === 0;
+                }
+            },
         },
     ],
     yAxis: {
@@ -102,34 +142,43 @@ let option: ECOption = {
         {
             xAxisIndex: 1,
             type: 'bar',
-            // smooth: 0.6,
-            // symbol: 'none',
-            // areaStyle: {},
             barWidth: '90%',
             color: 'rgba(168,176,246, 0.7)',
-            data: []
+            data: heatsData.value
         },
     ]
 };
 const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option)
-// setTimeout(() => {
-//     updateCharts({
-//         series: [
-//         {
-//             data: [1000, 1000, 901, 934, 1290, 1330, 1320],
-//             type: 'line',
-//             areaStyle: {}
-//         }
-//     ]
-//     })
-// },0)
+setTimeout(() => {
+    updateCharts({
+        series: [
+            {
+                data: heatsData.value,
+            }
+        ]
+    })
+}, 100)
+
+watch(() => channelOrder.value, (newAxisData) => {
+    updateCharts({
+        xAxis: [
+            {},
+            {
+                data: newAxisData,
+            }
+        ]
+    })
+},
+    {
+        immediate: true,
+    }
+)
 
 </script>
 
 <template>
-    <div  ref="chartContainer" style="width: 99%; height: 100%;"></div>
+    <div ref="chartContainer" style="width: 99%; height: 100%;"></div>
 </template>
 
 <style scoped></style>
-
