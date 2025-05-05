@@ -9,12 +9,13 @@ const store = useConfigStore()
     <div class="heats_info">
         <p>风环通道</p>
         <p>以百分比显示: <el-switch v-model="store.showPercent"></el-switch> </p>
-        <p>超出公差标记: <el-switch v-model="store.showPercent"></el-switch> </p>
+        <p>超出公差标记: <el-switch v-model="store.markOverValue"></el-switch> </p>
     </div>
 </template>
 
 <style scoped lang="less">
 .heats_info {
-
+    padding: 5px;
+    box-sizing: border-box;
 }
 </style>

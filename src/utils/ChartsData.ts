@@ -45,18 +45,15 @@ export const formateList = (frame: number[], meanValue: number) => {
 
 
 // 即时数据
-export const formatTempList = (frame: number[], meanValue: number) => {
+export const formatTempList = (frame: Array<number | string>, meanValue: number) => {
     let tempList: Array<[number, number | null]> = []
     for (let i = 0; i < frame.length; i++) {
         let value = null
         if (typeof frame[i] === 'number') {
-            
             value = Number((
-                ((frame[i] - meanValue) / meanValue) *
+                ((frame[i] as number - meanValue) / meanValue) *
                 100
             ).toFixed(1))
-            console.log('value', value, meanValue);
-            
         }
         tempList.push([i, value]);
     }

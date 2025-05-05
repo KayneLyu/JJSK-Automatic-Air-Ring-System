@@ -1,15 +1,15 @@
 <script setup lang='ts'>
-import { onMounted, reactive, ref, onBeforeUnmount } from 'vue';
-import { useTimeoutFn } from '@vueuse/core'
+import { reactive, ref, watch } from 'vue';
 import HorizonCharts from './AreaCharts.vue';
 import HeatState from './HeatsState.vue';
 import ThickInfo from './ThickInfo.vue';
-import { getFrame, UploadThickness } from '@/api/';
 import { db } from '@/utils/dexie';
-import { formateList, formatTempList } from '@/utils/ChartsData';
+import { formateList } from '@/utils/ChartsData';
 import HeatsCardInfo from './HeatsCard.vue';
 import TempCharts from './TempCharts.vue';
+import { useApiDataStore } from '@/store/polling-data';
 
+const store = useApiDataStore()
 const frameListData = reactive<IFrameThickData[]>([
    {
       frameId: 0,
@@ -114,35 +114,15 @@ const getFrameList = async () => {
    } catch (error) { }
 }
 
-
-//
-const getTempFrameData = async () => {
-    try {
-        const result = await UploadThickness()
-        if (result.D.length) {
-            const index = frameListData.length-1
-            console.log('frameListData[index]', frameListData[index]);
-            
-            tempData.value = formatTempList(result.D, frameListData[index].mean)
-        }
-    } catch (error) {
-        console.log('err', error);
-    }
-}
-
-const { start, stop } = useTimeoutFn(() => {
-    getTempFrameData()
-    start()
-}, 2000)
-
-onBeforeUnmount(() => {
-    stop()
-})
-
-onMounted(() => {
-   getFrameList()
-   getTempFrameData()
-})
+watch(() => store.apiThickData.LastScanDataId, async() => {
+   setTimeout(() => {
+      getFrameList()
+   }, 0);
+},
+   {
+      immediate: true
+   }
+)
 </script>
 
 <template>
@@ -150,12 +130,12 @@ onMounted(() => {
       <div v-for="(frame, index) in frameListData" :key="index" class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-              
-               <TempCharts v-if="index == 4" :temp-list="tempData" :mean-val="frame.mean" :startDate="frame.startTime" :endDate="frame.endTime"
-                  :id="frame.frameId" :frameData="frame.datalist as [number, number][]" />
 
-                   <HorizonCharts v-else :startDate="frame.startTime" :endDate="frame.endTime"
-                  :id="frame.frameId" :frameData="frame.datalist as [number, number][]" />
+               <TempCharts v-if="index == 4" :temp-list="tempData" :mean-val="frame.mean" :startDate="frame.startTime"
+                  :endDate="frame.endTime" :id="frame.frameId" :frameData="frame.datalist as [number, number][]" />
+
+               <HorizonCharts v-else :startDate="frame.startTime" :endDate="frame.endTime" :id="frame.frameId"
+                  :frameData="frame.datalist as [number, number][]" />
             </el-card>
 
          </div>

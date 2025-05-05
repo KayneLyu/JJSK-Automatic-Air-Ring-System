@@ -102,14 +102,14 @@ export const getAirRingWarningList = () => {
 /**
  *  清空测厚仪报警列表
  */
- export const clearThickWarningList = () => {
+export const clearThickWarningList = () => {
     return formateResult(postRequest("/api/thk/resetErrCode"))
 }
 
 /**
  * 清空风环PLC报警列表
  */
- export const clearAirRingWarningList = () => {
+export const clearAirRingWarningList = () => {
     return formateResult(postRequest("/api/airRing/resetErrCode"))
 }
 
@@ -124,7 +124,7 @@ export const getAirRingConfig = () => {
  *  实时厚度数据
  */
 export const UploadThickness = () => {
-    return formateResult<{D:number[]}>(postRequest("/api/thk/getTempFrame"))
+    return formateResult<{ D: Array<number | string>}>(postRequest("/api/thk/getTempFrame"))
 }
 
 /**

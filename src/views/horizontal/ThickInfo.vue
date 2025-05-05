@@ -12,9 +12,9 @@ const props = defineProps<{
 
     <div v-if="store.showPercent" class="thick-info">
         <p>平均值: <span>{{ thickInfo.mean }}</span> μm</p>
-        <p>2σ(2*sigma): <span>{{ thickInfo.sigmaPercent }}<i>%</i></span></p>
-        <p>最大值: <span>{{ thickInfo.maxPercent }}<i>%</i> </span> </p>
-        <p>最小值: <span>{{ thickInfo.minPercent }}<i>%</i> </span> </p>
+        <p>2σ(2*sigma): <span>{{ thickInfo.sigmaPercent.toFixed(1) }}<i>%</i></span></p>
+        <p>最大值: <span>{{ thickInfo.maxPercent.toFixed(1)}}<i>%</i> </span> </p>
+        <p>最小值: <span>{{ thickInfo.minPercent.toFixed(1) }}<i>%</i> </span> </p>
         <p>生产速度: <span>{{ thickInfo.speed  }} <i>m/min</i> <b>{{ `${thickInfo.IsBackw ? '正':'反'}` }}</b></span> </p>
         <p>薄膜宽度: <span>{{ thickInfo.width }} <i>mm</i></span> </p>
     </div>

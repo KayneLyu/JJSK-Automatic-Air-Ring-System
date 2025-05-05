@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { ref, onBeforeUnmount, watch, onMounted } from 'vue';
+import { ref, watch } from 'vue';
 import * as echarts from 'echarts/core';
 import {
     GridComponent,
@@ -14,10 +14,10 @@ import {
 import { LineChart } from 'echarts/charts';
 import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
-import { useTimeoutFn } from '@vueuse/core'
-
 import useChartsInit from '@/hooks/useInitCharts';
 import { useProduct } from '@/store/product';
+import { useConfigStore } from '@/store/config';
+import { useTempStore } from "@/store/temp";
 import dayjs from "dayjs";
 
 type ECOption = echarts.ComposeOption<
@@ -38,6 +38,8 @@ echarts.use([
 ]);
 
 const store = useProduct();
+const tempStore = useTempStore();
+const configStore = useConfigStore();
 
 const props = defineProps<{
     id: number,
@@ -111,6 +113,19 @@ let option: ECOption = {
     },
     series: [
         {
+            name: "即时图",
+            xAxisIndex: 0,
+            yAxisIndex: 0,
+            type: "line",
+            smooth: true,
+            symbol: "none",
+            lineStyle: {
+                width: 4,
+                color: "#000cae",
+            },
+            data: [],
+        },
+        {
             name: "实际轮廓(%)",
             type: "line",
             smooth: true,
@@ -141,60 +156,53 @@ let option: ECOption = {
             },
             data: []
         },
-
         {
-            name: "即时图",
-            xAxisIndex: 0,
-            yAxisIndex: 0,
+            name: "实际轮廓(%)",
             type: "line",
             smooth: true,
             symbol: "none",
-            lineStyle: {
-                width: 4,
-                color: "#000cae",
+            showSymbol: false,
+            areaStyle: {
+                color: "#FA476F",
             },
-            data: [],
+            data: []
         },
+
     ],
 };
-
 
 const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option, props)
 
+watch([() => props.frameData, () => configStore.markOverValue], ([frameData, showOverDta]) => {
+    if (showOverDta) {
+        const overData = props.frameData.map(v => (v[1] < store.param.tolerance && v[1] > -store.param.tolerance ? null : v));
+        updateCharts({
+            series: [
+                { data: tempStore.tempList },
+                { data: frameData },
+                { data: overData },
+            ]
+        })
+    } else {
+        updateCharts({
+            series: [
+                { data: tempStore.tempList },
+                { data: frameData },
+                { data: [] },
+            ]
+        })
+    }
+},
+    {
+        immediate: true,
+    }
+)
 
-// const getTempFrameData = async () => {
-//     try {
-//         const result = await UploadThickness()
-//         if (result.D.length) {
-//             tempData.value = formatTempList(result.D, props.meanVal)
-//         }
-//         updateCharts({
-//             series: [
-//                 { data: props.frameData },
-//                 { data: tempData.value },
-//             ]
-//         })
-//     } catch (error) {
-//         console.log('err', error);
-//     }
-// }
-
-// const { start, stop } = useTimeoutFn(() => {
-//     getTempFrameData()
-//     start()
-// }, 2000)
-
-// onBeforeUnmount(() => {
-//     stop()
-// })
-
-watch(() => props.tempList, (temp) => {
-    console.log('333', temp);
+watch(() => tempStore.tempList, (tempList) => {
     updateCharts({
         series: [
-            { data: props.frameData },
-            { data: temp },
+            { data: tempList },
         ]
     })
 },

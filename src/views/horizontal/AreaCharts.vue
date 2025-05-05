@@ -16,6 +16,7 @@ import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts';
 import { useProduct } from '@/store/product';
+import { useConfigStore } from '@/store/config';
 import dayjs from "dayjs";
 
 type ECOption = echarts.ComposeOption<
@@ -36,10 +37,11 @@ echarts.use([
 ]);
 
 const store = useProduct();
+const configStore = useConfigStore();
 
 const props = defineProps<{
     id: number,
-    frameData: [number,number][],
+    frameData: [number, number][],
     startDate: string,
     endDate: string
 }>()
@@ -80,12 +82,12 @@ let option: ECOption = {
         type: "value",
         min: store.param.tolerance * -4,
         max: store.param.tolerance * 4,
-        maxInterval: 5,
+        maxInterval: store.param.tolerance,
         minInterval: 1,
         axisLabel: {
             show: true,
             formatter: function (value) {
-                if (value === -store.param.tolerance || value === store.param.tolerance ) {
+                if (value === -store.param.tolerance || value === store.param.tolerance) {
                     return `{special|${value}%}`
                 }
                 return `${value.toFixed(0)}%`
@@ -153,15 +155,25 @@ let option: ECOption = {
 const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option, props)
 
-watch(() => props.frameData, (value) => {
-    // 正常区域：
-    const overData = props.frameData.map(v => (v[1] < 5 && v[1] > -5 ? null : v));
-    updateCharts({
-        series: [
-            { data: props.frameData },
-            { data: overData },
-        ]
-    })
+watch([() => props.frameData, () => configStore.markOverValue], () => {
+    if (configStore.markOverValue) {
+        // 超出的数据
+        const overData = props.frameData.map(v => (v[1] < store.param.tolerance && v[1] > -store.param.tolerance ? null : v));
+        updateCharts({
+            series: [
+                { data: props.frameData },
+                { data: overData },
+            ]
+        })
+    } else {
+        updateCharts({
+            series: [
+                { data: props.frameData },
+                { data: [] },
+            ]
+        })
+    }
+
 },
     {
         immediate: true
@@ -192,7 +204,8 @@ watch(() => props.frameData, (value) => {
     height: 100%;
 }
 
-.tittle, .date_info {
+.tittle,
+.date_info {
     position: absolute;
     display: flex;
     background-color: #409EFF;
@@ -205,8 +218,9 @@ watch(() => props.frameData, (value) => {
 .tittle {
     left: 45px;
     top: 0;
-    
+
 }
+
 .date_info {
     right: 5px;
     top: 0;
