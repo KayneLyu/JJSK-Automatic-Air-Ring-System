@@ -9,9 +9,10 @@ const configStore = useApiDataStore()
 
 <template>
     <div class="heats_info">
-        <p class="tittle">风环通道值</p>
-        <p>通道数量: {{ configStore.apiAirRingConfig.ChannelCnt }}</p>
-        <p>1# 通道角度: {{ configStore.apiAirRingConfig.ChannelNo1Angle }}°</p>
+        <p class="tittle">风环通道值:</p>
+        <p>1# 通道角度: <b>{{ configStore.apiAirRingConfig.ChannelNo1Angle }}°</b></p>
+        <p style="margin: 6px 0;">通道数量: <span>{{ configStore.apiAirRingConfig.ChannelCnt }}</span> </p>
+        <p >基础调节量: <span>{{ configStore.apiAirRingConfig.BaseHeat }}%</span></p>
         <!-- <p>以百分比显示: <el-switch v-model="store.showPercent"></el-switch> </p> -->
         <!-- <p>超出公差标记: <el-switch v-model="store.markOverValue"></el-switch> </p> -->
     </div>
@@ -24,5 +25,18 @@ const configStore = useApiDataStore()
 }
 .tittle {
     margin-bottom: 20px;
+}
+p {
+    display: flexbox;
+    font-size: 14px;
+    b {
+        padding: 2px;
+        border-radius: 3px;
+        background: #409EFF;
+        color: #fff;
+    }
+    span {
+        font-weight: 700;
+    }
 }
 </style>

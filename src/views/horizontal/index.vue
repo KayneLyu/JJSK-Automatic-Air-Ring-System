@@ -8,6 +8,7 @@ import { formateList } from '@/utils/ChartsData';
 import HeatsCardInfo from './HeatsCard.vue';
 import TempCharts from './TempCharts.vue';
 import { useApiDataStore } from '@/store/polling-data';
+import { getHeats } from '@/api';
 
 const store = useApiDataStore()
 const frameListData = reactive<IFrameThickData[]>([
@@ -99,6 +100,7 @@ const frameListData = reactive<IFrameThickData[]>([
 ])
 
 let tempData = ref<[number, number | null][]>([])
+let heatsChannel = ref<[string, number][]>([])
 
 const getFrameList = async () => {
    try {
@@ -110,6 +112,14 @@ const getFrameList = async () => {
                datalist: formateList(recentItems[index].datalist as number[], recentItems[index].mean)
             }
          }
+      }
+      const heats = await getHeats()
+      if (heats.length) {
+         let formatHeatsData: [string, number][] = []
+         for (let index = 1; index <= heats.length; index++) {
+            formatHeatsData.push([`${index}`, heats[index - 1]])
+         }
+         heatsChannel.value = formatHeatsData
       }
    } catch (error) { }
 }
@@ -147,7 +157,7 @@ watch(() => store.apiThickData.LastScanDataId, async () => {
       <div class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-               <HeatState />
+               <HeatState :frame-data="heatsChannel" />
             </el-card>
          </div>
          <div class="info_card">
@@ -156,7 +166,6 @@ watch(() => store.apiThickData.LastScanDataId, async () => {
             </el-card>
          </div>
       </div>
-
    </div>
 </template>
 

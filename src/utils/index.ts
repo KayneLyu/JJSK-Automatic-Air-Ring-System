@@ -63,7 +63,7 @@ export const showNotification = (titleKey: string, messageKey: string, type: 'su
  * @param item 
  * @returns xAxis 
  */
-export function rearrangeArray(arr: number[], item: number) {
+export function rearrangeArray(arr: Array<number|string>, item: string | number) {
     const index = arr.indexOf(item);
     if (index === -1) return [...arr]; // 如果 item 不在数组中，返回原数组的拷贝
 

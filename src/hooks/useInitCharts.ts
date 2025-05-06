@@ -4,7 +4,7 @@ import { useConfigStore } from '@/store/config'
 import type { EChartsCoreOption } from 'echarts/core';
 
 type IPropsDta = {
-    frameData: [number,number][] | number []
+    frameData: Array<[string | number, number]> | number[]
 }
 const useInitCharts = (containerName: string, options: EChartsCoreOption, props?: IPropsDta) => {
     const chartRef = useTemplateRef<HTMLElement>(containerName);
@@ -18,9 +18,9 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption, props?
             try {
                 chartInstanceRef = echarts.init(chartRef.value, store.isDark ? 'dark' : '');
                 chartInstanceRef.setOption(options);
-                if(props && props.frameData) {
+                if (props && props.frameData) {
                     chartInstanceRef.setOption({
-                        series: [{data: props.frameData}]
+                        series: [{ data: props.frameData }]
                     });
                 }
             } catch (error) {

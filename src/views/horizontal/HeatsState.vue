@@ -10,7 +10,7 @@ import {
 import { BarChart, BarSeriesOption } from 'echarts/charts';
 import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
-import { getHeats } from '@/api';
+import { rearrangeArray } from "@/utils";
 import useSortChannel from '@/hooks/useSetChannelSort';
 
 import useChartsInit from '@/hooks/useInitCharts';
@@ -29,17 +29,11 @@ echarts.use([
     UniversalTransition
 ]);
 
-const heatsData = ref<number[]>([])
-const getHeatsData = async () => {
-    const data = await getHeats()
-    heatsData.value = data
-}
-
 const { channelOrder } = useSortChannel()
+const props = defineProps<{
+    frameData: [string,number][]
+}>()
 
-onMounted(() => {
-    getHeatsData()
-})
 
 let option: ECOption = {
     animation: false,
@@ -144,21 +138,21 @@ let option: ECOption = {
             type: 'bar',
             barWidth: '90%',
             color: 'rgba(168,176,246, 0.7)',
-            data: heatsData.value
+            data: []
         },
     ]
 };
 const chartContainer = ref<HTMLElement | null>(null)
-const { updateCharts } = useChartsInit('chartContainer', option)
-setTimeout(() => {
+const { updateCharts } = useChartsInit('chartContainer', option, props)
+watch(() => props.frameData, (newData) => {
     updateCharts({
         series: [
             {
-                data: heatsData.value,
+                data: newData,
             }
         ]
     })
-}, 100)
+})
 
 watch(() => channelOrder.value, (newAxisData) => {
     updateCharts({
@@ -171,10 +165,9 @@ watch(() => channelOrder.value, (newAxisData) => {
     })
 },
     {
-        immediate: true,
+        immediate: true
     }
 )
-
 </script>
 
 <template>

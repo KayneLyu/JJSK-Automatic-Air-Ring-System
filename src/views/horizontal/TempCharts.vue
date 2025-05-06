@@ -113,19 +113,6 @@ let option: ECOption = {
     },
     series: [
         {
-            name: "即时图",
-            xAxisIndex: 0,
-            yAxisIndex: 0,
-            type: "line",
-            smooth: true,
-            symbol: "none",
-            lineStyle: {
-                width: 4,
-                color: "#000cae",
-            },
-            data: [],
-        },
-        {
             name: "实际轮廓(%)",
             type: "line",
             smooth: true,
@@ -167,7 +154,19 @@ let option: ECOption = {
             },
             data: []
         },
-
+        {
+            name: "即时图",
+            xAxisIndex: 0,
+            yAxisIndex: 0,
+            type: "line",
+            smooth: true,
+            symbol: "none",
+            lineStyle: {
+                width: 4,
+                color: "#000cae",
+            },
+            data: [],
+        }
     ],
 };
 
@@ -179,17 +178,17 @@ watch([() => props.frameData, () => configStore.markOverValue], ([frameData, sho
         const overData = props.frameData.map(v => (v[1] < store.param.tolerance && v[1] > -store.param.tolerance ? null : v));
         updateCharts({
             series: [
-                { data: tempStore.tempList },
                 { data: frameData },
                 { data: overData },
+                { data: tempStore.tempList },
             ]
         })
     } else {
         updateCharts({
             series: [
-                { data: tempStore.tempList },
                 { data: frameData },
                 { data: [] },
+                { data: tempStore.tempList },
             ]
         })
     }
@@ -202,6 +201,8 @@ watch([() => props.frameData, () => configStore.markOverValue], ([frameData, sho
 watch(() => tempStore.tempList, (tempList) => {
     updateCharts({
         series: [
+            {},
+            {},
             { data: tempList },
         ]
     })
