@@ -85,7 +85,7 @@ const fixScaleHandle = async () => {
           <AlarmIcon />
         </el-icon>
       </div>
-      <Vue3Marquee :duration="8">
+      <Vue3Marquee :duration="6">
         <p class="marquee-item" v-for="(item, index) in warningList" :key="index">{{ $t(`${item}`) }}</p>
       </Vue3Marquee>
     </div>

@@ -1,6 +1,7 @@
 <script setup lang='ts'>
 import { useConfigStore } from '@/store/config';
 import { useApiDataStore } from '@/store/polling-data';
+import dayjs from 'dayjs';
 
 const store = useConfigStore()
 const configStore = useApiDataStore()
@@ -9,10 +10,10 @@ const configStore = useApiDataStore()
 
 <template>
     <div class="heats_info">
-        <p class="tittle">风环通道值:</p>
         <p>1# 通道角度: <b>{{ configStore.apiAirRingConfig.ChannelNo1Angle }}°</b></p>
         <p style="margin: 6px 0;">通道数量: <span>{{ configStore.apiAirRingConfig.ChannelCnt }}</span> </p>
         <p >基础调节量: <span>{{ configStore.apiAirRingConfig.BaseHeat }}%</span></p>
+        <p style="margin-top: 6px;">厚度起效时间: <span>{{ dayjs(configStore.apiAirRingData.StableTime).format('HH:mm:ss') }}</span></p>
         <!-- <p>以百分比显示: <el-switch v-model="store.showPercent"></el-switch> </p> -->
         <!-- <p>超出公差标记: <el-switch v-model="store.markOverValue"></el-switch> </p> -->
     </div>
@@ -24,11 +25,14 @@ const configStore = useApiDataStore()
     box-sizing: border-box;
 }
 .tittle {
-    margin-bottom: 20px;
+    margin-bottom: 10px;
 }
 p {
     display: flexbox;
     font-size: 14px;
+    &:first-of-type {
+        margin-top: 10px;
+    }
     b {
         padding: 2px;
         border-radius: 3px;
