@@ -6,6 +6,9 @@ import CharsOperate from '@/components/CharsOperate.vue';
 import SigmaInfo from './SigmaInfo.vue';
 import FrameInfo from './frame-info.vue';
 
+const getQueryData = (msg: any) => {
+  console.log('msg', msg);
+};
 </script>
 
 <template>
@@ -14,7 +17,7 @@ import FrameInfo from './frame-info.vue';
       <StateComponent />
     </div>
     <div class="operate-charts">
-      <CharsOperate />
+      <CharsOperate @send="getQueryData" />
     </div>
     <div class="sigma-charts">
       <el-card class="sigma_charts_content">

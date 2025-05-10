@@ -52,7 +52,7 @@ const store = useApiDataStore();
     display: flex;
     font-size: 13px;
     p {
-        margin-right: 10px;
+        margin-right: 12px;
         height: 100%;
         padding: 0 20px;
         border-right: 2px solid #cdcdcd;

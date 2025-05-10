@@ -32,14 +32,11 @@ export const setDegArray = (degArray: number[], startDeg: number): number[] => {
 
 // 横向数据
 export const formateList = (frame: number[], meanValue: number) => {
-    let thickList: Array<[number, number]> = []
-    for (let i = 0; i < frame.length; i++) {
+    const thickList: Array<[number,number]> = frame.map((item, index) => {
         const value = (
-            ((frame[i] - meanValue) / meanValue) *
-            100
-        ).toFixed(1)
-        thickList.push([i, Number(value)]);
-    }
+            ((item - meanValue) / meanValue) *100).toFixed(1)
+        return [index, Number(value)]
+    })
     return thickList
 }
 
