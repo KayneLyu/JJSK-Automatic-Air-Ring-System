@@ -1,4 +1,5 @@
 <script setup lang='ts'>
+import useOperateCharts from '@/hooks/useOperateCharts';
 import StateComponent from './State.vue';
 import SigmaCharts from './SigmaCharts.vue';
 import RelationCharts from './RelationCharts.vue';
@@ -6,9 +7,15 @@ import CharsOperate from '@/components/CharsOperate.vue';
 import SigmaInfo from './SigmaInfo.vue';
 import FrameInfo from './frame-info.vue';
 
+const { 
+  sigmaDataList,
+  getTrendDataList, 
+  nextPageQuery  
+} = useOperateCharts();
 const getQueryData = (msg: any) => {
   console.log('msg', msg);
 };
+
 </script>
 
 <template>
@@ -17,11 +24,11 @@ const getQueryData = (msg: any) => {
       <StateComponent />
     </div>
     <div class="operate-charts">
-      <CharsOperate @send="getQueryData" />
+      <CharsOperate :next-page-query="nextPageQuery" :get-trend-data-list="getTrendDataList" />
     </div>
     <div class="sigma-charts">
       <el-card class="sigma_charts_content">
-        <SigmaCharts />
+        <SigmaCharts :frame-data="sigmaDataList"/>
       </el-card>
 
       <el-card>

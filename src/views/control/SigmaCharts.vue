@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { onMounted, ref } from "vue";
+import { watch, onMounted, ref } from "vue";
 import * as echarts from "echarts/core";
 import {
     TitleComponent,
@@ -32,6 +32,10 @@ type EChartsOption = echarts.ComposeOption<
     | LineSeriesOption
 >;
 
+const props = defineProps<{
+    frameData: Array<[string , number]>
+}>()
+
 let option: EChartsOption = {
     animation: false,
     tooltip: {
@@ -61,10 +65,10 @@ let option: EChartsOption = {
         },
     },
     grid: {
-        left: "2%",
-        right: "3%",
-        bottom: "15%",
-        top: "5%",
+        left: 10,
+        right: 10,
+        bottom: 10,
+        top: 10,
         containLabel: true,
     },
     title: {
@@ -142,7 +146,7 @@ let option: EChartsOption = {
                 width: 2,
                 color: "#0FC70F",
             },
-            // data: sigmaArray,
+            data: [],
         },
         {
             name: "FakeData",
@@ -159,13 +163,39 @@ let option: EChartsOption = {
             // data: absoluteSigmaArray,
             xAxisIndex: 0,
             yAxisIndex: 0,
+            data: [],
         },
     ],
 };
 
 
 const chartContainer = ref<HTMLElement | null>(null)
-const {updateCharts }  = useChartsInit('chartContainer', option)
+const { updateCharts }  = useChartsInit('chartContainer', option, props)
+
+watch(() => props.frameData, (newValue) => {
+    console.log('frameData', newValue);
+    
+    let backSigmaList: Array<[string, number]> = []
+    if(newValue.length) {
+        backSigmaList = newValue.map( item => {
+            return [item[0], item[1] * -1]
+        })
+    }
+    updateCharts({
+        xAxis: {
+            data: newValue.map(item => item[0])
+        },
+        series: [
+            {
+                data: newValue,
+            },
+            {
+                data: backSigmaList,
+            },
+        ]
+    })
+}
+)
 
 </script>
 

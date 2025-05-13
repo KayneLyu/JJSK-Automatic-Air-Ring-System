@@ -1,12 +1,14 @@
 <script setup lang='ts'>
-import { ref, onMounted, defineEmits } from 'vue';
+import { ref, onMounted } from 'vue';
 import { ArrowLeftBold, ArrowRightBold, DArrowRight, Search, DArrowLeft } from '@element-plus/icons-vue'
 import { useDateFormat, useNow } from '@vueuse/core'
 import LatestIcon from "@/components/icons/Latest.vue";
-import useOperateFrame from '@/hooks/useOperateCharts';
 
+const props = defineProps<{
+    nextPageQuery: (isNext: boolean) => void,
+    getTrendDataList: (date: string) => void
+}>()
 
-const { getTrendDataList, nextPageQuery  } = useOperateFrame()
 
 const formatted = useDateFormat(useNow(), 'YYYY-MM-DD')
 
@@ -18,8 +20,6 @@ const selectHour = ref(2)
 const timeToLatest = ref(0)
 // 步进
 const stepNumber = ref(1)
-
-
 
 const emit = defineEmits(['send'])
 const defineOptions = () => {
@@ -43,8 +43,6 @@ const changeDate = (e:string) => {
 const changeHours = () => {
     console.log(selectHour.value)
 }
-
-
 
 // onMounted(() => {
 //     getTrendDataList()
