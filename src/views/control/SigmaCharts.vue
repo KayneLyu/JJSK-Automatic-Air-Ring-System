@@ -2,8 +2,6 @@
 import { watch, onMounted, ref } from "vue";
 import * as echarts from "echarts/core";
 import {
-    TitleComponent,
-    TitleComponentOption,
     TooltipComponent,
     TooltipComponentOption,
     GridComponent,
@@ -13,11 +11,12 @@ import { LineChart, LineSeriesOption } from "echarts/charts";
 import { UniversalTransition } from "echarts/features";
 import { CanvasRenderer } from "echarts/renderers";
 import type { CallbackDataParams } from "echarts/types/dist/shared";
+import { useProduct } from '@/store/product';
 import useChartsInit from '@/hooks/useInitCharts';
+import dayjs from 'dayjs';
 
 
 echarts.use([
-    TitleComponent,
     TooltipComponent,
     GridComponent,
     LineChart,
@@ -26,15 +25,20 @@ echarts.use([
 ]);
 
 type EChartsOption = echarts.ComposeOption<
-    | TitleComponentOption
     | TooltipComponentOption
     | GridComponentOption
     | LineSeriesOption
 >;
 
 const props = defineProps<{
-    frameData: Array<[string , number]>
+    frameData: Array<[string , number]>,
+    startDate: string | undefined,
+    endDate: string | undefined,
+    currentId: number,
 }>()
+
+
+const store = useProduct();
 
 let option: EChartsOption = {
     animation: false,
@@ -71,23 +75,15 @@ let option: EChartsOption = {
         top: 10,
         containLabel: true,
     },
-    title: {
-        // text: sigmaTitle + " : " + duration,
-        right: "0",
-        backgroundColor: "#FCB00190",
-        borderRadius: 5,
-        textStyle: {
-            backgroundColor: "red",
-            fontSize: 14,
-        },
-    },
-
     xAxis: {
         type: "category",
         boundaryGap: false,
         // data: timeData,
         axisLabel: {
             show: true,
+            formatter(value, index) {
+                return dayjs(value).format("HH:mm");
+            },
         },
         axisLine: { onZero: false },
         axisPointer: {
@@ -102,19 +98,25 @@ let option: EChartsOption = {
     },
     yAxis: {
         type: "value",
-        max: 5 * 4,
-        min: -5 * 4,
+        max: store.param.tolerance * 4,
+        min: -store.param.tolerance * 4,
         minInterval: 1,
-        maxInterval: 5,
+        maxInterval: store.param.tolerance,
         axisLabel: {
-            formatter: (value) => {
-                return value + "%";
+            show: true,
+            formatter: function (value) {
+                if (value === -store.param.tolerance || value === store.param.tolerance) {
+                    return `{special|${value}%}`
+                }
+                return `${value.toFixed(0)}%`
             },
-            // color: function (value: any): string {
-            //     return value == warningLine || value == warningLine * -1
-            //         ? "red"
-            //         : "black";
-            // },
+            rich: {
+                special: {
+                    color: '#fff',
+                    backgroundColor: '#ff6f6f',
+                    padding: 2,
+                }
+            },
         },
         axisLine: {
             show: true
@@ -123,12 +125,7 @@ let option: EChartsOption = {
             show: true
         },
         splitLine: {
-            lineStyle: {
-                // 使用深浅的间隔色
-                color: ["#d9dbdd", "#d9dbdd", "#d9dbdd", "red", "#d9dbdd", "red"],
-                type: "solid",
-                opacity: 0.4,
-            },
+
         },
     },
 
@@ -140,11 +137,27 @@ let option: EChartsOption = {
             smooth: true,
             symbol: "none",
             areaStyle: {
-                color: "rgba(15,199,15,.3)",
+                color: "rgba(15,199,15,.5)",
             },
             lineStyle: {
                 width: 2,
                 color: "#0FC70F",
+            },
+            markLine: {
+                silent: true,
+                symbol: 'none', // 不显示标记点
+                lineStyle:
+                {
+                    color: 'red', // 标记线的颜色
+                    type: 'dashed' // 线型
+                },
+                label: {
+                    show: false,
+                },
+                data: [
+                    { yAxis: store.param.tolerance },
+                    { yAxis: -store.param.tolerance },
+                ]
             },
             data: [],
         },
@@ -158,9 +171,8 @@ let option: EChartsOption = {
                 color: "#0FC70F",
             },
             areaStyle: {
-                color: "rgba(15,199,15,.3)",
+                color: "rgba(15,199,15,.5)",
             },
-            // data: absoluteSigmaArray,
             xAxisIndex: 0,
             yAxisIndex: 0,
             data: [],
@@ -200,8 +212,41 @@ watch(() => props.frameData, (newValue) => {
 </script>
 
 <template>
-    <div ref="chartContainer" style="width: 99%;  height: 200px;"></div>
+    <div class="charts_content">
+        <div ref="chartContainer" style="width: 99%;  height: 100%;"></div>
+        <div class="charts_content_title title_left">
+            <p>2σ图</p>
+            <p style="margin-left: 10px;">当前ID: {{ currentId }}</p>
+        </div>
+
+        <div class="charts_content_title title_right">
+            <p v-if="startDate">{{`${startDate} ~ ${dayjs(endDate).format('HH:mm:ss')}`  }}</p>
+        </div>
+    </div>
 </template>
 
-<style scoped>
+<style scoped lang="less">
+.charts_content {
+    position: relative;
+    height: 100%;
+    width: 100%;
+}
+.charts_content_title {
+    position: absolute;
+    top: 0;
+    display: flex;
+    background-color: #409EFF;
+    color: #fff;
+    font-size: 12px;
+    border-radius: 5px;
+    padding: 2px 3px;
+    opacity: 0.8;
+    font-size: 14px;
+}
+.title_left {
+    left: 50px;
+}
+.title_right {
+    right: 0;
+}
 </style>

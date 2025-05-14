@@ -115,10 +115,9 @@ const getFrameList = async () => {
       }
       const heats = await getHeats()
       if (heats.length) {
-         let formatHeatsData: [string, number][] = []
-         for (let index = 1; index <= heats.length; index++) {
-            formatHeatsData.push([`${index}`, heats[index - 1]])
-         }
+         const formatHeatsData: Array<[string, number]>= heats.map((item, index) => {
+            return [`${index}`, item]
+         })
          heatsChannel.value = formatHeatsData
       }
    } catch (error) { }
@@ -131,6 +130,7 @@ watch(() => store.apiThickData.LastScanDataId, async () => {
       immediate: true
    }
 )
+
 </script>
 
 <template>

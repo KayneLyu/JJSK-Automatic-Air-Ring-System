@@ -9,6 +9,8 @@ import FrameInfo from './frame-info.vue';
 
 const { 
   sigmaDataList,
+  currentId,
+  queryDataList,
   getTrendDataList, 
   nextPageQuery  
 } = useOperateCharts();
@@ -28,11 +30,11 @@ const getQueryData = (msg: any) => {
     </div>
     <div class="sigma-charts">
       <el-card class="sigma_charts_content">
-        <SigmaCharts :frame-data="sigmaDataList"/>
+        <SigmaCharts :frameData="sigmaDataList" :currentId="currentId" :start-date="queryDataList[0]?.endTime" :end-date="queryDataList[queryDataList.length-1]?.endTime" />
       </el-card>
 
       <el-card>
-        <SigmaInfo />
+        <SigmaInfo :sigma-list="sigmaDataList" />
       </el-card>
     </div>
     <div class="frame-info">
@@ -44,7 +46,7 @@ const getQueryData = (msg: any) => {
       </el-card>
 
       <el-card>
-        <SigmaInfo />
+        <!-- <SigmaInfo /> -->
       </el-card>
     </div>
   </div>
@@ -69,12 +71,14 @@ const getQueryData = (msg: any) => {
 
 .sigma-charts {
   display: flex;
+  height: 25%;
   .sigma_charts_content {
     flex: 1;
     margin-right: 6px;
   }
   :deep(.el-card__body) {
     padding: unset;
+    height: 100%;
   }
 }
 
