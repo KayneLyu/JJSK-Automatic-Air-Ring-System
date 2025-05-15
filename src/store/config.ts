@@ -3,7 +3,8 @@ type IConfig = {
   language: ILanguageType
   isDark: boolean,
   showPercent: boolean,
-  markOverValue: boolean
+  markOverValue: boolean,
+  queryHours: number
 }
 
 export const useConfigStore = defineStore('config', {
@@ -12,7 +13,8 @@ export const useConfigStore = defineStore('config', {
       language: 'zhCn',
       isDark: false,
       showPercent: false,
-      markOverValue: true
+      markOverValue: true,
+      queryHours: 2
     }
   },
   actions: {

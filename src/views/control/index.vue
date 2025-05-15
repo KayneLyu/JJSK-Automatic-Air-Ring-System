@@ -1,4 +1,5 @@
 <script setup lang='ts'>
+import { onMounted } from 'vue';
 import useOperateCharts from '@/hooks/useOperateCharts';
 import StateComponent from './State.vue';
 import SigmaCharts from './SigmaCharts.vue';
@@ -11,12 +12,19 @@ const {
   sigmaDataList,
   currentId,
   queryDataList,
+  currentIndex,
+  lastFrameId,
   getTrendDataList, 
-  nextPageQuery  
+  nextPageQuery,
+  changeStep  
 } = useOperateCharts();
+
 const getQueryData = (msg: any) => {
   console.log('msg', msg);
 };
+onMounted(()=> {
+  getTrendDataList()
+})
 
 </script>
 
@@ -26,16 +34,27 @@ const getQueryData = (msg: any) => {
       <StateComponent />
     </div>
     <div class="operate-charts">
-      <CharsOperate :next-page-query="nextPageQuery" :get-trend-data-list="getTrendDataList" />
+      <CharsOperate 
+      :currentId="currentId"
+      :last-frame-id="lastFrameId"
+      :lastFrameIndex="queryDataList.length" 
+      :current-index="currentIndex" 
+      :changeStep="changeStep" 
+      :next-page-query="nextPageQuery" 
+      :get-trend-data-list="getTrendDataList" />
     </div>
     <div class="sigma-charts">
       <el-card class="sigma_charts_content">
-        <SigmaCharts :frameData="sigmaDataList" :currentId="currentId" :start-date="queryDataList[0]?.endTime" :end-date="queryDataList[queryDataList.length-1]?.endTime" />
+        <SigmaCharts 
+          :currentIndex ="currentIndex"
+          :frameData="sigmaDataList" 
+          :currentId="currentId" 
+          :start-date="queryDataList[0]?.endTime" 
+          :end-date="queryDataList[queryDataList.length-1]?.endTime" 
+        />
       </el-card>
 
-      <el-card>
-        <SigmaInfo :sigma-list="sigmaDataList" />
-      </el-card>
+      <SigmaInfo :sigma-list="sigmaDataList" />
     </div>
     <div class="frame-info">
       <FrameInfo />

@@ -3,12 +3,20 @@ import { ref, onMounted } from 'vue';
 import { ArrowLeftBold, ArrowRightBold, DArrowRight, Search, DArrowLeft } from '@element-plus/icons-vue'
 import { useDateFormat, useNow } from '@vueuse/core'
 import LatestIcon from "@/components/icons/Latest.vue";
+import { useApiDataStore } from '@/store/polling-data';
+import { useConfigStore } from '@/store/config';
 
-const props = defineProps<{
+defineProps<{
     nextPageQuery: (isNext: boolean) => void,
-    getTrendDataList: (date: string) => void
+    getTrendDataList: (date?: string) => void,
+    changeStep: (step: number) => void,
+    currentIndex: number,
+    lastFrameIndex: number,
+    lastFrameId: number,
+    currentId: number
 }>()
-
+const store = useApiDataStore()
+const configStore = useConfigStore()
 
 const formatted = useDateFormat(useNow(), 'YYYY-MM-DD')
 
@@ -24,7 +32,7 @@ const stepNumber = ref(1)
 const emit = defineEmits(['send'])
 const defineOptions = () => {
     let optionList = []
-    for (let index = 1; index < 25; index++) {
+    for (let index = 1; index < 6; index++) {
         optionList.push({
             value: index,
             label: index + ' 小时'
@@ -32,6 +40,7 @@ const defineOptions = () => {
     }
     return optionList
 }
+
 const disabledDate = (time: Date) => {
     return time.getTime() > Date.now()
 }
@@ -40,8 +49,9 @@ const changeDate = (e:string) => {
     pickDate.value = useDateFormat(e, 'YYYY-MM-DD').value
 }
 
-const changeHours = () => {
-    console.log(selectHour.value)
+const changeHours = (e:number) => {
+    console.log('eee',e);
+    configStore.queryHours = e
 }
 
 // onMounted(() => {
@@ -54,8 +64,8 @@ const changeHours = () => {
     <el-card class="card_content">
         <div class="operate_container">
             <div>
-                <el-button :icon="ArrowLeftBold" type="primary" size="large"></el-button>
-                <el-button :icon="ArrowRightBold" type="primary" size="large"></el-button>
+                <el-button @click="changeStep(-stepNumber)" :icon="ArrowLeftBold" type="primary" size="large"></el-button>
+                <el-button @click="changeStep(stepNumber)" :disabled="store.apiThickData.LastScanDataId == currentId" :icon="ArrowRightBold" type="primary" size="large"></el-button>
             </div>
             <div>
                 <span style="margin-left: 10px; margin-right: 5px;">步进</span>
@@ -78,15 +88,15 @@ const changeHours = () => {
 
             <div class="control_btn">
                 <el-button @click="nextPageQuery(true)" :icon="DArrowLeft" type="primary" size="large"></el-button>
-                <el-button @click="nextPageQuery(false)" :icon="DArrowRight" type="primary" size="large"></el-button>
+                <el-button @click="nextPageQuery(false)" :disabled="store.apiThickData.LastScanDataId == lastFrameId" :icon="DArrowRight" type="primary" size="large"></el-button>
                 <el-badge v-if="timeToLatest > 0" style="margin-left: 15px;" :value="timeToLatest">
-                    <el-button @click="() => getTrendDataList(pickDate)" size="large" type="primary">
+                    <el-button @click="() => getTrendDataList" size="large" type="primary">
                         <el-icon :size="20" color="#fff">
                             <LatestIcon />
                         </el-icon>
                     </el-button>
                 </el-badge>
-                <el-button v-else @click="() => getTrendDataList(pickDate)" size="large" type="primary">
+                <el-button v-else @click="getTrendDataList()" size="large" type="primary">
                     <el-icon :size="20" color="#fff">
                         <LatestIcon />
                     </el-icon>

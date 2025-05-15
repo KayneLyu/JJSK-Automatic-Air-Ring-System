@@ -15,7 +15,6 @@ import { useProduct } from '@/store/product';
 import useChartsInit from '@/hooks/useInitCharts';
 import dayjs from 'dayjs';
 
-
 echarts.use([
     TooltipComponent,
     GridComponent,
@@ -35,6 +34,7 @@ const props = defineProps<{
     startDate: string | undefined,
     endDate: string | undefined,
     currentId: number,
+    currentIndex: number
 }>()
 
 
@@ -182,11 +182,10 @@ let option: EChartsOption = {
 
 
 const chartContainer = ref<HTMLElement | null>(null)
-const { updateCharts }  = useChartsInit('chartContainer', option, props)
+const { updateCharts, selectSeriesIndex }  = useChartsInit('chartContainer', option, props)
 
 watch(() => props.frameData, (newValue) => {
-    console.log('frameData', newValue);
-    
+    if(!newValue ||  newValue.length ==0) return
     let backSigmaList: Array<[string, number]> = []
     if(newValue.length) {
         backSigmaList = newValue.map( item => {
@@ -206,8 +205,15 @@ watch(() => props.frameData, (newValue) => {
             },
         ]
     })
+    selectSeriesIndex(newValue.length - 1)
 }
 )
+
+watch(() => props.currentIndex, (newIndex) => {
+    console.log('sss', newIndex);
+    
+    selectSeriesIndex(newIndex)
+})
 
 </script>
 
@@ -220,7 +226,7 @@ watch(() => props.frameData, (newValue) => {
         </div>
 
         <div class="charts_content_title title_right">
-            <p v-if="startDate">{{`${startDate} ~ ${dayjs(endDate).format('HH:mm:ss')}`  }}</p>
+            <p v-if="startDate">{{`${dayjs(startDate).format('MM-DD HH:mm:ss')} ~ ${dayjs(endDate).format('MM-DD HH:mm:ss')}`  }}</p>
         </div>
     </div>
 </template>
