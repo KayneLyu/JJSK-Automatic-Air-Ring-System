@@ -2,6 +2,7 @@
 import { watch, ref, onBeforeUnmount } from 'vue';
 import { useApiDataStore } from '@/store/polling-data';
 import { useTempStore } from '@/store/temp';
+import { useFrameStore } from '@/store/frame';
 import { db } from "@/utils/dexie";
 import { getFrame, UploadThickness } from "@/api/index";
 import { formatFrameData } from '@/utils/format-data';
@@ -14,6 +15,7 @@ import ContentComponent from './content/index.vue';
 
 const store = useApiDataStore();
 const tempStore = useTempStore();
+const frameStore = useFrameStore();
 
 const meanValue = ref(0);
 
@@ -23,7 +25,8 @@ watch(() => store.apiThickData.LastScanDataId, async() => {
         const formatValue = formatFrameData(data)
         // 拿到平均值给即时数据
         meanValue.value = formatValue.mean
-        await db.Frame.put(formatValue)
+        const id = await db.Frame.put(formatValue)
+        frameStore.updateFrameId = id
     }
 },
     {

@@ -1,16 +1,18 @@
 <script setup lang='ts'>
-import { reactive, ref, watch } from 'vue';
-import HorizonCharts from './AreaCharts.vue';
-import HeatState from './HeatsState.vue';
-import ThickInfo from './ThickInfo.vue';
+import { onMounted, reactive, ref, watch } from 'vue';
 import { db } from '@/utils/dexie';
 import { formateList } from '@/utils/ChartsData';
-import HeatsCardInfo from './HeatsCard.vue';
 import TempCharts from './TempCharts.vue';
-import { useApiDataStore } from '@/store/polling-data';
+import { useFrameStore } from '@/store/frame';
 import { getHeats } from '@/api';
 
-const store = useApiDataStore()
+import HorizonCharts from './frame-charts/AreaCharts.vue';
+import ThickInfo from './frame-charts/ThickInfo.vue';
+import HeatState from './heats/HeatsFrame.vue';
+import HeatsCardInfo from './heats/HeatsCard.vue';
+
+const store = useFrameStore()
+
 const frameListData = reactive<IFrameThickData[]>([
    {
       frameId: 0,
@@ -109,27 +111,28 @@ const getFrameList = async () => {
          for (let index = 0; index < recentItems.length; index++) {
             frameListData[recentItems.length - 1 - index] = {
                ...recentItems[index],
-               datalist: formateList(recentItems[index].datalist as number[], recentItems[index].mean)
+               datalist: <Array<[number, number]>>formateList(<number[]>recentItems[index].datalist, recentItems[index].mean)
             }
          }
       }
       const heats = await getHeats()
       if (heats.length) {
-         const formatHeatsData: Array<[string, number]>= heats.map((item, index) => {
-            return [`${index}`, item]
+         const formatHeatsData: Array<[string, number]> = heats.map((item, index) => {
+            return [`${index + 1}`, item]
          })
          heatsChannel.value = formatHeatsData
       }
    } catch (error) { }
 }
 
-watch(() => store.apiThickData.LastScanDataId, async () => {
+watch(() => store.updateFrameId, async () => {
    getFrameList()
 },
    {
       immediate: true
    }
 )
+
 
 </script>
 
@@ -140,10 +143,10 @@ watch(() => store.apiThickData.LastScanDataId, async () => {
             <el-card class="chartBox">
 
                <TempCharts v-if="index == 4" :temp-list="tempData" :mean-val="frame.mean" :startDate="frame.startTime"
-                  :endDate="frame.endTime" :id="frame.frameId" :frameData="frame.datalist as [number, number][]" />
+                  :endDate="frame.endTime" :id="frame.frameId" :frameData="<Array<[number, number]>>frame.datalist" />
 
                <HorizonCharts v-else :startDate="frame.startTime" :endDate="frame.endTime" :id="frame.frameId"
-                  :frameData="frame.datalist as [number, number][]" />
+                  :frameData="<Array<[number, number]>>frame.datalist" />
             </el-card>
 
          </div>

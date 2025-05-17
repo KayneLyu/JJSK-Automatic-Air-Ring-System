@@ -58,11 +58,11 @@ let option: ECOption = {
     },
     xAxis: [
         {
+            type: "value",
             min: 0,
             max: 120,
             maxInterval: 10,
             minInterval: 1,
-            type: "value",
             minorTick: {
                 show: true,
             },

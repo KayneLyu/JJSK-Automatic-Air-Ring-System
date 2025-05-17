@@ -1,9 +1,7 @@
 <script setup lang='ts'>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import * as echarts from "echarts/core";
 import {
-    TitleComponent,
-    TitleComponentOption,
     TooltipComponent,
     TooltipComponentOption,
     GridComponent,
@@ -25,8 +23,12 @@ import { CanvasRenderer } from "echarts/renderers";
 import { useI18n } from 'vue-i18n';
 import useChartsInit from '@/hooks/useInitCharts';
 import { useProduct } from '@/store/product';
+import { rearrangeArray } from "@/utils";
+import { useApiDataStore } from '@/store/polling-data';
+import { formateList } from '@/utils/ChartsData';
+import dayjs from 'dayjs';
+
 echarts.use([
-    TitleComponent,
     TooltipComponent,
     GridComponent,
     LegendComponent,
@@ -39,7 +41,6 @@ echarts.use([
 ]);
 
 type EChartsOption = echarts.ComposeOption<
-    | TitleComponentOption
     | TooltipComponentOption
     | GridComponentOption
     | LegendComponentOption
@@ -48,48 +49,51 @@ type EChartsOption = echarts.ComposeOption<
     | BrushComponentOption
 >;
 
-interface IProps {
-    chartsData: ILastedFrameDataCard | undefined;
-    heatsData: number[] | undefined;
-    relationTitle: string;
-    changeHeats: Function,
-    pastHeats: number[],
-    badList: number[][]
-}
+
+
+const props = defineProps({
+    frameData: {
+        default: () => [],
+        type: Array<number>,
+    },
+    mean: {
+        default: 0,
+        type: Number
+    },
+    currentId:{
+        default: 0,
+        type: Number
+    },
+    startDate: {
+        default: '',
+        type: String
+    },
+    endDate: {
+        default: '',
+        type: String
+    },
+
+})
 
 const { t } = useI18n();
+
 const store = useProduct();
+const configStore = useApiDataStore()
+
+const xAxisArr: number[] = []
+for (let i = 0; i < 120; i++) {
+    xAxisArr.push(i)
+}
+const aAxisFormatArr = <number[]>rearrangeArray(xAxisArr, Number((configStore.apiAirRingConfig.ChannelNo1Angle / 3).toFixed(0)))
 
 let option: EChartsOption = {
     animation: false,
-    title: [
-        {
-            text: "厚度关系图",
-            right: 0,
-            backgroundColor: "#FCB001",
-            borderRadius: 5,
-            textStyle: {
-                backgroundColor: "red",
-                fontSize: 14,
-            },
-        },
-        {
-            text: t("menu.horizon"),
-            left: 0,
-            top: 0,
-            backgroundColor: "#c7c7c740",
-            borderRadius: 5,
-            textStyle: {
-                fontSize: 14,
-            },
-        },
-    ],
     grid: [
         {
             top: 25,
             left: 60,
             right: "2%",
-            height: "32%",
+            height: "31%",
         },
         {
             left: 60,
@@ -156,12 +160,24 @@ let option: EChartsOption = {
             id: 'aa',
             type: "value",
             gridIndex: 1,
-            max: 64,
+            max: configStore.apiAirRingConfig.ChannelCnt || 64,
             min: 1,
             interval: 4,
             axisLabel: {
-                color: (value) => {
-                    return value == 1 ? "red" : "black";
+                margin: 5,
+                formatter: function (value) {
+                    if (value === 1) {
+                        return `{special|${value}}`
+                    }
+                    return `${value}`
+                },
+                rich: {
+                    special: {
+                        color: '#fff',
+                        backgroundColor: '#FF0005',
+                        padding: [2, 4, 2, 4],
+                        borderRadius: 3
+                    }
                 },
             },
             axisPointer: {
@@ -175,11 +191,14 @@ let option: EChartsOption = {
                     size: 0,
                 }
             },
+            axisTick: {
+                show: false
+            }
         },
         {
+            id: "cc",
             type: "category",
-            id: 'cc',
-            data: [],
+            data: aAxisFormatArr,
             splitLine: {
                 show: false
             },
@@ -190,24 +209,32 @@ let option: EChartsOption = {
                 show: false,
                 alignWithLabel: true,
             },
-            axisLabel: {
-                interval: 6,
-                formatter: (value) => {
-                    return Number(value) * 3 + "°";
-                },
-                //   color: (value) => {
-                //     return value == counterpointDeg ? "red" : "black";
-                //   },
-            },
             axisPointer: {
                 show: false,
-            }
+            },
+            axisLabel: {
+                interval: 5,
+                formatter: (value: string, index: number) => {
+                    if (index == 0) {
+                        return `{special|${Number(value) * 3}°}`
+                    }
+                    return Number(value) * 3 + "°";
+                },
+                rich: {
+                    special: {
+                        color: '#fff',
+                        backgroundColor: '#FF0005',
+                        padding: [2, 4, 2, 4],
+                        borderRadius: 3,
+                    }
+                },
+            },
         },
         {
             type: "value",
             gridIndex: 0,
             position: 'bottom',
-            max: 64,
+            max: configStore.apiAirRingConfig.ChannelCnt || 64,
             min: 1,
             minInterval: 1,
             interval: 4,
@@ -225,12 +252,12 @@ let option: EChartsOption = {
             },
             axisPointer: {
                 label: {
-                    // formatter:(value: any) => {
-                    //   const meanDeg = 120 / monitors
-                    //   const arrIndex = (meanDeg * (value.value-1)).toFixed(0)
-                    //   const currentValue = xAxisArr[Number(arrIndex)] * 3
-                    //   return currentValue + '°'
-                    // }
+                    formatter: (value: any) => {
+                        const meanDeg = 120 / configStore.apiAirRingConfig.ChannelCnt
+                        const arrIndex = (meanDeg * (value.value - 1)).toFixed(0)
+                        const currentValue = aAxisFormatArr[Number(arrIndex)] * 3
+                        return currentValue + '°'
+                    }
                 },
                 handle: {
                     show: true,
@@ -258,10 +285,10 @@ let option: EChartsOption = {
             }
         },
         {
-            max: store.tolerance * 4,
-            min: store.tolerance  * -4,
+            max: store.param.tolerance * 4,
+            min: store.param.tolerance * -4,
             minInterval: 1,
-            maxInterval: store.tolerance ,
+            maxInterval: store.param.tolerance,
             axisTick: {
                 show: false,
             },
@@ -269,26 +296,19 @@ let option: EChartsOption = {
                 show: false
             },
             axisLabel: {
-                formatter: "{value} %",
-                //   color: function (value: any): string {
-                //     return value == warningLine || value == warningLine * -1
-                //       ? "red"
-                //       : "black";
-                //   },
-            },
-            splitLine: {
-                lineStyle: {
-                    // 使用深浅的间隔色
-                    color: [
-                        "#d9dbdd",
-                        "#d9dbdd",
-                        "#d9dbdd",
-                        "red",
-                        "#d9dbdd",
-                        "red",
-                    ],
-                    type: "solid",
-                    opacity: 0.4,
+                show: true,
+                formatter: function (value) {
+                    if (value === -store.param.tolerance || value === store.param.tolerance) {
+                        return `{special|${value}%}`
+                    }
+                    return `${value.toFixed(0)}%`
+                },
+                rich: {
+                    special: {
+                        color: '#fff',
+                        backgroundColor: '#ff6f6f',
+                        padding: 2,
+                    }
                 },
             },
             type: "value",
@@ -341,13 +361,29 @@ let option: EChartsOption = {
                 color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
                     {
                         offset: 0,
-                        color: "rgba(58,77,233,0.4)",
+                        color: "rgba(58,77,233,0.5)",
                     },
                     {
                         offset: 1,
-                        color: "rgba(122, 127, 170, 0.4)",
+                        color: "rgba(122, 127, 170, 0.8)",
                     },
                 ]),
+            },
+            markLine: {
+                silent: true,
+                symbol: 'none', // 不显示标记点
+                lineStyle:
+                {
+                    color: 'red', // 标记线的颜色
+                    type: 'dashed' // 线型
+                },
+                label: {
+                    show: false,
+                },
+                data: [
+                    { yAxis: store.param.tolerance },
+                    { yAxis: -store.param.tolerance },
+                ]
             },
             data: [],
         },
@@ -369,12 +405,86 @@ let option: EChartsOption = {
 
 const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option)
+
+// watch(() => configStore.apiAirRingConfig.ChannelNo1Angle, (newData) => {
+//     console.log('ssss');
+    
+//     updateCharts(option)
+// },
+// )
+
+watch(() => props.frameData, (newData) => {
+    let formatThickData: [number, number][] = []
+    if (newData && newData.length) {
+        const formatListData = <number[]>rearrangeArray(newData,Number((configStore.apiAirRingConfig.ChannelNo1Angle / 3).toFixed(0)))
+        formatThickData = formateList(formatListData, props.mean)
+    }
+
+    updateCharts({
+
+        series: [
+            {
+                data: [],
+            },
+            {
+                data: [],
+            },
+            {
+                data: [],
+            },
+            {
+                data: formatThickData
+            },
+
+        ]
+    })
+})
+
+watch( ()=> configStore.apiThickData.LastScanDataId, async(newId)=> {
+    try {
+        
+    } catch (error) {
+        
+    }
+})
 </script>
 
 <template>
-    <div ref="chartContainer" style="width: 99%;  height:99%;"></div>
+    <div class="charts_content">
+        <div ref="chartContainer" style="width: 99%;  height:99%;"></div>
+        <div class="charts_content_title title_left">
+            <p>2σ图</p>
+            <p style="margin-left: 10px;">当前ID: {{ currentId }}</p>
+        </div>
+
+        <div class="charts_content_title title_right">
+            <p v-if="startDate">{{`${dayjs(startDate).format('MM-DD HH:mm:ss')} ~ ${dayjs(endDate).format('MM-DD HH:mm:ss')}`  }}</p>
+        </div>
+    </div>
 </template>
 
 <style scoped>
-
+.charts_content {
+    position: relative;
+    height: 100%;
+    width: 100%;
+}
+.charts_content_title {
+    position: absolute;
+    top: 0;
+    display: flex;
+    background-color: #409EFF;
+    color: #fff;
+    font-size: 12px;
+    border-radius: 5px;
+    padding: 2px 3px;
+    opacity: 0.8;
+    font-size: 14px;
+}
+.title_left {
+    left: 50px;
+}
+.title_right {
+    right: 0;
+}
 </style>

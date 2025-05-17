@@ -40,7 +40,6 @@ export const formateList = (frame: number[], meanValue: number) => {
     return thickList
 }
 
-
 // 即时数据
 export const formatTempList = (frame: Array<number | string>, meanValue: number) => {
     let tempList: Array<[number, number | null]> = []

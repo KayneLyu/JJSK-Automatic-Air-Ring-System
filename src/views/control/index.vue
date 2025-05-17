@@ -1,12 +1,14 @@
 <script setup lang='ts'>
-import { onMounted } from 'vue';
+import { onMounted, computed } from 'vue';
 import useOperateCharts from '@/hooks/useOperateCharts';
-import StateComponent from './State.vue';
-import SigmaCharts from './SigmaCharts.vue';
-import RelationCharts from './RelationCharts.vue';
+import StateComponent from './states/State.vue';
+import SigmaCharts from './sigma/SigmaCharts.vue';
+import SigmaInfo from './sigma/SigmaInfo.vue';
+
+import RelationCharts from './relations/RelationCharts.vue';
 import CharsOperate from '@/components/CharsOperate.vue';
-import SigmaInfo from './SigmaInfo.vue';
-import FrameInfo from './frame-info.vue';
+import FrameInfo from './relations/frame-info.vue';
+import Controller from './controller.vue';
 
 const { 
   sigmaDataList,
@@ -18,6 +20,10 @@ const {
   nextPageQuery,
   changeStep  
 } = useOperateCharts();
+
+const currentFrame = computed(() => {
+  return queryDataList.value[currentIndex.value];
+});
 
 const getQueryData = (msg: any) => {
   console.log('msg', msg);
@@ -57,16 +63,19 @@ onMounted(()=> {
       <SigmaInfo :sigma-list="sigmaDataList" />
     </div>
     <div class="frame-info">
-      <FrameInfo />
+      <FrameInfo :frame-data="currentFrame"/>
     </div>
     <div class="relation-charts">
       <el-card class="relation_content">
-          <RelationCharts />
+          <RelationCharts 
+            :frame-data="<number[]>currentFrame?.datalist"
+            :mean="currentFrame?.mean"
+            :startDate="currentFrame?.startTime"
+            :endDate="currentFrame?.endTime"
+            :currentId="currentFrame?.frameId"
+          />
       </el-card>
-
-      <el-card>
-        <!-- <SigmaInfo /> -->
-      </el-card>
+      <Controller />
     </div>
   </div>
 </template>

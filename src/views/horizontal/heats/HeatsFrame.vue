@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { ref, onMounted, watch } from 'vue';
+import { ref, watch } from 'vue';
 import * as echarts from 'echarts/core';
 import {
     TitleComponent,
@@ -10,7 +10,6 @@ import {
 import { BarChart, BarSeriesOption } from 'echarts/charts';
 import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
-import { rearrangeArray } from "@/utils";
 import useSortChannel from '@/hooks/useSetChannelSort';
 
 import useChartsInit from '@/hooks/useInitCharts';
@@ -56,7 +55,6 @@ let option: ECOption = {
         containLabel: true,
     },
     xAxis: [
-
         {
             type: 'value',
             min: 0,
@@ -116,7 +114,7 @@ let option: ECOption = {
                 show: true,
                 interval: (index, value) => {
                     const monitorNum = Number(value);
-                    return monitorNum === 1 || monitorNum % 5 === 0;
+                    return monitorNum % 5 === 0;
                 }
             },
         },

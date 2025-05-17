@@ -12,7 +12,7 @@ function useSortChannel() {
         for (let index = 1; index <= channel; index++) {
             newArr.push(`${index}`)
         }
-        channelOrder.value = rearrangeArray(newArr, `${Math.floor(startNo)}`)
+        channelOrder.value = rearrangeArray(newArr, Math.floor(startNo)-1)
         startNumber.value = Math.floor(startNo)
     }, {
         immediate: true

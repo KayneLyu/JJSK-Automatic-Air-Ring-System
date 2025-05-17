@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { watch, onMounted, ref } from "vue";
+import { watch, ref } from "vue";
 import * as echarts from "echarts/core";
 import {
     TooltipComponent,
@@ -185,7 +185,9 @@ const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts, selectSeriesIndex }  = useChartsInit('chartContainer', option, props)
 
 watch(() => props.frameData, (newValue) => {
-    if(!newValue ||  newValue.length ==0) return
+    if(!newValue ||  newValue.length ==0) {
+        
+    }
     let backSigmaList: Array<[string, number]> = []
     if(newValue.length) {
         backSigmaList = newValue.map( item => {
@@ -210,8 +212,6 @@ watch(() => props.frameData, (newValue) => {
 )
 
 watch(() => props.currentIndex, (newIndex) => {
-    console.log('sss', newIndex);
-    
     selectSeriesIndex(newIndex)
 })
 
