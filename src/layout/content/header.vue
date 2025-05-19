@@ -6,6 +6,8 @@ import { Vue3Marquee } from 'vue3-marquee'
 import { useProduct } from "@/store/product";
 import { useApiDataStore } from "@/store/polling-data";
 import { decimalToBinary } from "@/utils/format-data";
+import { compareArrays } from "@/utils/index";
+
 import AlarmIcon from "@/components/icons/Alert.vue";
 
 const router = useRouter()
@@ -30,7 +32,14 @@ watch([() => pollingStore.apiThickData.ErrCode, () => pollingStore.apiAirRingDat
       return `warning2.${item}`
     })
   }
-  warningList.value = [...thickErrList, ...ariRingErrList]
+  const errCodeList = [...thickErrList, ...ariRingErrList]
+
+  const saveAlarmList = compareArrays(warningList.value, errCodeList )
+  if(saveAlarmList && saveAlarmList.length) {
+    console.log('saveAlarmList', saveAlarmList);
+    
+  }
+  warningList.value = [...errCodeList]
 },
   {
     immediate: true

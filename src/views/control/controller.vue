@@ -2,12 +2,15 @@
 import { computed } from 'vue';
 import { useApiDataStore } from '@/store/polling-data';
 
+const props = defineProps<{
+  addChannelValue: () => void
+}>()
 </script>
 
 <template>
   <el-card>
     <div class="control_container">
-
+      <el-button @click="addChannelValue"> 增加 </el-button>
     </div>
   </el-card>
 </template>

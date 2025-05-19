@@ -34,11 +34,16 @@ const props = defineProps<{
     startDate: string | undefined,
     endDate: string | undefined,
     currentId: number,
-    currentIndex: number
+    currentIndex: number,
+    changeCurrentIndex: (index: number) => void
 }>()
 
 
 const store = useProduct();
+
+const changeIndex = (index: number) => {
+    props.changeCurrentIndex(index)
+}
 
 let option: EChartsOption = {
     animation: false,
@@ -64,7 +69,7 @@ let option: EChartsOption = {
         formatter: (event) => {
             const result = event as CallbackDataParams[];
             const index = result[0].dataIndex;
-            // frameData(index);
+            changeIndex(index);
             return ``;
         },
     },

@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue';
 import { ArrowLeftBold, ArrowRightBold, DArrowRight, Search, DArrowLeft } from '@element-plus/icons-vue'
 import { useDateFormat, useNow } from '@vueuse/core'
 import LatestIcon from "@/components/icons/Latest.vue";
-import { useApiDataStore } from '@/store/polling-data';
+import { useFrameStore } from '@/store/frame';
 import { useConfigStore } from '@/store/config';
 
 defineProps<{
@@ -15,7 +15,7 @@ defineProps<{
     lastFrameId: number,
     currentId: number
 }>()
-const store = useApiDataStore()
+const store = useFrameStore()
 const configStore = useConfigStore()
 
 const formatted = useDateFormat(useNow(), 'YYYY-MM-DD')
@@ -32,7 +32,7 @@ const stepNumber = ref(1)
 const emit = defineEmits(['send'])
 const defineOptions = () => {
     let optionList = []
-    for (let index = 1; index < 6; index++) {
+    for (let index = 1; index <= 6; index++) {
         optionList.push({
             value: index,
             label: index + ' 小时'
@@ -65,7 +65,7 @@ const changeHours = (e:number) => {
         <div class="operate_container">
             <div>
                 <el-button @click="changeStep(-stepNumber)" :icon="ArrowLeftBold" type="primary" size="large"></el-button>
-                <el-button @click="changeStep(stepNumber)" :disabled="store.apiThickData.LastScanDataId == currentId" :icon="ArrowRightBold" type="primary" size="large"></el-button>
+                <el-button @click="changeStep(stepNumber)" :disabled="store.updateFrameId == currentId" :icon="ArrowRightBold" type="primary" size="large"></el-button>
             </div>
             <div>
                 <span style="margin-left: 10px; margin-right: 5px;">步进</span>
@@ -88,7 +88,7 @@ const changeHours = (e:number) => {
 
             <div class="control_btn">
                 <el-button @click="nextPageQuery(true)" :icon="DArrowLeft" type="primary" size="large"></el-button>
-                <el-button @click="nextPageQuery(false)" :disabled="store.apiThickData.LastScanDataId == lastFrameId" :icon="DArrowRight" type="primary" size="large"></el-button>
+                <el-button @click="nextPageQuery(false)" :disabled="store.updateFrameId== lastFrameId" :icon="DArrowRight" type="primary" size="large"></el-button>
                 <el-badge v-if="timeToLatest > 0" style="margin-left: 15px;" :value="timeToLatest">
                     <el-button @click="() => getTrendDataList" size="large" type="primary">
                         <el-icon :size="20" color="#fff">

@@ -27,6 +27,7 @@ import { rearrangeArray } from "@/utils";
 import { useApiDataStore } from '@/store/polling-data';
 import { formateList } from '@/utils/ChartsData';
 import dayjs from 'dayjs';
+import { db } from '@/utils/dexie';
 
 echarts.use([
     TooltipComponent,
@@ -49,8 +50,6 @@ type EChartsOption = echarts.ComposeOption<
     | BrushComponentOption
 >;
 
-
-
 const props = defineProps({
     frameData: {
         default: () => [],
@@ -72,7 +71,10 @@ const props = defineProps({
         default: '',
         type: String
     },
-
+    isFreshData: {
+        default: true,
+        type: Boolean
+    }
 })
 
 const { t } = useI18n();
@@ -91,12 +93,12 @@ let option: EChartsOption = {
     grid: [
         {
             top: 25,
-            left: 60,
+            left: 50,
             right: "2%",
             height: "31%",
         },
         {
-            left: 60,
+            left: 50,
             right: "2%",
             top: "45%",
             height: "50%",
@@ -323,7 +325,7 @@ let option: EChartsOption = {
             yAxisIndex: 0,
             xAxisIndex: 0,
             barWidth: "85%",
-            color: 'rgba(168,176,246, 0.7)',
+            color: 'rgba(168,176,246, 0.5)',
             data: [],
         },
         {
@@ -406,28 +408,41 @@ let option: EChartsOption = {
 const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option)
 
-// watch(() => configStore.apiAirRingConfig.ChannelNo1Angle, (newData) => {
-//     console.log('ssss');
-    
-//     updateCharts(option)
-// },
-// )
+const heatsList = ref<[number, number][]>([])
+const lastChannelList = ref<[number, number][]>([])
 
-watch(() => props.frameData, (newData) => {
+watch(() => props.currentId, async (newData) => {
     let formatThickData: [number, number][] = []
-    if (newData && newData.length) {
-        const formatListData = <number[]>rearrangeArray(newData,Number((configStore.apiAirRingConfig.ChannelNo1Angle / 3).toFixed(0)))
+    if (props.frameData && props.frameData.length) {
+        const formatListData = <number[]>rearrangeArray(props.frameData,Number((configStore.apiAirRingConfig.ChannelNo1Angle / 3).toFixed(0)))
         formatThickData = formateList(formatListData, props.mean)
+    }
+    
+    try {
+        const result = await db.Heats.get(newData)
+    if(result) {
+        console.log('result', result);
+        
+        const lastChannelData: [number, number][] = result.heats.map( (item, index) => {
+            return [index + 1, item]
+        })
+        heatsList.value = lastChannelData
+        if(props.isFreshData) {
+            lastChannelList.value = heatsList.value
+        }
+    }
+    } catch (error) {
+        console.log('error', error);
+        
     }
 
     updateCharts({
-
         series: [
             {
-                data: [],
+                data: heatsList.value,
             },
             {
-                data: [],
+                data: lastChannelList.value,
             },
             {
                 data: [],
@@ -440,13 +455,6 @@ watch(() => props.frameData, (newData) => {
     })
 })
 
-watch( ()=> configStore.apiThickData.LastScanDataId, async(newId)=> {
-    try {
-        
-    } catch (error) {
-        
-    }
-})
 </script>
 
 <template>

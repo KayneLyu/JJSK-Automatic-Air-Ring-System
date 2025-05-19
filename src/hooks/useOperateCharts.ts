@@ -1,8 +1,10 @@
-import { ref, reactive } from 'vue';
+import { ref, computed } from 'vue';
 import { db } from '@/utils/dexie';
 import { useConfigStore } from '@/store/config';
+import { useFrameStore } from '@/store/frame';
 function useOperateChartsHooks() {
     const store = useConfigStore()
+    const frameStore = useFrameStore()
     // 数据列表
     const queryDataList = ref<IFrameThickData[]>([])
     // sigma 列表
@@ -29,10 +31,9 @@ function useOperateChartsHooks() {
         queryDataList.value = result
         sigmaDataList.value = sigmaList
         meanDataList.value = meanList
-        const frameId = result[result.length -1].frameId
+        const frameId = result[result.length - 1].frameId
         lastFrameId.value = frameId
-        currentId.value = frameId
-        currentIndex.value = result.length -1
+        currentIndex.value = result.length - 1
     }
 
     // 查询趋势数据
@@ -60,16 +61,15 @@ function useOperateChartsHooks() {
     const nextPageQuery = async (isBack: boolean) => {
         let startId
         let endId
-        if(queryDataList.value.length == 0) {
+        if (queryDataList.value.length == 0) {
             return
         }
 
         if (isBack) {
             const startNumbers = queryDataList.value[0]
-            startId = startNumbers.frameId- store.queryHours * 100 < 0 ? 0 : startNumbers.frameId - store.queryHours * 100
+            startId = startNumbers.frameId - store.queryHours * 100 < 0 ? 0 : startNumbers.frameId - store.queryHours * 100
             endId = startNumbers.frameId
-            console.log('获取数据成功', startId, endId, store.queryHours );
-            
+
         } else {
             startId = lastFrameId.value
             endId = lastFrameId.value + store.queryHours * 100
@@ -77,7 +77,6 @@ function useOperateChartsHooks() {
         try {
             const result = await db.Frame.where("frameId").between(startId, endId).toArray()
             if (result.length) {
-                console.log('获取数据成功', result);
                 refreshDataHandle(result)
             } else {
                 console.log('没有更多数据');
@@ -88,22 +87,38 @@ function useOperateChartsHooks() {
 
     // 步进
     const changeStep = (step: number) => {
-        if(!queryDataList.value || queryDataList.value.length == 0) {
+        if (!queryDataList.value || queryDataList.value.length == 0) {
             return
         }
         let index = queryDataList.value.findIndex((item) => item.frameId === currentId.value)
         index += step
-        if(index > queryDataList.value.length-1 ) {
+        if (index > queryDataList.value.length - 1) {
             nextPageQuery(false)
             return
         }
-        if(index < 0) {
+        if (index < 0) {
             nextPageQuery(true)
             return
         }
         currentIndex.value = index
-        currentId.value = queryDataList.value[index].frameId
     }
+
+    // 手动切换索引
+    const changeCurrentIndex = (index: number) => {
+        currentIndex.value = index
+    }
+
+    const currentFrame = computed(() => {
+        if (queryDataList.value && queryDataList.value.length) {
+            currentId.value = queryDataList.value[currentIndex.value].frameId
+        }
+        return queryDataList.value[currentIndex.value];
+    });
+
+    // 当前图幅数据是否最新
+    const isFreshData = computed(() => { 
+        return currentId.value === frameStore.updateFrameId
+    }); 
 
     return {
         queryDataList,
@@ -112,9 +127,12 @@ function useOperateChartsHooks() {
         lastFrameId,
         currentId,
         currentIndex,
+        currentFrame,
+        isFreshData,
         getTrendDataList,
         nextPageQuery,
-        changeStep
+        changeStep,
+        changeCurrentIndex
     }
 }
 

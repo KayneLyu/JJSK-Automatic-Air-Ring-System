@@ -4,11 +4,10 @@ import { useApiDataStore } from '@/store/polling-data';
 import { useTempStore } from '@/store/temp';
 import { useFrameStore } from '@/store/frame';
 import { db } from "@/utils/dexie";
-import { getFrame, UploadThickness } from "@/api/index";
+import { getFrame, UploadThickness, getHeats } from "@/api/index";
 import { formatFrameData } from '@/utils/format-data';
 import { useTimeoutFn } from '@vueuse/core'
 import { formatTempList } from '@/utils/ChartsData';
-
 import HeaderComponent from './header/index.vue';
 import MenuComponent from './menu/index.vue';
 import ContentComponent from './content/index.vue';
@@ -21,11 +20,16 @@ const meanValue = ref(0);
 
 watch(() => store.apiThickData.LastScanDataId, async() => {
     const data = await getFrame(null)
+    const heats = await getHeats()
     if (data && data !== null) {
         const formatValue = formatFrameData(data)
         // 拿到平均值给即时数据
         meanValue.value = formatValue.mean
         const id = await db.Frame.put(formatValue)
+        await db.Heats.put({
+            frameId:id,
+            heats: heats
+        })
         frameStore.updateFrameId = id
     }
 },

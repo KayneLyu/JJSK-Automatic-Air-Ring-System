@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import useOperateCharts from '@/hooks/useOperateCharts';
 import StateComponent from './states/State.vue';
 import SigmaCharts from './sigma/SigmaCharts.vue';
@@ -16,18 +16,38 @@ const {
   queryDataList,
   currentIndex,
   lastFrameId,
+  currentFrame,
+  isFreshData,
   getTrendDataList, 
   nextPageQuery,
-  changeStep  
+  changeStep,
+  changeCurrentIndex  
 } = useOperateCharts();
 
-const currentFrame = computed(() => {
-  return queryDataList.value[currentIndex.value];
-});
+const currentChannel = ref<number[]>([])
 
-const getQueryData = (msg: any) => {
-  console.log('msg', msg);
-};
+const getCurrentChannel = async() => {
+  // try {
+  //   const result = await db.Heats.get(currentId.value)
+  //   console.log('result', result, currentId.value);
+    
+  //   if(result && result.heats) {
+  //     currentChannel.value = result?.heats
+  //   }
+  // } catch (error) {
+    
+  // }
+
+}
+
+const changeHeats = () => {
+  if(currentChannel.value && currentChannel.value.length) {
+    currentChannel.value = currentChannel.value.map( item => {
+      return item += 10
+    })
+  }
+}
+
 onMounted(()=> {
   getTrendDataList()
 })
@@ -41,17 +61,18 @@ onMounted(()=> {
     </div>
     <div class="operate-charts">
       <CharsOperate 
-      :currentId="currentId"
-      :last-frame-id="lastFrameId"
-      :lastFrameIndex="queryDataList.length" 
-      :current-index="currentIndex" 
-      :changeStep="changeStep" 
-      :next-page-query="nextPageQuery" 
-      :get-trend-data-list="getTrendDataList" />
+        :currentId="currentId"
+        :last-frame-id="lastFrameId"
+        :lastFrameIndex="queryDataList.length" 
+        :current-index="currentIndex" 
+        :changeStep="changeStep" 
+        :next-page-query="nextPageQuery" 
+        :get-trend-data-list="getTrendDataList" />
     </div>
     <div class="sigma-charts">
       <el-card class="sigma_charts_content">
         <SigmaCharts 
+          :changeCurrentIndex="changeCurrentIndex"
           :currentIndex ="currentIndex"
           :frameData="sigmaDataList" 
           :currentId="currentId" 
@@ -67,7 +88,8 @@ onMounted(()=> {
     </div>
     <div class="relation-charts">
       <el-card class="relation_content">
-          <RelationCharts 
+          <RelationCharts
+            :isFreshData ="isFreshData" 
             :frame-data="<number[]>currentFrame?.datalist"
             :mean="currentFrame?.mean"
             :startDate="currentFrame?.startTime"
@@ -75,7 +97,9 @@ onMounted(()=> {
             :currentId="currentFrame?.frameId"
           />
       </el-card>
-      <Controller />
+      <Controller 
+        :addChannelValue="changeHeats"
+      />
     </div>
   </div>
 </template>

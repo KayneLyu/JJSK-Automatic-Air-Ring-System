@@ -63,7 +63,18 @@ export const showNotification = (titleKey: string, messageKey: string, type: 'su
  * @param item 
  * @returns xAxis 
  */
-export function rearrangeArray(arr: Array<number|string>, index: number) {
-    if(!arr || arr.length == 0) return []
+export function rearrangeArray(arr: Array<number | string>, index: number) {
+    if (!arr || arr.length == 0) return []
     return [...arr.slice(index), ...arr.slice(0, index)];
+}
+
+/***
+ * 对比数组
+ */
+
+export function compareArrays(array1: string[], array2: string[]) {
+    let set = new Set(array1); // 创建第一个数组的 Set
+    return array2.filter(function (item) {
+        return !set.has(item);
+    });
 }

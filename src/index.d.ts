@@ -126,7 +126,7 @@ interface IAirRingInfo {
 
 
 interface IHeats {
-    id: number,
+    frameId: number,
     heats: number[]
 }
 

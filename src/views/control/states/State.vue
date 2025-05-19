@@ -10,7 +10,9 @@ const store = useApiDataStore()
 const posDetector = ref<number>(0)
 
 watch(() => store.apiThickData.PosMm, (newVal) => {
-    posDetector.value = Number((newVal / store.apiThickData.PosLenMm * 100).toFixed(0))
+    if (newVal) {
+        posDetector.value = Number((newVal / store.apiThickData.PosLenMm * 100).toFixed(0))
+    }
 },
     {
         immediate: true

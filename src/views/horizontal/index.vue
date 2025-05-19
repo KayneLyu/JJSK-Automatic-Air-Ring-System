@@ -1,10 +1,9 @@
 <script setup lang='ts'>
-import { onMounted, reactive, ref, watch } from 'vue';
+import { reactive, ref, watch } from 'vue';
 import { db } from '@/utils/dexie';
 import { formateList } from '@/utils/ChartsData';
 import TempCharts from './TempCharts.vue';
 import { useFrameStore } from '@/store/frame';
-import { getHeats } from '@/api';
 
 import HorizonCharts from './frame-charts/AreaCharts.vue';
 import ThickInfo from './frame-charts/ThickInfo.vue';
@@ -115,9 +114,9 @@ const getFrameList = async () => {
             }
          }
       }
-      const heats = await getHeats()
-      if (heats.length) {
-         const formatHeatsData: Array<[string, number]> = heats.map((item, index) => {
+      const heatsData = await db.Heats.orderBy("frameId").reverse().first()
+      if (heatsData) {
+         const formatHeatsData: Array<[string, number]> = heatsData.heats.map((item, index) => {
             return [`${index + 1}`, item]
          })
          heatsChannel.value = formatHeatsData
