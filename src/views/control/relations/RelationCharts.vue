@@ -10,7 +10,9 @@ import {
     LegendComponentOption,
     BrushComponent,
     BrushComponentOption,
-    ToolboxComponent
+    VisualMapComponent,
+    VisualMapComponentOption,
+    // ToolboxComponent
 } from "echarts/components";
 import {
     LineChart,
@@ -38,7 +40,8 @@ echarts.use([
     UniversalTransition,
     BarChart,
     BrushComponent,
-    ToolboxComponent
+    VisualMapComponent
+    // ToolboxComponent
 ]);
 
 type EChartsOption = echarts.ComposeOption<
@@ -48,6 +51,7 @@ type EChartsOption = echarts.ComposeOption<
     | LineSeriesOption
     | BarSeriesOption
     | BrushComponentOption
+    | VisualMapComponentOption
 >;
 
 const props = defineProps({
@@ -159,7 +163,6 @@ let option: EChartsOption = {
     },
     xAxis: [
         {
-            id: 'aa',
             type: "value",
             gridIndex: 1,
             max: configStore.apiAirRingConfig.ChannelCnt || 64,
@@ -198,7 +201,6 @@ let option: EChartsOption = {
             }
         },
         {
-            id: "cc",
             type: "category",
             data: aAxisFormatArr,
             splitLine: {
@@ -317,6 +319,23 @@ let option: EChartsOption = {
             inverse: false,
         },
     ],
+    visualMap: [
+        {
+            seriesIndex: 3,
+            right: 0,
+            top: -20,
+            pieces: [
+                {
+                    gt: -store.param.tolerance,
+                    lte: store.param.tolerance,
+                    color: '#8993FF'
+                },
+            ],
+            outOfRange: {
+                color: '#E36781',
+            },
+        },
+    ],
     series: [
         {
             name: "sss",
@@ -325,7 +344,7 @@ let option: EChartsOption = {
             yAxisIndex: 0,
             xAxisIndex: 0,
             barWidth: "85%",
-            color: 'rgba(168,176,246, 0.5)',
+            color: '#A5A2E390',
             data: [],
         },
         {
@@ -351,26 +370,28 @@ let option: EChartsOption = {
         },
         {
             name: "sss",
-            type: "line",
+            type: "bar",
             yAxisIndex: 1,
             xAxisIndex: 1,
-            showSymbol: false,
-            lineStyle: {
-                width: 2,
-                color: "#0770FF",
-            },
-            areaStyle: {
-                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                    {
-                        offset: 0,
-                        color: "rgba(58,77,233,0.5)",
-                    },
-                    {
-                        offset: 1,
-                        color: "rgba(122, 127, 170, 0.8)",
-                    },
-                ]),
-            },
+            // showSymbol: false,
+            // lineStyle: {
+            //     width: 2,
+            //     color: "#0770FF",
+            // },
+            // areaStyle: {
+            //     color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            //         {
+            //             offset: 0,
+            //             color: "rgba(58,77,233,0.5)",
+            //         },
+            //         {
+            //             offset: 1,
+            //             color: "rgba(122, 127, 170, 0.8)",
+            //         },
+            //     ]),
+            // },
+            barWidth: '85%',
+            color: '#8993FF',
             markLine: {
                 silent: true,
                 symbol: 'none', // 不显示标记点
@@ -411,6 +432,10 @@ const { updateCharts } = useChartsInit('chartContainer', option)
 const heatsList = ref<[number, number][]>([])
 const lastChannelList = ref<[number, number][]>([])
 
+
+const changeAllChannel = async () => {
+    
+}
 watch(() => props.currentId, async (newData) => {
     let formatThickData: [number, number][] = []
     if (props.frameData && props.frameData.length) {

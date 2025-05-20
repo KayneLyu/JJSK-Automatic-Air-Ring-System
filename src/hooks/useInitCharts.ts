@@ -2,17 +2,18 @@ import { onBeforeUnmount, watch, useTemplateRef, onMounted } from 'vue';
 import * as echarts from 'echarts/core';
 import { useConfigStore } from '@/store/config'
 import type { EChartsCoreOption } from 'echarts/core';
-
+import { useI18n } from 'vue-i18n';
+import { showNotification } from '@/utils/common';
 type IPropsDta = {
     frameData: Array<[string | number, number]> | number[]
 }
 const useInitCharts = (containerName: string, options: EChartsCoreOption, props?: IPropsDta) => {
+    const { t } = useI18n();
     const chartRef = useTemplateRef<HTMLElement>(containerName);
     let chartInstanceRef: echarts.ECharts | null = null
     let observer: ResizeObserver | null = null
-
     const store = useConfigStore();
-    // 初始化图表函数，提取出来方便复用和单独处理逻辑
+    // 初始化图表
     const initChart = () => {
         if (chartRef.value) {
             try {
@@ -24,7 +25,7 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption, props?
                     });
                 }
             } catch (error) {
-                ElMessage.error('初始化图表时出错!');
+                showNotification(t('notification.info'), t('notification.initError'), 'error')
             }
             // 创建 ResizeObserver 实例并添加监听（只在初始化时进行）
             if (!observer) {
@@ -47,7 +48,7 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption, props?
         if (chartInstanceRef) {
             chartInstanceRef.dispatchAction({
                 type: "showTip",
-                seriesIndex: 0, //两个图标同时展示
+                seriesIndex: 0, //联动切换
                 dataIndex: dataIndex,
             });
         }
@@ -64,7 +65,7 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption, props?
         }
     };
 
-    // 监听store.theme的变化，以便更新echarts实例的主题
+    // 切换主题
     watch(() => store.isDark, (newTheme) => {
         dropCharts()
         initChart()

@@ -56,7 +56,7 @@ const sigmaTotalInfo = computed(() => {
 }
 .sigma_info {
   p {
-    font-size: 14px;
+    font-size: 15px;
     margin-bottom: 10px;
     b {
       font-size: 15px;

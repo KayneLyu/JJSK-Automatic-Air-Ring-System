@@ -28,7 +28,7 @@
         justify-content: space-between;
         p {
             min-width: 120px;
-            font-size: 13px;
+            font-size: 14px;
             span {
                 font-weight: 700;
                 font-size: 14px;

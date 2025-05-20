@@ -40,19 +40,20 @@ const props = defineProps<{
 
     p {
         flex: 1;
-        font-size: 14px;
+        font-size: 13px;
         display: flexbox;
+        padding-left: 5px;
         span {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 700;
 
             i {
                 font-weight: 500;
-                font-size: 14px;
+                font-size: 13px;
                 font-style: normal;
             }
             b {
-                font-size: 14px;
+                font-size: 13px;
                padding: 2px;
                background-color: #409EFF;
                border-radius: 3px; 

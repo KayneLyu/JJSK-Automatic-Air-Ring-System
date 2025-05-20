@@ -52,7 +52,6 @@ const props = defineProps<{
 
 let option: ECOption = {
     animation: false,
-    // 边距设置
     grid: {
         left: 5,
         right: 12,
@@ -111,20 +110,36 @@ let option: ECOption = {
             show: true,
         },
     },
+    visualMap: {
+        right: 0,
+        top: -20,
+        pieces: [
+            {
+                gt: -store.param.tolerance,
+                lte: store.param.tolerance,
+                color: '#8993FF'
+            },
+        ],
+        outOfRange: {
+            color: '#E36781',
+        },
+    },
     series: [
         {
             name: "实际轮廓(%)",
-            type: "line",
-            smooth: true,
-            symbol: "none",
-            lineStyle: {
-                width: 2,
-                color: "#0770FF",
-            },
-            showSymbol: false,
-            areaStyle: {
-                color: "rgba(168,176,246, 0.7)",
-            },
+            type: "bar",
+            // smooth: true,
+            // symbol: "none",
+            // lineStyle: {
+            //     width: 2,
+            //     color: "#0770FF",
+            // },
+            // showSymbol: false,
+            // areaStyle: {
+            //     color: "rgba(168,176,246, 0.7)",
+            // },
+            // color: '#8993FF',
+            barWidth: '85%',
             markLine: {
                 silent: true,
                 symbol: 'none', // 不显示标记点
@@ -144,21 +159,10 @@ let option: ECOption = {
             data: []
         },
         {
-            name: "实际轮廓(%)",
-            type: "line",
-            smooth: true,
-            symbol: "none",
-            showSymbol: false,
-            areaStyle: {
-                color: "#FA476F",
-            },
-            data: []
-        },
-        {
             name: "即时图",
             xAxisIndex: 0,
             yAxisIndex: 0,
-            type: "line",
+            type: "bar",
             smooth: true,
             symbol: "none",
             lineStyle: {
@@ -175,11 +179,9 @@ const { updateCharts } = useChartsInit('chartContainer', option, props)
 
 watch([() => props.frameData, () => configStore.markOverValue], ([frameData, showOverDta]) => {
     if (showOverDta) {
-        const overData = props.frameData.map(v => (v[1] < store.param.tolerance && v[1] > -store.param.tolerance ? null : v));
         updateCharts({
             series: [
-                { data: frameData },
-                { data: overData },
+                { data: frameData},
                 { data: tempStore.tempList },
             ]
         })
@@ -187,7 +189,6 @@ watch([() => props.frameData, () => configStore.markOverValue], ([frameData, sho
         updateCharts({
             series: [
                 { data: frameData },
-                { data: [] },
                 { data: tempStore.tempList },
             ]
         })

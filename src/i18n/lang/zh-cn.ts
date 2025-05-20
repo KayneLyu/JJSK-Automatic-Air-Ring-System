@@ -1,6 +1,6 @@
 export default {
     layout: {
-        title: "自动风环操作界面",
+        title: "自动风环客户端",
     },
     menu: {
         product: "产品参数",
@@ -27,6 +27,7 @@ export default {
         setting:　"计算",
     },
     notification: {
+        info: "提示",
         calcComplete: "计算完成,如需生效请点击应用按钮 !",
         invalidNumber: "放大倍数非有效数字,请重置倍数 !",
         cantDelete: "不能删除正在应用中的配置 !",
@@ -40,12 +41,12 @@ export default {
         failed: "操作失败 !",
         error: "错误",
         warning: "警告",
-        info: "提示",
         close: "关闭",
         confirmDelete: "确认删除？",
         confirmSave: "确认保存？",
         confirmCompute: "确认计算？",
         confirmQuite: "确认退出应用 ？",
+        initError:"初始化图表时出错!"
     },
     warning1: {
         0: "激活码异常",

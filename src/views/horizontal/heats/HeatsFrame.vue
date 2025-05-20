@@ -2,8 +2,6 @@
 import { ref, watch } from 'vue';
 import * as echarts from 'echarts/core';
 import {
-    TitleComponent,
-    TitleComponentOption,
     GridComponent,
     GridComponentOption,
 } from 'echarts/components';
@@ -15,13 +13,11 @@ import useSortChannel from '@/hooks/useSetChannelSort';
 import useChartsInit from '@/hooks/useInitCharts';
 
 type ECOption = echarts.ComposeOption<
-    | TitleComponentOption
     | GridComponentOption
     | BarSeriesOption
 >;
 
 echarts.use([
-    TitleComponent,
     GridComponent,
     BarChart,
     CanvasRenderer,
@@ -36,17 +32,6 @@ const props = defineProps<{
 
 let option: ECOption = {
     animation: false,
-    title: {
-        text: "当前风环通道值",
-        top: "15%",
-        right: "0%",
-        backgroundColor: '#bae8ff80',
-        borderRadius: 5,
-        textStyle: {
-            color: "black",
-            fontSize: "12px",
-        },
-    },
     grid: {
         left: "0.5%",
         right: 12,
@@ -135,7 +120,7 @@ let option: ECOption = {
             xAxisIndex: 1,
             type: 'bar',
             barWidth: '90%',
-            color: 'rgba(168,176,246, 0.7)',
+            color: '#A5A2E390',
             data: []
         },
     ]

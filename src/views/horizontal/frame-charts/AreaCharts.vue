@@ -66,6 +66,9 @@ let option: ECOption = {
             minorTick: {
                 show: true,
             },
+            axisTick:{
+                
+            },
             axisLine: {
                 show: true,
                 onZero: false,
@@ -107,20 +110,34 @@ let option: ECOption = {
             show: true,
         },
     },
+    visualMap: {
+        right: 0,
+        top: -20,
+        pieces: [
+            {
+                gt: -store.param.tolerance,
+                lte: store.param.tolerance,
+                color: '#8993FF'
+            },
+        ],
+        outOfRange: {
+            color: '#E36781',
+        },
+    },
     series: [
         {
             name: "实际轮廓(%)",
-            type: "line",
-            smooth: true,
-            symbol: "none",
-            lineStyle: {
-                width: 2,
-                color: "#0770FF",
-            },
-            showSymbol: false,
-            areaStyle: {
-                color: "rgba(168,176,246, 0.7)",
-            },
+            type: "bar",
+            // color: '#8993FF',
+            barWidth: '85%',
+            // smooth: true,
+            // lineStyle: {
+            //     width: 2,
+            //     color: "red",
+            // },
+            // areaStyle: {
+            //     color: "rgba(168,176,246, 0.7)",
+            // },
             markLine: {
                 silent: true,
                 symbol: 'none', // 不显示标记点
@@ -139,17 +156,6 @@ let option: ECOption = {
             },
             data: []
         },
-        {
-            name: "实际轮廓(%)",
-            type: "line",
-            smooth: true,
-            symbol: "none",
-            showSymbol: false,
-            areaStyle: {
-                color: "#FA476F",
-            },
-            data: []
-        },
     ],
 };
 const chartContainer = ref<HTMLElement | null>(null)
@@ -158,18 +164,15 @@ const { updateCharts } = useChartsInit('chartContainer', option, props)
 watch([() => props.frameData, () => configStore.markOverValue], () => {
     if (configStore.markOverValue) {
         // 超出的数据
-        const overData = props.frameData.map(v => (v[1] < store.param.tolerance && v[1] > -store.param.tolerance ? null : v));
         updateCharts({
             series: [
                 { data: props.frameData },
-                { data: overData },
             ]
         })
     } else {
         updateCharts({
             series: [
                 { data: props.frameData },
-                { data: [] },
             ]
         })
     }

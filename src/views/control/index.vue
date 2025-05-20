@@ -150,18 +150,13 @@ onMounted(()=> {
     flex-direction: column;
   }
 
-  .thick_info {
-    height: 40px;
-    border-bottom: 1px solid #333;
-    margin-bottom: 10px;
-  }
-
   .charts {
     flex: 1;
     width: 100%;
   }
 }
 .frame-info {
-  margin: 6px 0;
+  margin-top: 6px;
+  // margin: 6px 0;
 }
 </style>
