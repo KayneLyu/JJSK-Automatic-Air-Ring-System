@@ -18,7 +18,8 @@ const store = useApiDataStore()
 const activeName = ref('auto-mode')
 
 const props = defineProps<{
-  addChannelValue: () => void
+  // addChannelValue: () => void,
+  changeAllHeats: (isUp: boolean) => void
 }>()
 
 const handleClick = (tab: TabsPaneContext, event: Event) => {
@@ -33,6 +34,11 @@ const toggleAutoMode = async () => {
     }
   } catch (error) {
   }
+}
+
+// 升降控制
+const handleUpDown = (isUp:boolean) => {
+  props.changeAllHeats(isUp)
 }
 
 </script>
@@ -70,11 +76,11 @@ const toggleAutoMode = async () => {
             </div>
             <div class="save_channel" >
               <div>
-                <p><el-button :disabled="store.apiAirRingData.IsAuto" type="primary" :icon="AllUpIcon"></el-button></p>
+                <p><el-button @click="handleUpDown(true)" :disabled="store.apiAirRingData.IsAuto" type="primary" :icon="AllUpIcon"></el-button></p>
                 <p>全升</p>
               </div>
               <div>
-                <p><el-button :disabled="store.apiAirRingData.IsAuto" type="primary" :icon="AllDownIcon"></el-button></p>
+                <p><el-button @click="handleUpDown(false)" :disabled="store.apiAirRingData.IsAuto" type="primary" :icon="AllDownIcon"></el-button></p>
                 <p>全降</p>
               </div>
             </div>

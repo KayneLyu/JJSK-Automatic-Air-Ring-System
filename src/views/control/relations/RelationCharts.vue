@@ -12,7 +12,7 @@ import {
     BrushComponentOption,
     VisualMapComponent,
     VisualMapComponentOption,
-    // ToolboxComponent
+    ToolboxComponent
 } from "echarts/components";
 import {
     LineChart,
@@ -30,6 +30,7 @@ import { useApiDataStore } from '@/store/polling-data';
 import { formateList } from '@/utils/ChartsData';
 import dayjs from 'dayjs';
 import { db } from '@/utils/dexie';
+import { setAutoRingHeats, getHeats } from "@/api";
 
 echarts.use([
     TooltipComponent,
@@ -40,8 +41,8 @@ echarts.use([
     UniversalTransition,
     BarChart,
     BrushComponent,
-    VisualMapComponent
-    // ToolboxComponent
+    VisualMapComponent,
+    ToolboxComponent
 ]);
 
 type EChartsOption = echarts.ComposeOption<
@@ -63,7 +64,7 @@ const props = defineProps({
         default: 0,
         type: Number
     },
-    currentId:{
+    currentId: {
         default: 0,
         type: Number
     },
@@ -432,33 +433,70 @@ const { updateCharts } = useChartsInit('chartContainer', option)
 const heatsList = ref<[number, number][]>([])
 const lastChannelList = ref<[number, number][]>([])
 
-
-const changeAllChannel = async () => {
-    
+const changeAllChannel = async (isAdd: boolean) => {
+    let setHeatsList: number[] = []
+    if (heatsList.value && heatsList.value.length) {
+        setHeatsList = heatsList.value.map(item => {
+            if (isAdd) {
+                return item[1] + configStore.apiAirRingConfig.Step
+            } else {
+                return item[1] - configStore.apiAirRingConfig.Step
+            }
+        })
+        setChannelHandle(setHeatsList)
+    }
 }
+
+const setChannelHandle = async (heatsValue: number[]) => {
+    try {
+        await setAutoRingHeats(heatsValue)
+        const result = await getHeats()
+        if (result && result.length) {
+            let newHeats = result.map((item, index) => {
+                return [index + 1, item]
+            })
+            updateCharts({
+                series: [
+                    {
+                        data: newHeats,
+                    },
+                    {
+                        data: newHeats,
+                    },
+                ]
+            })
+
+            heatsList.value = newHeats as Array<[number, number]>
+        }
+    } catch (error) {
+        console.log('设置失败');
+    }
+}
+
+defineExpose({
+    changeAllChannel
+})
+
 watch(() => props.currentId, async (newData) => {
     let formatThickData: [number, number][] = []
     if (props.frameData && props.frameData.length) {
-        const formatListData = <number[]>rearrangeArray(props.frameData,Number((configStore.apiAirRingConfig.ChannelNo1Angle / 3).toFixed(0)))
+        const formatListData = <number[]>rearrangeArray(props.frameData, Number((configStore.apiAirRingConfig.ChannelNo1Angle / 3).toFixed(0)))
         formatThickData = formateList(formatListData, props.mean)
     }
-    
+
     try {
         const result = await db.Heats.get(newData)
-    if(result) {
-        console.log('result', result);
-        
-        const lastChannelData: [number, number][] = result.heats.map( (item, index) => {
-            return [index + 1, item]
-        })
-        heatsList.value = lastChannelData
-        if(props.isFreshData) {
-            lastChannelList.value = heatsList.value
+        if (result) {
+            const lastChannelData: [number, number][] = result.heats.map((item, index) => {
+                return [index + 1, item]
+            })
+            heatsList.value = lastChannelData
+            if (props.isFreshData) {
+                lastChannelList.value = heatsList.value
+            }
         }
-    }
     } catch (error) {
         console.log('error', error);
-        
     }
 
     updateCharts({
@@ -469,9 +507,7 @@ watch(() => props.currentId, async (newData) => {
             {
                 data: lastChannelList.value,
             },
-            {
-                data: [],
-            },
+            {},
             {
                 data: formatThickData
             },
@@ -479,6 +515,7 @@ watch(() => props.currentId, async (newData) => {
         ]
     })
 })
+
 
 </script>
 
@@ -491,7 +528,9 @@ watch(() => props.currentId, async (newData) => {
         </div>
 
         <div class="charts_content_title title_right">
-            <p v-if="startDate">{{`${dayjs(startDate).format('MM-DD HH:mm:ss')} ~ ${dayjs(endDate).format('MM-DD HH:mm:ss')}`  }}</p>
+            <p v-if="startDate">
+                {{ `${dayjs(startDate).format('MM-DD HH:mm:ss')} ~ ${dayjs(endDate).format('MM-DDHH:mm:ss')}` }}
+            </p>
         </div>
     </div>
 </template>
@@ -502,6 +541,7 @@ watch(() => props.currentId, async (newData) => {
     height: 100%;
     width: 100%;
 }
+
 .charts_content_title {
     position: absolute;
     top: 0;
@@ -514,9 +554,11 @@ watch(() => props.currentId, async (newData) => {
     opacity: 0.8;
     font-size: 14px;
 }
+
 .title_left {
     left: 50px;
 }
+
 .title_right {
     right: 0;
 }

@@ -10,7 +10,7 @@ import CharsOperate from '@/components/CharsOperate.vue';
 import FrameInfo from './relations/frame-info.vue';
 import Controller from './controller.vue';
 
-const { 
+const {
   sigmaDataList,
   currentId,
   queryDataList,
@@ -18,39 +18,41 @@ const {
   lastFrameId,
   currentFrame,
   isFreshData,
-  getTrendDataList, 
+  getTrendDataList,
   nextPageQuery,
   changeStep,
-  changeCurrentIndex  
+  changeCurrentIndex
 } = useOperateCharts();
 
 const currentChannel = ref<number[]>([])
 
-const getCurrentChannel = async() => {
+const getCurrentChannel = async () => {
   // try {
   //   const result = await db.Heats.get(currentId.value)
   //   console.log('result', result, currentId.value);
-    
+
   //   if(result && result.heats) {
   //     currentChannel.value = result?.heats
   //   }
   // } catch (error) {
-    
+
   // }
 
 }
 
-const changeHeats = () => {
-  if(currentChannel.value && currentChannel.value.length) {
-    currentChannel.value = currentChannel.value.map( item => {
-      return item += 10
-    })
-  }
-}
 
-onMounted(()=> {
+
+onMounted(() => {
   getTrendDataList()
 })
+
+const relationRef = ref<InstanceType<typeof RelationCharts> | null>(null)
+
+const changeHeats = (isUp:boolean) => {
+  if (relationRef.value) {
+    relationRef.value.changeAllChannel(isUp)
+  }
+}
 
 </script>
 
@@ -60,46 +62,29 @@ onMounted(()=> {
       <StateComponent />
     </div>
     <div class="operate-charts">
-      <CharsOperate 
-        :currentId="currentId"
-        :last-frame-id="lastFrameId"
-        :lastFrameIndex="queryDataList.length" 
-        :current-index="currentIndex" 
-        :changeStep="changeStep" 
-        :next-page-query="nextPageQuery" 
+      <CharsOperate :currentId="currentId" :last-frame-id="lastFrameId" :lastFrameIndex="queryDataList.length"
+        :current-index="currentIndex" :changeStep="changeStep" :next-page-query="nextPageQuery"
         :get-trend-data-list="getTrendDataList" />
     </div>
     <div class="sigma-charts">
       <el-card class="sigma_charts_content">
-        <SigmaCharts 
-          :changeCurrentIndex="changeCurrentIndex"
-          :currentIndex ="currentIndex"
-          :frameData="sigmaDataList" 
-          :currentId="currentId" 
-          :start-date="queryDataList[0]?.endTime" 
-          :end-date="queryDataList[queryDataList.length-1]?.endTime" 
-        />
+        <SigmaCharts :changeCurrentIndex="changeCurrentIndex" :currentIndex="currentIndex" :frameData="sigmaDataList"
+          :currentId="currentId" :start-date="queryDataList[0]?.endTime"
+          :end-date="queryDataList[queryDataList.length - 1]?.endTime" />
       </el-card>
 
       <SigmaInfo :sigma-list="sigmaDataList" />
     </div>
     <div class="frame-info">
-      <FrameInfo :frame-data="currentFrame"/>
+      <FrameInfo :frame-data="currentFrame" />
     </div>
     <div class="relation-charts">
       <el-card class="relation_content">
-          <RelationCharts
-            :isFreshData ="isFreshData" 
-            :frame-data="<number[]>currentFrame?.datalist"
-            :mean="currentFrame?.mean"
-            :startDate="currentFrame?.startTime"
-            :endDate="currentFrame?.endTime"
-            :currentId="currentFrame?.frameId"
-          />
+        <RelationCharts ref="relationRef" :isFreshData="isFreshData" :frame-data="<number[]>currentFrame?.datalist"
+          :mean="currentFrame?.mean" :startDate="currentFrame?.startTime" :endDate="currentFrame?.endTime"
+          :currentId="currentFrame?.frameId" />
       </el-card>
-      <Controller 
-        :addChannelValue="changeHeats"
-      />
+      <Controller :changeAllHeats="changeHeats" />
     </div>
   </div>
 </template>
@@ -124,10 +109,12 @@ onMounted(()=> {
 .sigma-charts {
   display: flex;
   height: 25%;
+
   .sigma_charts_content {
     flex: 1;
     margin-right: 6px;
   }
+
   :deep(.el-card__body) {
     padding: unset;
     height: 100%;
@@ -137,6 +124,7 @@ onMounted(()=> {
 .relation-charts {
   flex: 1;
   display: flex;
+
   .relation_content {
     flex: 1;
     margin-right: 6px;
@@ -155,6 +143,7 @@ onMounted(()=> {
     width: 100%;
   }
 }
+
 .frame-info {
   margin-top: 6px;
   // margin: 6px 0;
