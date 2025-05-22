@@ -2,7 +2,7 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
 import { useApiDataStore  } from '@/store/polling-data';
-import { startMeasuring, stopMeasuring, toTheEdge } from '@/api';
+import { startMeasuring, stopMeasuring, forwardsThick, backThick, toTheEdge } from '@/api';
 
 const store = useApiDataStore()
 type Option = {
@@ -21,25 +21,42 @@ const options: Option[] = [
         value: "FIX"
     },
     {
-        label:  "归边",
+        label: "反行",
         value: "ORG"
-    }
+    },
+    {
+        label: "正行",
+        value: "RUNNING"
+    },
+    // {
+    //     label:  "归边",
+    //     value: "ORG"
+    // }
 ]
 const changeState = async (options: string) => {
     try {
         switch (options) {
-            // 归零
+            // 扫描
             case 'SCAN':
                 await startMeasuring()
                 break;
-            // 扫描
+            // 停止
             case 'FIX':
                 await stopMeasuring()
                 break;
             // 正行
+            case 'RUNNING':
+                await forwardsThick()
+                break;
+            // 反行
             case 'ORG':
                 await toTheEdge()
                 break;
+
+
+            // case 'ORG':
+            //     await toTheEdge()
+            //     break;
             default:
                 break;
         }

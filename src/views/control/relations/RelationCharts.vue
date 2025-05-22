@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { ref, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import * as echarts from "echarts/core";
 import {
     TooltipComponent,
@@ -339,7 +339,7 @@ let option: EChartsOption = {
     ],
     series: [
         {
-            name: "sss",
+            name: "heats",
             animation: false,
             type: "bar",
             yAxisIndex: 0,
@@ -349,7 +349,7 @@ let option: EChartsOption = {
             data: [],
         },
         {
-            name: "sss",
+            name: "nowHeats",
             type: "line",
             yAxisIndex: 0,
             xAxisIndex: 0,
@@ -359,8 +359,8 @@ let option: EChartsOption = {
             showSymbol: false,
         },
         {
+            name: "badHeats",
             barGap: '-100%',
-            name: "sss",
             type: "bar",
             yAxisIndex: 0,
             xAxisIndex: 0,
@@ -370,7 +370,7 @@ let option: EChartsOption = {
             data: [],
         },
         {
-            name: "sss",
+            name: "frame",
             type: "bar",
             yAxisIndex: 1,
             xAxisIndex: 1,
@@ -412,7 +412,7 @@ let option: EChartsOption = {
             data: [],
         },
         {
-            name: "sss",
+            name: "tempFrame",
             type: "line",
             yAxisIndex: 1,
             xAxisIndex: 1,
@@ -428,53 +428,122 @@ let option: EChartsOption = {
 };
 
 const chartContainer = ref<HTMLElement | null>(null)
-const { updateCharts } = useChartsInit('chartContainer', option)
+const { updateCharts, selectBrush, brushList } = useChartsInit('chartContainer', option)
 
 const heatsList = ref<[number, number][]>([])
 const lastChannelList = ref<[number, number][]>([])
 
-const changeAllChannel = async (isAdd: boolean) => {
-    let setHeatsList: number[] = []
-    if (heatsList.value && heatsList.value.length) {
-        setHeatsList = heatsList.value.map(item => {
-            if (isAdd) {
-                return item[1] + configStore.apiAirRingConfig.Step
-            } else {
-                return item[1] - configStore.apiAirRingConfig.Step
-            }
+//  改变所有通道
+const changeAllChannel = async (isAirControl: boolean, isAdd?: boolean) => {
+    if (!heatsList.value?.length) return;
+    const { IsAirDoorMode } = configStore.apiAirRingData;
+    const step = configStore.apiAirRingConfig.Step
+    if (isAirControl) {
+        try {
+            heatsList.value = heatsList.value.map(item => [item[0], IsAirDoorMode ? 50 : 30])
+        } catch (error) {
+            console.error('设置自动风环加热失败:', error);
+        }
+    } else {
+        heatsList.value = heatsList.value.map(item => {
+            const [index, value] = item
+            return [index, isAdd ? value + step : value - step]
         })
-        setChannelHandle(setHeatsList)
+    }
+    await setChannelHeats()
+    await getChannelHandle()
+}
+
+// 选中通道 增加/减少
+const changeSomeChannel = (counterpoint: boolean, isAdd?: boolean) => {
+    const step = configStore.apiAirRingConfig.Step;
+    const putValue = isAdd ? step : -step;
+
+    let needChangeChannel: number[] = brushList.value;
+
+    if (counterpoint) {
+        const counter = configStore.apiAirRingConfig.ChannelCnt / 2
+        const counterA = counter / 2 / 2
+        const counterB = counterA + 2 * counterA
+        const counterC = counter + counter / 2 + counterA
+
+        needChangeChannel = [
+            counterA - 1, counterA, counterA + 1,
+            counterB - 1, counterB, counterB + 1,
+            counterC - 1, counterC, counterC + 1,
+        ];
+    }
+
+    // 使用 Set 提升查找性能
+    const changeSet = new Set(needChangeChannel);
+
+    heatsList.value = heatsList.value.map((item, index) => {
+        const [channelId, prevValue] = item;
+        const isInclude = changeSet.has(index);
+        let newValue: number;
+
+        if (counterpoint) {
+            newValue = isInclude ? 100 : 0;
+        } else if (isInclude) {
+            newValue = prevValue + putValue;
+            if (newValue >= 100 && isAdd) newValue = 100;
+            if (prevValue <= 0 && !isAdd) newValue = 0;
+        } else {
+            newValue = prevValue;
+        }
+        return [channelId, newValue];
+    });
+
+    updateCharts({
+        series: [{
+            data: heatsList.value,
+        }]
+    });
+};
+
+// 设置通道值
+const setChannelHeats = async () => {
+    try {
+        const setHeats = heatsList.value.map(item => item[1])
+        await setAutoRingHeats(setHeats)
+    } catch (error) {
+        console.log('设置风环数据失败');
     }
 }
 
-const setChannelHandle = async (heatsValue: number[]) => {
+// 获取通道值
+const getChannelHandle = async () => {
     try {
-        await setAutoRingHeats(heatsValue)
         const result = await getHeats()
         if (result && result.length) {
-            let newHeats = result.map((item, index) => {
+            let newHeats: Array<[number, number]> = result.map((item, index) => {
                 return [index + 1, item]
             })
+            heatsList.value = newHeats
+            lastChannelList.value = newHeats
             updateCharts({
                 series: [
                     {
-                        data: newHeats,
+                        data: heatsList.value,
                     },
                     {
-                        data: newHeats,
+                        data: lastChannelList.value,
                     },
                 ]
             })
-
-            heatsList.value = newHeats as Array<[number, number]>
         }
     } catch (error) {
-        console.log('设置失败');
+        console.log('获取风环数据失败');
     }
 }
 
+
 defineExpose({
-    changeAllChannel
+    changeAllChannel,
+    changeSomeChannel,
+    getChannelHandle,
+    setChannelHeats,
+    brushList
 })
 
 watch(() => props.currentId, async (newData) => {
@@ -485,14 +554,18 @@ watch(() => props.currentId, async (newData) => {
     }
 
     try {
-        const result = await db.Heats.get(newData)
-        if (result) {
-            const lastChannelData: [number, number][] = result.heats.map((item, index) => {
-                return [index + 1, item]
-            })
-            heatsList.value = lastChannelData
+        let channelDta: number[] = []
+        if (props.isFreshData) {
+            channelDta = await getHeats()
+        } else {
+            const result = await db.Heats.get(newData)
+            channelDta = result?.heats ?? []
+        }
+        if (channelDta && channelDta.length) {
+            const newChannelData: [number, number][] = channelDta.map((item, index) => [index + 1, item])
+            heatsList.value = newChannelData
             if (props.isFreshData) {
-                lastChannelList.value = heatsList.value
+                lastChannelList.value = newChannelData
             }
         }
     } catch (error) {
@@ -511,9 +584,12 @@ watch(() => props.currentId, async (newData) => {
             {
                 data: formatThickData
             },
-
         ]
     })
+})
+
+onMounted(() => {
+    selectBrush()
 })
 
 

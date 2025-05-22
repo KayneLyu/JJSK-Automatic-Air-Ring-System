@@ -142,11 +142,11 @@ let option: EChartsOption = {
             smooth: true,
             symbol: "none",
             areaStyle: {
-                color: "rgba(15,199,15,.5)",
+                color: "#A2D6FFAA",
             },
             lineStyle: {
                 width: 2,
-                color: "#0FC70F",
+                color: "#8993FF",
             },
             markLine: {
                 silent: true,
@@ -173,10 +173,10 @@ let option: EChartsOption = {
             symbol: "none",
             lineStyle: {
                 width: 2,
-                color: "#0FC70F",
+                color: "#8993FF",
             },
             areaStyle: {
-                color: "rgba(15,199,15,.5)",
+                color: "#A2D6FFAA",
             },
             xAxisIndex: 0,
             yAxisIndex: 0,

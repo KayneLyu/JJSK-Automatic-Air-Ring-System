@@ -24,35 +24,42 @@ const {
   changeCurrentIndex
 } = useOperateCharts();
 
-const currentChannel = ref<number[]>([])
-
-const getCurrentChannel = async () => {
-  // try {
-  //   const result = await db.Heats.get(currentId.value)
-  //   console.log('result', result, currentId.value);
-
-  //   if(result && result.heats) {
-  //     currentChannel.value = result?.heats
-  //   }
-  // } catch (error) {
-
-  // }
-
-}
-
-
-
 onMounted(() => {
   getTrendDataList()
 })
 
 const relationRef = ref<InstanceType<typeof RelationCharts> | null>(null)
 
-const changeHeats = (isUp:boolean) => {
-  if (relationRef.value) {
-    relationRef.value.changeAllChannel(isUp)
-  }
+// 全升、全降
+const changeHeats = (isReset: boolean, isUp?: boolean) => {
+  if (!relationRef.value) return;
+  relationRef.value.changeAllChannel(isReset, isUp);
 }
+
+// 调整通道值、对位
+const changeCurrentIndexHeats = (counterpoint: boolean, isUp?: boolean) => {
+    if (!relationRef.value) return;
+    if (!counterpoint && relationRef.value.brushList.length === 0) {
+        console.warn('没有选取通道');
+        return;
+    }
+    // 统一调用方法
+    relationRef.value.changeSomeChannel(counterpoint, isUp);
+};
+
+// 取消
+const cancelChange = () => {
+  if (!relationRef.value) return;
+    relationRef.value.getChannelHandle()
+}
+
+// 应用
+const applyHeats = async () => {
+  if (!relationRef.value) return;
+  await relationRef.value.setChannelHeats()
+  await relationRef.value.getChannelHandle()
+}
+
 
 </script>
 
@@ -62,7 +69,7 @@ const changeHeats = (isUp:boolean) => {
       <StateComponent />
     </div>
     <div class="operate-charts">
-      <CharsOperate :currentId="currentId" :last-frame-id="lastFrameId" :lastFrameIndex="queryDataList.length"
+      <CharsOperate :currentId="currentId" :isFreshData="isFreshData" :last-frame-id="lastFrameId" :lastFrameIndex="queryDataList.length"
         :current-index="currentIndex" :changeStep="changeStep" :next-page-query="nextPageQuery"
         :get-trend-data-list="getTrendDataList" />
     </div>
@@ -84,7 +91,8 @@ const changeHeats = (isUp:boolean) => {
           :mean="currentFrame?.mean" :startDate="currentFrame?.startTime" :endDate="currentFrame?.endTime"
           :currentId="currentFrame?.frameId" />
       </el-card>
-      <Controller :changeAllHeats="changeHeats" />
+      <Controller :cancelChange="cancelChange" :applyHeats="applyHeats"
+        :changeCurrentIndexHeats="changeCurrentIndexHeats" :changeAllHeats="changeHeats" />
     </div>
   </div>
 </template>

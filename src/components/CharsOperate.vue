@@ -1,19 +1,20 @@
 <script setup lang='ts'>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch, onBeforeUnmount } from 'vue';
 import { ArrowLeftBold, ArrowRightBold, DArrowRight, Search, DArrowLeft } from '@element-plus/icons-vue'
-import { useDateFormat, useNow } from '@vueuse/core'
+import { useDateFormat, useNow, useTimeoutFn } from '@vueuse/core'
 import LatestIcon from "@/components/icons/Latest.vue";
 import { useFrameStore } from '@/store/frame';
 import { useConfigStore } from '@/store/config';
 
-defineProps<{
+const props = defineProps<{
     nextPageQuery: (isNext: boolean) => void,
     getTrendDataList: (date?: string) => void,
     changeStep: (step: number) => void,
     currentIndex: number,
     lastFrameIndex: number,
     lastFrameId: number,
-    currentId: number
+    currentId: number,
+    isFreshData: boolean
 }>()
 const store = useFrameStore()
 const configStore = useConfigStore()
@@ -54,6 +55,32 @@ const changeHours = (e:number) => {
     configStore.queryHours = e
 }
 
+// 开始倒计时
+const { start, stop } = useTimeoutFn(() => {
+  timeToLatest.value -= 1
+  if (timeToLatest.value <= 0) {
+    props.getTrendDataList()
+    pickDate.value = useDateFormat(new Date(), 'YYYY-MM-DD').value
+    stop()
+    return
+  }
+  start()
+}, 1000)
+
+// 监听触发倒计时条件
+watch(() => props.isFreshData, (newIndex) => {
+  stop()
+  if (!newIndex) {
+    timeToLatest.value = 30
+    start()
+  } else {
+    timeToLatest.value = 0
+  }
+})
+
+onBeforeUnmount(() => {
+  stop()
+})
 // onMounted(() => {
 //     getTrendDataList()
 // })
@@ -96,7 +123,7 @@ const changeHours = (e:number) => {
                         </el-icon>
                     </el-button>
                 </el-badge>
-                <el-button v-else @click="getTrendDataList()" size="large" type="primary">
+                <el-button v-else @click="() => getTrendDataList" size="large" type="primary">
                     <el-icon :size="20" color="#fff">
                         <LatestIcon />
                     </el-icon>

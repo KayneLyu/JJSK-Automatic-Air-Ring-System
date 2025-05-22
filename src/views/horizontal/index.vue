@@ -9,6 +9,7 @@ import HorizonCharts from './frame-charts/AreaCharts.vue';
 import ThickInfo from './frame-charts/ThickInfo.vue';
 import HeatState from './heats/HeatsFrame.vue';
 import HeatsCardInfo from './heats/HeatsCard.vue';
+import { getHeats } from '@/api';
 
 const store = useFrameStore()
 
@@ -114,9 +115,9 @@ const getFrameList = async () => {
             }
          }
       }
-      const heatsData = await db.Heats.orderBy("frameId").reverse().first()
+      const heatsData = await getHeats()
       if (heatsData) {
-         const formatHeatsData: Array<[string, number]> = heatsData.heats.map((item, index) => {
+         const formatHeatsData: Array<[string, number]> = heatsData.map((item, index) => {
             return [`${index + 1}`, item]
          })
          heatsChannel.value = formatHeatsData

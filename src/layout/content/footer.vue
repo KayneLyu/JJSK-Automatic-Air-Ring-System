@@ -11,11 +11,20 @@ const store = useApiDataStore();
 
 <template>
     <div class="footer_content">
-        <div class="status">
-            <span>自动风环: </span>
-            <p v-if="store.apiAirRingData.IsAuto"><el-tag size="small"  type="success">自动中</el-tag></p>
-            <p v-else><el-tag size="small" type="danger">手动</el-tag> </p>
+        <div class="content_status">
+            <div  class="status">
+                <span>测厚仪: </span>
+                <p v-if="store.apiThickData.ControllerState !== 'FIX'"><el-tag size="small"  type="success">运行中</el-tag></p>
+                <p v-else><el-tag size="small" type="danger">已停止</el-tag> </p>
+            </div>
+
+            <div class="status" style="margin-left: 30px;">
+                <span>自动风环: </span>
+                <p v-if="store.apiAirRingData.IsAuto"><el-tag size="small"  type="success">自动中</el-tag></p>
+                <p v-else><el-tag size="small" type="danger">手动</el-tag> </p>
+            </div>
         </div>
+        
         <div class="version">
             <p>
                 {{ newDate }}
@@ -39,6 +48,9 @@ const store = useApiDataStore();
     font-size: 12px;
     box-sizing: border-box;
     padding: 0 10px;
+}
+.content_status {
+    display: flex;
 }
 .status {
     letter-spacing: 1px;

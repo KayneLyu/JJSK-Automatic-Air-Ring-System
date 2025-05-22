@@ -37,7 +37,7 @@ import Footer from './footer.vue';
 
 .fade-enter-active,
 .fade-leave-active {
-    transition: opacity 0.2s ease;
+    transition: opacity 0.1s ease;
 }
 
 .fade-enter-from,

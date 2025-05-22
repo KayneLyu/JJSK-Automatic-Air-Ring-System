@@ -30,6 +30,20 @@ export const toTheEdge = () => {
 }
 
 /**
+ * 前进
+ */
+export const forwardsThick = () => {
+    return formateResult(postRequest("/api/thk/forw"))
+}
+
+/**
+ * 后退
+ */
+export const backThick = () => {
+    return formateResult(postRequest("/api/thk/backw"))
+}
+
+/**
  * 轮询数据
  */
 export const getThickInfo = () => {

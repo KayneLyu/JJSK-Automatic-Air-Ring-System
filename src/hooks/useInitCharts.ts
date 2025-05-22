@@ -1,4 +1,4 @@
-import { onBeforeUnmount, watch, useTemplateRef, onMounted } from 'vue';
+import { ref, onBeforeUnmount, watch, useTemplateRef, onMounted } from 'vue';
 import * as echarts from 'echarts/core';
 import { useConfigStore } from '@/store/config'
 import type { EChartsCoreOption } from 'echarts/core';
@@ -9,6 +9,7 @@ type IPropsDta = {
 }
 const useInitCharts = (containerName: string, options: EChartsCoreOption, props?: IPropsDta) => {
     const { t } = useI18n();
+    const brushList = ref<number[]>([])
     const chartRef = useTemplateRef<HTMLElement>(containerName);
     let chartInstanceRef: echarts.ECharts | null = null
     let observer: ResizeObserver | null = null
@@ -54,6 +55,25 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption, props?
         }
     }
 
+    const selectBrush = () => {
+        if(chartInstanceRef ) {
+            chartInstanceRef.dispatchAction({
+            type: "takeGlobalCursor",
+            key: "brush",
+            brushOption: {
+              // 参见 brush 组件的 brushType。如果设置为 false 则关闭“可刷选状态”。
+              brushType: 'lineX',
+              // 参见 brush 组件的 brushMode。如果不设置，则取 brush 组件的 brushMode 设置。
+              brushMode: 'single',
+            },
+          })
+          chartInstanceRef.off('brushSelected');
+          chartInstanceRef.on("brushSelected", (params:any) => {
+            brushList.value = params.batch[0].selected[0].dataIndex
+          });
+        }
+    }
+
     const dropCharts = () => {
         if (observer) {
             observer.disconnect();
@@ -82,7 +102,9 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption, props?
 
     return {
         updateCharts,
-        selectSeriesIndex
+        selectSeriesIndex,
+        selectBrush,
+        brushList
     }
 };
 
