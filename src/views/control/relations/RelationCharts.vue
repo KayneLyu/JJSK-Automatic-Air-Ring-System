@@ -30,7 +30,8 @@ import { useApiDataStore } from '@/store/polling-data';
 import { formateList } from '@/utils/ChartsData';
 import dayjs from 'dayjs';
 import { db } from '@/utils/dexie';
-import { setAutoRingHeats, getHeats } from "@/api";
+import { setAutoRingHeats, getHeats, getBadHeats } from "@/api";
+import { useFrameStore } from '@/store/frame';
 
 echarts.use([
     TooltipComponent,
@@ -86,6 +87,7 @@ const { t } = useI18n();
 
 const store = useProduct();
 const configStore = useApiDataStore()
+const frameStore = useFrameStore()
 
 const xAxisArr: number[] = []
 for (let i = 0; i < 120; i++) {
@@ -359,16 +361,19 @@ let option: EChartsOption = {
             showSymbol: false,
         },
         {
-            name: "badHeats",
-            barGap: '-100%',
-            type: "bar",
-            yAxisIndex: 0,
-            xAxisIndex: 0,
-            barWidth: "85%",
-            animation: false,
-            color: 'red',
+            name: "tempFrame",
+            type: "line",
+            yAxisIndex: 1,
+            xAxisIndex: 1,
+            smooth: true,
+            showSymbol: false,
+            lineStyle: {
+                width: 3,
+                color: "#00067c",
+            },
             data: [],
         },
+        
         {
             name: "frame",
             type: "bar",
@@ -412,16 +417,14 @@ let option: EChartsOption = {
             data: [],
         },
         {
-            name: "tempFrame",
-            type: "line",
-            yAxisIndex: 1,
-            xAxisIndex: 1,
-            smooth: true,
-            showSymbol: false,
-            lineStyle: {
-                width: 3,
-                color: "#00067c",
-            },
+            name: "badHeats",
+            barGap: '-100%',
+            type: "bar",
+            yAxisIndex: 0,
+            xAxisIndex: 0,
+            barWidth: "85%",
+            animation: false,
+            color: '#E84043',
             data: [],
         },
     ],
@@ -588,10 +591,35 @@ watch(() => props.currentId, async (newData) => {
     })
 })
 
+// 当前损坏的通道
+watch(() => frameStore.hasBadChannels, async (newData) => {
+    let badList: Array<[number, number]> = []
+    if (newData) {
+        const badChannels = await getBadHeats()
+        if (badChannels && badChannels.length) {
+            badList = badChannels.map((item, index) => [index+1, item ? 100 : 0] )
+        }
+    }
+    updateCharts({
+        series: [
+            {},
+            {},
+            {},
+            {},
+            {
+                data: badList,
+            }
+        ]
+    })
+},
+    {
+        immediate: true
+    }
+)
+
 onMounted(() => {
     selectBrush()
 })
-
 
 </script>
 
@@ -605,7 +633,7 @@ onMounted(() => {
 
         <div class="charts_content_title title_right">
             <p v-if="startDate">
-                {{ `${dayjs(startDate).format('MM-DD HH:mm:ss')} ~ ${dayjs(endDate).format('MM-DDHH:mm:ss')}` }}
+                {{ `${dayjs(startDate).format('MM-DD HH:mm:ss')} ~ ${dayjs(endDate).format('HH:mm:ss')}` }}
             </p>
         </div>
     </div>
@@ -627,7 +655,6 @@ onMounted(() => {
     font-size: 12px;
     border-radius: 5px;
     padding: 2px 3px;
-    opacity: 0.8;
     font-size: 14px;
 }
 

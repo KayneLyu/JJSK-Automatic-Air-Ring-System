@@ -62,9 +62,11 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
                 </el-col>
                 <el-col :span="1">
                     <div class="icon_box icon_rotation">
-                        <el-icon :size="42">
+                        <el-icon :size="40" style="margin-top: 5px;">
                             <RotationIcon />
                         </el-icon>
+                        <p class="isCW">{{ store.apiThickData.AngleOfRotation }}°</p>
+                        <p class="deg">{{ store.apiThickData.IsRotationCW ? '正' : '反'  }}</p>
                     </div>
                 </el-col>
                 <el-col :span="3" class="move_right">
@@ -136,5 +138,28 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
 
 .unit {
     font-size: 13px;
+}
+.icon_rotation {
+    position: relative;
+    .deg, .isCW {
+        position: absolute;
+        border-radius: 3px;
+        text-align: center;
+    }
+    .deg {
+        top: -10px;
+        padding: 1px 4px;
+        left: 10px;
+        background-color: #409EFF;
+        color: #fff;
+        font-size: 12px;
+    }
+    .isCW {
+        bottom: -15px;
+        left: 0;
+        padding: 1px 0;
+        min-width: 42px;
+        font-size: 13px;
+    }
 }
 </style>

@@ -4,15 +4,17 @@ import { useRouter } from 'vue-router';
 import { Eleme } from '@element-plus/icons-vue'
 import { Vue3Marquee } from 'vue3-marquee'
 import { useProduct } from "@/store/product";
+import { useFrameStore } from '@/store/frame';
+
 import { useApiDataStore } from "@/store/polling-data";
 import { decimalToBinary } from "@/utils/format-data";
 import { compareArrays } from "@/utils/index";
-
 import AlarmIcon from "@/components/icons/Alert.vue";
 
 const router = useRouter()
 const store = useProduct()
 const pollingStore = useApiDataStore()
+const frameStore = useFrameStore()
 const warningList = ref<string[]>([])
 
 watch([() => pollingStore.apiThickData.ErrCode, () => pollingStore.apiAirRingData.ErrCode], ([thickVal, airRingVal]) => {
@@ -37,7 +39,9 @@ watch([() => pollingStore.apiThickData.ErrCode, () => pollingStore.apiAirRingDat
   const saveAlarmList = compareArrays(warningList.value, errCodeList )
   if(saveAlarmList && saveAlarmList.length) {
     console.log('saveAlarmList', saveAlarmList);
-    
+  }
+  if(errCodeList.includes('warning2.1')) {
+    frameStore.hasBadChannels =  true
   }
   warningList.value = [...errCodeList]
 },
