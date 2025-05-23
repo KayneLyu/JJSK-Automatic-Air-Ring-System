@@ -48,6 +48,14 @@ export default {
         confirmQuite: "确认退出应用 ？",
         initError:"初始化图表时出错!"
     },
+    alarm: {
+        reset: "告警复位",
+        query: "日期查询",
+        type: "告警类别",
+        time: "触发时间",
+        code: "代码",
+        content: "内容"
+    },
     warning1: {
         0: "激活码异常",
         1: "数据采集器连接断开",

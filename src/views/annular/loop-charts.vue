@@ -2,14 +2,14 @@
 import { ref } from 'vue';
 import * as echarts from 'echarts/core';
 import {
-    TitleComponent,
-    TitleComponentOption,
     PolarComponent,
     PolarComponentOption,
     TooltipComponent,
     TooltipComponentOption,
     LegendComponent,
     LegendComponentOption,
+    MarkLineComponent,
+    MarkLineComponentOption
 } from 'echarts/components';
 import { LineChart, LineSeriesOption } from 'echarts/charts';
 import { UniversalTransition } from 'echarts/features';
@@ -19,21 +19,21 @@ import { useProduct } from '@/store/product.ts';
 import { resetOrderDeg } from '@/utils';
 
 echarts.use([
-    TitleComponent,
     PolarComponent,
     TooltipComponent,
     LegendComponent,
     LineChart,
     CanvasRenderer,
     UniversalTransition,
+    MarkLineComponent
 ]);
 
 type ECOption = echarts.ComposeOption<
-    | TitleComponentOption
     | PolarComponentOption
     | TooltipComponentOption
     | LegendComponentOption
     | LineSeriesOption
+    | MarkLineComponentOption
 >;
 
 const store = useProduct();
@@ -42,22 +42,12 @@ const data: any = []
 const tempData: any = []
 const monitors = 48
 let monitorsList = [];
-for (let index = 0; index <= monitors; index++) {
+for (let index = 1; index <= monitors; index++) {
     monitorsList.push(index);
 }
 
 let option: ECOption = {
     animation: false,
-    title: {
-        // text: `${t("horizontal.ringChart")}  ${newFrameData.timeStart} ~ ${newFrameData.timeEnd}`,
-        right: "0%",
-        backgroundColor: "#FCB001",
-        borderRadius: 5,
-        textStyle: {
-            color: "black",
-            fontSize: "16px",
-        },
-    },
     polar: [
         {
             center: ["50%", "50%"],
@@ -83,7 +73,6 @@ let option: ECOption = {
                 interval: 9,
                 inside: true,
                 margin: 38,
-                // color: "#000",
                 fontWeight: 700,
                 fontSize: 15,
             },
@@ -104,8 +93,6 @@ let option: ECOption = {
             polarIndex: 1,
             type: "category",
             startAngle: (-startDeg) + (360 / 63 / 2),
-            min: 1,
-            max: 48,
             data: monitorsList,
             axisTick: {
                 length: 25,
@@ -146,24 +133,29 @@ let option: ECOption = {
         {
             polarIndex: 0,
             type: "value",
-            min: store.tolerance * -3,
-            max: store.tolerance * 3,
+            min: store.param.tolerance * -3,
+            max: store.param.tolerance * 3,
             minInterval: 1,
-            maxInterval: store.tolerance,
+            maxInterval: store.param.tolerance,
             axisLabel: {
                 margin: 2,
-                formatter: function (value: number) {
-                    // 自定义格式化函数
-                    return value + "%";
+                formatter: function (value) {
+                    if (value === -store.param.tolerance || value === store.param.tolerance) {
+                        return `{special|${value}%}`
+                    }
+                    return `${value.toFixed(0)}%`
+                },
+                rich: {
+                    special: {
+                        color: '#fff',
+                        backgroundColor: '#ff6f6f',
+                        padding: 2,
+                    }
                 },
                 verticalAlign: "bottom",
-                color: function (value: any): string {
-                    return value == store.tolerance || value == store.tolerance * -1
-                        ? "red"
-                        : "black";
-                },
                 fontWeight: 700,
                 fontSize: 13,
+                show: true,
             },
             splitLine: {
                 lineStyle: {
@@ -193,6 +185,7 @@ let option: ECOption = {
             areaStyle: {
                 color: "rgba(168,176,246, 0.9)",
             },
+
             data: data,
         },
         {

@@ -60,7 +60,6 @@ const applyHeats = async () => {
   await relationRef.value.getChannelHandle()
 }
 
-
 </script>
 
 <template>

@@ -62,12 +62,9 @@ interface IFrameThickData {
 
 interface IAlarmsData {
     date: string,
-    timestamp: number,
     type: string,
     content: string,
-    status: string,
-    key?: number,
-    name: string
+    code: string
 }
 
 interface IConfigure {

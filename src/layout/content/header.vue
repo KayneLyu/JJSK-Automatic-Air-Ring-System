@@ -5,10 +5,11 @@ import { Eleme } from '@element-plus/icons-vue'
 import { Vue3Marquee } from 'vue3-marquee'
 import { useProduct } from "@/store/product";
 import { useFrameStore } from '@/store/frame';
-
 import { useApiDataStore } from "@/store/polling-data";
 import { decimalToBinary } from "@/utils/format-data";
 import { compareArrays } from "@/utils/index";
+import { db } from '@/utils/dexie';
+import dayjs from 'dayjs';
 import AlarmIcon from "@/components/icons/Alert.vue";
 
 const router = useRouter()
@@ -16,6 +17,15 @@ const store = useProduct()
 const pollingStore = useApiDataStore()
 const frameStore = useFrameStore()
 const warningList = ref<string[]>([])
+
+// 存储报警数据
+const saveAlarmHandle = async (addAlarmList: IAlarmsData[]) => { 
+  try {
+    await db.Alarm.bulkAdd(addAlarmList)
+  } catch (error) {
+    console.error('save alarm data error!');
+  }
+}
 
 watch([() => pollingStore.apiThickData.ErrCode, () => pollingStore.apiAirRingData.ErrCode], ([thickVal, airRingVal]) => {
   if (thickVal == 0 && airRingVal == 0) {
@@ -38,8 +48,17 @@ watch([() => pollingStore.apiThickData.ErrCode, () => pollingStore.apiAirRingDat
 
   const saveAlarmList = compareArrays(warningList.value, errCodeList )
   if(saveAlarmList && saveAlarmList.length) {
-    console.log('saveAlarmList', saveAlarmList);
+    let addAlarmList: IAlarmsData[] = saveAlarmList.map(item => {
+      return {
+        date: dayjs().format("YYYY-MM-DD HH:mm:ss"),
+        type: item.includes('warning1')? "air" : "thick",
+        content: item,
+        code: item.split('.')[1]
+      }
+    })
+    saveAlarmHandle(addAlarmList)
   }
+
   if(errCodeList.includes('warning2.1')) {
     frameStore.hasBadChannels =  true
   }
