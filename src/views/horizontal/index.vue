@@ -125,7 +125,7 @@ const getFrameList = async () => {
    } catch (error) { }
 }
 
-watch(() => store.updateFrameId, async () => {
+watch(() => store.updateFrameId, () => {
    getFrameList()
 },
    {

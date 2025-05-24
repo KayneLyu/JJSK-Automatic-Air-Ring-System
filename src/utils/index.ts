@@ -31,19 +31,17 @@ export function isValidNumber(value: any): boolean {
 
 // 控制环形图起始角度
 export const resetOrderDeg = (index: number) => {
-    let arr: string[] = []
-    for (let index = 0; index < 120; index++) {
-        arr.push(index * 3 + '°')
+    let arr: number[] = []
+    for (let k = 0; k < 120; k++) {
+        arr.push(k)
     }
-    if (arr.length <= 0) {
-        return arr
-    }
-    if (index == 0) {
+    if (index == 0 ) {
         return arr
     }
     const firstArr = arr.slice(0, index)
     const lastArr = arr.slice(index, arr.length + 1)
-    const newArr = lastArr.concat(firstArr)
+    const newArr = [...lastArr, ...firstArr]
+    
     return newArr
 }
 

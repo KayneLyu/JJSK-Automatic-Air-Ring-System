@@ -59,28 +59,27 @@ let option: ECOption = {
         top: "5%",
         containLabel: true,
     },
-    xAxis: [
-        {
-            min: 0,
-            max: 120,
-            maxInterval: 10,
-            minInterval: 1,
-            type: "value",
-            minorTick: {
-                show: true,
-            },
-            axisLine: {
-                show: true,
-                onZero: false,
-            },
-            axisLabel: {
-                show: true,
-                formatter: function (value) {
-                    return value * 3 + "°";
-                },
+    xAxis:
+    {
+        min: 0,
+        max: 120,
+        maxInterval: 10,
+        minInterval: 1,
+        type: "value",
+        minorTick: {
+            show: true,
+        },
+        axisLine: {
+            show: true,
+            onZero: false,
+        },
+        axisLabel: {
+            show: true,
+            formatter: function (value) {
+                return value * 3 + "°";
             },
         },
-    ],
+    },
     yAxis: {
         type: "value",
         min: store.param.tolerance * -4,
@@ -128,18 +127,24 @@ let option: ECOption = {
         {
             name: "实际轮廓(%)",
             type: "bar",
-            // smooth: true,
-            // symbol: "none",
-            // lineStyle: {
-            //     width: 2,
-            //     color: "#0770FF",
-            // },
-            // showSymbol: false,
-            // areaStyle: {
-            //     color: "rgba(168,176,246, 0.7)",
-            // },
-            // color: '#8993FF',
             barWidth: '85%',
+            data: []
+        },
+        {
+            name: "即时图",
+            type: "line",
+            smooth: true,
+            symbol: "none",
+            lineStyle: {
+                width: 3,
+                color: "#000cae90",
+            },
+            data: [],
+        },
+        {
+            name: "实际轮廓(%)",
+            type: "bar",
+            barWidth: '90%',
             markLine: {
                 silent: true,
                 symbol: 'none', // 不显示标记点
@@ -156,21 +161,8 @@ let option: ECOption = {
                     { yAxis: -store.param.tolerance },
                 ]
             },
-            data: []
-        },
-        {
-            name: "即时图",
-            xAxisIndex: 0,
-            yAxisIndex: 0,
-            type: "bar",
-            smooth: true,
-            symbol: "none",
-            lineStyle: {
-                width: 4,
-                color: "#000cae",
-            },
             data: [],
-        }
+        },
     ],
 };
 
@@ -181,15 +173,17 @@ watch([() => props.frameData, () => configStore.markOverValue], ([frameData, sho
     if (showOverDta) {
         updateCharts({
             series: [
-                { data: frameData},
-                { data: tempStore.tempList },
+                {},
+                {},
+                { data: frameData },
             ]
         })
     } else {
         updateCharts({
             series: [
+                {},
+                {},
                 { data: frameData },
-                { data: tempStore.tempList },
             ]
         })
     }
@@ -202,7 +196,6 @@ watch([() => props.frameData, () => configStore.markOverValue], ([frameData, sho
 watch(() => tempStore.tempList, (tempList) => {
     updateCharts({
         series: [
-            {},
             {},
             { data: tempList },
         ]

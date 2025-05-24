@@ -37,6 +37,28 @@ const getTableList = () => {
     tableChild.value.getWarningList(formattedDate);
 }
 
+const options = [
+    {
+        value: 10,
+        label: '10条'
+    },
+    {
+        value: 20,
+        label: '20条'
+    },
+    {
+        value: 30,
+        label: '30条'
+    },
+    {
+        value: 40,
+        label: '40条'
+    },
+    {
+        value: 50,
+        label: '50条'
+    }
+]
 // 显示最近记录
 const changeShowItems = () => {
     if (!tableChild?.value) return;
@@ -64,9 +86,17 @@ onMounted(() => {
 
             <div class="show_recently">
                 <p>显示最近记录:</p>
-                <el-input-number @change="changeShowItems" :controls="false" v-model="showItems"
-                    style="width: 50px; margin: 0 6px;"></el-input-number>
-                <p>条</p>
+                <el-select @change="changeShowItems"
+                    v-model="showItems"
+                    style="width: 90px; margin: 0 6px;
+                    ">
+                    <el-option
+                        v-for="item in options"
+                        :key="item.value"
+                        :label="item.label"
+                        :value="item.value"
+                    />
+                </el-select>
             </div>
         </div>
 

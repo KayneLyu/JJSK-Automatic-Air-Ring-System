@@ -56,31 +56,29 @@ let option: ECOption = {
         top: "5%",
         containLabel: true,
     },
-    xAxis: [
-        {
-            type: "value",
-            min: 0,
-            max: 120,
-            maxInterval: 10,
-            minInterval: 1,
-            minorTick: {
-                show: true,
-            },
-            axisTick:{
-                
-            },
-            axisLine: {
-                show: true,
-                onZero: false,
-            },
-            axisLabel: {
-                show: true,
-                formatter: function (value) {
-                    return value * 3 + "°";
-                },
+    xAxis: {
+        type: "value",
+        min: 0,
+        max: 120,
+        maxInterval: 10,
+        minInterval: 1,
+        minorTick: {
+            show: true,
+        },
+        axisTick: {
+
+        },
+        axisLine: {
+            show: true,
+            onZero: false,
+        },
+        axisLabel: {
+            show: true,
+            formatter: function (value) {
+                return value * 3 + "°";
             },
         },
-    ],
+    },
     yAxis: {
         type: "value",
         min: store.param.tolerance * -4,
@@ -128,8 +126,14 @@ let option: ECOption = {
         {
             name: "实际轮廓(%)",
             type: "bar",
-            // color: '#8993FF',
             barWidth: '85%',
+            data: []
+        },
+        {
+            name: "实际轮廓(%)",
+            type: "bar",
+            // color: '#8993FF',
+            barWidth: '90%',
             // smooth: true,
             // lineStyle: {
             //     width: 2,
@@ -166,12 +170,14 @@ watch([() => props.frameData, () => configStore.markOverValue], () => {
         // 超出的数据
         updateCharts({
             series: [
+                {},
                 { data: props.frameData },
             ]
         })
     } else {
         updateCharts({
             series: [
+                {},
                 { data: props.frameData },
             ]
         })

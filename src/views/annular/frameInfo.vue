@@ -1,6 +1,6 @@
 <script setup lang='ts'>
 defineProps<{
-    frameData: IFrameThickData
+    frameData: IFrameThickData | null
 }>()
 </script>
 

@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import * as echarts from 'echarts/core';
 import {
     PolarComponent,
@@ -16,7 +16,8 @@ import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts';
 import { useProduct } from '@/store/product.ts';
-import { resetOrderDeg } from '@/utils';
+import { useApiDataStore } from "@/store/polling-data";
+import { useTempStore } from '@/store/temp';
 
 echarts.use([
     PolarComponent,
@@ -35,12 +36,14 @@ type ECOption = echarts.ComposeOption<
     | LineSeriesOption
     | MarkLineComponentOption
 >;
-
+const tempStore = useTempStore();
 const store = useProduct();
-const startDeg = 90
-const data: any = []
-const tempData: any = []
-const monitors = 48
+const { ChannelNo1Angle: startDeg, ChannelCnt: monitors } = useApiDataStore().apiAirRingConfig
+const props = defineProps<{
+    frameData: number[] | undefined,
+    meanValue: number | undefined
+}>()
+
 let monitorsList = [];
 for (let index = 1; index <= monitors; index++) {
     monitorsList.push(index);
@@ -64,17 +67,22 @@ let option: ECOption = {
         // 外圈
         {
             polarIndex: 0,
-            type: "category",
-            boundaryGap: true,
-            data: resetOrderDeg(30),
-            startAngle: -90,
+            type: "value",
+            // boundaryGap: true,
+            min: 0,
+            max: 120,
+            // data: resetOrderDeg(30),
+            startAngle: 0,
             axisLabel: {
                 align: "center",
                 interval: 9,
                 inside: true,
-                margin: 38,
+                margin: 42,
                 fontWeight: 700,
                 fontSize: 15,
+                formatter: (value: string) => {
+                    return Number(value) * 3 + '°'
+                },
             },
             axisTick: {
                 show: false,
@@ -131,36 +139,36 @@ let option: ECOption = {
 
     radiusAxis: [
         {
+            name: "(%)",
             polarIndex: 0,
             type: "value",
-            min: store.param.tolerance * -3,
-            max: store.param.tolerance * 3,
-            minInterval: 1,
+            nameLocation: 'start',
+            nameGap: 5,
+            min: store.param.tolerance * -5,
+            max: store.param.tolerance * 5,
             maxInterval: store.param.tolerance,
             axisLabel: {
-                margin: 2,
                 formatter: function (value) {
                     if (value === -store.param.tolerance || value === store.param.tolerance) {
                         return `{special|${value}%}`
                     }
-                    return `${value.toFixed(0)}%`
+                    return `${value.toFixed(0)}`
                 },
                 rich: {
                     special: {
                         color: '#fff',
                         backgroundColor: '#ff6f6f',
                         padding: 2,
+                        fontSize: 12,
                     }
                 },
-                verticalAlign: "bottom",
-                fontWeight: 700,
-                fontSize: 13,
+                fontSize: 12,
                 show: true,
             },
             splitLine: {
                 lineStyle: {
                     // 使用深浅的间隔色
-                    color: ["#d9dbdd", "#d9dbdd", "red", "#d9dbdd", "red"],
+                    color: ["#d9dbdd", "#d9dbdd", "#d9dbdd", "#d9dbdd", "red", "#d9dbdd", "red"],
                     type: "dashed",
                     opacity: 0.4,
                 },
@@ -186,14 +194,6 @@ let option: ECOption = {
                 color: "rgba(168,176,246, 0.9)",
             },
 
-            data: data,
-        },
-        {
-            polarIndex: 1,
-            coordinateSystem: "polar",
-            name: "line",
-            type: "line",
-            showSymbol: false,
             data: [],
         },
         {
@@ -206,29 +206,56 @@ let option: ECOption = {
                 color: "#000cae",
             },
             showSymbol: false,
-            data: tempData,
+            data: [],
+        },
+        {
+            polarIndex: 1,
+            coordinateSystem: "polar",
+            name: "line",
+            type: "line",
+            showSymbol: false,
+            data: [],
         },
     ],
-    // animationDuration: 200,
 };
 const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option)
-// setTimeout(() => {
-//     updateCharts({
-//         series: [
-//         {
-//             data: [1000, 1000, 901, 934, 1290, 1330, 1320],
-//             type: 'line',
-//             areaStyle: {}
-//         }
-//     ]
-//     })
-// },0)
+
+watch(() => props.frameData, (newValue) => {
+    if (newValue && newValue.length) {
+        updateCharts({
+            series: [
+                {
+                    data: newValue
+                }
+            ]
+        })
+    }
+},
+    {
+        immediate: true
+    }
+)
+
+watch(() => tempStore.tempList, (tempList) => {
+    let formateList = tempList.map((item) => [item[1], item[0]])
+    updateCharts({
+        series: [
+            {},
+            { data: formateList },
+        ]
+    })
+},
+    {
+        immediate: true,
+        deep: true
+    }
+)
 
 </script>
 
 <template>
-    <div ref="chartContainer" style="width: 100%; height: 100%;"></div>
+    <div ref="chartContainer" style="width: 99%; height: 99%;"></div>
 </template>
 
 <style scoped></style>

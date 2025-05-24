@@ -373,7 +373,6 @@ let option: EChartsOption = {
             },
             data: [],
         },
-        
         {
             name: "frame",
             type: "bar",
@@ -396,7 +395,7 @@ let option: EChartsOption = {
             //         },
             //     ]),
             // },
-            barWidth: '85%',
+            barWidth: '90%',
             color: '#8993FF',
             markLine: {
                 silent: true,

@@ -6,7 +6,7 @@ import { db } from '@/utils/dexie';
 const { t } = useI18n();
 
 const tableData = ref<IAlarmsData[]>([])
-const getWarningList = async (queryDate: string, limitNumber: number,) => {
+const getWarningList = async (queryDate: string | number, limitNumber?: number,) => {
     let result: IAlarmsData[] = [];
     try {
         if (limitNumber) {
