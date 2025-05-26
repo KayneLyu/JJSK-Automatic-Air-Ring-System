@@ -3,6 +3,7 @@ import { ref, reactive, watch } from 'vue';
 import { ArrowDown, ArrowUp, Eleme } from '@element-plus/icons-vue'
 import { useApiDataStore } from '@/store/polling-data';
 import { useProduct } from "@/store/product";
+import { useFrameStore } from "@/store/frame";
 import { magnification } from '@/api';
 import { isValidNumber } from '@/utils';
 import { db } from '@/utils/dexie';
@@ -17,20 +18,23 @@ const { t } = useI18n()
 
 const store = useApiDataStore()
 const productStore = useProduct()
+const frameStore = useFrameStore();
 const form = reactive({
     productName: 'ABCDE',
     order: '00000001',
     roll: 1,
     thick: 80,
+    displayValue: frameStore.meanValue,
     tolerance: 5,
-    scale: store.apiThickData.K
 });
 
-watch(props, async (newVal) => {
-    if (newVal.process) {
+const scaleValue = ref(store.apiThickData.K)
+
+watch(() => props.process, async (newVal) => {
+    if (newVal) {
         Object.assign(form, {
-            ...newVal.process, // 解构新值
-            scale: store.apiThickData.K // 确保 scale 使用最新的值
+            ...newVal,
+            displayValue: frameStore.meanValue
         });
     }
 },
@@ -54,10 +58,8 @@ const computeScale = async () => {
         return
     }
     buttonLoading.value = true
-    const displayValue = 80　//　厚度平均值
     setTimeout(() => {
-        const scale = (form.thick / displayValue) * store.apiThickData.K
-        form.scale = 1.2
+        scaleValue.value = (form.thick / form.displayValue) * store.apiThickData.K
         buttonLoading.value = false
         ElNotification({
             title: t("notification.info"),
@@ -72,7 +74,7 @@ const computeScale = async () => {
 const onSubmit = async () => {
     buttonLoading.value = true
     try {
-        await magnification(form.scale)
+        await magnification(scaleValue.value)
         await db.product.put({ ...form })
         productStore.updateProduction(form)
         props.getProductList()
@@ -114,7 +116,7 @@ const onSubmit = async () => {
             <el-input-number v-model="form.tolerance" :min="1" :max="50" :precision="0" />
         </el-form-item>
         <el-form-item :label="$t('product.scale')">
-            <el-input-number class="scale" v-model="form.scale" :step="0.1" :min="1" :max="50" :precision="3" />
+            <el-input-number class="scale" v-model="scaleValue" :step="0.1" :min="1" :max="50" :precision="3" />
             <el-button style="margin-left: 20px;" type="primary" size="large" @click="() => showCompute = !showCompute">
                 {{ $t("product.revise") }}
                 <el-icon style="margin-left: 5px;">
@@ -126,7 +128,7 @@ const onSubmit = async () => {
             <el-input-number v-model="form.thick" :min="10" :max="500" :precision="1" />
         </el-form-item>
         <el-form-item v-if="showCompute" :label="$t('product.display')">
-            <el-input-number v-model="form.thick" :min="10" :max="500" :precision="1" />
+            <el-input-number v-model="form.displayValue" :min="10" :max="500" :precision="1" />
             <el-button @click="computeScale" :loading="buttonLoading" :loading-icon="Eleme"
                 style="margin-left: 20px;  font-size: 15px;" type="warning" size="large">
                 {{ $t('product.setting') }}

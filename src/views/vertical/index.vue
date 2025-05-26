@@ -1,44 +1,28 @@
 <script setup lang='ts'>
 import { ref, onMounted, watch, onBeforeUnmount } from 'vue';
-import {
-  ArrowLeftBold,
-  ArrowRightBold,
-  Search,
-  DArrowLeft,
-  DArrowRight
-} from '@element-plus/icons-vue'
-import VerticalCharts from './charts.vue';
-import { useDateFormat, useTimeoutFn } from '@vueuse/core';
-import { showNotification } from '@/utils/index';
-import { useFrameStore } from "@/store/frame";
+import CharsOperate from "@/components/CharsOperate.vue";
+import useOperateCharts from '@/hooks/useOperateCharts';
+import VerticalCharts from './vertical-charts.vue';
+import FrameInfo from './frame-info.vue';
+import FrameCharts from './frame-charts.vue';
 import { useI18n } from 'vue-i18n';
-import LatestIcon from "@/components/icons/Latest.vue";
-// import FrameCharts from './frame.vue';
 
 const { t } = useI18n()
 
-const useFrame = useFrameStore()
-
-const datePick = ref(new Date())
-// 查询参数
-const mixValue = ref(2)
-const IntervalValue = ref(1)
-// 选中的图幅ID
-const currentFrameID = ref(0)
-// tooltip
-const frameIndex = ref(0)
-const trendsCounts = ref(100)
-//倒计时
-const timeToLatest = ref(0)
-
-// 趋势数据
-const trendDataList = ref()
-let trendData = ref<Array<[string, number][]>>([
-])
-
-const disabledDate = (time: Date) => {
-  return time.getTime() > Date.now()
-}
+const {
+  sigmaDataList,
+  currentId,
+  queryDataList,
+  currentIndex,
+  lastFrameId,
+  currentFrame,
+  meanDataList,
+  isFreshData,
+  getTrendDataList,
+  nextPageQuery,
+  changeStep,
+  changeCurrentIndex
+} = useOperateCharts();
 
 const trendInfo = ref({
   maxValue: 0,
@@ -50,47 +34,40 @@ const trendInfo = ref({
   endTime: ''
 })
 
-const oneFrameData = ref(
-  {
-    ID: 0,
-    Avg: 0,
-    Time: '',
-    EndTime: '',
-    DataBegin: 0,
-    DataEnd: 0,
-    min: 0,
-    max: 0,
-    minPercent: 0,
-    maxPercent: 0,
-    sigma: 0,
-    sigmaPercent: 0,
-    Thicks: [],
-    mix: 0,
-    FilmPosition: 0,
-    FilmWidth: 0,
-    speed: 0
-  })
-
-const getCurrentFrame = null
+onMounted(() => {
+  getTrendDataList()
+})
 
 
 </script>
 
 <template>
   <div class="vertical">
-    <el-card class="behavior_container">
-
-    </el-card>
+    <CharsOperate :currentId="currentId" :isFreshData="isFreshData" :last-frame-id="lastFrameId"
+      :lastFrameIndex="queryDataList.length" :current-index="currentIndex" :changeStep="changeStep"
+      :next-page-query="nextPageQuery" :get-trend-data-list="getTrendDataList" />
     <div class="vertical_charts">
       <el-card class="charts_container">
-        <VerticalCharts :frameIndex :frameID="currentFrameID" :trend-info="trendInfo" :frameData="trendData"
-          :handleCurrent="getCurrentFrame" />
+        <VerticalCharts :frameIndex="currentIndex" :frameID="currentId" :trend-info="trendInfo"
+          :sigma-data="sigmaDataList" 
+          :frameData="meanDataList" 
+          :handleCurrent="changeCurrentIndex" 
+          :start-date="queryDataList[0]?.endTime"
+          :end-date="queryDataList[queryDataList.length - 1]?.endTime"
+          />
       </el-card>
     </div>
 
     <div class="detail_charts">
+      <FrameInfo :frame-data="currentFrame" />
       <el-card class="charts_container">
-        <FrameCharts :frame-data="oneFrameData" />
+        <FrameCharts 
+          :currentId="currentFrame?.frameId"
+          :startDate="currentFrame?.startTime"
+          :endDate="currentFrame?.endTime"
+          :frameData="<number[]>currentFrame?.datalist"
+          :mean="currentFrame?.mean"
+        />
       </el-card>
     </div>
   </div>
@@ -150,7 +127,10 @@ const getCurrentFrame = null
 }
 
 .detail_charts {
+  display: flex;
+  flex-direction: column;
   margin-top: 10px;
-  height: 25%;
+  height: 28%;
+
 }
 </style>

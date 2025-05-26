@@ -140,7 +140,6 @@ interface IProductData {
     roll: number,
     tolerance: number,
     thick: number,
-    scale: number
 }
 
 type ILanguageType = 'zhCn' | 'en'

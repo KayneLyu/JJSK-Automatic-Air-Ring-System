@@ -83,4 +83,11 @@ export default {
         4: "生产速度为0,复位风环通道值",
         5: "与服务器连接断开,尽快联系厂商",
     },
+    vertical: {
+        sigma2: "2σ图",
+        currentID: "当前ID",
+        sigmaMean: "2σ平均值",
+        max: "最大值",
+        min: "最小值",
+    }
 }

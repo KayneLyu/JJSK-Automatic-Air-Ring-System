@@ -31,6 +31,7 @@ watch(() => store.apiThickData.LastScanDataId, async() => {
             heats: heats
         })
         frameStore.updateFrameId = id
+        frameStore.meanValue = formatValue.mean
     }
 },
     {

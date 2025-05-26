@@ -9,9 +9,12 @@ import { useApiDataStore } from "@/store/polling-data";
 import { decimalToBinary } from "@/utils/format-data";
 import { compareArrays } from "@/utils/index";
 import { db } from '@/utils/dexie';
+import { useI18n } from 'vue-i18n';
+import { magnification } from '@/api';
 import dayjs from 'dayjs';
 import AlarmIcon from "@/components/icons/Alert.vue";
 
+const { t } = useI18n()
 const router = useRouter()
 const store = useProduct()
 const pollingStore = useApiDataStore()
@@ -19,7 +22,7 @@ const frameStore = useFrameStore()
 const warningList = ref<string[]>([])
 
 // 存储报警数据
-const saveAlarmHandle = async (addAlarmList: IAlarmsData[]) => { 
+const saveAlarmHandle = async (addAlarmList: IAlarmsData[]) => {
   try {
     await db.Alarm.bulkAdd(addAlarmList)
   } catch (error) {
@@ -46,12 +49,12 @@ watch([() => pollingStore.apiThickData.ErrCode, () => pollingStore.apiAirRingDat
   }
   const errCodeList = [...thickErrList, ...ariRingErrList]
 
-  const saveAlarmList = compareArrays(warningList.value, errCodeList )
-  if(saveAlarmList && saveAlarmList.length) {
+  const saveAlarmList = compareArrays(warningList.value, errCodeList)
+  if (saveAlarmList && saveAlarmList.length) {
     let addAlarmList: IAlarmsData[] = saveAlarmList.map(item => {
       return {
         date: dayjs().format("YYYY-MM-DD HH:mm:ss"),
-        type: item.includes('warning1')? "air" : "thick",
+        type: item.includes('warning1') ? "air" : "thick",
         content: item,
         code: item.split('.')[1]
       }
@@ -59,8 +62,8 @@ watch([() => pollingStore.apiThickData.ErrCode, () => pollingStore.apiAirRingDat
     saveAlarmHandle(addAlarmList)
   }
 
-  if(errCodeList.includes('warning2.1')) {
-    frameStore.hasBadChannels =  true
+  if (errCodeList.includes('warning2.1')) {
+    frameStore.hasBadChannels = true
   }
   warningList.value = [...errCodeList]
 },
@@ -73,11 +76,19 @@ const loading = ref(false)
 const fixScaleHandle = async () => {
   loading.value = true
   try {
+    const scaleSetVal = (store.param.thick / frameStore.meanValue) * pollingStore.apiThickData.K
+    await magnification(scaleSetVal)
     setTimeout(() => {
       loading.value = false
     }, 5000);
+    ElNotification({
+      title: t("notification.info"),
+      message: t("notification.success"),
+      type: "success",
+      offset: 70
+    })
   } catch (error) {
-
+    console.log('设置放大倍数失败!');
   }
 }
 
@@ -97,7 +108,7 @@ const fixScaleHandle = async () => {
       </div>
       <div class="target_content">
         <p class="target_tittle">放大倍数 : </p>
-        <p>{{ `1.000` }}</p>
+        <p>{{ pollingStore.apiThickData.K.toFixed(3) }}</p>
       </div>
     </div>
     <div class="update_roll">
@@ -106,8 +117,8 @@ const fixScaleHandle = async () => {
           ${useDateFormat(frameStore.lastFrame.EndTime, dateType).value}` }}</p>
       </div> -->
       <el-button :loading-icon="Eleme" :loading="loading" @click="fixScaleHandle"
-        style="width: 100px; height: 32px; letter-spacing: 1px;" type="primary">
-        {{ `一键修正` }}
+        style="padding: 0 25px; height: 32px; letter-spacing: 1px;" type="primary">
+        {{ `修正` }}
       </el-button>
     </div>
 

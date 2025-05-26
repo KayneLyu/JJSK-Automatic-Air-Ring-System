@@ -51,7 +51,6 @@ const changeDate = (e:string) => {
 }
 
 const changeHours = (e:number) => {
-    console.log('eee',e);
     configStore.queryHours = e
 }
 
@@ -65,12 +64,12 @@ const { start, stop } = useTimeoutFn(() => {
     return
   }
   start()
-}, 1000)
+}, 1000 ,  { immediate: false }) // 组件加载不执行
 
 // 监听触发倒计时条件
-watch(() => props.isFreshData, (newIndex) => {
+watch([() => props.isFreshData, () => props.currentId], ([isFresh, index]) => {
   stop()
-  if (!newIndex) {
+  if (!isFresh) {
     timeToLatest.value = 30
     start()
   } else {

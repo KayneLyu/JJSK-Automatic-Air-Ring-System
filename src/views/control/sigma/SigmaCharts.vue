@@ -140,7 +140,8 @@ let option: EChartsOption = {
             name: "SigmaData",
             type: "line",
             smooth: true,
-            symbol: "none",
+            showSymbol:false,
+            symbolSize: 2,
             areaStyle: {
                 color: "#A2D6FFAA",
             },
@@ -170,7 +171,8 @@ let option: EChartsOption = {
             name: "FakeData",
             type: "line",
             smooth: true,
-            symbol: "none",
+            showSymbol:false,
+            symbolSize: 2,
             lineStyle: {
                 width: 2,
                 color: "#8993FF",
@@ -191,7 +193,7 @@ const { updateCharts, selectSeriesIndex }  = useChartsInit('chartContainer', opt
 
 watch(() => props.frameData, (newValue) => {
     if(!newValue ||  newValue.length ==0) {
-        
+        return
     }
     let backSigmaList: Array<[string, number]> = []
     if(newValue.length) {

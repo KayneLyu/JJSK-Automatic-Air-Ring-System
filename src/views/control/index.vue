@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted } from 'vue';
 import useOperateCharts from '@/hooks/useOperateCharts';
 import StateComponent from './states/State.vue';
 import SigmaCharts from './sigma/SigmaCharts.vue';
@@ -75,7 +75,8 @@ const applyHeats = async () => {
     <div class="sigma-charts">
       <el-card class="sigma_charts_content">
         <SigmaCharts :changeCurrentIndex="changeCurrentIndex" :currentIndex="currentIndex" :frameData="sigmaDataList"
-          :currentId="currentId" :start-date="queryDataList[0]?.endTime"
+          :currentId="currentId" 
+          :start-date="queryDataList[0]?.endTime"
           :end-date="queryDataList[queryDataList.length - 1]?.endTime" />
       </el-card>
 
