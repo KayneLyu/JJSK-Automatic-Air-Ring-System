@@ -1,8 +1,9 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { setupRendererCommunicator } from './rendererCommunicator';
 import { ensureServerRunning } from './utils';
+import fs from "fs";
 
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -42,18 +43,7 @@ function createWindow() {
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
 
-  // win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-  //   const newHeaders = {
-  //    ...details.responseHeaders,
-  //     'Content - Security - Policy': "default - src 'self'; connect - src 'self' http://localhost:10010"
-  //   };
-  //   callback({ responseHeaders: newHeaders });
-  // });
 }
-
-
-
-
 // 防止重复点击软件
 const getLock = app.requestSingleInstanceLock()
 if (!getLock) {
@@ -74,6 +64,22 @@ app.on("ready", () => {
     openAtLogin: true,
   })
 });
+
+app.on('will-finish-launching', () => {
+  // 判断文件夹是否存在
+  if (!fs.existsSync('D:/JJSK_Data')) {
+    fs.mkdirSync('D:/JJSK_Data')
+  }
+  // 指定数据库文件夹和文件名
+  app.setPath('appData', 'D:/JJSK_Data')
+})
+
+app.on('before-quit', () => {
+  win?.removeAllListeners('close')
+  globalShortcut.unregisterAll()
+  win?.close()
+})
+
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits

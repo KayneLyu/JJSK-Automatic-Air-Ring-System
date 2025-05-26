@@ -79,7 +79,7 @@ watch([() => props.isFreshData, () => props.currentId], ([isFresh, index]) => {
 
 // 根据ID更新视图
 watch(() => store.updateFrameId, (newIndex) => {
-    if (!props.isFreshData) return
+    if (timeToLatest.value > 0) return
     props.getTrendDataList()
 })
 

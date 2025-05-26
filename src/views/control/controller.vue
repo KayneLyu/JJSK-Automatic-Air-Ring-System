@@ -62,7 +62,7 @@ const toggleAutoMode = async () => {
               <p>自动模式</p>
             </div>
 
-            <div class="save_channel" style="margin-top: 40px;">
+            <!-- <div class="save_channel" style="margin-top: 40px;">
               <div>
                 <p><el-button type="primary" :icon="SaveIcon"></el-button></p>
                 <p>保存通道</p>
@@ -71,7 +71,7 @@ const toggleAutoMode = async () => {
                 <p><el-button type="primary" :icon="HistoryIcon"></el-button></p>
                 <p>历史通道</p>
               </div>
-            </div>
+            </div> -->
             <div class="save_channel">
               <div>
                 <p><el-button @click="changeAllHeats(false, true)" :disabled="store.apiAirRingData.IsAuto" type="primary"
