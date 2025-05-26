@@ -46,43 +46,49 @@ const disabledDate = (time: Date) => {
     return time.getTime() > Date.now()
 }
 
-const changeDate = (e:string) => {
+const changeDate = (e: string) => {
     pickDate.value = useDateFormat(e, 'YYYY-MM-DD').value
 }
 
-const changeHours = (e:number) => {
+const changeHours = (e: number) => {
     configStore.queryHours = e
 }
 
 // 开始倒计时
 const { start, stop } = useTimeoutFn(() => {
-  timeToLatest.value -= 1
-  if (timeToLatest.value <= 0) {
-    props.getTrendDataList()
-    pickDate.value = useDateFormat(new Date(), 'YYYY-MM-DD').value
-    stop()
-    return
-  }
-  start()
-}, 1000 ,  { immediate: false }) // 组件加载不执行
+    timeToLatest.value -= 1
+    if (timeToLatest.value <= 0) {
+        props.getTrendDataList()
+        pickDate.value = useDateFormat(new Date(), 'YYYY-MM-DD').value
+        stop()
+        return
+    }
+    start()
+}, 1000, { immediate: false }) // 组件加载不执行
 
 // 监听触发倒计时条件
 watch([() => props.isFreshData, () => props.currentId], ([isFresh, index]) => {
-  stop()
-  if (!isFresh) {
-    timeToLatest.value = 30
-    start()
-  } else {
-    timeToLatest.value = 0
-  }
+    stop()
+    if (!isFresh) {
+        timeToLatest.value = 30
+        start()
+    } else {
+        timeToLatest.value = 0
+    }
+})
+
+// 根据ID更新视图
+watch(() => store.updateFrameId, (newIndex) => {
+    if (!props.isFreshData) return
+    props.getTrendDataList()
 })
 
 onBeforeUnmount(() => {
-  stop()
+    stop()
 })
-// onMounted(() => {
-//     getTrendDataList()
-// })
+onMounted(() => {
+    props.getTrendDataList()
+})
 
 </script>
 
@@ -90,8 +96,10 @@ onBeforeUnmount(() => {
     <el-card class="card_content">
         <div class="operate_container">
             <div>
-                <el-button @click="changeStep(-stepNumber)" :icon="ArrowLeftBold" type="primary" size="large"></el-button>
-                <el-button @click="changeStep(stepNumber)" :disabled="store.updateFrameId == currentId" :icon="ArrowRightBold" type="primary" size="large"></el-button>
+                <el-button @click="changeStep(-stepNumber)" :icon="ArrowLeftBold" type="primary"
+                    size="large"></el-button>
+                <el-button @click="changeStep(stepNumber)" :disabled="store.updateFrameId == currentId"
+                    :icon="ArrowRightBold" type="primary" size="large"></el-button>
             </div>
             <div>
                 <span style="margin-left: 10px; margin-right: 5px;">步进</span>
@@ -114,7 +122,8 @@ onBeforeUnmount(() => {
 
             <div class="control_btn">
                 <el-button @click="nextPageQuery(true)" :icon="DArrowLeft" type="primary" size="large"></el-button>
-                <el-button @click="nextPageQuery(false)" :disabled="store.updateFrameId== lastFrameId" :icon="DArrowRight" type="primary" size="large"></el-button>
+                <el-button @click="nextPageQuery(false)" :disabled="store.updateFrameId == lastFrameId"
+                    :icon="DArrowRight" type="primary" size="large"></el-button>
                 <el-badge v-if="timeToLatest > 0" style="margin-left: 15px;" :value="timeToLatest">
                     <el-button @click="() => getTrendDataList" size="large" type="primary">
                         <el-icon :size="20" color="#fff">

@@ -2,7 +2,12 @@
 import ClipPath from "./Clip-Path.vue";
 import WindowControls from './toolbar.vue';
 import LangCheckOut from './lang.vue';
+import FullScreen from '@/components/icons/Full.vue';
 
+
+const toggleFullscreen = () => {
+  window.ipcRenderer.send("win-toggle-fullscreen")
+}
 </script>
 
 <template>
@@ -17,7 +22,10 @@ import LangCheckOut from './lang.vue';
     </div>
     <div class="drag_container"></div>
     <div class="functional_container">
-
+      <div @click="toggleFullscreen" class="toggle_fullscreen">
+        <p>全屏模式</p>
+        <el-icon size="22"><FullScreen /></el-icon>
+      </div>
       <div class="theme_checkout">
         <ClipPath />
       </div>
@@ -82,5 +90,17 @@ import LangCheckOut from './lang.vue';
 
 .window_control {
   height: var(--height-header);
+}
+.toggle_fullscreen {
+  display: flex;
+  align-items: center;
+  color: #409EFF;
+  margin-right: 50px;
+  cursor: pointer;
+  p {
+    color: #fff;
+    margin-right: 10px;
+    font-size: 15px;
+  }
 }
 </style>

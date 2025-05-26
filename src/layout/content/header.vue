@@ -20,7 +20,7 @@ const store = useProduct()
 const pollingStore = useApiDataStore()
 const frameStore = useFrameStore()
 const warningList = ref<string[]>([])
-
+const targetThick = ref(store.param.thick)
 // 存储报警数据
 const saveAlarmHandle = async (addAlarmList: IAlarmsData[]) => {
   try {
@@ -76,7 +76,7 @@ const loading = ref(false)
 const fixScaleHandle = async () => {
   loading.value = true
   try {
-    const scaleSetVal = (store.param.thick / frameStore.meanValue) * pollingStore.apiThickData.K
+    const scaleSetVal = (targetThick.value / frameStore.meanValue) * pollingStore.apiThickData.K
     await magnification(scaleSetVal)
     setTimeout(() => {
       loading.value = false
@@ -91,7 +91,11 @@ const fixScaleHandle = async () => {
     console.log('设置放大倍数失败!');
   }
 }
-
+const changeThick = (e:FocusEvent) => {
+  if( targetThick.value !== 0 && targetThick.value !== null) {
+  }
+  targetThick.value = store.param.thick
+}
 </script>
 
 <template>
@@ -103,7 +107,7 @@ const fixScaleHandle = async () => {
     <div class="target_value">
       <div class="target_content">
         <p class="target_tittle">{{ `目标值` }} : </p>
-        <el-input-number class="target_input" :controls="false" v-model="store.param.thick" />
+        <el-input-number v-on:blur="changeThick" class="target_input" :controls="false" v-model="targetThick" />
         <span>μm</span>
       </div>
       <div class="target_content">

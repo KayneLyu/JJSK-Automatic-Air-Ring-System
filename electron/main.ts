@@ -1,8 +1,8 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, dialog } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { setupRendererCommunicator } from './rendererCommunicator';
-// import { createRequire } from 'node:module'
+import { ensureServerRunning } from './utils';
 
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -50,6 +50,30 @@ function createWindow() {
   //   callback({ responseHeaders: newHeaders });
   // });
 }
+
+
+
+
+// 防止重复点击软件
+const getLock = app.requestSingleInstanceLock()
+if (!getLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (event) => {
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    }
+  })
+}
+
+app.on("ready", () => {
+  ensureServerRunning('JinJiu.Scan.Server2', 'D:/server/JinJiu.Scan.Server2.exe', dialog)
+  // 开机自动启动应用
+  app.setLoginItemSettings({
+    openAtLogin: true,
+  })
+});
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits

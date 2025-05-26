@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import useOperateCharts from '@/hooks/useOperateCharts';
 import StateComponent from './states/State.vue';
 import SigmaCharts from './sigma/SigmaCharts.vue';
@@ -23,10 +23,6 @@ const {
   changeStep,
   changeCurrentIndex
 } = useOperateCharts();
-
-onMounted(() => {
-  getTrendDataList()
-})
 
 const relationRef = ref<InstanceType<typeof RelationCharts> | null>(null)
 

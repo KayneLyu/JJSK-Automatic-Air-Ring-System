@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { ref } from 'vue';
+import { ref, onMounted, useTemplateRef } from 'vue';
 import { useRoute } from 'vue-router';
 import ControlsIcon from '@/components/icons/Controls.vue';
 import HorizonIcon from '@/components/icons/Horizon.vue';
@@ -8,6 +8,7 @@ import VerticalIcon from '@/components/icons/Vertical.vue';
 import AlarmIcon from '@/components/icons/Alarm.vue';
 import ProductIcon from '@/components/icons/Product.vue';
 import UnfoldIcon from '@/components/icons/Unfold.vue';
+import logo from '../../../public/logo.png';
 
 const menuItemList = [
     {
@@ -51,6 +52,8 @@ const menuItemList = [
 const route = useRoute();
 const isFold = ref(false)
 
+const imageDom = useTemplateRef("imageDom")
+
 // 阻止按住ctrl 跳转默认事件
 const preventDefault = (e: MouseEvent) => {
     if (e.ctrlKey) {
@@ -58,12 +61,23 @@ const preventDefault = (e: MouseEvent) => {
     }
 }
 
+const getLogoPng = async() => {
+    const result = await window.ipcRenderer.invoke("win-get-logo")
+    if(imageDom.value) {
+        imageDom.value.src = result || logo
+    }
+}
+onMounted( () => {
+    getLogoPng()
+})
 </script>
 
 <template>
     <div class="sidebar">
         <ul :style="{ width: isFold ? '190px' : '70px' }">
-            <li class="logo"></li>
+            <li class="logo">
+                <img ref="imageDom" alt=""/>
+            </li>
             <div class="menu-list">
                 <li v-for="(item, index) in menuItemList" :key="index" @click="preventDefault"
                     :class="{ 'active': route.path === item.location }" :style="{ '--bg': item.color }">
@@ -140,7 +154,14 @@ const preventDefault = (e: MouseEvent) => {
 }
 
 .sidebar ul li.logo {
-    margin-bottom: 80px;
+    margin-bottom: 40px;
+    text-align: center;
+    img {
+        width: 80%;
+        height: 100px;
+        object-fit: contain;
+        border: none;
+    }
 }
 
 .sidebar ul li.logo .icon {

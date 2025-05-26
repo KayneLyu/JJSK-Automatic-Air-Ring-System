@@ -34,11 +34,6 @@ const trendInfo = ref({
   endTime: ''
 })
 
-onMounted(() => {
-  getTrendDataList()
-})
-
-
 </script>
 
 <template>
@@ -122,7 +117,7 @@ onMounted(() => {
   :deep(.el-card__body) {
     height: 100%;
     box-sizing: border-box;
-    padding: 15px;
+    padding: 10px;
   }
 }
 

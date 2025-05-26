@@ -36,8 +36,6 @@ echarts.use([
     VisualMapComponent,
     MarkLineComponent
 ]);
-type IDate = string | undefined
-
 const store = useProduct();
 const configStore = useConfigStore();
 
@@ -150,16 +148,7 @@ let option: ECOption = {
         {
             name: "实际轮廓(%)",
             type: "bar",
-            // color: '#8993FF',
             barWidth: '90%',
-            // smooth: true,
-            // lineStyle: {
-            //     width: 2,
-            //     color: "red",
-            // },
-            // areaStyle: {
-            //     color: "rgba(168,176,246, 0.7)",
-            // },
             markLine: {
                 silent: true,
                 symbol: 'none', // 不显示标记点
