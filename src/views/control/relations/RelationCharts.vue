@@ -144,7 +144,6 @@ let option: EChartsOption = {
         formatter: (value: any) => {
             const index = value[0].axisValue - 1
             let arr = [index]
-            // changeHeats(arr)
             return "";
         },
     },
@@ -538,7 +537,6 @@ const getChannelHandle = async () => {
         console.log('获取风环数据失败');
     }
 }
-
 
 defineExpose({
     changeAllChannel,

@@ -34,7 +34,7 @@
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
     "deleteAppDataOnUninstall": false,
-    "shortcutName": "风环系统客户端",
+    "shortcutName": "自动风环系统客户端",
   },
   "linux": {
     "target": [
