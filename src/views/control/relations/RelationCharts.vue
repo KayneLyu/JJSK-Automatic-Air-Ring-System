@@ -557,16 +557,16 @@ watch(() => props.currentId, async (newData) => {
 
     try {
         let channelDta: number[] = []
-        if (props.isFreshData) {
+        if (props.currentId === 0 || props.isFreshData) {
             channelDta = await getHeats()
         } else {
             const result = await db.Heats.get(newData)
             channelDta = result?.heats ?? []
         }
-        if (channelDta && channelDta.length) {
+        if (channelDta?.length > 0) {
             const newChannelData: [number, number][] = channelDta.map((item, index) => [index + 1, item])
             heatsList.value = newChannelData
-            if (props.isFreshData) {
+            if (props.isFreshData || props.currentId === 0) {
                 lastChannelList.value = newChannelData
             }
         }
@@ -588,7 +588,11 @@ watch(() => props.currentId, async (newData) => {
             },
         ]
     })
-})
+},
+{
+    immediate: true
+}
+)
 
 // 当前损坏的通道
 watch(() => frameStore.hasBadChannels, async (newData) => {

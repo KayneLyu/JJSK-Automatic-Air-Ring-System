@@ -12,7 +12,7 @@ defineProps<{
             <p>最大值: <span>{{ frameData?.maxPercent }}</span> %</p>
             <p>最小值: <span>{{ frameData?.minPercent }}</span> %</p>
             <p>生产速度: <span>{{ frameData?.speed }}</span> m/min</p>
-            <p>博膜宽度: <span>{{ frameData?.width }} </span> mm</p>
+            <p>薄膜宽度: <span>{{ frameData?.width }} </span> mm</p>
         </div>
     </div>
 </template>

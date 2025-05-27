@@ -350,7 +350,7 @@ watch(() => props.frameIndex, (newVal) => {
             <div>
                 <p> <span style="font-size: 16px;">{{ $t('vertical.sigma2') }}</span> <span> {{
                     `${$t('vertical.currentID')} ID: ${frameID}` }}</span> </p>
-                <p>{{ `${startDate} ~ ${endDate}` }}</p>
+                <p v-if="startDate">{{ `${startDate} ~ ${endDate}` }}</p>
             </div>
         </div>
         <div class="show_text title_right">
