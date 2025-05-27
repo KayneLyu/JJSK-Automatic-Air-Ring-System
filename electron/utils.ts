@@ -22,11 +22,13 @@ function isExeRunning(exeName: string) {
     }
 }
 
-
 export function ensureServerRunning(exeName: string, exePath: string, dialog: Dialog) {
     try {
         if (!isExeRunning(exeName)) {
             runAppInBackground(exePath);
+            return true
+        } else {
+            return false
         }
     } catch (error) {
         dialog.showErrorBox(`Error checking or running ${exeName}:`, error + '')

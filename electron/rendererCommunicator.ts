@@ -1,17 +1,20 @@
 // rendererCommunicator.ts
-import { BrowserWindow, app, ipcMain, IpcMainInvokeEvent } from 'electron';
-import path from 'path';
+import { BrowserWindow, app, ipcMain, IpcMainInvokeEvent, dialog } from 'electron';
 import fs from "fs";
+import { ensureServerRunning } from './utils';
+
 export function setupRendererCommunicator(win: BrowserWindow) {
   // 发送消息到渲染进程
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('main-process-message', new Date().toLocaleString());
   });
 
+  // 最小化
   ipcMain.on("win-minimize", () => {
     win.minimize();
   })
 
+  // 最大化
   ipcMain.on("win-maximize", () => {
     const windowIsMax = win.isMaximized();
     if (windowIsMax) {
@@ -21,16 +24,19 @@ export function setupRendererCommunicator(win: BrowserWindow) {
     }
   })
 
+  // 退出程序
   ipcMain.on("win-close", () => {
     app.quit();
   })
 
+  // 全屏
   ipcMain.on("win-toggle-fullscreen", () => {
     if (win) {
       win.setFullScreen(!win.isFullScreen());
     }
   })
 
+  // 获取logo
   ipcMain.handle("win-get-logo", (e: IpcMainInvokeEvent, message: string, params: any) => {
     if (win) {
       try {
@@ -40,9 +46,17 @@ export function setupRendererCommunicator(win: BrowserWindow) {
         const imgSrc = `data:image/png;base64,${base64Image}`; // 假设图片格式是png
         return imgSrc
       } catch (error) {
-        console.log('get logo error', error);
+        dialog.showErrorBox("Error", "Get LOGO resource failed:" + error)
       }
     }
+  })
+
+  // 打开服务的界面软件
+  ipcMain.handle("win-open-client", () => {
+    try {
+      const result = ensureServerRunning('JinJiu.Scan.Client2', 'D:/server/JinJiu.Scan.Client2.exe', dialog);
+      return result
+    } catch (error) {}
   })
 
   // 添加其他通信逻辑

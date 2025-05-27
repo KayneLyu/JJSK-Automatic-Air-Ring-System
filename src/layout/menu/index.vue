@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { ref, onMounted, useTemplateRef } from 'vue';
+import { ref, onMounted, useTemplateRef, h } from 'vue';
 import { useRoute } from 'vue-router';
 import ControlsIcon from '@/components/icons/Controls.vue';
 import HorizonIcon from '@/components/icons/Horizon.vue';
@@ -51,6 +51,7 @@ const menuItemList = [
 
 const route = useRoute();
 const isFold = ref(false)
+const isOpening = ref(false)
 
 const imageDom = useTemplateRef("imageDom")
 
@@ -61,22 +62,41 @@ const preventDefault = (e: MouseEvent) => {
     }
 }
 
-const getLogoPng = async() => {
+// 打开客户端
+const openClient = async () => {
+    try {
+        const result = await window.ipcRenderer.invoke("win-open-client")
+        isOpening.value = !result
+        ElNotification({
+            title: 'Tips:',
+            type: 'warning',
+            message: h('p', { style: 'padding: 10px 5px;font-size: 15px;' }, `${!result ? '程序已经在运行中 !' : '正在启动中...'}`),
+            position: 'top-left',
+            duration: 3000,
+            offset: 20
+        })
+    } catch (error) {}
+}
+
+// 获取logo
+const getLogoPng = async () => {
     const result = await window.ipcRenderer.invoke("win-get-logo")
-    if(imageDom.value) {
+    if (imageDom.value) {
         imageDom.value.src = result || logo
     }
 }
-onMounted( () => {
+
+onMounted(() => {
     getLogoPng()
 })
+
 </script>
 
 <template>
     <div class="sidebar">
         <ul :style="{ width: isFold ? '190px' : '70px' }">
-            <li class="logo">
-                <img ref="imageDom" alt=""/>
+            <li @click="openClient" class="logo">
+                <img ref="imageDom" alt="" />
             </li>
             <div class="menu-list">
                 <li v-for="(item, index) in menuItemList" :key="index" @click="preventDefault"
@@ -156,6 +176,8 @@ onMounted( () => {
 .sidebar ul li.logo {
     margin-bottom: 40px;
     text-align: center;
+    cursor: pointer;
+
     img {
         width: 80%;
         height: 100px;
