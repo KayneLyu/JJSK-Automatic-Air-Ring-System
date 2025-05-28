@@ -99,7 +99,7 @@ const onSubmit = async () => {
 </script>
 
 <template>
-    <el-form size="large" :model="form" label-width="100" style="max-width: 500px">
+    <el-form size="large" :model="form" label-width="200" style="max-width: 600px">
         <el-form-item :label="$t('product.name')">
             <el-input v-model="form.productName" />
         </el-form-item>

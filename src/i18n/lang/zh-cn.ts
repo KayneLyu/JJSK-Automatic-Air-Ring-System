@@ -4,7 +4,13 @@ export default {
         full: "全屏模式切换",
         percent: "百分比",
         value: "具体值",
-        show: "图幅数据显示"
+        show: "图幅数据显示",
+        gauge: "测厚仪",
+        ring: "自动风环",
+        stop: "已停止",
+        running: "运行中",
+        handle: "手动模式",
+        auto: "自动模式"
     },
     menu: {
         product: "产品参数",
@@ -14,6 +20,45 @@ export default {
         vertical: "纵向趋势",
         configuration: "配置中心",
         alarm: "告警管理",
+    },
+    horizon: {
+        frame: "横向图",
+        mean: "平均值",
+        max: "最大值",
+        min: "最小值",
+        speed: "生产速度",
+        filmWidth: "薄膜宽度",
+        forward: "正",
+        reverse: "反",
+        deg: "通道角度",
+        channelNum: "通道数量",
+        channelBase: "基础通道值",
+        effectTime: "厚度起效时间"
+    },
+    control: {
+        position: "测量位置",
+        thickness: "测量厚度",
+        move: "移动速度",
+        airAD: "空气AD",
+        rotate: "旋转速度",
+        scan: "测量",
+        stop: "停止",
+        reverse: "反行",
+        forward: "正行",
+        query: "查询",
+        step: "步进",
+        hours: "小时",
+        autoMode: "自动模式",
+        manualMode: "手动模式",
+        allRise: "全升",
+        allDown: "全降",
+        reset: "复位",
+        add: "增加",
+        reduce: "减少",
+        cancel: "取消",
+        focus: "对位",
+        apply: "应用",
+        frame: "图"
     },
     product: {
         delete: "删除",
@@ -30,6 +75,9 @@ export default {
         display: "显示值",
         setting:　"计算",
         target: "目标值"
+    },
+    annular: {
+        circle: "环形图"
     },
     notification: {
         info: "提示",
@@ -59,7 +107,9 @@ export default {
         type: "告警类别",
         time: "触发时间",
         code: "代码",
-        content: "内容"
+        content: "内容",
+        recently: "显示最近记录",
+        items: "条"
     },
     warning1: {
         0: "激活码异常",

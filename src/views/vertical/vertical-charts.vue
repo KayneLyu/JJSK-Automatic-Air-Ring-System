@@ -71,7 +71,7 @@ let option: EChartsOption = {
                 color: "#fff",
                 formatter: (params) => {
                     const { value } = params;
-                    return dayjs(value).format("HH:mm:ss");
+                    return dayjs(value).format("YYYY-MM-DD HH:mm:ss");
                 },
             },
         },
@@ -349,7 +349,7 @@ watch(() => props.frameIndex, (newVal) => {
         <div class="show_text title_left">
             <div>
                 <p> <span style="font-size: 16px;">{{ $t('vertical.sigma2') }}</span> <span> {{
-                    `${$t('vertical.currentID')} ID: ${frameID}` }}</span> </p>
+                    `ID: ${frameID}` }}</span> </p>
                 <p v-if="startDate">{{ `${startDate} ~ ${endDate}` }}</p>
             </div>
         </div>
@@ -374,8 +374,8 @@ watch(() => props.frameIndex, (newVal) => {
     font-size: 14px;
     padding: 2px;
     border-radius: 5px;
-    background-color: #409EFFAA;
-    top: -16px;
+    background-color: #409EFFBB;
+    top: -12px;
     font-weight: 400;
 
     span:last-child {

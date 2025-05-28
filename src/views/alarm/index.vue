@@ -40,23 +40,23 @@ const getTableList = () => {
 const options = [
     {
         value: 10,
-        label: '10条'
+        label: '10'
     },
     {
         value: 20,
-        label: '20条'
+        label: '20'
     },
     {
         value: 30,
-        label: '30条'
+        label: '30'
     },
     {
         value: 40,
-        label: '40条'
+        label: '40'
     },
     {
         value: 50,
-        label: '50条'
+        label: '50'
     }
 ]
 // 显示最近记录
@@ -85,7 +85,7 @@ onMounted(() => {
             </div>
 
             <div class="show_recently">
-                <p>显示最近记录:</p>
+                <p>{{ t('alarm.recently') }}:</p>
                 <el-select @change="changeShowItems"
                     v-model="showItems"
                     style="width: 90px; margin: 0 6px;
@@ -93,7 +93,7 @@ onMounted(() => {
                     <el-option
                         v-for="item in options"
                         :key="item.value"
-                        :label="item.label"
+                        :label="item.label + `${$t('alarm.items')}`"
                         :value="item.value"
                     />
                 </el-select>

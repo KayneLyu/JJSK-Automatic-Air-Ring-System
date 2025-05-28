@@ -33,21 +33,21 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
                     </div>
                 </el-col>
                 <el-col :span="3" class="move_right">
-                    <el-statistic title="测量位置" :value="store.apiThickData.PosMm">
+                    <el-statistic :title="$t('control.position')" :value="store.apiThickData.PosMm">
                         <template #suffix>
                             <span class="unit">mm</span>
                         </template>
                     </el-statistic>
                 </el-col>
                 <el-col :span="3">
-                    <el-statistic title="测量厚度" :precision="1" :value="store.apiThickData.Thk">
+                    <el-statistic :title="$t('control.thickness')" :precision="1" :value="store.apiThickData.Thk">
                         <template #suffix>
                             <span class="unit">μm</span>
                         </template>
                     </el-statistic>
                 </el-col>
                 <el-col :span="3">
-                    <el-statistic :precision="1" title="移动速度" :value="store.apiThickData.Velocity">
+                    <el-statistic :precision="1" :title="$t('control.move')" :value="store.apiThickData.Velocity">
                         <template #suffix>
                             <span class="unit">m/min</span>
                         </template>
@@ -58,7 +58,7 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
                     <el-statistic group-separator="" title="AD" :value="store.apiThickData.AD" />
                 </el-col>
                 <el-col :span="2">
-                    <el-statistic group-separator="" title="空气AD" :value="store.apiThickData.SampleAD" />
+                    <el-statistic group-separator="" :title="$t('control.airAD')" :value="store.apiThickData.SampleAD" />
                 </el-col>
                 <el-col :span="1">
                     <div class="icon_box icon_rotation">
@@ -66,25 +66,27 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
                             <RotationIcon />
                         </el-icon>
                         <p class="isCW">{{ store.apiThickData.AngleOfRotation }}°</p>
-                        <p class="deg">{{ store.apiThickData.IsRotationCW ? '正' : '反'  }}</p>
+                        <div class="deg">
+                            <p>{{ store.apiThickData.IsRotationCW ? $t('horizon.forward') : $t('horizon.reverse')  }}</p>
+                        </div>
                     </div>
                 </el-col>
                 <el-col :span="3" class="move_right">
-                    <el-statistic :precision="1" title="旋转速度" :value="10">
+                    <el-statistic :precision="1" :title="$t('control.rotate')" :value="10">
                         <template #suffix>
                             <span class="unit">min/R</span>
                         </template>
                     </el-statistic>
                 </el-col>
                 <el-col :span="3">
-                    <el-statistic :precision="1" title="生产速度" :value="store.apiThickData.FilmVelocity">
+                    <el-statistic :precision="1" :title="$t('horizon.speed')" :value="store.apiThickData.FilmVelocity">
                         <template #suffix>
                             <span class="unit">m/min</span>
                         </template>
                     </el-statistic>
                 </el-col>
                 <el-col :span="3">
-                    <el-statistic title="薄膜宽度" :value="store.apiThickData.Width">
+                    <el-statistic :title="$t('horizon.filmWidth')" :value="store.apiThickData.Width">
                         <template #suffix>
                             <span class="unit">mm</span>
                         </template>
@@ -148,15 +150,19 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
     }
     .deg {
         top: -10px;
-        padding: 1px 4px;
-        left: 10px;
-        background-color: #409EFF;
         color: #fff;
         font-size: 12px;
+        text-align: center;
+        width: 100%;
+        left: -5px;
+        p {
+            display: inline-block;
+            background-color: #409EFF;
+            padding: 1px 4px;
+        }
     }
     .isCW {
         bottom: -15px;
-        left: 0;
         padding: 1px 0;
         min-width: 42px;
         font-size: 13px;

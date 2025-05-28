@@ -41,7 +41,7 @@ watch(() => frameStore.updateFrameId, (newVal) => {
 <template>
   <el-card class="container">
     <div class="charts_info">
-      <div><p>环形图 <span style="margin-left: 20px;">当前ID: {{ frameData && frameData.frameId }}</span></p></div>
+      <div><p>{{ $t("annular.circle") }}<span style="margin-left: 20px;">ID: {{ frameData && frameData.frameId }}</span></p></div>
       <div><p v-if="frameData">{{ frameData.startTime }} ~ {{ dayjs(frameData.endTime).format("HH:mm:ss") }}</p></div>
       
     </div>

@@ -1,31 +1,28 @@
 
 <script lang="ts" setup>
-import { ref } from 'vue'
 import { useApiDataStore  } from '@/store/polling-data';
-import { startMeasuring, stopMeasuring, forwardsThick, backThick, toTheEdge } from '@/api';
+import { startMeasuring, stopMeasuring, forwardsThick, toTheEdge } from '@/api';
 
 const store = useApiDataStore()
 type Option = {
     label: string;
     value: string;
 }
-const value = ref('FIX')
-
 const options: Option[] = [
     {
-        label: '测量',
+        label: "control.scan",
         value: 'SCAN',
     },
     {
-        label: "停止",
+        label: "control.stop",
         value: "FIX"
     },
     {
-        label: "反行",
+        label: "control.reverse",
         value: "ORG"
     },
     {
-        label: "正行",
+        label: "control.forward",
         value: "RUNNING"
     },
     // {
@@ -70,7 +67,7 @@ const changeState = async (options: string) => {
         <el-segmented @change="changeState" style="height: 45px;" v-model="store.apiThickData.ControllerState" :options="options" block size="large">
             <template #default="{ item }">
                 <div>
-                    <div>{{ (item as Option).label }}</div>
+                    <div>{{ $t(`${(item as Option).label}`) }}</div>
                 </div>
             </template>
         </el-segmented>

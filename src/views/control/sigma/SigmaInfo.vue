@@ -27,14 +27,14 @@ const sigmaTotalInfo = computed(() => {
   <el-card>
     <div class="info_container">
       <div class="sigma_info">
-        <p>2σ平均值: <b>{{ sigmaTotalInfo?.meanSigma || 0 }}</b> %</p>
-        <p>最大值: <b>{{ sigmaTotalInfo?.MaxNum  || 0 }}</b> %</p>
-        <p>最小值: <b>{{ sigmaTotalInfo?.meanNum || 0 }}</b> %</p>
+        <p>2σ{{$t("horizon.mean")}}: <b>{{ sigmaTotalInfo?.meanSigma || 0 }}</b> %</p>
+        <p>{{$t("horizon.max")}}: <b>{{ sigmaTotalInfo?.MaxNum  || 0 }}</b> %</p>
+        <p>{{$t("horizon.min")}}: <b>{{ sigmaTotalInfo?.meanNum || 0 }}</b> %</p>
       </div>
 
       <div class="effective_time">
         <p style="margin-bottom: 5px;">
-          厚度起效时间:
+          {{$t("horizon.effectTime")}}:
         </p>
         <p>
           <b>{{ configStore.apiAirRingData.StableTime && dayjs(configStore.apiAirRingData.StableTime).format('HH:mm:ss') }}</b>

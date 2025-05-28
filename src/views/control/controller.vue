@@ -50,7 +50,7 @@ const toggleAutoMode = async () => {
               <el-icon size="18" style="margin-right: 5px;">
                 <RobotIcon />
               </el-icon>
-              <span style="font-size: 13px;">自动模式</span>
+              <span style="font-size: 13px;">{{ $t("control.autoMode") }}</span>
             </span>
           </template>
           <div class="status_container">
@@ -59,7 +59,7 @@ const toggleAutoMode = async () => {
                 :style="{ color: store.apiAirRingData.IsAuto ? '#34e53a' : '', filter: store.apiAirRingData.IsAuto ? 'drop-shadow(0 0 5px rgba(30, 217, 39, 0.617)' : '' }">
                 <AutoIcon />
               </el-icon>
-              <p>自动模式</p>
+              <p>{{ $t("control.autoMode") }}</p>
             </div>
 
             <!-- <div class="save_channel" style="margin-top: 40px;">
@@ -76,17 +76,17 @@ const toggleAutoMode = async () => {
               <div>
                 <p><el-button @click="changeAllHeats(false, true)" :disabled="store.apiAirRingData.IsAuto" type="primary"
                     :icon="AllUpIcon"></el-button></p>
-                <p>全升</p>
+                <p>{{ $t("control.allRise") }}</p>
               </div>
               <div>
                 <p><el-button @click="changeAllHeats(false, false)" :disabled="store.apiAirRingData.IsAuto" type="primary"
                     :icon="AllDownIcon"></el-button></p>
-                <p>全降</p>
+                <p>{{ $t("control.allDown") }}</p>
               </div>
             </div>
             <div class="status_reset">
               <p><el-button @click="changeAllHeats(true)" :disabled="store.apiAirRingData.IsAuto" type="primary" :icon="ResetIcon"></el-button></p>
-              <p>复位</p>
+              <p>{{ $t("control.reset") }}</p>
             </div>
           </div>
         </el-tab-pane>
@@ -97,7 +97,7 @@ const toggleAutoMode = async () => {
               <el-icon size="18" style="margin-right: 5px;">
                 <HandleIcon />
               </el-icon>
-              <span style="font-size: 13px;">手动模式</span>
+              <span style="font-size: 13px;">{{ $t("control.manualMode") }}</span>
             </span>
           </template>
           <div class="status_container handle_container">
@@ -105,12 +105,12 @@ const toggleAutoMode = async () => {
               <div>
                 <p><el-button @click="changeCurrentIndexHeats(false, true)" :disabled="store.apiAirRingData.IsAuto"
                     type="primary" style="font-size: 20px; "> + </el-button></p>
-                <p>增加</p>
+                <p>{{ $t("control.add") }}</p>
               </div>
               <div>
                 <p><el-button @click="changeCurrentIndexHeats(false, false)" :disabled="store.apiAirRingData.IsAuto"
                     type="primary" style="font-size: 24px; "> - </el-button></p>
-                <p>减少</p>
+                <p>{{ $t("control.reduce") }}</p>
               </div>
             </div>
 
@@ -118,18 +118,18 @@ const toggleAutoMode = async () => {
               <div>
                 <p><el-button @click="cancelChange" :disabled="store.apiAirRingData.IsAuto"
                     type="danger" :icon="CloseBold"></el-button></p>
-                <p>取消</p>
+                <p>{{ $t("control.cancel") }}</p>
               </div>
               <div>
                 <p><el-button @click="changeCurrentIndexHeats(true)" :disabled="store.apiAirRingData.IsAuto"
                     type="warning" :icon="Aim"></el-button></p>
-                <p>对位</p>
+                <p>{{ $t("control.focus") }}</p>
               </div>
             </div>
             <div  style="margin-top: 20px;">
               <p><el-button @click="applyHeats" :disabled="store.apiAirRingData.IsAuto"
                   type="success" :icon="Select"></el-button></p>
-              <p>应用</p>
+              <p>{{ $t("control.apply") }}</p>
             </div>
           </div>
         </el-tab-pane>

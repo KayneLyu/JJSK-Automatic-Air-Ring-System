@@ -191,7 +191,7 @@ let option: ECOption = {
             },
             showSymbol: false,
             areaStyle: {
-                color: "rgba(168,176,246, 0.9)",
+                color: "rgba(168,176,246, 0.7)",
             },
 
             data: [],

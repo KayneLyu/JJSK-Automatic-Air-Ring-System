@@ -12,7 +12,9 @@ defineProps<{
 <template>
     <el-card class="card_content">
         <div :class="isColumn ? 'thick_column' : ''" class="thick-info">
-            <p>平均值: <span>{{ thickInfo?.mean }}</span> μm</p>
+            <p>{{ $t("horizon.mean")}}: <span>{{ thickInfo?.mean }}</span> μm 
+                <b>{{ thickInfo?.IsBackw ? $t("horizon.reverse") : $t("horizon.forward") }}</b>
+            </p>
 
             <p v-if="store.showPercent">
                 2σ(2*sigma): <span>{{ thickInfo?.sigmaPercent.toFixed(1) }}<i>%</i></span>
@@ -22,27 +24,27 @@ defineProps<{
             </p>
 
             <p v-if="store.showPercent">
-                最大值: <span>{{ thickInfo?.maxPercent.toFixed(1) }}<i>%</i></span>
+                {{$t("horizon.max")}}: <span>{{ thickInfo?.maxPercent.toFixed(1) }}<i>%</i></span>
             </p>
             <p v-else>
-                最大值: <span>{{ thickInfo?.maxVal }} <i>μm</i></span>
+                {{$t("horizon.max")}}: <span>{{ thickInfo?.maxVal }} <i>μm</i></span>
             </p>
 
             <p v-if="store.showPercent">
-                最小值: <span>{{ thickInfo?.minPercent.toFixed(1) }}<i>%</i></span>
+                {{ $t("horizon.min")}}: <span>{{ thickInfo?.minPercent.toFixed(1) }}<i>%</i></span>
             </p>
             <p v-else>
-                最小值: <span>{{ thickInfo?.minVal }} <i>μm</i></span>
+                {{ $t("horizon.min")}}: <span>{{ thickInfo?.minVal }} <i>μm</i></span>
             </p>
 
             <p>
-                生产速度:
+                {{$t("horizon.speed")}}:
                 <span>{{ thickInfo?.speed }} <i>m/min</i></span>
-                <b>{{ thickInfo?.IsBackw ? '反' : '正' }}</b>
+                
             </p>
 
             <p>
-                薄膜宽度: <span>{{ thickInfo?.width }} <i>mm</i></span>
+                {{ $t("horizon.filmWidth") }}: <span>{{ thickInfo?.width }} <i>mm</i></span>
             </p>
         </div>
     </el-card>

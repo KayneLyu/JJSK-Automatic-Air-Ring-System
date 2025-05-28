@@ -204,7 +204,7 @@ watch(() => props.frameData, (newValue) => {
     <div class="charts">
         <div ref="chartContainer" style="width: 99%; height: 100%;"></div>
         <div class="tittle">
-            <p style="margin-right: 10px;">横向图</p>
+            <p style="margin-right: 10px;">{{ $t("horizon.frame") }}</p>
             <p>ID: {{ props.currentId }}</p>
         </div>
 
@@ -227,7 +227,7 @@ watch(() => props.frameData, (newValue) => {
 .date_info {
     position: absolute;
     display: flex;
-    background-color: #409EFF;
+    background-color: #409EFFBB;
     color: #fff;
     font-size: 12px;
     border-radius: 5px;

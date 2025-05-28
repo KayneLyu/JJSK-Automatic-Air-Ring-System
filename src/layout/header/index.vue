@@ -23,7 +23,7 @@ const toggleFullscreen = () => {
     <div class="drag_container"></div>
     <div class="functional_container">
       <div @click="toggleFullscreen" class="toggle_fullscreen">
-        <p>全屏模式</p>
+        <p>{{ $t("layout.full") }}</p>
         <el-icon size="22"><FullScreen /></el-icon>
       </div>
       <div class="theme_checkout">

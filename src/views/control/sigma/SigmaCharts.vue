@@ -228,8 +228,8 @@ watch(() => props.currentIndex, (newIndex) => {
     <div class="charts_content">
         <div ref="chartContainer" style="width: 99%;  height: 100%;"></div>
         <div class="charts_content_title title_left">
-            <p>2σ图</p>
-            <p style="margin-left: 10px;">当前ID: {{ currentId }}</p>
+            <p>2σ{{$t("control.frame")}}</p>
+            <p style="margin-left: 10px;">ID: {{ currentId }}</p>
         </div>
 
         <div class="charts_content_title title_right">

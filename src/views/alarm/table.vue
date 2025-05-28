@@ -44,7 +44,7 @@ defineExpose({
         </el-table-column>
         <el-table-column prop="type" :label="t('alarm.type')" width="150">
             <template #default="scope">
-                <span>{{ scope.row.type == 'air' ? '自动风环' : '测厚仪' }}</span>
+                <span>{{ scope.row.type == 'air' ?  t('layout.ring'):  $t('layout.gauge') }}</span>
             </template>
         </el-table-column>
         <el-table-column prop="code" :label="t('alarm.code')" width="150" />

@@ -123,11 +123,11 @@ const changeThick = (e:FocusEvent) => {
           ${useDateFormat(frameStore.lastFrame.EndTime, dateType).value}` }}</p>
       </div> -->
       <el-button :loading-icon="Eleme" :loading="loading" @click="fixScaleHandle"
-        style="padding: 0 25px; height: 32px; letter-spacing: 1px;" type="primary">
+        style="padding: 0 10px; height: 32px; letter-spacing: 1px;" type="primary">
         {{ t('product.revise') }}
       </el-button>
 
-      <span style="margin-left: 40px;">{{t('layout.show')}}:</span>
+      <span style="margin-left: 30px;">{{t('layout.show')}}:</span>
       <el-switch
         size="large"
         v-model="configStore.showPercent"
@@ -201,13 +201,12 @@ const changeThick = (e:FocusEvent) => {
   flex-direction: column;
   justify-content: center;
   height: 100%;
-  margin-left: 50px;
 
   .target_content {
     display: flex;
 
     .target_tittle {
-      width: 100px;
+      width: 150px;
       text-align: right;
     }
 

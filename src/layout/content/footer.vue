@@ -13,15 +13,15 @@ const store = useApiDataStore();
     <div class="footer_content">
         <div class="content_status">
             <div  class="status">
-                <span>测厚仪: </span>
-                <p v-if="store.apiThickData.ControllerState !== 'FIX'"><el-tag size="small"  type="success">运行中</el-tag></p>
-                <p v-else><el-tag size="small" type="danger">已停止</el-tag> </p>
+                <span>{{ $t("layout.gauge")}}: </span>
+                <p v-if="store.apiThickData.ControllerState !== 'FIX'"><el-tag size="small"  type="success">{{ $t("layout.running")}}</el-tag></p>
+                <p v-else><el-tag size="small" type="danger">{{ $t("layout.stop")}}</el-tag> </p>
             </div>
 
             <div class="status" style="margin-left: 30px;">
-                <span>自动风环: </span>
-                <p v-if="store.apiAirRingData.IsAuto"><el-tag size="small"  type="success">自动中</el-tag></p>
-                <p v-else><el-tag size="small" type="danger">手动</el-tag> </p>
+                <span>{{ $t("layout.ring")}}: </span>
+                <p v-if="store.apiAirRingData.IsAuto"><el-tag size="small"  type="success">{{ $t("layout.auto")}}</el-tag></p>
+                <p v-else><el-tag size="small" type="danger">{{ $t("layout.handle")}}</el-tag> </p>
             </div>
         </div>
         

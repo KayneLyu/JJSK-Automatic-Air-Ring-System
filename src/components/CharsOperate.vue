@@ -5,7 +5,9 @@ import { useDateFormat, useNow, useTimeoutFn } from '@vueuse/core'
 import LatestIcon from "@/components/icons/Latest.vue";
 import { useFrameStore } from '@/store/frame';
 import { useConfigStore } from '@/store/config';
+import { useI18n } from 'vue-i18n';
 
+const { t } = useI18n();
 const props = defineProps<{
     nextPageQuery: (isNext: boolean) => void,
     getTrendDataList: (date?: string) => void,
@@ -36,7 +38,7 @@ const defineOptions = () => {
     for (let index = 1; index <= 6; index++) {
         optionList.push({
             value: index,
-            label: index + ' 小时'
+            label: index + ' ' + t("control.hours")
         })
     }
     return optionList
@@ -102,18 +104,18 @@ onMounted(() => {
                     :icon="ArrowRightBold" type="primary" size="large"></el-button>
             </div>
             <div>
-                <span style="margin-left: 10px; margin-right: 5px;">步进</span>
+                <span style="margin-left: 10px; margin-right: 5px;">{{ t("control.step")}}</span>
                 <el-input-number v-model="stepNumber" :controls="false" style="width: 60px;"></el-input-number>
             </div>
             <div style="margin-left: 100px;">
-                <el-button @click="getTrendDataList(pickDate)" :icon="Search" type="primary" size="large">查询</el-button>
+                <el-button @click="getTrendDataList(pickDate)" :icon="Search" type="primary" size="large">{{ t("control.query")}}</el-button>
             </div>
             <div class="date_picker">
                 <el-date-picker v-model="pickDate" type="date" :placeholder="formatted" :disabled-date="disabledDate"
                     size="large" style="width: 150px;" @change="changeDate" />
             </div>
             <div class="hour_select">
-                <el-select v-model="selectHour" placeholder="Select" size="large" style="width: 100px;"
+                <el-select v-model="selectHour" placeholder="Select" size="large" style="width: 110px;"
                     @change="changeHours">
                     <el-option v-for="item in defineOptions()" :key="item.value" :label="item.label"
                         :value="item.value" />

@@ -194,7 +194,7 @@ watch([() => props.frameData, () => configStore.markOverValue], () => {
     <div class="charts">
         <div ref="chartContainer" style="width: 99%; height: 100%;"></div>
         <div class="tittle">
-            <p style="margin-right: 10px;">横向图</p>
+            <p style="margin-right: 10px;">{{ $t("horizon.frame") }}</p>
             <p>ID: {{ props.id }}</p>
         </div>
 
