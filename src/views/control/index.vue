@@ -7,7 +7,7 @@ import SigmaInfo from './sigma/SigmaInfo.vue';
 
 import RelationCharts from './relations/RelationCharts.vue';
 import CharsOperate from '@/components/CharsOperate.vue';
-import FrameInfo from './relations/frame-info.vue';
+import FrameInfo from '@/components/frame-info.vue';
 import Controller from './controller.vue';
 
 const {
@@ -79,7 +79,7 @@ const applyHeats = async () => {
       <SigmaInfo :sigma-list="sigmaDataList" />
     </div>
     <div class="frame-info">
-      <FrameInfo :frame-data="currentFrame" />
+      <FrameInfo :thick-info="currentFrame" />
     </div>
     <div class="relation-charts">
       <el-card class="relation_content">
@@ -150,6 +150,8 @@ const applyHeats = async () => {
 
 .frame-info {
   margin-top: 6px;
+  height: 50px;
+  line-height: 50px;
   // margin: 6px 0;
 }
 </style>

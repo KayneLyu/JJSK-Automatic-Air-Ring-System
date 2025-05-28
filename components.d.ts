@@ -44,6 +44,7 @@ declare module 'vue' {
     ElTabPane: typeof import('element-plus/es')['ElTabPane']
     ElTabs: typeof import('element-plus/es')['ElTabs']
     ElTag: typeof import('element-plus/es')['ElTag']
+    FrameInfo: typeof import('./src/components/frame-info.vue')['default']
     Full: typeof import('./src/components/icons/Full.vue')['default']
     Handle: typeof import('./src/components/icons/Handle.vue')['default']
     History: typeof import('./src/components/icons/History.vue')['default']

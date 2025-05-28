@@ -1,13 +1,10 @@
 <script setup lang='ts'>
-import { ref, onMounted, watch, onBeforeUnmount } from 'vue';
+import { ref } from 'vue';
 import CharsOperate from "@/components/CharsOperate.vue";
 import useOperateCharts from '@/hooks/useOperateCharts';
 import VerticalCharts from './vertical-charts.vue';
-import FrameInfo from './frame-info.vue';
+import FrameInfo from '@/components/frame-info.vue';
 import FrameCharts from './frame-charts.vue';
-import { useI18n } from 'vue-i18n';
-
-const { t } = useI18n()
 
 const {
   sigmaDataList,
@@ -54,7 +51,9 @@ const trendInfo = ref({
     </div>
 
     <div class="detail_charts">
-      <FrameInfo :frame-data="currentFrame" />
+      <div style="height: 50px; line-height: 50px;">
+        <FrameInfo :thick-info="currentFrame" />
+      </div>
       <el-card class="charts_container">
         <FrameCharts 
           :currentId="currentFrame?.frameId"

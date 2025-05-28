@@ -6,7 +6,7 @@ import TempCharts from './TempCharts.vue';
 import { useFrameStore } from '@/store/frame';
 
 import HorizonCharts from './frame-charts/AreaCharts.vue';
-import ThickInfo from './frame-charts/ThickInfo.vue';
+import ThickInfo from '@/components/frame-info.vue';
 import HeatState from './heats/HeatsFrame.vue';
 import HeatsCardInfo from './heats/HeatsCard.vue';
 import { getHeats } from '@/api';
@@ -133,7 +133,6 @@ watch(() => store.updateFrameId, () => {
    }
 )
 
-
 </script>
 
 <template>
@@ -151,9 +150,7 @@ watch(() => store.updateFrameId, () => {
 
          </div>
          <div class="info_card">
-            <el-card class="card_content">
-               <ThickInfo :thickInfo="frame" />
-            </el-card>
+               <ThickInfo :thickInfo="frame" is-column/>
          </div>
       </div>
 

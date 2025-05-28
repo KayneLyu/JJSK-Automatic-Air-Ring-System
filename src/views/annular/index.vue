@@ -1,12 +1,10 @@
 <script setup lang='ts'>
 import { ref, watch } from 'vue';
 import LoopCharts from './loop-charts.vue';
-import FrameInfo from './frameInfo.vue';
 import { useFrameStore } from '@/store/frame';
 import dayjs from 'dayjs';
-import { getFrame } from '@/api';
-import { formateList } from '@/utils/ChartsData';
 import { db } from '@/utils/dexie';
+import FrameInfo from '@/components/frame-info.vue';
 
 const frameStore = useFrameStore()
 
@@ -50,7 +48,9 @@ watch(() => frameStore.updateFrameId, (newVal) => {
     <div class="charts_loop">
       <LoopCharts :frame-data="<number[]>frameData?.datalist" :mean-value="frameData?.mean" />
     </div>
-    <FrameInfo :frame-data="frameData" />
+    <div style="height: 50px; line-height: 50px;">
+      <FrameInfo :thickInfo="frameData" />
+    </div>
   </el-card>
 </template>
 
@@ -84,7 +84,7 @@ watch(() => frameStore.updateFrameId, (newVal) => {
     flex: auto;
     background-color: #409EFF;
     color: #fff;
-    margin-bottom: 6px;
+    margin-bottom: 2px;
   }
 }
 </style>
