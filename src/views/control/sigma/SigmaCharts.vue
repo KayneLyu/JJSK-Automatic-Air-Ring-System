@@ -233,7 +233,7 @@ watch(() => props.currentIndex, (newIndex) => {
         </div>
 
         <div class="charts_content_title title_right">
-            <p v-if="startDate">{{`${dayjs(startDate).format('MM-DD HH:mm:ss')} ~ ${dayjs(endDate).format('MM-DD HH:mm:ss')}`  }}</p>
+            <p style="font-size: 13px;" v-if="startDate">{{`${dayjs(startDate).format('MM-DD HH:mm:ss')} ~ ${dayjs(endDate).format('MM-DD HH:mm:ss')}`  }}</p>
         </div>
     </div>
 </template>
@@ -254,7 +254,6 @@ watch(() => props.currentIndex, (newIndex) => {
     border-radius: 5px;
     padding: 2px 3px;
     opacity: 0.8;
-    font-size: 14px;
 }
 .title_left {
     left: 50px;

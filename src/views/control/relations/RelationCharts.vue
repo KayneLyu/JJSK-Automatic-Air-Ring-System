@@ -633,7 +633,7 @@ onMounted(() => {
         </div>
 
         <div class="charts_content_title title_right">
-            <p v-if="startDate">
+            <p v-if="startDate" style="font-size: 13px;">
                 {{ `${dayjs(startDate).format('MM-DD HH:mm:ss')} ~ ${dayjs(endDate).format('HH:mm:ss')}` }}
             </p>
         </div>
@@ -656,7 +656,6 @@ onMounted(() => {
     font-size: 12px;
     border-radius: 5px;
     padding: 2px 3px;
-    font-size: 14px;
 }
 
 .title_left {

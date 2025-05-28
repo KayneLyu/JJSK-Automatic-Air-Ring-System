@@ -22,7 +22,7 @@ export default {
       alarm: "Alarm"
     },
     horizon: {
-      frame: "Cross-direction Graph",
+      frame: "Horizontal Graph",
       mean: "Average",
       max: "Max",
       min: "Min",

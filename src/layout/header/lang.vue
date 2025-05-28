@@ -19,6 +19,7 @@ const openNotification = () => {
             title: 'Language',
             message: "check out language success !",
             position: 'bottom-left',
+            type: "success"
         })
     }
     
@@ -28,7 +29,7 @@ const handleCommand = (value: ILanguageType) => {
     store.changeLang(value)
     openNotification()
     ElMessage.closeAll()
-    ElMessage.success(`${value === 'en' ? '英文' : '中文'} 切换成功！`)
+    // ElMessage.success(`${value === 'en' ? '英文' : '中文'} 切换成功！`)
 }
 </script>
 
@@ -78,5 +79,8 @@ const handleCommand = (value: ILanguageType) => {
 .el-dropdown-link {
     color:var(--tool-btn-color);
     font-size: 15px;
+}
+:deep(.el-dropdown-menu__item) {
+    padding: 5px 20px;
 }
 </style>
