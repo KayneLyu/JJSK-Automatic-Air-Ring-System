@@ -1,6 +1,10 @@
 export default {
     layout: {
         title: "自动风环客户端",
+        full: "全屏模式切换",
+        percent: "百分比",
+        value: "具体值",
+        show: "图幅数据显示"
     },
     menu: {
         product: "产品参数",
@@ -25,6 +29,7 @@ export default {
         actual: "真实值",
         display: "显示值",
         setting:　"计算",
+        target: "目标值"
     },
     notification: {
         info: "提示",
@@ -46,7 +51,7 @@ export default {
         confirmSave: "确认保存？",
         confirmCompute: "确认计算？",
         confirmQuite: "确认退出应用 ？",
-        initError:"初始化图表时出错!"
+        initError:"初始化图表时出错!",
     },
     alarm: {
         reset: "告警复位",

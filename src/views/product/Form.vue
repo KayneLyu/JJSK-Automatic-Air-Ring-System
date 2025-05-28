@@ -23,7 +23,7 @@ const form = reactive({
     productName: 'ABCDE',
     order: '00000001',
     roll: 1,
-    thick: 80,
+    thick: productStore.param.thick,
     displayValue: frameStore.meanValue,
     tolerance: 5,
 });

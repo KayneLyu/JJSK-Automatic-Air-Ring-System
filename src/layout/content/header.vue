@@ -6,11 +6,13 @@ import { Vue3Marquee } from 'vue3-marquee'
 import { useProduct } from "@/store/product";
 import { useFrameStore } from '@/store/frame';
 import { useApiDataStore } from "@/store/polling-data";
+import { useConfigStore } from '@/store/config';
 import { decimalToBinary } from "@/utils/format-data";
 import { compareArrays } from "@/utils/index";
 import { db } from '@/utils/dexie';
 import { useI18n } from 'vue-i18n';
 import { magnification } from '@/api';
+import { showNotification } from '@/utils';
 import dayjs from 'dayjs';
 import AlarmIcon from "@/components/icons/Alert.vue";
 
@@ -19,6 +21,7 @@ const router = useRouter()
 const store = useProduct()
 const pollingStore = useApiDataStore()
 const frameStore = useFrameStore()
+const configStore = useConfigStore()
 const warningList = ref<string[]>([])
 const targetThick = ref(store.param.thick)
 // 存储报警数据
@@ -88,12 +91,11 @@ const fixScaleHandle = async () => {
       offset: 70
     })
   } catch (error) {
-    console.log('设置放大倍数失败!');
+    showNotification(t("notification.info"), t("notification.failed"), "error")
   }
 }
 const changeThick = (e:FocusEvent) => {
-  if( targetThick.value !== 0 && targetThick.value !== null) {
-  }
+  if( targetThick.value !== 0 && targetThick.value !== null) return
   targetThick.value = store.param.thick
 }
 </script>
@@ -106,12 +108,12 @@ const changeThick = (e:FocusEvent) => {
     </div>
     <div class="target_value">
       <div class="target_content">
-        <p class="target_tittle">{{ `目标值` }} : </p>
+        <p class="target_tittle">{{ t('product.target') }} : </p>
         <el-input-number v-on:blur="changeThick" class="target_input" :controls="false" v-model="targetThick" />
         <span>μm</span>
       </div>
       <div class="target_content">
-        <p class="target_tittle">放大倍数 : </p>
+        <p class="target_tittle">{{t('product.scale')}} : </p>
         <p>{{ pollingStore.apiThickData.K.toFixed(3) }}</p>
       </div>
     </div>
@@ -122,8 +124,19 @@ const changeThick = (e:FocusEvent) => {
       </div> -->
       <el-button :loading-icon="Eleme" :loading="loading" @click="fixScaleHandle"
         style="padding: 0 25px; height: 32px; letter-spacing: 1px;" type="primary">
-        {{ `修正` }}
+        {{ t('product.revise') }}
       </el-button>
+
+      <span style="margin-left: 40px;">{{t('layout.show')}}:</span>
+      <el-switch
+        size="large"
+        v-model="configStore.showPercent"
+        class="ml-2"
+        inline-prompt
+        style="--el-switch-on-color: #409EFF; --el-switch-off-color: #E36781; margin-left: 5px;"
+        :active-text="t('layout.percent')"
+        :inactive-text="t('layout.value')"
+      />
     </div>
 
     <div @click="router.push('/alarm')" v-if="warningList.length" class="marquee">
