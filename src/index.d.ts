@@ -128,8 +128,7 @@ interface IHeats {
 }
 
 interface ISaveHeats {
-    date: string,
-    heats: number[],
+    frameId: number,
     name: string
 }
 

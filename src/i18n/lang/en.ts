@@ -61,7 +61,10 @@ export default {
       cancel: "Cancel",
       focus: "Align",
       apply: "Apply",
-      frame: "Graph"
+      frame: "Graph",
+      saveDuct: "Save Duct Values",
+      history: "Duct Value History",
+      input: "Please enter the name of the channel to be saved",
     },
     product: {
       delete: "Delete",
@@ -102,7 +105,8 @@ export default {
       confirmSave: "Confirm save?",
       confirmCompute: "Confirm calculation?",
       confirmQuite: "Confirm exit?",
-      initError: "Error initializing chart!"
+      initError: "Error initializing chart!",
+      save: "save"
     },
     alarm: {
       reset: "Reset Alarm",

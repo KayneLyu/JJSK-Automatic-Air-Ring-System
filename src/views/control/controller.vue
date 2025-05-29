@@ -7,11 +7,10 @@ import { Aim, CloseBold, Select } from '@element-plus/icons-vue';
 import RobotIcon from "@/components/icons/Robot.vue";
 import HandleIcon from "@/components/icons/Handle.vue";
 import AutoIcon from "@/components/icons/Auto.vue";
-import SaveIcon from '@/components/icons/Save.vue';
-import HistoryIcon from "@/components/icons/History.vue";
 import AllUpIcon from '@/components/icons/Allup.vue';
 import AllDownIcon from '@/components/icons/Alldown.vue';
 import ResetIcon from '@/components/icons/Reset.vue';
+import SaveChannel from './channels/index.vue';
 
 const store = useApiDataStore()
 const configStore = useConfigStore()
@@ -19,6 +18,8 @@ const configStore = useConfigStore()
 const activeName = ref('auto-mode')
 
 defineProps<{
+  currentId: number,
+  getNewChannel: () => void,
   cancelChange: () => void,
   applyHeats: () => void,
   changeAllHeats: (isReset: boolean , isUp?: boolean) => void,
@@ -64,14 +65,7 @@ const toggleAutoMode = async () => {
             </div>
 
             <div class="save_channel" style="margin-top: 40px;">
-              <div>
-                <p><el-button type="warning" :icon="SaveIcon"></el-button></p>
-                <p>保存通道</p>
-              </div>
-              <div>
-                <p><el-button type="warning" :icon="HistoryIcon"></el-button></p>
-                <p>历史通道</p>
-              </div>
+              <SaveChannel :get-current-channel="getNewChannel" :current-id="currentId"/>
             </div>
             <div class="save_channel">
               <div>
@@ -185,6 +179,7 @@ const toggleAutoMode = async () => {
 
   .auto_status {
     cursor: pointer;
+    text-align: center;
   }
 
   .save_channel {

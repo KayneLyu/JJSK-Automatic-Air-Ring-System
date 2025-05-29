@@ -33,7 +33,7 @@ function useOperateChartsHooks() {
         meanDataList.value = meanList
         const frameId = result[result.length - 1].frameId
         lastFrameId.value = frameId
-        currentIndex.value = result.length - 1
+        currentIndex.value = result.length - 1        
     }
 
     // 查询趋势数据

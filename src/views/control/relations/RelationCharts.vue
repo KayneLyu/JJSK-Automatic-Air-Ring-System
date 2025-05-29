@@ -32,6 +32,7 @@ import dayjs from 'dayjs';
 import { db } from '@/utils/dexie';
 import { setAutoRingHeats, getHeats, getBadHeats } from "@/api";
 import { useFrameStore } from '@/store/frame';
+import { showNotification } from '@/utils/';
 
 echarts.use([
     TooltipComponent,
@@ -443,7 +444,7 @@ const changeAllChannel = async (isAirControl: boolean, isAdd?: boolean) => {
         try {
             heatsList.value = heatsList.value.map(item => [item[0], IsAirDoorMode ? 50 : 30])
         } catch (error) {
-            console.error('设置自动风环加热失败:', error);
+            showNotification('error', t("notification.failed"), 'error')
         }
     } else {
         heatsList.value = heatsList.value.map(item => {
@@ -508,7 +509,7 @@ const setChannelHeats = async () => {
         const setHeats = heatsList.value.map(item => item[1])
         await setAutoRingHeats(setHeats)
     } catch (error) {
-        console.log('设置风环数据失败');
+        showNotification('error', t("notification.failed"), 'error')
     }
 }
 
@@ -534,7 +535,7 @@ const getChannelHandle = async () => {
             })
         }
     } catch (error) {
-        console.log('获取风环数据失败');
+        showNotification('error', t("notification.failed"), 'error')
     }
 }
 
@@ -617,6 +618,8 @@ watch(() => frameStore.hasBadChannels, async (newData) => {
         immediate: true
     }
 )
+
+
 
 onMounted(() => {
     selectBrush()

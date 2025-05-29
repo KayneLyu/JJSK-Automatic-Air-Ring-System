@@ -55,6 +55,11 @@ const applyHeats = async () => {
   await relationRef.value.setChannelHeats()
   await relationRef.value.getChannelHandle()
 }
+// 获取最新通道值
+const getChannelHandle = async () => {
+  if (!relationRef.value) return;
+  relationRef.value.getChannelHandle()
+}
 
 </script>
 
@@ -87,7 +92,10 @@ const applyHeats = async () => {
           :mean="currentFrame?.mean" :startDate="currentFrame?.startTime" :endDate="currentFrame?.endTime"
           :currentId="currentFrame?.frameId" />
       </el-card>
-      <Controller :cancelChange="cancelChange" :applyHeats="applyHeats"
+      <Controller
+      :getNewChannel="getChannelHandle"
+      :current-id="currentId"
+      :cancelChange="cancelChange" :applyHeats="applyHeats"
         :changeCurrentIndexHeats="changeCurrentIndexHeats" :changeAllHeats="changeHeats" />
     </div>
   </div>

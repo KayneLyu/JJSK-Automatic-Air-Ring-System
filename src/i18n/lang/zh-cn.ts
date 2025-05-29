@@ -61,7 +61,10 @@ export default {
         cancel: "取消",
         focus: "对位",
         apply: "应用",
-        frame: "图"
+        frame: "图",
+        saveDuct: "保存通道",
+        history: "历史通道",
+        input: "请输入要保存的通道名称",
     },
     product: {
         delete: "删除",
@@ -103,6 +106,7 @@ export default {
         confirmCompute: "确认计算？",
         confirmQuite: "确认退出应用 ？",
         initError:"初始化图表时出错!",
+        save: "保存"
     },
     alarm: {
         reset: "告警复位",

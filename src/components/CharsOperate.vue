@@ -127,13 +127,13 @@ onMounted(() => {
                 <el-button @click="nextPageQuery(false)" :disabled="store.updateFrameId == lastFrameId"
                     :icon="DArrowRight" type="primary" size="large"></el-button>
                 <el-badge v-if="timeToLatest > 0" style="margin-left: 15px;" :value="timeToLatest">
-                    <el-button @click="() => getTrendDataList" size="large" type="primary">
+                    <el-button @click="getTrendDataList()" size="large" type="primary">
                         <el-icon :size="20" color="#fff">
                             <LatestIcon />
                         </el-icon>
                     </el-button>
                 </el-badge>
-                <el-button v-else @click="() => getTrendDataList" size="large" type="primary">
+                <el-button v-else @click="getTrendDataList()" size="large" type="primary">
                     <el-icon :size="20" color="#fff">
                         <LatestIcon />
                     </el-icon>
