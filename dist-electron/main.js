@@ -65,7 +65,6 @@ function setupRendererCommunicator(win2) {
         const imgSrc = `data:image/png;base64,${base64Image}`;
         return imgSrc;
       } catch (error) {
-        dialog.showErrorBox("Error", "Get LOGO resource failed:" + error);
       }
     }
   });

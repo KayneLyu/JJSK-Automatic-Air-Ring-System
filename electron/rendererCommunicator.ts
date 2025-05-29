@@ -46,7 +46,6 @@ export function setupRendererCommunicator(win: BrowserWindow) {
         const imgSrc = `data:image/png;base64,${base64Image}`; // 假设图片格式是png
         return imgSrc
       } catch (error) {
-        dialog.showErrorBox("Error", "Get LOGO resource failed:" + error)
       }
     }
   })
