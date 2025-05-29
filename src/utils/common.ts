@@ -4,6 +4,6 @@ export const showNotification = (titleKey: string, messageKey: string, type: 'su
        title: titleKey,
        message: messageKey,
        type,
-       position: 'top-right',
+       position: 'bottom-left',
     });
  };

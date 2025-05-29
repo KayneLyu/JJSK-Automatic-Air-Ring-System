@@ -173,25 +173,14 @@ const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option)
 
 watch(() => props.frameData, (newValue) => {
-    if(!newValue || newValue.length===0) return
+    if (!newValue || newValue.length === 0) return
     const data = formateList(<number[]>newValue, props.mean)
-    
-    if (configStore.markOverValue) {
-        // 超出的数据
-        updateCharts({
-            series: [
-                {},
-                { data: data },
-            ]
-        })
-    } else {
-        updateCharts({
-            series: [
-                {},
-                { data: data },
-            ]
-        })
-    }
+    updateCharts({
+        series: [
+            {},
+            { data: data },
+        ]
+    })
 },
     {
         immediate: true

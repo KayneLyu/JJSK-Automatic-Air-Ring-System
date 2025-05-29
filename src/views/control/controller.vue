@@ -38,10 +38,6 @@ const toggleAutoMode = async () => {
     }
   } catch (error) {}
 }
-// // 升降控制
-// const handleUpDown = (isUp: boolean) => {
-//   props.changeAllHeats(isUp)
-// }
 
 </script>
 
@@ -67,16 +63,16 @@ const toggleAutoMode = async () => {
               <p>{{ $t("control.autoMode") }}</p>
             </div>
 
-            <!-- <div class="save_channel" style="margin-top: 40px;">
+            <div class="save_channel" style="margin-top: 40px;">
               <div>
-                <p><el-button type="primary" :icon="SaveIcon"></el-button></p>
+                <p><el-button type="warning" :icon="SaveIcon"></el-button></p>
                 <p>保存通道</p>
               </div>
               <div>
-                <p><el-button type="primary" :icon="HistoryIcon"></el-button></p>
+                <p><el-button type="warning" :icon="HistoryIcon"></el-button></p>
                 <p>历史通道</p>
               </div>
-            </div> -->
+            </div>
             <div class="save_channel">
               <div>
                 <p><el-button @click="changeAllHeats(false, true)" :disabled="store.apiAirRingData.IsAuto" type="primary"
@@ -90,7 +86,7 @@ const toggleAutoMode = async () => {
               </div>
             </div>
             <div class="status_reset">
-              <p><el-button @click="changeAllHeats(true)" :disabled="store.apiAirRingData.IsAuto" type="primary" :icon="ResetIcon"></el-button></p>
+              <p><el-button @click="changeAllHeats(true)" :disabled="store.apiAirRingData.IsAuto" type="success" :icon="ResetIcon"></el-button></p>
               <p>{{ $t("control.reset") }}</p>
             </div>
           </div>

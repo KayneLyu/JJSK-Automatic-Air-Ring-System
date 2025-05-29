@@ -245,7 +245,7 @@ let option: EChartsOption = {
             xAxisIndex: 1,
             yAxisIndex: 1,
             showSymbol: true,
-            symbolSize: 3,
+            symbolSize: 4,
             areaStyle: {
                 color: "#65cada80",
             },

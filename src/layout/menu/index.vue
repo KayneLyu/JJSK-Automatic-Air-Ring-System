@@ -9,6 +9,9 @@ import AlarmIcon from '@/components/icons/Alarm.vue';
 import ProductIcon from '@/components/icons/Product.vue';
 import UnfoldIcon from '@/components/icons/Unfold.vue';
 import logo from '../../../public/logo.png';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const menuItemList = [
     {
@@ -68,9 +71,9 @@ const openClient = async () => {
         const result = await window.ipcRenderer.invoke("win-open-client")
         isOpening.value = !result
         ElNotification({
-            title: 'Tips:',
+            title: t("notification.info"),
             type: 'warning',
-            message: h('p', { style: 'padding: 10px 5px;font-size: 15px;' }, `${!result ? '程序已经在运行中 !' : '正在启动中...'}`),
+            message: h('p', { style: 'padding: 10px 5px;font-size: 15px;' }, `${!result ?  t("layout.starting"):  t("layout.isRunning")} `),
             position: 'top-left',
             duration: 3000,
             offset: 20

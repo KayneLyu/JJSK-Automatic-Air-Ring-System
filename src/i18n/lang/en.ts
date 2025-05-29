@@ -1,6 +1,6 @@
 export default {
     layout: {
-      title: "Automatic Plastic Control Operation Client",
+      title: "Automatic Air Ring System of X-Ray Thickness Scanner",
       full: "Toggle Fullscreen",
       percent: "Percentage",
       value: "Actual Value",
@@ -10,7 +10,9 @@ export default {
       stop: "Stopped",
       running: "Running",
       handle: "Manual Mode",
-      auto: "Automatic Mode"
+      auto: "Automatic Mode",
+      starting: "The program is already running!",
+      isRunning: "The program is starting up..."
     },
     menu: {
       product: "Product",
