@@ -33,7 +33,8 @@ export default {
       deg: "Channel Angle",
       channelNum: "Number of Channels",
       channelBase: "Base Channel Value",
-      effectTime: "Effective Thickness Time"
+      effectTime: "Effective Thickness Time",
+      beforeAuto: "comparison graph"
     },
     control: {
       position: "Position",

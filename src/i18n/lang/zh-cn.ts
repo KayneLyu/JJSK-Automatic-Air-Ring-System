@@ -33,7 +33,8 @@ export default {
         deg: "通道角度",
         channelNum: "通道数量",
         channelBase: "基础通道值",
-        effectTime: "厚度起效时间"
+        effectTime: "厚度起效时间",
+        beforeAuto: "对比图"
     },
     control: {
         position: "测量位置",

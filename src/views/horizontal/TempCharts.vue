@@ -137,7 +137,7 @@ let option: ECOption = {
             symbol: "none",
             lineStyle: {
                 width: 3,
-                color: "#000cae90",
+                color: "#000cae",
             },
             data: [],
         },
@@ -169,24 +169,14 @@ let option: ECOption = {
 const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option, props)
 
-watch([() => props.frameData, () => configStore.markOverValue], ([frameData, showOverDta]) => {
-    if (showOverDta) {
-        updateCharts({
-            series: [
-                {},
-                {},
-                { data: frameData },
-            ]
-        })
-    } else {
-        updateCharts({
-            series: [
-                {},
-                {},
-                { data: frameData },
-            ]
-        })
-    }
+watch(() => props.frameData, (frameData) => {
+    updateCharts({
+        series: [
+            {},
+            {},
+            { data: frameData },
+        ]
+    })
 },
     {
         immediate: true,

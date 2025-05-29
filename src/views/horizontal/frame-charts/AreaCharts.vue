@@ -16,7 +16,6 @@ import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts';
 import { useProduct } from '@/store/product';
-import { useConfigStore } from '@/store/config';
 import dayjs from "dayjs";
 
 type ECOption = echarts.ComposeOption<
@@ -37,13 +36,13 @@ echarts.use([
 ]);
 
 const store = useProduct();
-const configStore = useConfigStore();
 
 const props = defineProps<{
     id: number,
     frameData: [number, number][],
     startDate: string,
-    endDate: string
+    endDate: string,
+    isBeforeAuto?: boolean
 }>()
 
 let option: ECOption = {
@@ -132,16 +131,7 @@ let option: ECOption = {
         {
             name: "实际轮廓(%)",
             type: "bar",
-            // color: '#8993FF',
             barWidth: '90%',
-            // smooth: true,
-            // lineStyle: {
-            //     width: 2,
-            //     color: "red",
-            // },
-            // areaStyle: {
-            //     color: "rgba(168,176,246, 0.7)",
-            // },
             markLine: {
                 silent: true,
                 symbol: 'none', // 不显示标记点
@@ -165,24 +155,14 @@ let option: ECOption = {
 const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option, props)
 
-watch([() => props.frameData, () => configStore.markOverValue], () => {
-    if (configStore.markOverValue) {
-        // 超出的数据
-        updateCharts({
-            series: [
-                {},
-                { data: props.frameData },
-            ]
-        })
-    } else {
-        updateCharts({
-            series: [
-                {},
-                { data: props.frameData },
-            ]
-        })
-    }
-
+watch(() => props.frameData, () => {
+    // 超出的数据
+    updateCharts({
+        series: [
+            {},
+            { data: props.frameData },
+        ]
+    })
 },
     {
         immediate: true
@@ -194,7 +174,7 @@ watch([() => props.frameData, () => configStore.markOverValue], () => {
     <div class="charts">
         <div ref="chartContainer" style="width: 99%; height: 100%;"></div>
         <div class="tittle">
-            <p style="margin-right: 10px;">{{ $t("horizon.frame") }}</p>
+            <p style="margin-right: 10px;">{{ isBeforeAuto ? $t("horizon.beforeAuto") :$t("horizon.frame") }}</p>
             <p>ID: {{ props.id }}</p>
         </div>
 

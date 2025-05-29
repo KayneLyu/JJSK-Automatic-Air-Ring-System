@@ -1,8 +1,9 @@
 <script setup lang='ts'>
-import { reactive, ref, watch } from 'vue';
+import { reactive, ref, watch, onMounted } from 'vue';
 import { db } from '@/utils/dexie';
 import { formateList } from '@/utils/ChartsData';
 import TempCharts from './TempCharts.vue';
+import { useConfigStore } from '@/store/config';
 import { useFrameStore } from '@/store/frame';
 
 import HorizonCharts from './frame-charts/AreaCharts.vue';
@@ -12,6 +13,7 @@ import HeatsCardInfo from './heats/HeatsCard.vue';
 import { getHeats } from '@/api';
 
 const store = useFrameStore()
+const configStore = useConfigStore()
 
 const frameListData = reactive<IFrameThickData[]>([
    {
@@ -81,32 +83,33 @@ const frameListData = reactive<IFrameThickData[]>([
       maxPercent: 0,
       IsBackw: false,
       datalist: [],
-   },
-   {
-      frameId: 0,
-      startTime: '',
-      endTime: '',
-      speed: 0,
-      width: 0,
-      rotateSpeed: 0,
-      sigmaVal: 0,
-      sigmaPercent: 0,
-      mean: 0,
-      minVal: 0,
-      minPercent: 0,
-      maxVal: 0,
-      maxPercent: 0,
-      IsBackw: false,
-      datalist: [],
-   },
+   }
 ])
+
+const beforeAutoMode = ref<IFrameThickData>({
+   frameId: 0,
+   startTime: '',
+   endTime: '',
+   speed: 0,
+   width: 0,
+   rotateSpeed: 0,
+   sigmaVal: 0,
+   sigmaPercent: 0,
+   mean: 0,
+   minVal: 0,
+   minPercent: 0,
+   maxVal: 0,
+   maxPercent: 0,
+   IsBackw: false,
+   datalist: [],
+})
 
 let tempData = ref<[number, number | null][]>([])
 let heatsChannel = ref<[string, number][]>([])
 
 const getFrameList = async () => {
    try {
-      const recentItems = await db.Frame.orderBy('frameId').reverse().limit(5).toArray();
+      const recentItems = await db.Frame.orderBy('frameId').reverse().limit(4).toArray();
       if (recentItems.length) {
          for (let index = 0; index < recentItems.length; index++) {
             frameListData[recentItems.length - 1 - index] = {
@@ -133,15 +136,49 @@ watch(() => store.updateFrameId, () => {
    }
 )
 
+const getBeforeAutoData = async () => {
+   try {
+      let result: IFrameThickData | undefined
+      if(configStore.beforeAutoID) {
+         result = await db.Frame.get(configStore.beforeAutoID)
+      } else {
+         const [queryItem] = await db.Frame.orderBy('frameId').reverse().offset(19).limit(1).toArray()
+         result = queryItem
+      }
+      if(result) {
+         beforeAutoMode.value = {...result, datalist: <Array<[number, number]>>formateList(<number[]>result.datalist, result.mean)}
+      }
+   } catch (error) {}
+}
+
+onMounted(() => {
+   void getBeforeAutoData()
+})
+
 </script>
 
 <template>
    <div class="horizon">
+      <div class="charts_content">
+         <div class="chart_views">
+            <el-card class="chartBox">
+               <HorizonCharts
+                  is-before-auto
+                  :startDate="beforeAutoMode.startTime" 
+                  :endDate="beforeAutoMode.endTime" 
+                  :id="beforeAutoMode.frameId"
+                  :frameData="<Array<[number, number]>>beforeAutoMode.datalist" />
+            </el-card>
+         </div>
+         <div class="info_card">
+            <ThickInfo :thickInfo="beforeAutoMode" is-column />
+         </div>
+      </div>
       <div v-for="(frame, index) in frameListData" :key="index" class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
 
-               <TempCharts v-if="index == 4" :temp-list="tempData" :mean-val="frame.mean" :startDate="frame.startTime"
+               <TempCharts v-if="index == 3" :temp-list="tempData" :mean-val="frame.mean" :startDate="frame.startTime"
                   :endDate="frame.endTime" :id="frame.frameId" :frameData="<Array<[number, number]>>frame.datalist" />
 
                <HorizonCharts v-else :startDate="frame.startTime" :endDate="frame.endTime" :id="frame.frameId"
@@ -150,7 +187,7 @@ watch(() => store.updateFrameId, () => {
 
          </div>
          <div class="info_card">
-               <ThickInfo :thickInfo="frame" is-column/>
+            <ThickInfo :thickInfo="frame" is-column />
          </div>
       </div>
 

@@ -101,7 +101,7 @@ onMounted(() => {
             <div class="menu-list">
                 <li v-for="(item, index) in menuItemList" :key="index" @click="preventDefault"
                     :class="{ 'active': route.path === item.location }" :style="{ '--bg': item.color }">
-                    <RouterLink :to="item.location">
+                    <RouterLink style="-webkit-user-drag: none;" :to="item.location">
                         <div className="icon">
                             <el-icon :size="40">
                                 <component :is="item.icon" />
@@ -291,7 +291,4 @@ onMounted(() => {
         transform: rotate(0deg);
     }
 }
-
-// .sidebar ul li:hover.active a .icon::before {
-//     background-color: var(--menu-bg);
-// }</style>
+</style>

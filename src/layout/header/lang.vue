@@ -29,7 +29,6 @@ const handleCommand = (value: ILanguageType) => {
     store.changeLang(value)
     openNotification()
     ElMessage.closeAll()
-    // ElMessage.success(`${value === 'en' ? '英文' : '中文'} 切换成功！`)
 }
 </script>
 

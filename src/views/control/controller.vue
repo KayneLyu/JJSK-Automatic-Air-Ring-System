@@ -1,6 +1,7 @@
 <script setup lang='ts'>
 import { ref } from 'vue';
 import { useApiDataStore } from '@/store/polling-data';
+import { useConfigStore } from '@/store/config';
 import { setAutoHeats, getAirRingInfo } from '@/api';
 import { Aim, CloseBold, Select } from '@element-plus/icons-vue';
 import RobotIcon from "@/components/icons/Robot.vue";
@@ -13,10 +14,11 @@ import AllDownIcon from '@/components/icons/Alldown.vue';
 import ResetIcon from '@/components/icons/Reset.vue';
 
 const store = useApiDataStore()
+const configStore = useConfigStore()
 
 const activeName = ref('auto-mode')
 
-const props = defineProps<{
+defineProps<{
   cancelChange: () => void,
   applyHeats: () => void,
   changeAllHeats: (isReset: boolean , isUp?: boolean) => void,
@@ -29,9 +31,12 @@ const toggleAutoMode = async () => {
     const data = await getAirRingInfo();
     if (data) {
       store.updateAirRingData(data)
+      if(data.IsAuto) {
+        const beforeAutoID = store.apiThickData.LastScanDataId
+        configStore.beforeAutoID = beforeAutoID
+      }
     }
-  } catch (error) {
-  }
+  } catch (error) {}
 }
 // // 升降控制
 // const handleUpDown = (isUp: boolean) => {

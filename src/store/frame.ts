@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 type IConfig = {
   updateFrameId: number,
   hasBadChannels: boolean,
-  meanValue: number
+  meanValue: number,
 }
 
 export const useFrameStore = defineStore('frame', {
@@ -10,7 +10,7 @@ export const useFrameStore = defineStore('frame', {
     return {
         updateFrameId: 0,
         hasBadChannels: false,
-        meanValue: 0
+        meanValue: 0,
     }
   },
 })
