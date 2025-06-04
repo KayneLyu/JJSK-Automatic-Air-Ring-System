@@ -145,6 +145,7 @@ let option: EChartsOption = {
         formatter: (value: any) => {
             const index = value[0].axisValue - 1
             let arr = [index]
+            selectSingleChannel(arr)
             return "";
         },
     },
@@ -430,7 +431,7 @@ let option: EChartsOption = {
 };
 
 const chartContainer = ref<HTMLElement | null>(null)
-const { updateCharts, selectBrush, brushList } = useChartsInit('chartContainer', option)
+const { updateCharts, selectBrush, selectSingleChannel, brushList } = useChartsInit('chartContainer', option)
 
 const heatsList = ref<[number, number][]>([])
 const lastChannelList = ref<[number, number][]>([])

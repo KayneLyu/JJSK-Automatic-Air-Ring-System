@@ -74,6 +74,10 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption, props?
         }
     }
 
+    const selectSingleChannel = (arr: number[]) => { 
+        brushList.value = arr
+    }
+
     const dropCharts = () => {
         if (observer) {
             observer.disconnect();
@@ -104,6 +108,7 @@ const useInitCharts = (containerName: string, options: EChartsCoreOption, props?
         updateCharts,
         selectSeriesIndex,
         selectBrush,
+        selectSingleChannel,
         brushList
     }
 };
