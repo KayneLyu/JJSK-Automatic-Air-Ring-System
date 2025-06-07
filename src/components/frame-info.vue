@@ -15,32 +15,25 @@ defineProps<{
             <p>{{ $t("horizon.mean")}}: <span>{{ thickInfo?.mean }}</span> μm 
                 <b>{{ thickInfo?.IsBackw ? $t("horizon.reverse") : $t("horizon.forward") }}</b>
             </p>
-
-            <p v-if="store.showPercent">
-                2σ(2*sigma): <span>{{ thickInfo?.sigmaPercent.toFixed(1) }}<i>%</i></span>
-            </p>
-            <p v-else>
-                2σ(2*sigma): <span>{{ thickInfo?.sigmaVal }} <i>μm</i></span>
+            <p>
+                2σ: <span>{{ thickInfo?.sigmaVal }} <i>μm</i></span>
+                <span class="more_info">{{ thickInfo?.sigmaPercent.toFixed(1) }}<i>%</i></span>
             </p>
 
-            <p v-if="store.showPercent">
-                {{$t("horizon.max")}}: <span>{{ thickInfo?.maxPercent.toFixed(1) }}<i>%</i></span>
-            </p>
-            <p v-else>
+            <p >
                 {{$t("horizon.max")}}: <span>{{ thickInfo?.maxVal }} <i>μm</i></span>
+                <span class="more_info">{{ thickInfo?.maxPercent.toFixed(1) }}<i>%</i></span>
             </p>
 
-            <p v-if="store.showPercent">
-                {{ $t("horizon.min")}}: <span>{{ thickInfo?.minPercent.toFixed(1) }}<i>%</i></span>
-            </p>
-            <p v-else>
-                {{ $t("horizon.min")}}: <span>{{ thickInfo?.minVal }} <i>μm</i></span>
+
+            <p>
+                {{ $t("horizon.min")}}: <span>{{ thickInfo?.minVal }} <i>μm</i> </span>
+                <span class="more_info">{{ thickInfo?.minPercent.toFixed(1) }}<i>%</i></span>
             </p>
 
             <p>
                 {{$t("horizon.speed")}}:
                 <span>{{ thickInfo?.speed }} <i>m/min</i></span>
-                
             </p>
 
             <p>
@@ -65,7 +58,7 @@ defineProps<{
     box-sizing: border-box;
     padding: 5px;
     display: flex;
-    justify-content: space-around;
+    justify-content: space-between;
     height: 100%;
     width: 100%;
 
@@ -84,6 +77,14 @@ defineProps<{
                 font-size: 13px;
                 font-style: normal;
             }
+        }
+        .more_info {
+            background-color: #409EFF;
+            color: #fff;
+            font-size: 13px;
+            padding: 1px 2px;
+            border-radius: 3px;
+            margin-left: 2px;
         }
     }
 }

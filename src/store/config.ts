@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 type IConfig = {
   language: ILanguageType
   isDark: boolean,
-  showPercent: boolean,
   queryHours: number
   beforeAutoID: number | null
 }
@@ -12,7 +11,6 @@ export const useConfigStore = defineStore('config', {
     return {
       language: 'zhCn',
       isDark: false,
-      showPercent: false,
       queryHours: 2,
       beforeAutoID: null
     }

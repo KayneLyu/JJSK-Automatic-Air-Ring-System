@@ -6,7 +6,6 @@ import { Vue3Marquee } from 'vue3-marquee'
 import { useProduct } from "@/store/product";
 import { useFrameStore } from '@/store/frame';
 import { useApiDataStore } from "@/store/polling-data";
-import { useConfigStore } from '@/store/config';
 import { decimalToBinary } from "@/utils/format-data";
 import { compareArrays } from "@/utils/index";
 import { db } from '@/utils/dexie';
@@ -21,7 +20,6 @@ const router = useRouter()
 const store = useProduct()
 const pollingStore = useApiDataStore()
 const frameStore = useFrameStore()
-const configStore = useConfigStore()
 const warningList = ref<string[]>([])
 const targetThick = ref(store.param.thick)
 // 存储报警数据
@@ -32,6 +30,10 @@ const saveAlarmHandle = async (addAlarmList: IAlarmsData[]) => {
     console.error('save alarm data error!');
   }
 }
+
+watch(() => store.param.thick, (newVal) => {
+  targetThick.value = newVal
+})
 
 watch([() => pollingStore.apiThickData.ErrCode, () => pollingStore.apiAirRingData.ErrCode], ([thickVal, airRingVal]) => {
   if (thickVal == 0 && airRingVal == 0) {
@@ -123,20 +125,9 @@ const changeThick = (e:FocusEvent) => {
           ${useDateFormat(frameStore.lastFrame.EndTime, dateType).value}` }}</p>
       </div> -->
       <el-button :loading-icon="Eleme" :loading="loading" @click="fixScaleHandle"
-        style="padding: 0 10px; height: 32px; letter-spacing: 1px;" type="primary">
+        style="padding: 0 20px; height: 32px; letter-spacing: 1px;" type="primary">
         {{ t('product.revise') }}
       </el-button>
-
-      <span style="margin-left: 30px;">{{t('layout.show')}}:</span>
-      <el-switch
-        size="large"
-        v-model="configStore.showPercent"
-        class="ml-2"
-        inline-prompt
-        style="--el-switch-on-color: #409EFF; --el-switch-off-color: #E36781; margin-left: 5px;"
-        :active-text="t('layout.percent')"
-        :inactive-text="t('layout.value')"
-      />
     </div>
 
     <div @click="router.push('/alarm')" v-if="warningList.length" class="marquee">

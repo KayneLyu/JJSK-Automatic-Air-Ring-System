@@ -59,7 +59,8 @@ const computeScale = async () => {
     }
     buttonLoading.value = true
     setTimeout(() => {
-        scaleValue.value = (form.thick / form.displayValue) * store.apiThickData.K
+        const newVal = (form.thick / form.displayValue) * store.apiThickData.K
+        scaleValue.value = Number(newVal.toFixed(3))
         buttonLoading.value = false
         ElNotification({
             title: t("notification.info"),
@@ -116,7 +117,7 @@ const onSubmit = async () => {
             <el-input-number v-model="form.tolerance" :min="1" :max="50" :precision="0" />
         </el-form-item>
         <el-form-item :label="$t('product.scale')">
-            <el-input-number class="scale" v-model="scaleValue" :step="0.1" :min="1" :max="50" :precision="3" />
+            <el-input-number class="scale" v-model="scaleValue" :step="0.1" :max="50" :precision="3" />
             <el-button style="margin-left: 20px;" type="primary" size="large" @click="() => showCompute = !showCompute">
                 {{ $t("product.revise") }}
                 <el-icon style="margin-left: 5px;">

@@ -9,6 +9,7 @@ import PositionIcon from '@/components/icons/Position.vue';
 const store = useApiDataStore()
 const posDetector = ref<number>(0)
 
+
 watch(() => store.apiThickData.PosMm, (newVal) => {
     if (newVal) {
         posDetector.value = Number((newVal / store.apiThickData.PosLenMm * 100).toFixed(0))
@@ -18,7 +19,6 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
         immediate: true
     }
 )
-
 </script>
 
 <template>
@@ -72,7 +72,7 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
                     </div>
                 </el-col>
                 <el-col :span="3" class="move_right">
-                    <el-statistic :precision="1" :title="$t('control.rotate')" :value="10">
+                    <el-statistic :precision="1" :title="$t('control.rotate')" :value="store.apiThickData.ARoundTimeOfRotation">
                         <template #suffix>
                             <span class="unit">min/R</span>
                         </template>
