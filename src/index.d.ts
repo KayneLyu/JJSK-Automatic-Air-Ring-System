@@ -141,4 +141,4 @@ interface IProductData {
     thick: number,
 }
 
-type ILanguageType = 'zhCn' | 'en'
+type ILanguageType = 'zhCn' | 'en' | 'vi'

@@ -10,6 +10,7 @@ import { I18n } from 'vue-i18n';
 const LangType: Record<ILanguageType, string> = {
     zhCn: "中文",
     en: "English",
+    vi: "Tiếng Việt"
 }
 
 const store = useConfigStore()
