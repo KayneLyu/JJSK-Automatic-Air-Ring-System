@@ -1,95 +1,150 @@
-import { ipcMain as i, app as o, dialog as d, globalShortcut as h, BrowserWindow as f } from "electron";
-import { fileURLToPath as R } from "node:url";
-import t from "node:path";
-import a from "fs";
-import { spawn as _, execSync as v } from "child_process";
-function w(e) {
-  _(e, [], {
-    detached: !0,
-    windowsHide: !0,
+import { ipcMain, app, dialog, globalShortcut, BrowserWindow } from "electron";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import fs from "fs";
+import { spawn, execSync } from "child_process";
+function runAppInBackground(exePath) {
+  const options = {
+    detached: true,
+    windowsHide: true,
     cwd: "D:/server/"
-  }).unref();
+  };
+  const child = spawn(exePath, [], options);
+  child.unref();
 }
-function E(e) {
+function isExeRunning(exeName) {
   try {
-    return v(`tasklist /FI "IMAGENAME eq ${e}.exe"`).includes(e);
-  } catch (r) {
-    return console.error(r), !1;
+    const output = execSync(`tasklist /FI "IMAGENAME eq ${exeName}.exe"`);
+    return output.includes(exeName);
+  } catch (error) {
+    console.error(error);
+    return false;
   }
 }
-function m(e, r, s) {
+function ensureServerRunning(exeName, exePath, dialog2) {
   try {
-    return E(e) ? !1 : (w(r), !0);
-  } catch (u) {
-    s.showErrorBox(`Error checking or running ${e}:`, u + "");
+    if (!isExeRunning(exeName)) {
+      runAppInBackground(exePath);
+      return true;
+    } else {
+      return false;
+    }
+  } catch (error) {
+    dialog2.showErrorBox(`Error checking or running ${exeName}:`, error + "");
   }
 }
-function I(e) {
-  e.webContents.on("did-finish-load", () => {
-    e.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
-  }), i.on("win-minimize", () => {
-    e.minimize();
-  }), i.on("win-maximize", () => {
-    e.isMaximized() ? e.restore() : e.maximize();
-  }), i.on("win-close", () => {
-    o.quit();
-  }), i.on("win-toggle-fullscreen", () => {
-    e && e.setFullScreen(!e.isFullScreen());
-  }), i.handle("win-get-logo", (r, s, u) => {
-    if (e)
+function setupRendererCommunicator(win2) {
+  win2.webContents.on("did-finish-load", () => {
+    win2.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
+  });
+  ipcMain.on("win-minimize", () => {
+    win2.minimize();
+  });
+  ipcMain.on("win-maximize", () => {
+    const windowIsMax = win2.isMaximized();
+    if (windowIsMax) {
+      win2.restore();
+    } else {
+      win2.maximize();
+    }
+  });
+  ipcMain.on("win-close", () => {
+    app.quit();
+  });
+  ipcMain.on("win-toggle-fullscreen", () => {
+    if (win2) {
+      win2.setFullScreen(!win2.isFullScreen());
+    }
+  });
+  ipcMain.handle("win-get-logo", (e, message, params) => {
+    if (win2) {
       try {
-        const c = a.readFileSync("D:/logo/logo.png");
-        return c ? `data:image/png;base64,${Buffer.from(c).toString("base64")}` : void 0;
-      } catch {
+        const imageBuffer = fs.readFileSync("D:/logo/logo.png");
+        if (!imageBuffer) return;
+        const base64Image = Buffer.from(imageBuffer).toString("base64");
+        const imgSrc = `data:image/png;base64,${base64Image}`;
+        return imgSrc;
+      } catch (error) {
       }
-  }), i.handle("win-open-client", () => {
+    }
+  });
+  ipcMain.handle("win-open-client", () => {
     try {
-      return m("JinJiu.Scan.Client2", "D:/server/JinJiu.Scan.Client2.exe", d);
-    } catch {
+      const result = ensureServerRunning("JinJiu.Scan.Client2", "D:/server/JinJiu.Scan.Client2.exe", dialog);
+      return result;
+    } catch (error) {
     }
   });
 }
-const p = t.dirname(R(import.meta.url));
-process.env.APP_ROOT = t.join(p, "..");
-const l = process.env.VITE_DEV_SERVER_URL, y = t.join(process.env.APP_ROOT, "dist-electron"), g = t.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = l ? t.join(process.env.APP_ROOT, "public") : g;
-let n;
-function S() {
-  n = new f({
-    icon: t.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
-    autoHideMenuBar: !0,
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+process.env.APP_ROOT = path.join(__dirname, "..");
+const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
+const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
+const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
+let win;
+function createWindow() {
+  win = new BrowserWindow({
+    icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    autoHideMenuBar: true,
     width: 1280,
     height: 1024,
-    frame: !1,
+    frame: false,
     webPreferences: {
-      preload: t.join(p, "preload.mjs")
+      preload: path.join(__dirname, "preload.mjs")
     }
-  }), n && I(n), l ? n.loadURL(l) : n.loadFile(t.join(g, "index.html"));
+  });
+  if (win) {
+    setupRendererCommunicator(win);
+  }
+  if (VITE_DEV_SERVER_URL) {
+    win.loadURL(VITE_DEV_SERVER_URL);
+  } else {
+    win.loadFile(path.join(RENDERER_DIST, "index.html"));
+  }
 }
-const D = o.requestSingleInstanceLock();
-D ? o.on("second-instance", (e) => {
-  n && (n.isMinimized() && n.restore(), n.focus());
-}) : o.quit();
-o.on("ready", () => {
-  m("JinJiu.Scan.Server2", "D:/server/JinJiu.Scan.Server2.exe", d), o.setLoginItemSettings({
-    openAtLogin: !0
+const getLock = app.requestSingleInstanceLock();
+if (!getLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (event) => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+}
+app.on("ready", () => {
+  ensureServerRunning("JinJiu.Scan.Server2", "D:/server/JinJiu.Scan.Server2.exe", dialog);
+  app.setLoginItemSettings({
+    openAtLogin: true
   });
 });
-o.on("will-finish-launching", () => {
-  a.existsSync("D:/JJSK_Data") || a.mkdirSync("D:/JJSK_Data"), o.setPath("appData", "D:/JJSK_Data");
+app.on("will-finish-launching", () => {
+  if (!fs.existsSync("D:/JJSK_Data")) {
+    fs.mkdirSync("D:/JJSK_Data");
+  }
+  app.setPath("appData", "D:/JJSK_Data");
 });
-o.on("before-quit", () => {
-  n == null || n.removeAllListeners("close"), h.unregisterAll(), n == null || n.close();
+app.on("before-quit", () => {
+  win == null ? void 0 : win.removeAllListeners("close");
+  globalShortcut.unregisterAll();
+  win == null ? void 0 : win.close();
 });
-o.on("window-all-closed", () => {
-  process.platform !== "darwin" && (o.quit(), n = null);
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+    win = null;
+  }
 });
-o.on("activate", () => {
-  f.getAllWindows().length === 0 && S();
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
 });
-o.whenReady().then(S);
+app.whenReady().then(createWindow);
 export {
-  y as MAIN_DIST,
-  g as RENDERER_DIST,
-  l as VITE_DEV_SERVER_URL
+  MAIN_DIST,
+  RENDERER_DIST,
+  VITE_DEV_SERVER_URL
 };

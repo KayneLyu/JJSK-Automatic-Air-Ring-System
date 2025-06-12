@@ -16,7 +16,6 @@ import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts';
 import { useProduct } from '@/store/product';
-import { useConfigStore } from '@/store/config';
 import { useTempStore } from "@/store/temp";
 import dayjs from "dayjs";
 
@@ -39,7 +38,6 @@ echarts.use([
 
 const store = useProduct();
 const tempStore = useTempStore();
-const configStore = useConfigStore();
 
 const props = defineProps<{
     id: number,
@@ -84,7 +82,7 @@ let option: ECOption = {
         type: "value",
         min: store.param.tolerance * -4,
         max: store.param.tolerance * 4,
-        maxInterval: 5,
+        maxInterval: store.param.tolerance,
         minInterval: 1,
         axisLabel: {
             show: true,
