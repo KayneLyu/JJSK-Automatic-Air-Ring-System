@@ -12,6 +12,7 @@ export const useProduct = defineStore('production', {
                 roll: 0,
                 thick: 60,
                 tolerance: 5,
+                scale: 1,
             }
         }
     },
