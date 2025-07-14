@@ -91,6 +91,7 @@ let option: ECOption = {
                 show: true,
                 lineStyle: {
                     type: "dashed",
+                    color: "#C4C4C4"
                 },
             },
         },
@@ -168,7 +169,7 @@ let option: ECOption = {
             splitLine: {
                 lineStyle: {
                     // 使用深浅的间隔色
-                    color: ["#d9dbdd", "#d9dbdd", "#d9dbdd", "#d9dbdd", "red", "#d9dbdd", "red"],
+                    color: ["#C4C4C4", "#C4C4C4", "#C4C4C4", "#C4C4C4", "red", "#C4C4C4", "red"],
                     type: "dashed",
                     opacity: 0.4,
                 },
