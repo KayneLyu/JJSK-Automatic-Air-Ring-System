@@ -1,17 +1,13 @@
 <script setup lang='ts'>
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router';
-import { Eleme } from '@element-plus/icons-vue'
 import { Vue3Marquee } from 'vue3-marquee'
 import { useProduct } from "@/store/product";
 import { useFrameStore } from '@/store/frame';
 import { useApiDataStore } from "@/store/polling-data";
-import { decimalToBinary } from "@/utils/format-data";
 import { compareArrays } from "@/utils/index";
 import { db } from '@/utils/dexie';
 import { useI18n } from 'vue-i18n';
-import { magnification } from '@/api';
-import { showNotification } from '@/utils';
 import dayjs from 'dayjs';
 import AlarmIcon from "@/components/icons/Alert.vue";
 
@@ -35,71 +31,35 @@ watch(() => store.param.thick, (newVal) => {
   targetThick.value = newVal
 })
 
-watch([() => pollingStore.apiThickData.ErrCode, () => pollingStore.apiAirRingData.ErrCode], ([thickVal, airRingVal]) => {
-  if (thickVal == 0 && airRingVal == 0) {
+watch(() => pollingStore.warning, (value) => {
+  if (!value || value.length == 0) {
     warningList.value = []
     return
   }
-  let thickErrList: string[] = []
-  let ariRingErrList: string[] = []
-  if (thickVal !== 0) {
-    thickErrList = decimalToBinary(thickVal).map((item) => {
-      return `warning1.${item}`
-    })
-  }
-  if (airRingVal !== 0) {
-    ariRingErrList = decimalToBinary(airRingVal).map((item) => {
-      return `warning2.${item}`
-    })
-  }
-  const errCodeList = [...thickErrList, ...ariRingErrList]
 
-  const saveAlarmList = compareArrays(warningList.value, errCodeList)
+  let errorList = value.map((item) => {
+    return `alarmKun.${item}`
+  })
+
+  const saveAlarmList = compareArrays(warningList.value, errorList)
   if (saveAlarmList && saveAlarmList.length) {
     let addAlarmList: IAlarmsData[] = saveAlarmList.map(item => {
       return {
         date: dayjs().format("YYYY-MM-DD HH:mm:ss"),
-        type: item.includes('warning1') ? "air" : "thick",
+        type: "thick",
         content: item,
-        code: item.split('.')[1]
+        code: item.split('alarmKun.')[1]
       }
     })
     saveAlarmHandle(addAlarmList)
   }
-
-  if (errCodeList.includes('warning2.1')) {
-    frameStore.hasBadChannels = true
-  }
-  warningList.value = [...errCodeList]
+  warningList.value = [...errorList]
 },
   {
     immediate: true
   }
 )
 
-const loading = ref(false)
-const fixScaleHandle = async () => {
-  loading.value = true
-  try {
-    const scaleSetVal = (targetThick.value / frameStore.meanValue) * pollingStore.apiThickData.K
-    await magnification(scaleSetVal)
-    setTimeout(() => {
-      loading.value = false
-    }, 5000);
-    ElNotification({
-      title: t("notification.info"),
-      message: t("notification.success"),
-      type: "success",
-      offset: 70
-    })
-  } catch (error) {
-    showNotification(t("notification.info"), t("notification.failed"), "error")
-  }
-}
-const changeThick = (e:FocusEvent) => {
-  if( targetThick.value !== 0 && targetThick.value !== null) return
-  targetThick.value = store.param.thick
-}
 </script>
 
 <template>
@@ -111,12 +71,12 @@ const changeThick = (e:FocusEvent) => {
     <div class="target_value">
       <div class="target_content">
         <p class="target_tittle">{{ t('product.target') }} : </p>
-        <el-input-number v-on:blur="changeThick" class="target_input" :controls="false" v-model="targetThick" />
+        <!-- <el-input-number v-on:blur="changeThick" class="target_input" :controls="false" v-model="targetThick" /> -->
         <span>μm</span>
       </div>
       <div class="target_content">
-        <p class="target_tittle">{{t('product.scale')}} : </p>
-        <p>{{ pollingStore.apiThickData.K.toFixed(3) }}</p>
+        <p class="target_tittle">{{ t('product.scale') }} : </p>
+        <!-- <p>{{ pollingStore.apiThickData.K.toFixed(3) }}</p> -->
       </div>
     </div>
     <div class="update_roll">
@@ -124,10 +84,7 @@ const changeThick = (e:FocusEvent) => {
         <p>{{ `${useDateFormat(frameStore.lastFrame.StartTime, dateType).value} ~
           ${useDateFormat(frameStore.lastFrame.EndTime, dateType).value}` }}</p>
       </div> -->
-      <el-button :loading-icon="Eleme" :loading="loading" @click="fixScaleHandle"
-        style="padding: 0 20px; height: 32px; letter-spacing: 1px;" type="primary">
-        {{ t('product.revise') }}
-      </el-button>
+
     </div>
 
     <div @click="router.push('/alarm')" v-if="warningList.length" class="marquee">

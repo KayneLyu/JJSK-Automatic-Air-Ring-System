@@ -1,11 +1,10 @@
 import axios, { AxiosResponse } from "axios";
 
-
 export const client = axios.create({
-    baseURL: 'http://localhost:10010',
-    // baseURL: 'apis',
     headers: {
-        "Content-Type": "application/json"
+        // "Content-Type": "application/json"
+        // kundig
+        "Content-Type":'application/x-www-form-urlencoded; charset=UTF-8'
     }
 })
 
@@ -14,6 +13,16 @@ export const postRequest = async (url: string, params?: any): Promise<AxiosRespo
         const result = await client.post(url, params)
         return result
     } catch (error:any) {
+        throw new Error(error)
+    }
+}
+
+export const getRequest = async (url: string, params?: any): Promise<AxiosResponse> => {
+    try {
+        const result = await client.post(url, params)
+        return result
+    } catch (error:any) {
+        console.log("request error =>", error);
         throw new Error(error)
     }
 }

@@ -1,78 +1,62 @@
 <script setup lang='ts'>
-import { watch, ref, onBeforeUnmount } from 'vue';
+import { watch } from 'vue';
 import { useApiDataStore } from '@/store/polling-data';
-import { useTempStore } from '@/store/temp';
 import { useFrameStore } from '@/store/frame';
 import { db } from "@/utils/dexie";
-import { getFrame, UploadThickness, getHeats } from "@/api/index";
-import { formatFrameData } from '@/utils/format-data';
-import { useTimeoutFn } from '@vueuse/core'
-import { formatTempList } from '@/utils/ChartsData';
+import { getVDPBaseData, getVDPProcess, getKPEThickData } from '@/api';
+import { formateKunFrame } from "@/utils/format-data";
+
 import HeaderComponent from './header/index.vue';
 import MenuComponent from './menu/index.vue';
 import ContentComponent from './content/index.vue';
 
 const store = useApiDataStore();
-const tempStore = useTempStore();
 const frameStore = useFrameStore();
 
-const meanValue = ref(0);
-
-watch(() => store.apiThickData.LastScanDataId, async() => {
-    const data = await getFrame(null)
-    const heats = await getHeats()
-    if (data && data !== null) {
-        const formatValue = formatFrameData(data)
-        // 拿到平均值给即时数据
-        meanValue.value = formatValue.mean
-        const id = await db.Frame.put(formatValue)
-        await db.Heats.put({
-            frameId:id,
-            heats: heats
-        })
-        frameStore.updateFrameId = id
-        frameStore.meanValue = formatValue.mean
+watch(() => store.VDPData.time, async () => {
+    try {
+        // VDP 测厚仪基础数据
+        const baseData = await getVDPBaseData();
+        // VDP process  测厚仪配置数据
+        const process = await getVDPProcess()
+        // // KPE 测厚仪数据
+        const thickData = await getKPEThickData()
+        if (baseData && process && thickData) {
+            const { data, mean, date, time } = baseData.p[0][1]
+            const { actDiameter } = process
+            const { takeOffRotation } = thickData
+            const endTime = date + ' ' + time
+            const { max, min, maxPercent, minPercent, sigma, sigmaPercent } = formateKunFrame(data, mean)
+            const meanVal = Number(mean.toFixed(1))
+            let frameData = {
+                thickList: data,
+                meanValue: meanVal,
+                max,
+                min,
+                maxPercent,
+                minPercent,
+                width: (Number(actDiameter) * 3.14 / 2).toFixed(1),
+                date: endTime,
+                rotation: takeOffRotation,
+                sigma,
+                sigmaPercent,
+            }
+            await db.Frame.put(frameData)
+            await db.Heats.put({
+                time: endTime,
+                heats: store.KPEData.data
+            })
+            frameStore.updateFrameId = endTime
+            frameStore.meanValue = meanVal
+        }
+    } catch (error) {
+        console.log('Home get Frame-Data error =====>' + error);
     }
 },
     {
         immediate: true
     }
 );
-
-// 存储即时数据
-const getTempFrameData = async () => {
-    try {
-        const result = await UploadThickness()
-        if (result.D.length) {
-            const tempData = formatTempList(result.D, meanValue.value)
-            tempStore.updateTempData(tempData)
-        }
-    } catch (error) {
-        console.log('getTempFrameData-err', error);
-    }
-}
-
-const { start, stop } = useTimeoutFn(() => {
-    getTempFrameData()
-    start()
-}, 2000)
-
-watch(() => store.apiThickData.ControllerState, (newValue) => {
-    if (newValue == 'FIX' || newValue == 'STOP') {
-        stop()
-        return
-    } else {
-        start()
-    }
-},
-    {
-        immediate: true
-    }
-)
-
-onBeforeUnmount(() => {
-    stop()
-})
 
 </script>
 
@@ -87,9 +71,7 @@ onBeforeUnmount(() => {
                 <div class="layout_views">
                     <ContentComponent />
                 </div>
-
             </div>
-
         </div>
     </div>
 </template>
@@ -119,7 +101,6 @@ onBeforeUnmount(() => {
         .layout_views {
             flex: 1;
         }
-
     }
 }
 </style>

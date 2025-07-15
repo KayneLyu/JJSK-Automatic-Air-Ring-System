@@ -1,33 +1,53 @@
 <script setup lang="ts">
 import { onBeforeUnmount } from 'vue';
-import { useIntervalFn, useTimeoutFn } from '@vueuse/core'
-import { getThickInfo, getAirRingInfo, getFrame, getAirRingConfig } from "@/api";
+import { useTimeoutFn } from '@vueuse/core'
+import { getVDPBaseData, getKPEHeatsData, getWarningPage, getAutoStatus } from "@/api";
 import Layouts from "@/layout/index.vue";
 import { useApiDataStore } from '@/store/polling-data';
+import { formatKunErrors } from "@/utils/format-data";
 
 const store = useApiDataStore()
 const getThickData = async () => {
   try {
-    const data = await getThickInfo();
-    if (data) {
-      store.updateApiData(data)
+    // VDP 测厚仪基础数据
+    const baseData = await getVDPBaseData();
+    if (baseData) {
+      const { actMeasPos, actMeasVal, targetTmdState, p, actualTmdState } = baseData
+      const { time } = p[0][1]
+      // 设置测厚仪当前数据
+      store.updateVDPData({
+        position: actMeasPos,
+        actualVal: actMeasVal,
+        time: time,
+        buttonState: actualTmdState,
+        targetTmdState
+      })
     }
   } catch (error) {
-    store.apiThickData.ErrCode = 0
+    store.updateWarning(['0'])
   }
 }
+
 const getAirRingData = async () => {
   try {
-    const data = await getAirRingInfo();
-    const config = await getAirRingConfig()
-    if(data) {
-      store.updateAirRingData(data)
+    const heatsData = await getKPEHeatsData()
+    // 报警内容
+    const warningData = await getWarningPage()
+    if (heatsData) {
+      const airRingStatus = heatsData.p[1][1]
+      const data = await getAutoStatus(airRingStatus.rotation.toFixed(2))
+      if (data) {
+        store.updateKPEData({ ...airRingStatus, apcState: data.apcState })
+      }
     }
-    if(config) {
-      store.updateAirRingConfig(config)
+    if (warningData) {
+      const errorList = formatKunErrors(warningData as string)
+      if (errorList.length) {
+        store.updateWarning(errorList)
+      }
     }
   } catch (error) {
-    store.apiAirRingData.ErrCode = 32
+    store.updateWarning(['0'])
   }
 }
 
@@ -44,12 +64,10 @@ const { start: start, stop: stopAirRing, } = useTimeoutFn(() => {
 
 onBeforeUnmount(() => {
   stopThickGauge(),
-  stopAirRing()
+    stopAirRing()
 })
 </script>
 
 <template>
   <Layouts />
 </template>
-
-<style scoped></style>

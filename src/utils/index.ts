@@ -69,7 +69,6 @@ export function rearrangeArray(arr: Array<number | string>, index: number) {
 /***
  * 对比数组
  */
-
 export function compareArrays(array1: string[], array2: string[]) {
     let set = new Set(array1); // 创建第一个数组的 Set
     return array2.filter(function (item) {

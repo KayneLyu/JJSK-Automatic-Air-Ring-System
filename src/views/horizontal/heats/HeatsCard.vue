@@ -7,10 +7,8 @@ const configStore = useApiDataStore()
 
 <template>
     <div class="heats_info">
-        <p>1# {{ $t("horizon.deg") }}: <b>{{ configStore.apiAirRingConfig.ChannelNo1Angle }}°</b></p>
-        <p style="margin: 6px 0;">{{ $t("horizon.channelNum") }}: <span>{{ configStore.apiAirRingConfig.ChannelCnt }}</span> </p>
-        <p >{{ $t("horizon.channelBase") }}: <span>{{ configStore.apiAirRingData.IsAirDoorMode ? 50 : 30 }}%</span></p>
-        <p style="margin-top: 6px;">{{ $t("horizon.effectTime") }}: <span>{{ configStore.apiAirRingData.StableTime && dayjs(configStore.apiAirRingData.StableTime).format('HH:mm:ss') }}</span></p>
+        <p>1# {{ $t("horizon.deg") }}: <b>{{ configStore.KPEData.rotation }}°</b></p>
+        <p style="margin: 6px 0;">{{ $t("horizon.channelNum") }}: <span>{{ configStore.KPEData.data.length }}</span> </p>
     </div>
 </template>
 

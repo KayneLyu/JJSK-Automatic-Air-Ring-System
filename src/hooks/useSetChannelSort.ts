@@ -6,7 +6,7 @@ function useSortChannel() {
     const startNumber = ref(0);
     const store = useApiDataStore();
 
-    watch([() => store.apiAirRingConfig.ChannelCnt, () => store.apiAirRingConfig.ChannelNo1Angle], ([channel, angle]) => {
+    watch([() => store.KPEData.data.length, () => store.KPEData.rotation], ([channel, angle]) => {
         const startNo = channel - angle / (360 / channel) + 2
         const newArr = []
         for (let index = 1; index <= channel; index++) {

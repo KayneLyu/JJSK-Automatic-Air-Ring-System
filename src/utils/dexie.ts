@@ -2,7 +2,7 @@ import Dexie, { Table } from "dexie";
 
 class MySubClassDexie extends Dexie {
   public product!: Table<IProductData>;
-  public Frame!: Table<IFrameThickData>;
+  public Frame!: Table<IThickInfoData>;
   public Alarm!: Table<IAlarmsData>;
   public Heats!: Table<IHeats>;
   public Channel!: Table<ISaveHeats>;
@@ -10,7 +10,7 @@ class MySubClassDexie extends Dexie {
     super('JJSKDatabase');
     this.version(1).stores({
       product: "productName",
-      Frame:"frameId, endTime",
+      Frame:"date",
       Alarm:"id++, date",
       Heats:"frameId",
       Channel:"name"

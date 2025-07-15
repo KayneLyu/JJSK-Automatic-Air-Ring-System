@@ -1,38 +1,7 @@
-import { ipcMain, app, dialog, globalShortcut, BrowserWindow } from "electron";
+import { ipcMain, app, globalShortcut, BrowserWindow } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "fs";
-import { spawn, execSync } from "child_process";
-function runAppInBackground(exePath) {
-  const options = {
-    detached: true,
-    windowsHide: true,
-    cwd: "D:/server/"
-  };
-  const child = spawn(exePath, [], options);
-  child.unref();
-}
-function isExeRunning(exeName) {
-  try {
-    const output = execSync(`tasklist /FI "IMAGENAME eq ${exeName}.exe"`);
-    return output.includes(exeName);
-  } catch (error) {
-    console.error(error);
-    return false;
-  }
-}
-function ensureServerRunning(exeName, exePath, dialog2) {
-  try {
-    if (!isExeRunning(exeName)) {
-      runAppInBackground(exePath);
-      return true;
-    } else {
-      return false;
-    }
-  } catch (error) {
-    dialog2.showErrorBox(`Error checking or running ${exeName}:`, error + "");
-  }
-}
 function setupRendererCommunicator(win2) {
   win2.webContents.on("did-finish-load", () => {
     win2.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
@@ -68,13 +37,6 @@ function setupRendererCommunicator(win2) {
       }
     }
   });
-  ipcMain.handle("win-open-client", () => {
-    try {
-      const result = ensureServerRunning("JinJiu.Scan.Client2", "D:/server/JinJiu.Scan.Client2.exe", dialog);
-      return result;
-    } catch (error) {
-    }
-  });
 }
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path.join(__dirname, "..");
@@ -91,7 +53,9 @@ function createWindow() {
     height: 1024,
     frame: false,
     webPreferences: {
-      preload: path.join(__dirname, "preload.mjs")
+      preload: path.join(__dirname, "preload.mjs"),
+      webSecurity: false
+      // 禁用安全策略
     }
   });
   if (win) {
@@ -114,12 +78,6 @@ if (!getLock) {
     }
   });
 }
-app.on("ready", () => {
-  ensureServerRunning("JinJiu.Scan.Server2", "D:/server/JinJiu.Scan.Server2.exe", dialog);
-  app.setLoginItemSettings({
-    openAtLogin: true
-  });
-});
 app.on("will-finish-launching", () => {
   if (!fs.existsSync("D:/JJSK_Data")) {
     fs.mkdirSync("D:/JJSK_Data");

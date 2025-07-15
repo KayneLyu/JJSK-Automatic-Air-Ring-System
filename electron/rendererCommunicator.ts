@@ -1,7 +1,6 @@
 // rendererCommunicator.ts
 import { BrowserWindow, app, ipcMain, IpcMainInvokeEvent, dialog } from 'electron';
 import fs from "fs";
-import { ensureServerRunning } from './utils';
 
 export function setupRendererCommunicator(win: BrowserWindow) {
   // 发送消息到渲染进程
@@ -51,12 +50,12 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   })
 
   // 打开服务的界面软件
-  ipcMain.handle("win-open-client", () => {
-    try {
-      const result = ensureServerRunning('JinJiu.Scan.Client2', 'D:/server/JinJiu.Scan.Client2.exe', dialog);
-      return result
-    } catch (error) {}
-  })
+  // ipcMain.handle("win-open-client", () => {
+  //   try {
+  //     const result = ensureServerRunning('JinJiu.Scan.Client2', 'D:/server/JinJiu.Scan.Client2.exe', dialog);
+  //     return result
+  //   } catch (error) {}
+  // })
 
   // 添加其他通信逻辑
   // 例如，监听来自渲染进程的消息

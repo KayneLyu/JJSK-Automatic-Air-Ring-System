@@ -2,18 +2,18 @@
 import { reactive, ref, watch, onMounted } from 'vue';
 import { db } from '@/utils/dexie';
 import { formateList } from '@/utils/ChartsData';
-import TempCharts from './TempCharts.vue';
 import { useConfigStore } from '@/store/config';
 import { useFrameStore } from '@/store/frame';
+import { useApiDataStore } from '@/store/polling-data';
 
 import HorizonCharts from './frame-charts/AreaCharts.vue';
 import ThickInfo from '@/components/frame-info.vue';
 import HeatState from './heats/HeatsFrame.vue';
 import HeatsCardInfo from './heats/HeatsCard.vue';
-import { getHeats } from '@/api';
 
 const store = useFrameStore()
 const configStore = useConfigStore()
+const apiStore = useApiDataStore()
 
 const frameListData = reactive<IFrameThickData[]>([
    {
@@ -104,7 +104,6 @@ const beforeAutoMode = ref<IFrameThickData>({
    datalist: [],
 })
 
-let tempData = ref<[number, number | null][]>([])
 let heatsChannel = ref<[string, number][]>([])
 
 const getFrameList = async () => {
@@ -118,10 +117,10 @@ const getFrameList = async () => {
             }
          }
       }
-      const heatsData = await getHeats()
+      const heatsData = apiStore.KPEData.data
       if (heatsData) {
          const formatHeatsData: Array<[string, number]> = heatsData.map((item, index) => {
-            return [`${index + 1}`, item]
+            return [`${index + 1}`, item[1]]
          })
          heatsChannel.value = formatHeatsData
       }
@@ -139,16 +138,16 @@ watch(() => store.updateFrameId, () => {
 const getBeforeAutoData = async () => {
    try {
       let result: IFrameThickData | undefined
-      if(configStore.beforeAutoID) {
+      if (configStore.beforeAutoID) {
          result = await db.Frame.get(configStore.beforeAutoID)
       } else {
          const [queryItem] = await db.Frame.orderBy('frameId').reverse().offset(19).limit(1).toArray()
          result = queryItem
       }
-      if(result) {
-         beforeAutoMode.value = {...result, datalist: <Array<[number, number]>>formateList(<number[]>result.datalist, result.mean)}
+      if (result) {
+         beforeAutoMode.value = { ...result, datalist: <Array<[number, number]>>formateList(<number[]>result.datalist, result.mean) }
       }
-   } catch (error) {}
+   } catch (error) { }
 }
 
 onMounted(() => {
@@ -162,12 +161,8 @@ onMounted(() => {
       <div class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-               <HorizonCharts
-                  is-before-auto
-                  :startDate="beforeAutoMode.startTime" 
-                  :endDate="beforeAutoMode.endTime" 
-                  :id="beforeAutoMode.frameId"
-                  :frameData="<Array<[number, number]>>beforeAutoMode.datalist" />
+               <HorizonCharts is-before-auto :startDate="beforeAutoMode.startTime" :endDate="beforeAutoMode.endTime"
+                  :id="beforeAutoMode.frameId" :frameData="<Array<[number, number]>>beforeAutoMode.datalist" />
             </el-card>
          </div>
          <div class="info_card">
@@ -177,11 +172,7 @@ onMounted(() => {
       <div v-for="(frame, index) in frameListData" :key="index" class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-
-               <TempCharts v-if="index == 3" :temp-list="tempData" :mean-val="frame.mean" :startDate="frame.startTime"
-                  :endDate="frame.endTime" :id="frame.frameId" :frameData="<Array<[number, number]>>frame.datalist" />
-
-               <HorizonCharts v-else :startDate="frame.startTime" :endDate="frame.endTime" :id="frame.frameId"
+               <HorizonCharts :startDate="frame.startTime" :endDate="frame.endTime" :id="frame.frameId"
                   :frameData="<Array<[number, number]>>frame.datalist" />
             </el-card>
 

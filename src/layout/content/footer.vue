@@ -14,13 +14,13 @@ const store = useApiDataStore();
         <div class="content_status">
             <div  class="status">
                 <span>{{ $t("layout.gauge")}}: </span>
-                <p v-if="store.apiThickData.ControllerState !== 'FIX'"><el-tag size="small"  type="success">{{ $t("layout.running")}}</el-tag></p>
+                <p v-if="store.VDPData.targetTmdState !== 'stopped' "><el-tag size="small"  type="success">{{ $t("layout.running")}}</el-tag></p>
                 <p v-else><el-tag size="small" type="danger">{{ $t("layout.stop")}}</el-tag> </p>
             </div>
 
             <div class="status" style="margin-left: 30px;">
                 <span>{{ $t("layout.ring")}}: </span>
-                <p v-if="store.apiAirRingData.IsAuto"><el-tag size="small"  type="success">{{ $t("layout.auto")}}</el-tag></p>
+                <p v-if="store.KPEData.apcState == 'apcStateActive' "><el-tag size="small"  type="success">{{ $t("layout.auto")}}</el-tag></p>
                 <p v-else><el-tag size="small" type="danger">{{ $t("layout.handle")}}</el-tag> </p>
             </div>
         </div>

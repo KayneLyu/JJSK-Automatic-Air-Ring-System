@@ -2,7 +2,6 @@ import { app, BrowserWindow, dialog, globalShortcut } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { setupRendererCommunicator } from './rendererCommunicator';
-import { ensureServerRunning } from './utils';
 import fs from "fs";
 
 // const require = createRequire(import.meta.url)
@@ -28,6 +27,7 @@ function createWindow() {
     frame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
+      webSecurity: false, // 禁用安全策略
     },
   })
 
@@ -56,14 +56,6 @@ if (!getLock) {
     }
   })
 }
-
-app.on("ready", () => {
-  ensureServerRunning('JinJiu.Scan.Server2', 'D:/server/JinJiu.Scan.Server2.exe', dialog)
-  // 开机自动启动应用
-  app.setLoginItemSettings({
-    openAtLogin: true,
-  })
-});
 
 app.on('will-finish-launching', () => {
   // 判断文件夹是否存在

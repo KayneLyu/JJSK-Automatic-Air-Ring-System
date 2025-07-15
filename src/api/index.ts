@@ -1,150 +1,124 @@
-import { formateResult, postRequest } from '@/utils/axios';
+import { formateResult, postRequest, getRequest } from '@/utils/axios';
 
+type IParams = {
+    ajaxRequest: string;
+    rpcFunction: string;
+    jsonObject: string
+}
 /**
- * 获取当前1幅数据
- * id <= 0 当前数据 / null
+ * 获取测厚仪状态 
 */
-export const getFrame = (params: { id: Number } | null) => {
-    return formateResult<IFrameData>(postRequest("/api/thk/getFrame", params))
+// export const getFrame = (params: IParams) => {
+//     return formateResult<IFrameData>(postRequest("http://127.0.0.1:8081/cgi/cgi.json", params))
+// }
+
+/**
+ * 测量按钮 VDP
+ * @param params 
+ * @returns 
+ */
+export const setVDPButtonStatus = (params: IParams) => {
+    return formateResult(postRequest("http://127.0.0.1:8090/cgi/cgi.json", params))
 }
 
 /**
- * 开始测量
+ * 测量按钮 VDP
+ * @param params 
+ * @returns 
  */
-export const startMeasuring = () => {
-    return formateResult(postRequest("/api/thk/scan"))
+export const setKPEButtonStatus = (params: IParams) => {
+    return formateResult(postRequest("http://127.0.0.1:8081/cgi/cgi.json", params))
 }
 
 /**
- * 停止测量
+ * 获取测厚基础数据 VDP
+ * @param params 
+ * @returns 
  */
-export const stopMeasuring = () => {
-    return formateResult(postRequest("/api/thk/stop"))
+export const getVDPBaseData = () => {
+    return formateResult<IKunBaseData>(postRequest("http://127.0.0.1:8090/cgi/cgi.json", {
+        ajaxRequest: 'jsonObjectRpc',
+        rpcFunction: 'webRpcOverviewActuals',
+        jsonObject: {}
+    }))
+}
+/**
+ * 获取测厚仪配置数据 VDP
+ * @param params 
+ * @returns 
+ */
+export const getVDPProcess = () => {
+    return formateResult<IProcess>(postRequest("http://127.0.0.1:8090/cgi/cgi.json", {
+        ajaxRequest: 'jsonObjectRpc',
+        rpcFunction: 'webRpcGetSvValues',
+        jsonObject: '{"targetStateText": "", "actualStateText": "", "rotActive": 0, "radMoveActive": 0, "actThickness": 0, "actPosition": 0, "actRotTime": 0, "avgTDThickness": 0, "actISensorPos": 0, "actUSDistance2": 0, "displacementUSDistOffs": 0, "penetrationDepth": 0, "actSpindleNutPos": 0, "actSensorRadius": 0, "actDiameter": 0, "actExcentr": 0, "actExcAngle": 0, "actTempMK": 0, "actTempME": 0, "actTempHeatsink": 0, "actTempCase": 0, "actGaugeTempCtrlMode": 0, "actGaugeTargetTemp": 0, "actZeroFreq": 0, "actRotToHome": 0, "actRotToZero": 0}'
+    }))
+}
+
+type IProfiles = {
+    p: [any[], IAirRingData, any[]][]
 }
 
 /**
- * 归边
+ * 获取风环通道数据 KPE
+ * @param params 
+ * @returns 
  */
-export const toTheEdge = () => {
-    return formateResult(postRequest("/api/thk/org"))
+export const getKPEHeatsData = () => {
+    return formateResult<IProfiles>(postRequest("http://127.0.0.1:8081/cgi/cgi.json", {
+        ajaxRequest: 'jsonObjectRpc',
+        rpcFunction: 'webRpcActualProfiles',
+        jsonObject: {}
+    }))
+}
+/**
+ * 获取风环通道数据 KPE
+ * @param params 
+ * @returns 
+ */
+export const getKPEThickData = () => {
+    return formateResult<IKunThickData>(postRequest("http://127.0.0.1:8081/cgi/cgi.json", {
+        ajaxRequest: 'jsonObjectRpc',
+        rpcFunction: 'webRpcOverviewActuals',
+        jsonObject: {}
+    }))
 }
 
 /**
- * 前进
+ * 获取自动控制按钮状态
  */
-export const forwardsThick = () => {
-    return formateResult(postRequest("/api/thk/forw"))
+
+export const getAutoStatus = (param:string) => {
+    return formateResult<IApcInfo>(postRequest("http://127.0.0.1:8081/cgi/cgi.json", {
+        ajaxRequest: 'jsonObjectRpc',
+        rpcFunction: 'webRpcGetData',
+        jsonObject: {"actuatorValue":"0","actuatorIndex":"-1","rotation":param ,"actuatorMirrored":"0"}
+    }))
 }
 
 /**
- * 后退
+ *  获取报警内容页面
  */
-export const backThick = () => {
-    return formateResult(postRequest("/api/thk/backw"))
+
+// export const getWarningPage = () => {
+//     return formateResult(getRequest("http://127.168.15.100:8090/templates/diagn_t_flags.html",{
+//         Headers: {
+//             "Content-Type": "text/html; charset=UTF-8"
+//         }
+//     }))
+// }
+export const getWarningPage = () => {
+    return formateResult(getRequest("http://127.168.15.100:8090/templates/diagn_t_flags.html"))
 }
 
 /**
- * 轮询数据
+ *  设置放大倍数/校准系数 & 目标厚度
+ * @returns 
  */
-export const getThickInfo = () => {
-    return formateResult<IThickInfoData>(postRequest("/api/thk/getInfo"))
+export const setCalibration = (factor:number, targetThick:number) => {
+    return formateResult(postRequest("http://127.168.15.100:8090/templates/param_measurement.html",{
+        setSV_calFactor:factor,
+        setSV_targetThickness: targetThick,
+        saveSV:'SAVE'
+    }))
 }
-
-/**
- * 设置热量
- */
-export const setAutoRingHeats = (params: number[]) => {
-    return formateResult(postRequest("/api/airRing/setHeats", params))
-}
-
-/**
- *获取热量
- */
-export const getHeats = () => {
-    return formateResult<number[]>(postRequest("/api/airRing/getHeats"))
-}
-
-/**
- * 设置自动加热
- */
-export const setAutoHeats = (params: boolean) => {
-    return formateResult(postRequest("/api/airRing/setIsAuto", params))
-}
-/**
- * 复位加热量
- */
-export const resetHeatsApi = () => {
-    return formateResult(postRequest("/api/airRing/resetHeats"))
-}
-
-/**
- * 获取损坏的加热棒
- */
-export const getBadHeats = () => {
-    return formateResult<boolean[]>(postRequest("/api/airRing/getBads"))
-}
-
-/**
- * 开启/停止检测动作
- */
-export const setCheckEnable = (params: string) => {
-    return formateResult(postRequest("/api/airRing/setCheckEnable", params))
-}
-
-
-/**
- * 设置放大倍数
- */
-export const magnification = (params: number) => {
-    return formateResult(postRequest("/api/thk/setK", params))
-}
-
-/**
- * 获取测厚仪报警列表
- */
-export const getThickWarningList = () => {
-    return formateResult<IWarningList[]>(postRequest("/api/thk/getWarningList"))
-}
-
-/**
- * 获取风环报PLC警列表
- */
-export const getAirRingWarningList = () => {
-    return formateResult<IWarningList[]>(postRequest("/api/airRing/getWarningList"))
-}
-
-/**
- *  清空测厚仪报警列表
- */
-export const clearThickWarningList = () => {
-    return formateResult(postRequest("/api/thk/resetErrCode"))
-}
-
-/**
- * 清空风环PLC报警列表
- */
-export const clearAirRingWarningList = () => {
-    return formateResult(postRequest("/api/airRing/resetErrCode"))
-}
-
-/**
- * 获取风环基础配置
- */
-export const getAirRingConfig = () => {
-    return formateResult<IAirRingParams>(postRequest("/api/airRing/getParam"))
-}
-
-/**
- *  实时厚度数据
- */
-export const UploadThickness = () => {
-    return formateResult<{ D: Array<number | string>}>(postRequest("/api/thk/getTempFrame"))
-}
-
-/**
- * 风环状态数据
- */
-export const getAirRingInfo = () => {
-    return formateResult<IAirRingInfo>(postRequest("/api/airRing/getInfo"))
-}
-

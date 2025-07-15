@@ -6,8 +6,7 @@ export function calculateMean(data: number[]) {
     return mean;
 }
 // 计算西格玛值
-function calculateStandardDeviation(data: number[]) {
-    const mean = calculateMean(data);
+function calculateStandardDeviation(data: number[], mean: number) {
     const differences = data.map((value) => value - mean);
     const squaredDifferences = differences.map((diff) => Math.pow(diff, 2));
     const meanSquaredDifference = calculateMean(squaredDifferences);
@@ -25,60 +24,54 @@ function fixedNumber(value: number, digist: number) {
     return Math.round(value * n) / n
 }
 
-// 计算旋转速度
-function timeToSecondsRotate(time: string) {
-    const [hours, minutes, seconds] = time.split(':');
-    const timeInSeconds = (+hours * 3600) + (+minutes * 60) + (+seconds);
-    const rotateSpeed = timeInSeconds / 60
-    return Number(rotateSpeed.toFixed(1))
+// 向下 & 向上取整
+function floorToFixed(value: number, decimalPlaces: number): number {
+    if (!value) {
+        return 0
+    }
+    const pow10 = Math.pow(10, decimalPlaces);
+    if (value < 0) {
+        return Math.ceil(value * pow10) / pow10;
+    }
+    return Math.floor(value * pow10) / pow10;
 }
 
-export const formatFrameData = (data: IFrameData) => {
-    // 提取公共的时间格式化逻辑
-    const startTime = dayjs(data.Time).format("YYYY-MM-DD HH:mm:ss");
-    const endTime = dayjs(data.EndTime).format("YYYY-MM-DD HH:mm:ss");
-    // 检查 data.Thicks 是否为空或包含非数字值
-    if (!Array.isArray(data.Thicks) || data.Thicks.length === 0) {
-        throw new Error("Invalid or empty Thicks array");
+export const formateKunFrame = (thickList: [number, number][], mean: number) => {
+    let flatArray: number[] = [];
+    let realThickList: number[] = []
+    for (let index = 0; index < thickList.length; index++) {
+        flatArray.push(thickList[index][1]);
+        realThickList.push(thickList[index][1] * mean / 100 + mean);
     }
-    const thicks = data.Thicks;
-    const sigma = calculateStandardDeviation(thicks);
-    const max = Math.max(...thicks);
-    const min = Math.min(...thicks);
-    const mean = calculateMean(thicks);
-    const sigmaPercent = sigma / mean * 100;
-    const minPercent = (min - mean) / mean * 100;
-    const maxPercent = (max - mean) / mean * 100;
+    const sigma = calculateStandardDeviation(realThickList, mean)
+    const sigmaPercent = floorToFixed(sigma / mean * 100, 1)
+    const minPercent = floorToFixed(Math.min(...flatArray), 1)
+    const maxPercent = floorToFixed(Math.max(...flatArray), 1)
+    const max = floorToFixed(maxPercent * mean / 100 + mean, 1)
+    const min = floorToFixed(minPercent * mean / 100 + mean, 1)
     return {
-        frameId: data.ID,
-        startTime: startTime,
-        endTime: endTime,
-        speed: fixedNumber(data.FilmVelocity, 1),
-        width: data.FilmWidth,
-        rotateSpeed: timeToSecondsRotate(data.RPeriod),
-        sigmaVal: fixedNumber(sigma, 1),
-        sigmaPercent: fixedNumber(sigmaPercent, 1),
-        mean: fixedNumber(mean, 1),
-        minVal: fixedNumber(min, 1),
-        minPercent: fixedNumber(minPercent, 1),
-        maxVal: fixedNumber(max, 1),
-        maxPercent: fixedNumber(maxPercent, 1),
-        IsBackw: data.IsBackw,
-        datalist: thicks
-    };
+        sigma,
+        sigmaPercent,
+        max,
+        min,
+        minPercent,
+        maxPercent
+    }
 }
 
-// 处理二进制
-export function decimalToBinary(decimal: number | undefined) {
-    if (!decimal || typeof (decimal) !== "number") {
-        return []
-    }
-    let binary = decimal.toString(2).split('').reverse().join('') // 将十进制转换为二进制字符串
-    let binaryArray = []; // 存储触发的位的数组
-    for (let i = 0; i < binary.length; i++) {
-        if (binary.charAt(i) === '1') {
-            binaryArray.push(i); // 将触发的位索引添加到数组中
-        }
-    }
-    return binaryArray;
+export const formatKunErrors = (htmlTree: string) => {
+    var tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlTree as string;
+    let elements:Element[] = []
+    // 找到特定节点
+    const errorList = tempDiv.querySelectorAll('.tab_text[style="color: red"]');
+    const warningList = tempDiv.querySelectorAll('.tab_text[style="color: orange"]');
+    elements = [...errorList,...warningList]
+    var textArray: string[] = [];
+    // 遍历匹配的节点并将其文本内容添加到数组中
+    elements.forEach(function (element) {
+        textArray.push('alarmKun.' + (element.previousElementSibling?.textContent as string).replace(/\/n/g, '').trim());
+    });
+    // 输出文本内容
+    return textArray
 }
