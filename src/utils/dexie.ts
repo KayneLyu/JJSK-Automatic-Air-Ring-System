@@ -2,7 +2,7 @@ import Dexie, { Table } from "dexie";
 
 class MySubClassDexie extends Dexie {
   public product!: Table<IProductData>;
-  public Frame!: Table<IThickInfoData>;
+  public Frame!: Table<IFrameThickData>;
   public Alarm!: Table<IAlarmsData>;
   public Heats!: Table<IHeats>;
   public Channel!: Table<ISaveHeats>;

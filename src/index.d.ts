@@ -103,7 +103,7 @@ interface IProcess {
 }
 
 // 一幅图数据
-interface IThickInfoData {
+interface IFrameThickData {
     thickList: [number, number][],
     meanValue: number,
     max: number,
