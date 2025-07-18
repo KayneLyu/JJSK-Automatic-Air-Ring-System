@@ -104,7 +104,7 @@ interface IProcess {
 
 // 一幅图数据
 interface IFrameThickData {
-    thickList: [number, number][],
+    dataList: [number, number][],
     meanValue: number,
     max: number,
     min: number,
@@ -115,6 +115,7 @@ interface IFrameThickData {
     rotation: string,
     sigma: number,
     sigmaPercent: number,
+    id?: number
 }
 
 interface ITempThickData {

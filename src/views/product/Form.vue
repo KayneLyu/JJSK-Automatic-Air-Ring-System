@@ -4,7 +4,6 @@ import { ArrowDown, ArrowUp, Eleme } from '@element-plus/icons-vue'
 import { useApiDataStore } from '@/store/polling-data';
 import { useProduct } from "@/store/product";
 import { useFrameStore } from "@/store/frame";
-import { magnification } from '@/api';
 import { isValidNumber } from '@/utils';
 import { db } from '@/utils/dexie';
 import { useI18n } from 'vue-i18n';

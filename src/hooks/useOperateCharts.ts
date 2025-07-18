@@ -24,14 +24,14 @@ function useOperateChartsHooks() {
         const sigmaList: Array<[string, number]> = [];
         const meanList: Array<[string, number]> = [];
         for (const item of result) {
-            sigmaList.push([item.endTime, item.sigmaPercent]);
-            meanList.push([item.endTime, item.mean]);
+            sigmaList.push([item.date, item.sigmaPercent]);
+            meanList.push([item.date, item.meanValue]);
         }
         // 根据查询结果初始化
         queryDataList.value = result
         sigmaDataList.value = sigmaList
         meanDataList.value = meanList
-        const frameId = result[result.length - 1].frameId
+        const frameId = result[result.length - 1].id!
         lastFrameId.value = frameId
         currentIndex.value = result.length - 1        
     }
@@ -67,8 +67,8 @@ function useOperateChartsHooks() {
 
         if (isBack) {
             const startNumbers = queryDataList.value[0]
-            startId = startNumbers.frameId - store.queryHours * 100 < 0 ? 0 : startNumbers.frameId - store.queryHours * 100
-            endId = startNumbers.frameId
+            startId = startNumbers.id! - store.queryHours * 100 < 0 ? 0 : startNumbers.id! - store.queryHours * 100
+            endId = startNumbers.id
 
         } else {
             startId = lastFrameId.value
@@ -90,7 +90,7 @@ function useOperateChartsHooks() {
         if (!queryDataList.value || queryDataList.value.length == 0) {
             return
         }
-        let index = queryDataList.value.findIndex((item) => item.frameId === currentId.value)
+        let index = queryDataList.value.findIndex((item) => item.id === currentId.value)
         index += step
         if (index > queryDataList.value.length - 1) {
             nextPageQuery(false)
@@ -110,7 +110,7 @@ function useOperateChartsHooks() {
 
     const currentFrame = computed(() => {
         if (queryDataList.value && queryDataList.value.length) {
-            currentId.value = queryDataList.value[currentIndex.value].frameId
+            currentId.value = queryDataList.value[currentIndex.value].id!
         }
         return queryDataList.value[currentIndex.value];
     });

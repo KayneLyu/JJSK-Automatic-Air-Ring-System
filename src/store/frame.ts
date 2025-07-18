@@ -1,14 +1,16 @@
 import { defineStore } from 'pinia'
 type IConfig = {
-  updateFrameId: string,
+  updateFrameId: number,
   meanValue: number,
+  updateTime: string
 }
 
 export const useFrameStore = defineStore('frame', {
   state: (): IConfig => {
     return {
-      updateFrameId: "",
+      updateFrameId: 0,
       meanValue: 0,
+      updateTime: ""
     }
   },
 })

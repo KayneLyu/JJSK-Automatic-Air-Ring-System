@@ -30,7 +30,6 @@ import { useApiDataStore } from '@/store/polling-data';
 import { formateList } from '@/utils/ChartsData';
 import dayjs from 'dayjs';
 import { db } from '@/utils/dexie';
-import { setAutoRingHeats, getHeats, getBadHeats } from "@/api";
 import { useFrameStore } from '@/store/frame';
 import { showNotification } from '@/utils/';
 
@@ -60,21 +59,13 @@ type EChartsOption = echarts.ComposeOption<
 const props = defineProps({
     frameData: {
         default: () => [],
-        type: Array<number>,
-    },
-    mean: {
-        default: 0,
-        type: Number
+        type: Array<[number, number]>,
     },
     currentId: {
         default: 0,
         type: Number
     },
     startDate: {
-        default: '',
-        type: String
-    },
-    endDate: {
         default: '',
         type: String
     },
@@ -91,10 +82,10 @@ const configStore = useApiDataStore()
 const frameStore = useFrameStore()
 
 const xAxisArr: number[] = []
-for (let i = 0; i < 120; i++) {
+for (let i = 0; i < 360; i++) {
     xAxisArr.push(i)
 }
-const aAxisFormatArr = <number[]>rearrangeArray(xAxisArr, Number((configStore.apiAirRingConfig.ChannelNo1Angle / 3).toFixed(0)))
+const aAxisFormatArr = <number[]>rearrangeArray(xAxisArr, configStore.KPEData.rotation)
 
 let option: EChartsOption = {
     animation: false,
@@ -169,7 +160,7 @@ let option: EChartsOption = {
         {
             type: "value",
             gridIndex: 1,
-            max: configStore.apiAirRingConfig.ChannelCnt || 64,
+            max: configStore.KPEData.data.length || 64,
             min: 1,
             interval: 4,
             axisLabel: {
@@ -221,12 +212,12 @@ let option: EChartsOption = {
                 show: false,
             },
             axisLabel: {
-                interval: 5,
+                interval: 14,
                 formatter: (value: string, index: number) => {
                     if (index == 0) {
-                        return `{special|${Number(value) * 3}°}`
+                        return `{special|${Number(value)}°}`
                     }
-                    return Number(value) * 3 + "°";
+                    return Number(value) + "°";
                 },
                 rich: {
                     special: {
@@ -242,7 +233,7 @@ let option: EChartsOption = {
             type: "value",
             gridIndex: 0,
             position: 'bottom',
-            max: configStore.apiAirRingConfig.ChannelCnt || 64,
+            max: configStore.KPEData.data.length || 64,
             min: 1,
             minInterval: 1,
             interval: 4,
@@ -261,9 +252,9 @@ let option: EChartsOption = {
             axisPointer: {
                 label: {
                     formatter: (value: any) => {
-                        const meanDeg = 120 / configStore.apiAirRingConfig.ChannelCnt
+                        const meanDeg = 360 / configStore.KPEData.data.length
                         const arrIndex = (meanDeg * (value.value - 1)).toFixed(0)
-                        const currentValue = aAxisFormatArr[Number(arrIndex)] * 3
+                        const currentValue = aAxisFormatArr[Number(arrIndex)]
                         return currentValue + '°'
                     }
                 },
@@ -436,138 +427,138 @@ const { updateCharts, selectBrush, selectSingleChannel, brushList } = useChartsI
 const heatsList = ref<[number, number][]>([])
 const lastChannelList = ref<[number, number][]>([])
 
-//  改变所有通道
-const changeAllChannel = async (isAirControl: boolean, isAdd?: boolean) => {
-    if (!heatsList.value?.length) return;
-    const { IsAirDoorMode } = configStore.apiAirRingData;
-    const step = configStore.apiAirRingConfig.Step
-    if (isAirControl) {
-        try {
-            heatsList.value = heatsList.value.map(item => [item[0], IsAirDoorMode ? 50 : 30])
-        } catch (error) {
-            showNotification('error', t("notification.failed"), 'error')
-        }
-    } else {
-        heatsList.value = heatsList.value.map(item => {
-            const [index, value] = item
-            return [index, isAdd ? value + step : value - step]
-        })
-    }
-    await setChannelHeats()
-    await getChannelHandle()
-}
+// //  改变所有通道
+// const changeAllChannel = async (isAirControl: boolean, isAdd?: boolean) => {
+//     if (!heatsList.value?.length) return;
+//     const { IsAirDoorMode } = configStore.apiAirRingData;
+//     const step = configStore.apiAirRingConfig.Step
+//     if (isAirControl) {
+//         try {
+//             heatsList.value = heatsList.value.map(item => [item[0], IsAirDoorMode ? 50 : 30])
+//         } catch (error) {
+//             showNotification('error', t("notification.failed"), 'error')
+//         }
+//     } else {
+//         heatsList.value = heatsList.value.map(item => {
+//             const [index, value] = item
+//             return [index, isAdd ? value + step : value - step]
+//         })
+//     }
+//     await setChannelHeats()
+//     await getChannelHandle()
+// }
 
-// 选中通道 增加/减少
-const changeSomeChannel = (counterpoint: boolean, isAdd?: boolean) => {
-    const step = configStore.apiAirRingConfig.Step;
-    const putValue = isAdd ? step : -step;
+// // 选中通道 增加/减少
+// const changeSomeChannel = (counterpoint: boolean, isAdd?: boolean) => {
+//     const step = configStore.apiAirRingConfig.Step;
+//     const putValue = isAdd ? step : -step;
 
-    let needChangeChannel: number[] = brushList.value;
+//     let needChangeChannel: number[] = brushList.value;
 
-    if (counterpoint) {
-        const counter = configStore.apiAirRingConfig.ChannelCnt / 2
-        const counterA = counter / 2 / 2
-        const counterB = counterA + 2 * counterA
-        const counterC = counter + counter / 2 + counterA
+//     if (counterpoint) {
+//         const counter = configStore.apiAirRingConfig.ChannelCnt / 2
+//         const counterA = counter / 2 / 2
+//         const counterB = counterA + 2 * counterA
+//         const counterC = counter + counter / 2 + counterA
 
-        needChangeChannel = [
-            counterA - 1, counterA, counterA + 1,
-            counterB - 1, counterB, counterB + 1,
-            counterC - 1, counterC, counterC + 1,
-        ];
-    }
+//         needChangeChannel = [
+//             counterA - 1, counterA, counterA + 1,
+//             counterB - 1, counterB, counterB + 1,
+//             counterC - 1, counterC, counterC + 1,
+//         ];
+//     }
 
-    // 使用 Set 提升查找性能
-    const changeSet = new Set(needChangeChannel);
+//     // 使用 Set 提升查找性能
+//     const changeSet = new Set(needChangeChannel);
 
-    heatsList.value = heatsList.value.map((item, index) => {
-        const [channelId, prevValue] = item;
-        const isInclude = changeSet.has(index);
-        let newValue: number;
+//     heatsList.value = heatsList.value.map((item, index) => {
+//         const [channelId, prevValue] = item;
+//         const isInclude = changeSet.has(index);
+//         let newValue: number;
 
-        if (counterpoint) {
-            newValue = isInclude ? 100 : 0;
-        } else if (isInclude) {
-            newValue = prevValue + putValue;
-            if (newValue >= 100 && isAdd) newValue = 100;
-            if (prevValue <= 0 && !isAdd) newValue = 0;
-        } else {
-            newValue = prevValue;
-        }
-        return [channelId, newValue];
-    });
+//         if (counterpoint) {
+//             newValue = isInclude ? 100 : 0;
+//         } else if (isInclude) {
+//             newValue = prevValue + putValue;
+//             if (newValue >= 100 && isAdd) newValue = 100;
+//             if (prevValue <= 0 && !isAdd) newValue = 0;
+//         } else {
+//             newValue = prevValue;
+//         }
+//         return [channelId, newValue];
+//     });
 
-    updateCharts({
-        series: [{
-            data: heatsList.value,
-        }]
-    });
-};
+//     updateCharts({
+//         series: [{
+//             data: heatsList.value,
+//         }]
+//     });
+// };
 
-// 设置通道值
-const setChannelHeats = async () => {
-    try {
-        const setHeats = heatsList.value.map(item => item[1])
-        await setAutoRingHeats(setHeats)
-    } catch (error) {
-        showNotification('error', t("notification.failed"), 'error')
-    }
-}
+// // 设置通道值
+// const setChannelHeats = async () => {
+//     try {
+//         const setHeats = heatsList.value.map(item => item[1])
+//         await setAutoRingHeats(setHeats)
+//     } catch (error) {
+//         showNotification('error', t("notification.failed"), 'error')
+//     }
+// }
 
-// 获取通道值
-const getChannelHandle = async () => {
-    try {
-        const result = await getHeats()
-        if (result && result.length) {
-            let newHeats: Array<[number, number]> = result.map((item, index) => {
-                return [index + 1, item]
-            })
-            heatsList.value = newHeats
-            lastChannelList.value = newHeats
-            updateCharts({
-                series: [
-                    {
-                        data: heatsList.value,
-                    },
-                    {
-                        data: lastChannelList.value,
-                    },
-                ]
-            })
-        }
-    } catch (error) {
-        showNotification('error', t("notification.failed"), 'error')
-    }
-}
+// // 获取通道值
+// const getChannelHandle = async () => {
+//     try {
+//         const result = await getHeats()
+//         if (result && result.length) {
+//             let newHeats: Array<[number, number]> = result.map((item, index) => {
+//                 return [index + 1, item]
+//             })
+//             heatsList.value = newHeats
+//             lastChannelList.value = newHeats
+//             updateCharts({
+//                 series: [
+//                     {
+//                         data: heatsList.value,
+//                     },
+//                     {
+//                         data: lastChannelList.value,
+//                     },
+//                 ]
+//             })
+//         }
+//     } catch (error) {
+//         showNotification('error', t("notification.failed"), 'error')
+//     }
+// }
 
-defineExpose({
-    changeAllChannel,
-    changeSomeChannel,
-    getChannelHandle,
-    setChannelHeats,
-    brushList
-})
+// defineExpose({
+//     changeAllChannel,
+//     changeSomeChannel,
+//     getChannelHandle,
+//     setChannelHeats,
+//     brushList
+// })
+
 
 watch(() => props.currentId, async (newData) => {
     let formatThickData: [number, number][] = []
     if (props.frameData && props.frameData.length) {
-        const formatListData = <number[]>rearrangeArray(props.frameData, Number((configStore.apiAirRingConfig.ChannelNo1Angle / 3).toFixed(0)))
-        formatThickData = formateList(formatListData, props.mean)
+        const formatListData = rearrangeArray(props.frameData, configStore.KPEData.rotation)
+        formatThickData = formatListData
     }
 
     try {
-        let channelDta: number[] = []
+        let channelDta: Array<[number, number]>= []
         if (props.currentId === 0 || props.isFreshData) {
-            channelDta = await getHeats()
+            channelDta = configStore.KPEData.data
         } else {
             const result = await db.Heats.get(newData)
             channelDta = result?.heats ?? []
         }
         if (channelDta?.length > 0) {
-            const newChannelData: [number, number][] = channelDta.map((item, index) => [index + 1, item])
-            heatsList.value = newChannelData
+            heatsList.value = channelDta
             if (props.isFreshData || props.currentId === 0) {
-                lastChannelList.value = newChannelData
+                lastChannelList.value = channelDta
             }
         }
     } catch (error) {
@@ -595,32 +586,30 @@ watch(() => props.currentId, async (newData) => {
 )
 
 // 当前损坏的通道
-watch(() => frameStore.hasBadChannels, async (newData) => {
-    let badList: Array<[number, number]> = []
-    if (newData) {
-        const badChannels = await getBadHeats()
-        if (badChannels && badChannels.length) {
-            badList = badChannels.map((item, index) => [index+1, item ? 100 : 0] )
-        }
-    }
-    updateCharts({
-        series: [
-            {},
-            {},
-            {},
-            {},
-            {
-                data: badList,
-            }
-        ]
-    })
-},
-    {
-        immediate: true
-    }
-)
-
-
+// watch(() => frameStore.hasBadChannels, async (newData) => {
+//     let badList: Array<[number, number]> = []
+//     if (newData) {
+//         const badChannels = await getBadHeats()
+//         if (badChannels && badChannels.length) {
+//             badList = badChannels.map((item, index) => [index+1, item ? 100 : 0] )
+//         }
+//     }
+//     updateCharts({
+//         series: [
+//             {},
+//             {},
+//             {},
+//             {},
+//             {
+//                 data: badList,
+//             }
+//         ]
+//     })
+// },
+//     {
+//         immediate: true
+//     }
+// )
 
 onMounted(() => {
     selectBrush()
@@ -638,7 +627,7 @@ onMounted(() => {
 
         <div class="charts_content_title title_right">
             <p v-if="startDate" style="font-size: 13px;">
-                {{ `${dayjs(startDate).format('MM-DD HH:mm:ss')} ~ ${dayjs(endDate).format('HH:mm:ss')}` }}
+                {{ `${dayjs(startDate).format('MM-DD HH:mm:ss')}` }}
             </p>
         </div>
     </div>

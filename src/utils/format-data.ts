@@ -70,7 +70,7 @@ export const formatKunErrors = (htmlTree: string) => {
     var textArray: string[] = [];
     // 遍历匹配的节点并将其文本内容添加到数组中
     elements.forEach(function (element) {
-        textArray.push('alarmKun.' + (element.previousElementSibling?.textContent as string).replace(/\/n/g, '').trim());
+        textArray.push((element.previousElementSibling?.textContent as string).replace(/\/n/g, '').trim());
     });
     // 输出文本内容
     return textArray

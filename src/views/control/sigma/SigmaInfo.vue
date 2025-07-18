@@ -32,14 +32,14 @@ const sigmaTotalInfo = computed(() => {
         <p>{{$t("horizon.min")}}: <b>{{ sigmaTotalInfo?.meanNum || 0 }}</b> %</p>
       </div>
 
-      <div class="effective_time">
+      <!-- <div class="effective_time">
         <p style="margin-bottom: 5px;">
           {{$t("horizon.effectTime")}}:
         </p>
         <p>
           <b>{{ configStore.apiAirRingData.StableTime && dayjs(configStore.apiAirRingData.StableTime).format('HH:mm:ss') }}</b>
         </p>
-      </div>
+      </div> -->
     </div>
   </el-card>
 </template>

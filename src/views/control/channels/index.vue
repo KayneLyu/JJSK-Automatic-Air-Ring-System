@@ -5,7 +5,7 @@ import HistoryIcon from "@/components/icons/History.vue";
 import ChannelCharts from './charts.vue';
 import { db } from '@/utils/dexie';
 import { showNotification } from '@/utils/';
-import { setAutoRingHeats } from '@/api';
+// import { setAutoRingHeats } from '@/api';
 
 const { currentId, getCurrentChannel } = defineProps<{
     currentId: number,
@@ -21,11 +21,10 @@ const channelList = ref<ISaveHeats[]>([])
 const frameInfo = ref({
     frameData: [],
     mean: 0,
-    width: 0,
+    width: '0',
     sigma: 0,
     currentId: 0,
     startDate: '',
-    endDate: '',
     heatsData: []
 })
 const showDialog = (show: boolean) => {
@@ -56,12 +55,11 @@ const getCurrentRecord = async (id: number) => {
         const heatsData = await db.Heats.get(id)
         if (frameData && heatsData) {
             frameInfo.value = {
-                frameData: frameData.datalist as [],
-                mean: frameData.mean,
+                frameData: frameData.dataList as [],
+                mean: frameData.meanValue,
                 sigma: frameData.sigmaPercent,
                 currentId: id,
-                startDate: frameData.startTime,
-                endDate: frameData.endTime,
+                startDate: frameData.date,
                 width: frameData.width,
                 heatsData: heatsData.heats as []
             }
@@ -113,7 +111,7 @@ const deleteChannel = async () => {
 const applyChannel = async () => {
     try {
         const setHeats = frameInfo.value.heatsData
-        await setAutoRingHeats(setHeats)
+        // await setAutoRingHeats(setHeats)
         await getCurrentChannel()
         centerDialogVisible.value = false
         showNotification('success', '应用成功', 'success')
@@ -161,9 +159,6 @@ const applyChannel = async () => {
                 </el-button>
             </div>
         </template>
-
-
-
     </el-dialog>
     <div class="channel-control" @click="showSavaHandle">
         <p><el-button type="warning" :icon="SaveIcon"></el-button></p>

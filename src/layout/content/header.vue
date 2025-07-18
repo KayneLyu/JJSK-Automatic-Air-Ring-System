@@ -15,7 +15,6 @@ const { t } = useI18n()
 const router = useRouter()
 const store = useProduct()
 const pollingStore = useApiDataStore()
-const frameStore = useFrameStore()
 const warningList = ref<string[]>([])
 const targetThick = ref(store.param.thick)
 // 存储报警数据
@@ -31,14 +30,17 @@ watch(() => store.param.thick, (newVal) => {
   targetThick.value = newVal
 })
 
-watch(() => pollingStore.warning, (value) => {
-  if (!value || value.length == 0) {
+
+watch(() => pollingStore.warning.length, (value) => {
+  console.log('warningList', pollingStore.warning);
+  if (value == 0) {
     warningList.value = []
     return
   }
 
-  let errorList = value.map((item) => {
-    return `alarmKun.${item}`
+  let errorList = pollingStore.warning.map((item) => {
+    const code = item.replace(/\./g, '-');
+    return `alarmKun.${code}`
   })
 
   const saveAlarmList = compareArrays(warningList.value, errorList)
@@ -56,7 +58,7 @@ watch(() => pollingStore.warning, (value) => {
   warningList.value = [...errorList]
 },
   {
-    immediate: true
+    immediate: true,
   }
 )
 
@@ -87,15 +89,17 @@ watch(() => pollingStore.warning, (value) => {
 
     </div>
 
-    <div @click="router.push('/alarm')" v-if="warningList.length" class="marquee">
+    <div @click="router.push('/alarm')" v-if="warningList.length" class="marquee_container">
       <div style="margin:0 10px;">
         <el-icon :size="34" color="#e82f2f" class="icon_box">
           <AlarmIcon />
         </el-icon>
       </div>
-      <Vue3Marquee :duration="6">
-        <p class="marquee-item" v-for="(item, index) in warningList" :key="index">{{ $t(`${item}`) }}</p>
-      </Vue3Marquee>
+      <div>
+        <Vue3Marquee :duration="10">
+          <p class="marquee-item" v-for="(item, index) in warningList" :key="index">{{ $t(item) }}</p>
+        </Vue3Marquee>
+      </div>
     </div>
   </div>
 </template>
@@ -164,11 +168,11 @@ watch(() => pollingStore.warning, (value) => {
   }
 }
 
-.marquee {
+.marquee_container {
   display: flex;
   align-items: center;
   background-color: var(--alarm-bg);
-  width: 30vw;
+  width: 35vw;
   height: 90%;
   cursor: pointer;
   margin-left: auto;

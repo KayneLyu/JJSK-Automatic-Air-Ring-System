@@ -41,7 +41,6 @@ const props = defineProps<{
     id: number,
     frameData: [number, number][],
     startDate: string,
-    endDate: string,
     isBeforeAuto?: boolean
 }>()
 
@@ -58,8 +57,8 @@ let option: ECOption = {
     xAxis: {
         type: "value",
         min: 0,
-        max: 120,
-        maxInterval: 10,
+        max: 360,
+        maxInterval: 30,
         minInterval: 1,
         minorTick: {
             show: true,
@@ -74,7 +73,7 @@ let option: ECOption = {
         axisLabel: {
             show: true,
             formatter: function (value) {
-                return value * 3 + "°";
+                return value + "°";
             },
         },
     },
@@ -180,8 +179,6 @@ watch(() => props.frameData, () => {
 
         <div class="date_info">
             <p> {{ props.startDate }}</p>
-            <p style="margin: 0 3px;"> ~ </p>
-            <p> {{ props.endDate && dayjs(props.endDate).format('HH:mm:ss') }}</p>
         </div>
     </div>
 </template>

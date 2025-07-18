@@ -53,10 +53,9 @@ type IFrameProps = {
         frameData: number[],
         mean: number,
         sigma: number,
-        width: number,
+        width: string,
         currentId: number,
         startDate: string,
-        endDate: string,
         heatsData: number[]
     }
 }
@@ -72,7 +71,7 @@ const xAxisArr: number[] = []
 for (let i = 0; i < 120; i++) {
     xAxisArr.push(i)
 }
-const aAxisFormatArr = <number[]>rearrangeArray(xAxisArr, Number((configStore.apiAirRingConfig.ChannelNo1Angle / 3).toFixed(0)))
+const aAxisFormatArr = <number[]>rearrangeArray(xAxisArr, configStore.KPEData.rotation)
 
 let option: EChartsOption = {
     animation: false,
@@ -100,7 +99,7 @@ let option: EChartsOption = {
         {
             type: "value",
             gridIndex: 1,
-            max: configStore.apiAirRingConfig.ChannelCnt || 64,
+            max: configStore.KPEData.data.length || 64,
             min: 1,
             interval: 4,
             axisLabel: {
@@ -163,7 +162,7 @@ let option: EChartsOption = {
             type: "value",
             gridIndex: 0,
             position: 'bottom',
-            max: configStore.apiAirRingConfig.ChannelCnt || 64,
+            max: configStore.KPEData.data.length || 64,
             min: 1,
             minInterval: 1,
             interval: 4,
@@ -297,7 +296,7 @@ watch(() => frameData.frameData, (newData) => {
     let formatThickData: [number, number][] = []
     let newChannelData: [number, number][] = []
     if (newData && newData.length) {
-        const formatListData = <number[]>rearrangeArray(newData, Number((configStore.apiAirRingConfig.ChannelNo1Angle / 3).toFixed(0)))
+        const formatListData = <number[]>rearrangeArray(newData, configStore.KPEData.data.length)
         formatThickData = formateList(formatListData, frameData.mean)
         newChannelData = frameData.heatsData.map((item, index) => [index + 1, item])
     }
@@ -331,8 +330,7 @@ watch(() => frameData.frameData, (newData) => {
 
         <div class="charts_content_title title_right">
             <p v-if="frameData.startDate" style="font-size: 13px;">
-                {{ `${dayjs(frameData.startDate).format('MM-DD HH:mm:ss')} ~
-                ${dayjs(frameData.endDate).format('HH:mm:ss')}` }}
+                {{ `${dayjs(frameData.startDate).format('MM-DD HH:mm:ss')}` }}
             </p>
         </div>
     </div>

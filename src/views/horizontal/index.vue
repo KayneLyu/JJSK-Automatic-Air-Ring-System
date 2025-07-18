@@ -1,7 +1,6 @@
 <script setup lang='ts'>
 import { reactive, ref, watch, onMounted } from 'vue';
 import { db } from '@/utils/dexie';
-import { formateList } from '@/utils/ChartsData';
 import { useConfigStore } from '@/store/config';
 import { useFrameStore } from '@/store/frame';
 import { useApiDataStore } from '@/store/polling-data';
@@ -17,103 +16,88 @@ const apiStore = useApiDataStore()
 
 const frameListData = reactive<IFrameThickData[]>([
    {
-      frameId: 0,
-      startTime: '',
-      endTime: '',
-      speed: 0,
-      width: 0,
-      rotateSpeed: 0,
-      sigmaVal: 0,
-      sigmaPercent: 0,
-      mean: 0,
-      minVal: 0,
-      minPercent: 0,
-      maxVal: 0,
+      dataList: [],
+      meanValue: 0,
+      max: 0,
+      min: 0,
       maxPercent: 0,
-      IsBackw: false,
-      datalist: [],
+      minPercent: 0,
+      width: '',
+      date: '',
+      rotation: '',
+      sigma: 0,
+      sigmaPercent: 0,
+      id: 0
    },
    {
-      frameId: 0,
-      startTime: '',
-      endTime: '',
-      speed: 0,
-      width: 0,
-      rotateSpeed: 0,
-      sigmaVal: 0,
-      sigmaPercent: 0,
-      mean: 0,
-      minVal: 0,
-      minPercent: 0,
-      maxVal: 0,
+      dataList: [],
+      meanValue: 0,
+      max: 0,
+      min: 0,
       maxPercent: 0,
-      IsBackw: false,
-      datalist: [],
+      minPercent: 0,
+      width: '',
+      date: '',
+      rotation: '',
+      sigma: 0,
+      sigmaPercent: 0,
+      id: 0
    },
    {
-      frameId: 0,
-      startTime: '',
-      endTime: '',
-      speed: 0,
-      width: 0,
-      rotateSpeed: 0,
-      sigmaVal: 0,
-      sigmaPercent: 0,
-      mean: 0,
-      minVal: 0,
-      minPercent: 0,
-      maxVal: 0,
+      dataList: [],
+      meanValue: 0,
+      max: 0,
+      min: 0,
       maxPercent: 0,
-      IsBackw: false,
-      datalist: [],
+      minPercent: 0,
+      width: '',
+      date: '',
+      rotation: '',
+      sigma: 0,
+      sigmaPercent: 0,
+      id: 0
    },
    {
-      frameId: 0,
-      startTime: '',
-      endTime: '',
-      speed: 0,
-      width: 0,
-      rotateSpeed: 0,
-      sigmaVal: 0,
-      sigmaPercent: 0,
-      mean: 0,
-      minVal: 0,
-      minPercent: 0,
-      maxVal: 0,
+      dataList: [],
+      meanValue: 0,
+      max: 0,
+      min: 0,
       maxPercent: 0,
-      IsBackw: false,
-      datalist: [],
-   }
+      minPercent: 0,
+      width: '',
+      date: '',
+      rotation: '',
+      sigma: 0,
+      sigmaPercent: 0,
+      id: 0
+   },
+
 ])
 
 const beforeAutoMode = ref<IFrameThickData>({
-   frameId: 0,
-   startTime: '',
-   endTime: '',
-   speed: 0,
-   width: 0,
-   rotateSpeed: 0,
-   sigmaVal: 0,
-   sigmaPercent: 0,
-   mean: 0,
-   minVal: 0,
-   minPercent: 0,
-   maxVal: 0,
+   dataList: [],
+   meanValue: 0,
+   max: 0,
+   min: 0,
    maxPercent: 0,
-   IsBackw: false,
-   datalist: [],
+   minPercent: 0,
+   width: '',
+   date: '',
+   rotation: '',
+   sigma: 0,
+   sigmaPercent: 0,
+   id: 0
 })
 
 let heatsChannel = ref<[string, number][]>([])
 
 const getFrameList = async () => {
    try {
-      const recentItems = await db.Frame.orderBy('frameId').reverse().limit(4).toArray();
+      const recentItems = await db.Frame.orderBy('id').reverse().limit(4).toArray();
       if (recentItems.length) {
          for (let index = 0; index < recentItems.length; index++) {
             frameListData[recentItems.length - 1 - index] = {
-               ...recentItems[index],
-               datalist: <Array<[number, number]>>formateList(<number[]>recentItems[index].datalist, recentItems[index].mean)
+               ...recentItems[index]
             }
          }
       }
@@ -145,7 +129,7 @@ const getBeforeAutoData = async () => {
          result = queryItem
       }
       if (result) {
-         beforeAutoMode.value = { ...result, datalist: <Array<[number, number]>>formateList(<number[]>result.datalist, result.mean) }
+         beforeAutoMode.value = { ...result }
       }
    } catch (error) { }
 }
@@ -161,8 +145,8 @@ onMounted(() => {
       <div class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-               <HorizonCharts is-before-auto :startDate="beforeAutoMode.startTime" :endDate="beforeAutoMode.endTime"
-                  :id="beforeAutoMode.frameId" :frameData="<Array<[number, number]>>beforeAutoMode.datalist" />
+               <HorizonCharts is-before-auto :startDate="beforeAutoMode.date" :id="beforeAutoMode.id!"
+                  :frameData="<Array<[number, number]>>beforeAutoMode.dataList" />
             </el-card>
          </div>
          <div class="info_card">
@@ -172,8 +156,8 @@ onMounted(() => {
       <div v-for="(frame, index) in frameListData" :key="index" class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-               <HorizonCharts :startDate="frame.startTime" :endDate="frame.endTime" :id="frame.frameId"
-                  :frameData="<Array<[number, number]>>frame.datalist" />
+               <HorizonCharts :startDate="frame.date" :id="frame.id!"
+                  :frameData="<Array<[number, number]>>frame.dataList" />
             </el-card>
 
          </div>

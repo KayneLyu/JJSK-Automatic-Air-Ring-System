@@ -14,6 +14,7 @@ const store = useApiDataStore();
 const frameStore = useFrameStore();
 
 watch(() => store.VDPData.time, async () => {
+    if (store.VDPData.targetTmdState !== "measuring_TD") return
     try {
         // VDP 测厚仪基础数据
         const baseData = await getVDPBaseData();
@@ -29,7 +30,7 @@ watch(() => store.VDPData.time, async () => {
             const { max, min, maxPercent, minPercent, sigma, sigmaPercent } = formateKunFrame(data, mean)
             const meanVal = Number(mean.toFixed(1))
             let frameData = {
-                thickList: data,
+                dataList: data,
                 meanValue: meanVal,
                 max,
                 min,
@@ -41,13 +42,15 @@ watch(() => store.VDPData.time, async () => {
                 sigma,
                 sigmaPercent,
             }
-            await db.Frame.put(frameData)
+            if (endTime == frameStore.updateTime) return
+            const id = await db.Frame.add(frameData)
             await db.Heats.put({
                 time: endTime,
                 heats: store.KPEData.data
             })
-            frameStore.updateFrameId = endTime
+            frameStore.updateFrameId = id
             frameStore.meanValue = meanVal
+            frameStore.updateTime = endTime
         }
     } catch (error) {
         console.log('Home get Frame-Data error =====>' + error);

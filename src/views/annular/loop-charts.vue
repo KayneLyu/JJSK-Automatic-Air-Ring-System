@@ -17,7 +17,6 @@ import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts';
 import { useProduct } from '@/store/product.ts';
 import { useApiDataStore } from "@/store/polling-data";
-import { useTempStore } from '@/store/temp';
 
 echarts.use([
     PolarComponent,
@@ -36,16 +35,17 @@ type ECOption = echarts.ComposeOption<
     | LineSeriesOption
     | MarkLineComponentOption
 >;
-const tempStore = useTempStore();
+
 const store = useProduct();
-const { ChannelNo1Angle: startDeg, ChannelCnt: monitors } = useApiDataStore().apiAirRingConfig
+const { rotation: startDeg, data: monitors } = useApiDataStore().KPEData
 const props = defineProps<{
-    frameData: number[] | undefined,
-    meanValue: number | undefined
+    frameData: [number,number][] | undefined,
 }>()
 
+const loopCount = monitors.length > 0 ? monitors.length : 48;
+
 let monitorsList = [];
-for (let index = 1; index <= monitors; index++) {
+for (let index = 1; index <= loopCount; index++) {
     monitorsList.push(index);
 }
 
@@ -70,7 +70,7 @@ let option: ECOption = {
             type: "value",
             // boundaryGap: true,
             min: 0,
-            max: 120,
+            max: 360,
             // data: resetOrderDeg(30),
             startAngle: 0,
             axisLabel: {
@@ -81,7 +81,7 @@ let option: ECOption = {
                 fontWeight: 700,
                 fontSize: 15,
                 formatter: (value: string) => {
-                    return Number(value) * 3 + '°'
+                    return Number(value) + '°'
                 },
             },
             axisTick: {
@@ -238,25 +238,8 @@ watch(() => props.frameData, (newValue) => {
     }
 )
 
-watch(() => tempStore.tempList, (tempList) => {
-    let formateList = tempList.map((item) => [item[1], item[0]])
-    updateCharts({
-        series: [
-            {},
-            { data: formateList },
-        ]
-    })
-},
-    {
-        immediate: true,
-        deep: true
-    }
-)
-
 </script>
 
 <template>
     <div ref="chartContainer" style="width: 99%; height: 99%;"></div>
 </template>
-
-<style scoped></style>

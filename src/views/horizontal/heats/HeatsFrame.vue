@@ -29,7 +29,6 @@ const props = defineProps<{
     frameData: [string,number][]
 }>()
 
-
 let option: ECOption = {
     animation: false,
     grid: {
@@ -125,6 +124,7 @@ let option: ECOption = {
         },
     ]
 };
+
 const chartContainer = ref<HTMLElement | null>(null)
 const { updateCharts } = useChartsInit('chartContainer', option, props)
 watch(() => props.frameData, (newData) => {
@@ -151,10 +151,9 @@ watch(() => channelOrder.value, (newAxisData) => {
         immediate: true
     }
 )
+
 </script>
 
 <template>
     <div ref="chartContainer" style="width: 99%; height: 100%;"></div>
 </template>
-
-<style scoped></style>

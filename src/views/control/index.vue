@@ -1,14 +1,14 @@
 <script setup lang='ts'>
 import { ref } from 'vue';
 import useOperateCharts from '@/hooks/useOperateCharts';
-import StateComponent from './states/State.vue';
+// import StateComponent from './states/State.vue';
 import SigmaCharts from './sigma/SigmaCharts.vue';
 import SigmaInfo from './sigma/SigmaInfo.vue';
 
 import RelationCharts from './relations/RelationCharts.vue';
 import CharsOperate from '@/components/CharsOperate.vue';
 import FrameInfo from '@/components/frame-info.vue';
-import Controller from './controller.vue';
+import Controller from './control/index.vue';
 
 const {
   sigmaDataList,
@@ -26,47 +26,47 @@ const {
 
 const relationRef = ref<InstanceType<typeof RelationCharts> | null>(null)
 
-// 全升、全降
-const changeHeats = (isReset: boolean, isUp?: boolean) => {
-  if (!relationRef.value) return;
-  relationRef.value.changeAllChannel(isReset, isUp);
-}
+// // 全升、全降
+// const changeHeats = (isReset: boolean, isUp?: boolean) => {
+//   if (!relationRef.value) return;
+//   relationRef.value.changeAllChannel(isReset, isUp);
+// }
 
-// 调整通道值、对位
-const changeCurrentIndexHeats = (counterpoint: boolean, isUp?: boolean) => {
-    if (!relationRef.value) return;
-    if (!counterpoint && relationRef.value.brushList.length === 0) {
-        console.warn('没有选取通道');
-        return;
-    }
-    // 统一调用方法
-    relationRef.value.changeSomeChannel(counterpoint, isUp);
-};
+// // 调整通道值、对位
+// const changeCurrentIndexHeats = (counterpoint: boolean, isUp?: boolean) => {
+//     if (!relationRef.value) return;
+//     if (!counterpoint && relationRef.value.brushList.length === 0) {
+//         console.warn('没有选取通道');
+//         return;
+//     }
+//     // 统一调用方法
+//     relationRef.value.changeSomeChannel(counterpoint, isUp);
+// };
 
-// 取消
-const cancelChange = () => {
-  if (!relationRef.value) return;
-    relationRef.value.getChannelHandle()
-}
+// // 取消
+// const cancelChange = () => {
+//   if (!relationRef.value) return;
+//     relationRef.value.getChannelHandle()
+// }
 
-// 应用
-const applyHeats = async () => {
-  if (!relationRef.value) return;
-  await relationRef.value.setChannelHeats()
-  await relationRef.value.getChannelHandle()
-}
-// 获取最新通道值
-const getChannelHandle = async () => {
-  if (!relationRef.value) return;
-  relationRef.value.getChannelHandle()
-}
+// // 应用
+// const applyHeats = async () => {
+//   if (!relationRef.value) return;
+//   await relationRef.value.setChannelHeats()
+//   await relationRef.value.getChannelHandle()
+// }
+// // 获取最新通道值
+// const getChannelHandle = async () => {
+//   if (!relationRef.value) return;
+//   relationRef.value.getChannelHandle()
+// }
 
 </script>
 
 <template>
   <div class="control_main">
     <div class="state-charts">
-      <StateComponent />
+      <!-- <StateComponent /> -->
     </div>
     <div class="operate-charts">
       <CharsOperate :currentId="currentId" :isFreshData="isFreshData" :last-frame-id="lastFrameId" :lastFrameIndex="queryDataList.length"
@@ -77,8 +77,8 @@ const getChannelHandle = async () => {
       <el-card class="sigma_charts_content">
         <SigmaCharts :changeCurrentIndex="changeCurrentIndex" :currentIndex="currentIndex" :frameData="sigmaDataList"
           :currentId="currentId" 
-          :start-date="queryDataList[0]?.endTime"
-          :end-date="queryDataList[queryDataList.length - 1]?.endTime" />
+          :start-date="queryDataList[0]?.date"
+          :end-date="queryDataList[queryDataList.length - 1]?.date" />
       </el-card>
 
       <SigmaInfo :sigma-list="sigmaDataList" />
@@ -88,15 +88,11 @@ const getChannelHandle = async () => {
     </div>
     <div class="relation-charts">
       <el-card class="relation_content">
-        <RelationCharts ref="relationRef" :isFreshData="isFreshData" :frame-data="<number[]>currentFrame?.datalist"
-          :mean="currentFrame?.mean" :startDate="currentFrame?.startTime" :endDate="currentFrame?.endTime"
-          :currentId="currentFrame?.frameId" />
+        <RelationCharts ref="relationRef" :isFreshData="isFreshData" :frame-data="currentFrame?.dataList"
+           :startDate="currentFrame?.date" :endDate="currentFrame?.date"
+          :currentId="currentFrame?.id" />
       </el-card>
-      <Controller
-      :getNewChannel="getChannelHandle"
-      :current-id="currentId"
-      :cancelChange="cancelChange" :applyHeats="applyHeats"
-        :changeCurrentIndexHeats="changeCurrentIndexHeats" :changeAllHeats="changeHeats" />
+      <Controller />
     </div>
   </div>
 </template>

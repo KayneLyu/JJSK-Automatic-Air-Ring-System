@@ -61,7 +61,7 @@ export const showNotification = (titleKey: string, messageKey: string, type: 'su
  * @param item 
  * @returns xAxis 
  */
-export function rearrangeArray(arr: Array<number | string>, index: number) {
+export function rearrangeArray<T>(arr: Array<T>, index: number) {
     if (!arr || arr.length == 0) return []
     return [...arr.slice(index), ...arr.slice(0, index)];
 }

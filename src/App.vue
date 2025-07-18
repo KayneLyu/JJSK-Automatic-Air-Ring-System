@@ -33,6 +33,9 @@ const getAirRingData = async () => {
     const heatsData = await getKPEHeatsData()
     // 报警内容
     const warningData = await getWarningPage()
+
+    // const content = await getCalibration()
+    
     if (heatsData) {
       const airRingStatus = heatsData.p[1][1]
       const data = await getAutoStatus(airRingStatus.rotation.toFixed(2))
@@ -42,12 +45,15 @@ const getAirRingData = async () => {
     }
     if (warningData) {
       const errorList = formatKunErrors(warningData as string)
+      console.log('errorList', errorList);
       if (errorList.length) {
-        store.updateWarning(errorList)
+        store.warning = errorList
+      } else {
+        store.warning = []
       }
     }
   } catch (error) {
-    store.updateWarning(['0'])
+    store.warning = ['0']
   }
 }
 
@@ -55,7 +61,7 @@ const getAirRingData = async () => {
 const { start: startThickGauge, stop: stopThickGauge } = useTimeoutFn(() => {
   getThickData();
   startThickGauge()
-}, 100)
+}, 5000)
 
 const { start: start, stop: stopAirRing, } = useTimeoutFn(() => {
   getAirRingData();

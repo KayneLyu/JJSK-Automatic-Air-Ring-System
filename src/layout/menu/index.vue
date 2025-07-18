@@ -8,10 +8,7 @@ import VerticalIcon from '@/components/icons/Vertical.vue';
 import AlarmIcon from '@/components/icons/Alarm.vue';
 import ProductIcon from '@/components/icons/Product.vue';
 import UnfoldIcon from '@/components/icons/Unfold.vue';
-import logo from '../../../public/logo.png';
-import { useI18n } from 'vue-i18n';
-
-const { t } = useI18n();
+import logo from '@/logo.png';
 
 const menuItemList = [
     {
@@ -54,7 +51,6 @@ const menuItemList = [
 
 const route = useRoute();
 const isFold = ref(false)
-const isOpening = ref(false)
 
 const imageDom = useTemplateRef("imageDom")
 
@@ -63,22 +59,6 @@ const preventDefault = (e: MouseEvent) => {
     if (e.ctrlKey) {
         e.preventDefault();
     }
-}
-
-// 打开客户端
-const openClient = async () => {
-    try {
-        const result = await window.ipcRenderer.invoke("win-open-client")
-        isOpening.value = !result
-        ElNotification({
-            title: t("notification.info"),
-            type: 'warning',
-            message: h('p', { style: 'padding: 10px 5px;font-size: 15px;' }, `${!result ?  t("layout.starting"):  t("layout.isRunning")} `),
-            position: 'top-left',
-            duration: 3000,
-            offset: 20
-        })
-    } catch (error) {}
 }
 
 // 获取logo
@@ -98,7 +78,7 @@ onMounted(() => {
 <template>
     <div class="sidebar">
         <ul :style="{ width: isFold ? '190px' : '70px' }">
-            <li @click="openClient" class="logo">
+            <li class="logo">
                 <img ref="imageDom" alt="" />
             </li>
             <div class="menu-list">

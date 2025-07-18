@@ -12,17 +12,15 @@ const frameData = ref<IFrameThickData | null>(null)
 
 const getLastFrameData = async () => {
   try {
-    const result = await db.Frame.orderBy('endTime').reverse().first()
+    const result = await db.Frame.orderBy('date').reverse().first()
     if (result) {
-      let formatData = result.datalist.map((item, index) => {
-        const value = (((<number>item - result.mean) / result.mean) * 100).toFixed(1)
-        if (index === 119) {
-          const zeroValue = (((<number>result.datalist[0] - result.mean) / result.mean) * 100).toFixed(1)
-          return [Number(zeroValue), 0]
+      let formatData = result.dataList.map((item, index) => {
+        if (index === 359) {
+          return [result.dataList[0][1], 0]
         }
-        return [Number(value), index]
+        return [item[1], index]
       })
-      frameData.value = { ...result, datalist: formatData as Array<[number, number]>}
+      frameData.value = { ...result, dataList: formatData as Array<[number, number]>}
     }
   } catch (error) {
     console.error('loop error get data from dexie');
@@ -41,12 +39,10 @@ watch(() => frameStore.updateFrameId, (newVal) => {
 <template>
   <el-card class="container">
     <div class="charts_info">
-      <div><p>{{ $t("annular.circle") }}<span style="margin-left: 20px;">ID: {{ frameData && frameData.frameId }}</span></p></div>
-      <div><p v-if="frameData">{{ frameData.startTime }} ~ {{ dayjs(frameData.endTime).format("HH:mm:ss") }}</p></div>
-      
+      <div><p v-if="frameData">{{ dayjs(frameData.date).format("HH:mm:ss") }}</p></div>
     </div>
     <div class="charts_loop">
-      <LoopCharts :frame-data="<number[]>frameData?.datalist" :mean-value="frameData?.mean" />
+      <LoopCharts :frame-data="frameData?.dataList" />
     </div>
     <div style="height: 50px; line-height: 50px;">
       <FrameInfo :thickInfo="frameData" />

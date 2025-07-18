@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { useApiDataStore } from '@/store/polling-data';
 import { useConfigStore } from '@/store/config';
-import { setAutoHeats, getAirRingInfo } from '@/api';
+// import { setAutoHeats, getAirRingInfo } from '@/api';
 import { Aim, CloseBold, Select } from '@element-plus/icons-vue';
 import RobotIcon from "@/components/icons/Robot.vue";
 import HandleIcon from "@/components/icons/Handle.vue";
@@ -17,28 +17,28 @@ const configStore = useConfigStore()
 
 const activeName = ref('auto-mode')
 
-defineProps<{
-  currentId: number,
-  getNewChannel: () => void,
-  cancelChange: () => void,
-  applyHeats: () => void,
-  changeAllHeats: (isReset: boolean , isUp?: boolean) => void,
-  changeCurrentIndexHeats: (isUp: boolean, isCounter?: boolean) => void,
-}>()
+// defineProps<{
+//   currentId: number,
+//   getNewChannel: () => void,
+//   cancelChange: () => void,
+//   applyHeats: () => void,
+//   changeAllHeats: (isReset: boolean , isUp?: boolean) => void,
+//   changeCurrentIndexHeats: (isUp: boolean, isCounter?: boolean) => void,
+// }>()
 
-const toggleAutoMode = async () => {
-  try {
-    await setAutoHeats(!store.apiAirRingData.IsAuto)
-    const data = await getAirRingInfo();
-    if (data) {
-      store.updateAirRingData(data)
-      if(data.IsAuto) {
-        const beforeAutoID = store.apiThickData.LastScanDataId
-        configStore.beforeAutoID = beforeAutoID
-      }
-    }
-  } catch (error) {}
-}
+// const toggleAutoMode = async () => {
+//   try {
+//     await setAutoHeats(!store.apiAirRingData.IsAuto)
+//     const data = await getAirRingInfo();
+//     if (data) {
+//       store.updateAirRingData(data)
+//       if(data.IsAuto) {
+//         const beforeAutoID = store.apiThickData.LastScanDataId
+//         configStore.beforeAutoID = beforeAutoID
+//       }
+//     }
+//   } catch (error) {}
+// }
 
 </script>
 
@@ -56,6 +56,14 @@ const toggleAutoMode = async () => {
             </span>
           </template>
           <div class="status_container">
+            <div>
+              <p>测量:</p>
+              <div>
+                <img src="" alt="">
+              </div>
+            </div>
+          </div>
+          <!-- <div class="status_container">
             <div @click="toggleAutoMode" class="auto_status">
               <el-icon size="50"
                 :style="{ color: store.apiAirRingData.IsAuto ? '#34e53a' : '', filter: store.apiAirRingData.IsAuto ? 'drop-shadow(0 0 5px rgba(30, 217, 39, 0.617)' : '' }">
@@ -83,10 +91,10 @@ const toggleAutoMode = async () => {
               <p><el-button @click="changeAllHeats(true)" :disabled="store.apiAirRingData.IsAuto" type="success" :icon="ResetIcon"></el-button></p>
               <p>{{ $t("control.reset") }}</p>
             </div>
-          </div>
+          </div> -->
         </el-tab-pane>
 
-        <el-tab-pane :disabled="store.apiAirRingData.IsAuto" name="handel-mode">
+        <!-- <el-tab-pane :disabled="store.apiAirRingData.IsAuto" name="handel-mode">
           <template #label>
             <span class="custom-tabs-label">
               <el-icon size="18" style="margin-right: 5px;">
@@ -127,7 +135,7 @@ const toggleAutoMode = async () => {
               <p>{{ $t("control.apply") }}</p>
             </div>
           </div>
-        </el-tab-pane>
+        </el-tab-pane> -->
       </el-tabs>
     </div>
   </el-card>

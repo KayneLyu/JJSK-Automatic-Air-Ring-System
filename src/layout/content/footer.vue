@@ -14,7 +14,7 @@ const store = useApiDataStore();
         <div class="content_status">
             <div  class="status">
                 <span>{{ $t("layout.gauge")}}: </span>
-                <p v-if="store.VDPData.targetTmdState !== 'stopped' "><el-tag size="small"  type="success">{{ $t("layout.running")}}</el-tag></p>
+                <p v-if="store.VDPData.targetTmdState == 'measuring_TD' "><el-tag size="small"  type="success">{{ $t("layout.running")}}</el-tag></p>
                 <p v-else><el-tag size="small" type="danger">{{ $t("layout.stop")}}</el-tag> </p>
             </div>
 

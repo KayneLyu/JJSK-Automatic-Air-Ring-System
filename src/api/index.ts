@@ -99,14 +99,6 @@ export const getAutoStatus = (param:string) => {
 /**
  *  获取报警内容页面
  */
-
-// export const getWarningPage = () => {
-//     return formateResult(getRequest("http://127.168.15.100:8090/templates/diagn_t_flags.html",{
-//         Headers: {
-//             "Content-Type": "text/html; charset=UTF-8"
-//         }
-//     }))
-// }
 export const getWarningPage = () => {
     return formateResult(getRequest("http://127.168.15.100:8090/templates/diagn_t_flags.html"))
 }
@@ -122,3 +114,13 @@ export const setCalibration = (factor:number, targetThick:number) => {
         saveSV:'SAVE'
     }))
 }
+
+/**
+ *  获取放大倍数/校准系数 & 目标厚度
+ * @returns 
+ */
+export const getCalibration = () => {
+    return formateResult(getRequest("http://127.168.15.100:8090/templates/param_measurement.html"))
+}
+
+
