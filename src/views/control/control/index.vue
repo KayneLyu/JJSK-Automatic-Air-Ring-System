@@ -1,7 +1,6 @@
 <script setup lang='ts'>
 import { ref } from 'vue';
 import { useApiDataStore } from '@/store/polling-data';
-import { useConfigStore } from '@/store/config';
 import RobotIcon from "@/components/icons/Robot.vue";
 import { setVDPButtonStatus, setKPEButtonStatus } from '@/api';
 import { showNotification } from "@/utils/common";
@@ -29,12 +28,14 @@ const checkoutMeasure = async () => {
 
 const checkoutAutoMode = async () => {
   const param = store.KPEData.apcState == 'apcStateActive' ? 'Off' : 'On'
+  window.ipcRenderer.send("win-check-autoMode", param === "On")
   try {
     await setKPEButtonStatus({
       ajaxRequest: 'jsonObjectRpc',
       rpcFunction: 'webRpcControlButtons',
       jsonObject: `{"buttonName":"controlRadioButton","buttonState":"${param}"}`
     })
+
   } catch (error) {
     showNotification("Error", t('notification.failed'), "error")
   }

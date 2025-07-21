@@ -1,6 +1,10 @@
 // rendererCommunicator.ts
 import { BrowserWindow, app, ipcMain, IpcMainInvokeEvent, dialog } from 'electron';
 import fs from "fs";
+import { PLCConnector } from './PLCConnector';
+
+const plc = new PLCConnector()
+
 
 export function setupRendererCommunicator(win: BrowserWindow) {
   // 发送消息到渲染进程
@@ -47,6 +51,20 @@ export function setupRendererCommunicator(win: BrowserWindow) {
       } catch (error) {
       }
     }
+  })
+
+  // 自动模式切换
+  ipcMain.on("win-check-autoMode", (e, value: boolean) => {
+    plc.writeItems("DB7,X4.2", value, () => {
+      win.webContents.send("win-autoMode-change", true)
+     })
+  })
+
+  // 报警触发
+  ipcMain.on("win-alarm-trigger", () => {
+    plc.writeItems("DB7,X4.3", true, () => {
+      win.webContents.send("win-autoMode-change", true)
+     })
   })
 
   // 打开服务的界面软件

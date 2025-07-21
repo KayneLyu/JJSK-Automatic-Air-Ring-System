@@ -31,8 +31,7 @@ function useOperateChartsHooks() {
         queryDataList.value = result
         sigmaDataList.value = sigmaList
         meanDataList.value = meanList
-        const frameId = result[result.length - 1].id!
-        lastFrameId.value = frameId
+        lastFrameId.value = result[result.length - 1].id!
         currentIndex.value = result.length - 1        
     }
 
@@ -45,9 +44,9 @@ function useOperateChartsHooks() {
             if (pickDate) {
                 startDate = pickDate + ' 00:00:00'
                 endDate = pickDate + ' 23:59:59'
-                result = await db.Frame.where("endTime").between(startDate, endDate).limit(100).toArray()
+                result = await db.Frame.where("date").between(startDate, endDate).limit(100).toArray()
             } else {
-                result = (await db.Frame.orderBy('frameId').reverse().limit(100).toArray()).reverse()
+                result = (await db.Frame.orderBy('id').reverse().limit(100).toArray()).reverse()
             }
             if (result.length) {
                 refreshDataHandle(result)
@@ -75,7 +74,7 @@ function useOperateChartsHooks() {
             endId = lastFrameId.value + store.queryHours * 100
         }
         try {
-            const result = await db.Frame.where("frameId").between(startId, endId).toArray()
+            const result = await db.Frame.where("id").between(startId, endId).toArray()
             if (result.length) {
                 refreshDataHandle(result)
             } else {

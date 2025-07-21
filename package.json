@@ -17,6 +17,7 @@
     "echarts": "^5.5.1",
     "element-plus": "^2.8.8",
     "lru-cache": "^11.0.2",
+    "nodes7": "^0.3.18",
     "pinia": "^2.3.0",
     "pinia-plugin-persistedstate": "^4.2.0",
     "vue": "^3.4.21",
@@ -25,6 +26,7 @@
     "vue3-marquee": "^4.2.2"
   },
   "devDependencies": {
+    "@types/nodes7": "^0.3.4",
     "@vitejs/plugin-vue": "^5.0.4",
     "electron": "^30.0.1",
     "electron-builder": "^24.13.3",

@@ -1,10 +1,10 @@
 <script setup lang='ts'>
 import { ref, reactive, watch } from 'vue';
 import { ArrowDown, ArrowUp, Eleme } from '@element-plus/icons-vue'
-import { useApiDataStore } from '@/store/polling-data';
 import { useProduct } from "@/store/product";
 import { useFrameStore } from "@/store/frame";
-import { isValidNumber } from '@/utils';
+// import { isValidNumber } from '@/utils';
+import { setCalibration } from '@/api';
 import { db } from '@/utils/dexie';
 import { useI18n } from 'vue-i18n';
 
@@ -15,7 +15,6 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-const store = useApiDataStore()
 const productStore = useProduct()
 const frameStore = useFrameStore();
 const form = reactive({
@@ -46,18 +45,18 @@ const showCompute = ref(false)
 
 // 计算并设置放大倍数
 const computeScale = async () => {
-    if (!isValidNumber(store.apiThickData.K)) {
-        ElNotification({
-            title: t("notification.error"),
-            message: t("notification.invalidNumber"),
-            type: "error",
-            offset: 70
-        })
-        return
-    }
+    // if (!isValidNumber(store.apiThickData.K)) {
+    //     ElNotification({
+    //         title: t("notification.error"),
+    //         message: t("notification.invalidNumber"),
+    //         type: "error",
+    //         offset: 70
+    //     })
+    //     return
+    // }
     buttonLoading.value = true
     setTimeout(() => {
-        const newVal = (form.thick / form.displayValue) * store.apiThickData.K
+        const newVal = (form.thick / form.displayValue) * productStore.param.scale
         form.scale = Number(newVal.toFixed(3))
         buttonLoading.value = false
         ElNotification({
@@ -73,7 +72,7 @@ const computeScale = async () => {
 const onSubmit = async () => {
     buttonLoading.value = true
     try {
-        await magnification(form.scale)
+        await setCalibration(form.scale, form.thick)
         await db.product.put({ ...form })
         productStore.updateProduction(form)
         props.getProductList()
