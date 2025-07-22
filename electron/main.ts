@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { setupRendererCommunicator } from './rendererCommunicator';
 import fs from "fs";
+import { PLCConnector } from './PLCConnector';
 
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -17,6 +18,7 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 let win: BrowserWindow | null
+let intervalId: NodeJS.Timeout | null = null;
 
 function createWindow() {
   win = new BrowserWindow({
@@ -42,7 +44,15 @@ function createWindow() {
     // win.loadFile('dist/index.html')
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
-
+  // === PLC 初始化与定时写入逻辑 ===
+  const plc = PLCConnector.getInstance();
+  plc.connectIfNeeded().then(() => {
+    intervalId = setInterval(() => {
+      plc.writeItems('DB7,X4.0', true)
+    }, 10000)
+  }).catch(err => {
+    dialog.showErrorBox('PLC 初始化失败', "连接PLC失败请联系管理员")
+  })
 }
 // 防止重复点击软件
 const getLock = app.requestSingleInstanceLock()
@@ -67,6 +77,8 @@ app.on('will-finish-launching', () => {
 })
 
 app.on('before-quit', () => {
+  if (intervalId) clearInterval(intervalId)
+  PLCConnector.getInstance().disconnect()
   win?.removeAllListeners('close')
   globalShortcut.unregisterAll()
   win?.close()
@@ -77,6 +89,8 @@ app.on('before-quit', () => {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
+  if (intervalId) clearInterval(intervalId)
+  PLCConnector.getInstance().disconnect()
   if (process.platform !== 'darwin') {
     app.quit()
     win = null

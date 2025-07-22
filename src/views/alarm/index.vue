@@ -5,8 +5,6 @@ import {
     RefreshRight
 } from '@element-plus/icons-vue'
 import TableComponent from './table.vue';
-// import { clearThickWarningList, clearAirRingWarningList } from '@/api/index';
-import { showNotification } from '@/utils/common';
 import dayjs from 'dayjs';
 
 import { useI18n } from 'vue-i18n';
@@ -20,18 +18,11 @@ const disabledDate = (time: Date) => {
 }
 
 const resetAlert = async () => {
-    // try {
-    //     await clearThickWarningList()
-    //     await clearAirRingWarningList()
-    //     showNotification(t("notification.info"), t("notification.resetSuccess"), "success")
-    // } catch (error) {
-    //     showNotification(t("notification.info"), t("notification.resetError"), "error")
-    // }
+    window.ipcRenderer.send("win-alarm-trigger", false)
 }
 
-
 const trigAlarm = () => {
-    window.ipcRenderer.send("win-alarm-trigger")
+    window.ipcRenderer.send("win-alarm-trigger", true)
 }
 
 // 按日期查询
@@ -81,7 +72,7 @@ onMounted(() => {
         <div class="btn_container">
             <el-button size="large" :icon="RefreshRight" type="danger" @click="resetAlert">{{ t('alarm.reset')
             }}</el-button>
-            <el-button size="large" :icon="RefreshRight" type="danger" @click="trigAlarm">测试报警</el-button>
+            <el-button size="large" :icon="RefreshRight" type="warning" @click="trigAlarm">测试报警</el-button>
             <div class="search">
 
                 <el-date-picker v-model="datePick" :clearable="false" type="date" :disabled-date="disabledDate"

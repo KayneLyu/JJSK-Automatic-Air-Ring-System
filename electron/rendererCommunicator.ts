@@ -3,9 +3,6 @@ import { BrowserWindow, app, ipcMain, IpcMainInvokeEvent, dialog } from 'electro
 import fs from "fs";
 import { PLCConnector } from './PLCConnector';
 
-const plc = new PLCConnector()
-
-
 export function setupRendererCommunicator(win: BrowserWindow) {
   // 发送消息到渲染进程
   win.webContents.on('did-finish-load', () => {
@@ -54,17 +51,23 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   })
 
   // 自动模式切换
-  ipcMain.on("win-check-autoMode", (e, value: boolean) => {
-    plc.writeItems("DB7,X4.2", value, () => {
-      win.webContents.send("win-autoMode-change", true)
-     })
+  ipcMain.on("win-check-autoMode", async (e, value: boolean) => {
+    const plc = PLCConnector.getInstance();
+    try {
+      await plc.writeItems('DB7,X4.2', value);
+    } catch (error) {
+      dialog.showErrorBox('PLC Write Error', 'Write Address: DBX4.2')
+    }
   })
 
   // 报警触发
-  ipcMain.on("win-alarm-trigger", () => {
-    plc.writeItems("DB7,X4.3", true, () => {
-      win.webContents.send("win-autoMode-change", true)
-     })
+  ipcMain.on("win-alarm-trigger", async (e, value: boolean) => {
+    const plc = PLCConnector.getInstance();
+    try {
+      await plc.writeItems('DB7,X4.3', value);
+    } catch (error) {
+      dialog.showErrorBox('PLC Write Error', 'Write Address: DBX4.3')
+    }
   })
 
   // 打开服务的界面软件

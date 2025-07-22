@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-import { ipcMain, app, globalShortcut, BrowserWindow } from "electron";
+import { ipcMain, app, dialog, globalShortcut, BrowserWindow } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "fs";
@@ -2262,19 +2262,23 @@ function outputLog(txt, debugLevel, id) {
   }
 }
 const S7Client = /* @__PURE__ */ getDefaultExportFromCjs(nodeS7);
-class PLCConnector {
-  constructor(ip = "192.168.2.10", port = 102, idleTimeout = 5e3) {
+const _PLCConnector = class _PLCConnector {
+  constructor(ip = "192.168.2.10", port = 102) {
     __publicField(this, "client");
     __publicField(this, "isConnected", false);
-    __publicField(this, "disconnectTimer", null);
     this.ip = ip;
     this.port = port;
-    this.idleTimeout = idleTimeout;
     this.client = new S7Client();
+  }
+  // 单例访问入口
+  static getInstance() {
+    if (!_PLCConnector.instance) {
+      _PLCConnector.instance = new _PLCConnector();
+    }
+    return _PLCConnector.instance;
   }
   async connectIfNeeded() {
     if (this.isConnected) {
-      this.resetIdleTimer();
       return;
     }
     return new Promise((resolve, reject) => {
@@ -2283,8 +2287,6 @@ class PLCConnector {
         (err) => {
           if (err) return reject(new Error("PLC 连接失败: " + err.message));
           this.isConnected = true;
-          console.log("[PLC] Connected");
-          this.resetIdleTimer();
           resolve();
         }
       );
@@ -2294,19 +2296,23 @@ class PLCConnector {
     this.client.setTranslationCB((tag) => tag);
     this.client.addItems(Object.keys(defs));
   }
-  async readAll() {
+  // async readAll(): Promise<Record<string, any>> {
+  //   await this.connectIfNeeded();
+  //   return new Promise((resolve, reject) => {
+  //     this.client.readAllItems((err, values) => {
+  //       if (err) return reject(new Error('PLC 读取失败: ' + err));
+  //       resolve(values);
+  //     });
+  //   });
+  // }
+  async writeItems(address, value) {
     await this.connectIfNeeded();
     return new Promise((resolve, reject) => {
-      this.client.readAllItems((err, values) => {
-        if (err) return reject(new Error("PLC 读取失败: " + err));
-        this.resetIdleTimer();
-        resolve(values);
+      this.client.writeItems(address, value, (err) => {
+        if (err) return reject(new Error("PLC 写入失败"));
+        resolve();
       });
     });
-  }
-  async writeItems(address, value, callback) {
-    await this.connectIfNeeded();
-    this.client.writeItems(address, value, callback);
   }
   disconnect() {
     if (this.isConnected) {
@@ -2316,12 +2322,9 @@ class PLCConnector {
       this.isConnected = false;
     }
   }
-  resetIdleTimer() {
-    if (this.disconnectTimer) clearTimeout(this.disconnectTimer);
-    this.disconnectTimer = setTimeout(() => this.disconnect(), this.idleTimeout);
-  }
-}
-const plc = new PLCConnector();
+};
+__publicField(_PLCConnector, "instance");
+let PLCConnector = _PLCConnector;
 function setupRendererCommunicator(win2) {
   win2.webContents.on("did-finish-load", () => {
     win2.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
@@ -2357,15 +2360,21 @@ function setupRendererCommunicator(win2) {
       }
     }
   });
-  ipcMain.on("win-check-autoMode", (e, value) => {
-    plc.writeItems("DB7,X4.2", value, () => {
-      win2.webContents.send("win-autoMode-change", true);
-    });
+  ipcMain.on("win-check-autoMode", async (e, value) => {
+    const plc = PLCConnector.getInstance();
+    try {
+      await plc.writeItems("DB7,X4.2", value);
+    } catch (error) {
+      dialog.showErrorBox("PLC Write Error", "Write Address: DBX4.2");
+    }
   });
-  ipcMain.on("win-alarm-trigger", () => {
-    plc.writeItems("DB7,X4.3", true, () => {
-      win2.webContents.send("win-autoMode-change", true);
-    });
+  ipcMain.on("win-alarm-trigger", async (e, value) => {
+    const plc = PLCConnector.getInstance();
+    try {
+      await plc.writeItems("DB7,X4.3", value);
+    } catch (error) {
+      dialog.showErrorBox("PLC Write Error", "Write Address: DBX4.3");
+    }
   });
 }
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -2375,6 +2384,7 @@ const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
 const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
 let win;
+let intervalId = null;
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
@@ -2396,6 +2406,14 @@ function createWindow() {
   } else {
     win.loadFile(path.join(RENDERER_DIST, "index.html"));
   }
+  const plc = PLCConnector.getInstance();
+  plc.connectIfNeeded().then(() => {
+    intervalId = setInterval(() => {
+      plc.writeItems("DB7,X4.0", true);
+    }, 1e4);
+  }).catch((err) => {
+    dialog.showErrorBox("PLC 初始化失败", "连接PLC失败请联系管理员");
+  });
 }
 const getLock = app.requestSingleInstanceLock();
 if (!getLock) {
@@ -2415,11 +2433,15 @@ app.on("will-finish-launching", () => {
   app.setPath("appData", "D:/JJSK_Data");
 });
 app.on("before-quit", () => {
+  if (intervalId) clearInterval(intervalId);
+  PLCConnector.getInstance().disconnect();
   win == null ? void 0 : win.removeAllListeners("close");
   globalShortcut.unregisterAll();
   win == null ? void 0 : win.close();
 });
 app.on("window-all-closed", () => {
+  if (intervalId) clearInterval(intervalId);
+  PLCConnector.getInstance().disconnect();
   if (process.platform !== "darwin") {
     app.quit();
     win = null;

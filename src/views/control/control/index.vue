@@ -28,7 +28,7 @@ const checkoutMeasure = async () => {
 
 const checkoutAutoMode = async () => {
   const param = store.KPEData.apcState == 'apcStateActive' ? 'Off' : 'On'
-  window.ipcRenderer.send("win-check-autoMode", param === "On")
+  window.ipcRenderer.send("win-check-autoMode", true)
   try {
     await setKPEButtonStatus({
       ajaxRequest: 'jsonObjectRpc',
@@ -42,6 +42,7 @@ const checkoutAutoMode = async () => {
 }
 
 const checkoutHoldMode = async () => {
+  window.ipcRenderer.send("win-check-autoMode", false)
   const param = store.KPEData.apcState == 'apcStateHold' ? 'Off' : 'Hold'
   try {
     await setKPEButtonStatus({

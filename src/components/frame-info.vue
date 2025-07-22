@@ -1,8 +1,4 @@
 <script setup lang='ts'>
-import { useConfigStore } from '@/store/config';
-
-const store = useConfigStore()
-
 defineProps<{
     thickInfo: IFrameThickData | null,
     isColumn?: boolean
@@ -12,29 +8,29 @@ defineProps<{
 <template>
     <el-card class="card_content">
         <div :class="isColumn ? 'thick_column' : ''" class="thick-info">
-            <p>{{ $t("horizon.mean")}}: <span>{{ thickInfo?.mean }}</span> μm 
-                <b>{{ thickInfo?.IsBackw ? $t("horizon.reverse") : $t("horizon.forward") }}</b>
+            <p>{{ $t("horizon.mean")}}: <span>{{ thickInfo?.meanValue }}</span> μm 
+                <b>{{ thickInfo?.rotation == "CCW" ? $t("horizon.reverse") : $t("horizon.forward") }}</b>
             </p>
             <p>
-                2σ: <span>{{ thickInfo?.sigmaVal }} <i>μm</i></span>
+                2σ: <span>{{ thickInfo?.sigma }} <i>μm</i></span>
                 <span class="more_info">{{ thickInfo?.sigmaPercent.toFixed(1) }}<i>%</i></span>
             </p>
 
             <p >
-                {{$t("horizon.max")}}: <span>{{ thickInfo?.maxVal }} <i>μm</i></span>
+                {{$t("horizon.max")}}: <span>{{ thickInfo?.max }} <i>μm</i></span>
                 <span class="more_info">{{ thickInfo?.maxPercent.toFixed(1) }}<i>%</i></span>
             </p>
 
 
             <p>
-                {{ $t("horizon.min")}}: <span>{{ thickInfo?.minVal }} <i>μm</i> </span>
+                {{ $t("horizon.min")}}: <span>{{ thickInfo?.min }} <i>μm</i> </span>
                 <span class="more_info">{{ thickInfo?.minPercent.toFixed(1) }}<i>%</i></span>
             </p>
 
-            <p>
+            <!-- <p>
                 {{$t("horizon.speed")}}:
                 <span>{{ thickInfo?.speed }} <i>m/min</i></span>
-            </p>
+            </p> -->
 
             <p>
                 {{ $t("horizon.filmWidth") }}: <span>{{ thickInfo?.width }} <i>mm</i></span>
