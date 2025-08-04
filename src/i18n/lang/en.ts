@@ -106,7 +106,9 @@ export default {
       confirmCompute: "Confirm calculation?",
       confirmQuite: "Confirm exit?",
       initError: "Error initializing chart!",
-      save: "save"
+      save: "save",
+      resetSuccess: "Alarm reset successfully",
+      resetError: "Alarm reset failed"
     },
     alarm: {
       reset: "Reset Alarm",

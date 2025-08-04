@@ -106,7 +106,9 @@ export default {
         confirmCompute: "Xác nhận tính toán ?",
         confirmQuite: "Xác nhận thoát ứng dụng ?",
         initError: "Lỗi khởi tạo đồ thị !",
-        save: "Lưu"
+        save: "Lưu",
+        resetSuccess: "Đã khôi phục báo động",
+        resetError: "Khôi phục báo động thất bại"
     },
     alarm: {
         reset: "Cài lại cảnh báo",

@@ -106,7 +106,9 @@ export default {
         confirmCompute: "确认计算？",
         confirmQuite: "确认退出应用 ？",
         initError:"初始化图表时出错!",
-        save: "保存"
+        save: "保存",
+        resetSuccess: "告警已复位",
+        resetError: "告警复位出错"
     },
     alarm: {
         reset: "告警复位",
