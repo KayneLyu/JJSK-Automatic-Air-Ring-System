@@ -2412,7 +2412,7 @@ function createWindow() {
       plc.writeItems("DB7,X4.0", true);
     }, 1e4);
   }).catch((err) => {
-    dialog.showErrorBox("PLC 初始化失败", "连接PLC失败请联系管理员");
+    dialog.showErrorBox("PLC Initialization failed.", "连接PLC失败请联系管理员");
   });
 }
 const getLock = app.requestSingleInstanceLock();

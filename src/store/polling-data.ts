@@ -11,7 +11,8 @@ type IVDPPollingData = {
 type IPollingData = {
     VDPData: IVDPPollingData,
     KPEData: IAirRingData,
-    warning: string[]
+    warning: string[],
+    isOverFlow: boolean
 }
 
 export const useApiDataStore = defineStore('apiThickData', {
@@ -32,7 +33,8 @@ export const useApiDataStore = defineStore('apiThickData', {
                 rotation: 0,
                 apcState: "apcStateStopped"
             },
-            warning: []
+            warning: [],
+            isOverFlow: false
         }
     },
     

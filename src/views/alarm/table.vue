@@ -37,7 +37,7 @@ defineExpose({
 <template>
     <el-table class="table_container" size="large" :row-style="{ backgroundColor: 'transparent' }"
         :header-cell-style="{ backgroundColor: 'transparent' }" :header-row-style="{ backgroundColor: 'transparent' }"
-        highlight-current-row :data="tableData" height="760" style="width: 99%">
+        highlight-current-row :data="tableData" height="700" style="width: 99%">
         <el-table-column prop="id" label="ID" width="90" />
 
         <el-table-column prop="date" :label="t('alarm.time')" width="250">

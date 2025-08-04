@@ -6,8 +6,12 @@ import {
 } from '@element-plus/icons-vue'
 import TableComponent from './table.vue';
 import dayjs from 'dayjs';
+import { useApiDataStore } from '@/store/polling-data';
 
 import { useI18n } from 'vue-i18n';
+
+const store = useApiDataStore()
+
 const { t } = useI18n();
 
 const tableChild = ref<InstanceType<typeof TableComponent> | null>(null)
@@ -18,6 +22,7 @@ const disabledDate = (time: Date) => {
 }
 
 const resetAlert = async () => {
+    store.isOverFlow = false
     window.ipcRenderer.send("win-alarm-trigger", false)
 }
 

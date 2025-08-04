@@ -80,7 +80,8 @@ export default {
         actual: "Giá trị thực",
         display: "Giá trị hiển thị",
         setting: "Tính toán",
-        target: "Giá trị mục tiêu"
+        target: "Giá trị mục tiêu",
+        trig: "Báo động vượt quá dung sai"
     },
     annular: {
         circle: "Biểu đồ vòng"
@@ -151,6 +152,35 @@ export default {
         sigmaMean: "TB 2σ",
         max: "Max",
         min: "Min"
+    },
+    alarmKun: {
+        "0": "Lỗi giao tiếp với VDP/KPE, vui lòng liên hệ nhà sản xuất",
+        "1-1-1": "Lọc sai số đo",
+        "1-1-2": "Tần số đo sai",
+        "1-1-5": "Sử dụng tham số mặc định",
+        "1-1-11": "Hao mòn tiếp xúc màng dụng cụ đo độ dày",
+        "1-1-12": "Giới hạn sau của cảm biến dịch chuyển thiết bị đo",
+        "1-1-13": "Sai số nhiệt độ thiết bị",
+        "1-1-15": "Không có giao tiếp với đầu đo",
+        "1-1-16": "Không thể giao tiếp với nút mạng LAN bộ điều khiển thiết bị",
+        "2-1-1": "Quá thời gian phát hiện công tắc giới hạn sau",
+        "2-1-2": "Khoảng cách về zero quá ngắn",
+        "2-1-3": "Phát hiện sai lệch lớn về vị trí đai ốc trục chính",
+        "2-1-4": "Công tắc giới hạn mở hoàn toàn gây co lại",
+        "2-1-5": "Bong bóng biến mất gây co lại",
+        "2-1-6": "Quá thời gian chờ watchdog giao tiếp gây lùi lại",
+        "2-1-8": "Lỗi cảm biến siêu âm",
+        "2-1-16": "Không có giao tiếp với nút mạng LAN bộ điều khiển di chuyển theo bán kính",
+        "3-1-1": "Thời gian quay quá ngắn",
+        "3-1-2": "Thời gian quay quá dài",
+        "3-1-3": "Quá thời gian phát hiện vị trí zero",
+        "3-1-4": "Không thể rời khỏi vị trí zero",
+        "3-1-5": "Phát hiện sai lệch lớn về vị trí quay",
+        "3-1-6": "Quá thời gian watchdog giao tiếp khiến dừng quay",
+        "3-1-7": "Dừng quay thông qua tín hiệu phần cứng bên ngoài",
+        "3-1-8": "Phát hiện công tắc giới hạn bất ngờ trong quá trình quay",
+        "3-1-9": "Cả hai công tắc giới hạn đều được kích hoạt hoặc không kết nối",
+        "3-1-16": "Không có giao tiếp với nút mạng LAN bộ điều khiển quay"
     }
 }
 

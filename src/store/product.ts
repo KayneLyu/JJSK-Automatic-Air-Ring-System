@@ -13,6 +13,7 @@ export const useProduct = defineStore('production', {
                 thick: 60,
                 tolerance: 5,
                 scale: 1,
+                trigAlert: true
             }
         }
     },

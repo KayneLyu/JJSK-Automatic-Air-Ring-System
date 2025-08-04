@@ -80,7 +80,8 @@ export default {
         actual: "真实值",
         display: "显示值",
         setting: "计算",
-        target: "目标值"
+        target: "目标值",
+        trig: "超出公差报警",
     },
     annular: {
         circle: "环形图"

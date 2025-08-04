@@ -41,7 +41,8 @@ interface IProductData {
     roll: number,
     tolerance: number,
     thick: number,
-    scale: number
+    scale: number,
+    trigAlert: boolean
 }
 
 type ILanguageType = 'zhCn' | 'en' | 'vi'

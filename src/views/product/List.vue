@@ -11,7 +11,7 @@ defineProps<{
 
 <template>
     <div class="items_list">
-        <el-scrollbar height="780px" noresize>
+        <el-scrollbar height="750px" noresize>
             <div v-for="(item, index) in productList" :key="index" class="scrollbar-item"
                 :class="{ 'scrollbar-item-active': item.productName === activeName }" @click="chooseProcess(item.productName)">
                 <p>
@@ -32,7 +32,6 @@ defineProps<{
 .items_list {
     width: 300px;
     height: 100%;
-
     .scrollbar-item {
         display: flex;
         justify-content: flex-start;

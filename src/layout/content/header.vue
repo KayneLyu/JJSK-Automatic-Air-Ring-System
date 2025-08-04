@@ -62,6 +62,7 @@ watch(() => pollingStore.warning.length, (value) => {
   }
 )
 
+
 </script>
 
 <template>
@@ -73,12 +74,12 @@ watch(() => pollingStore.warning.length, (value) => {
     <div class="target_value">
       <div class="target_content">
         <p class="target_tittle">{{ t('product.target') }} : </p>
-        <!-- <el-input-number v-on:blur="changeThick" class="target_input" :controls="false" v-model="targetThick" /> -->
+        <p style="margin-left: 5px;">{{ targetThick }}</p>
         <span>μm</span>
       </div>
       <div class="target_content">
         <p class="target_tittle">{{ t('product.scale') }} : </p>
-        <!-- <p>{{ pollingStore.apiThickData.K.toFixed(3) }}</p> -->
+        <p>{{ store.param.scale.toFixed(3) }}</p>
       </div>
     </div>
     <div class="update_roll">

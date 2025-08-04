@@ -24,7 +24,8 @@ const form = reactive({
     thick: productStore.param.thick,
     displayValue: frameStore.meanValue,
     tolerance: 5,
-    scale: 1
+    scale: 1,
+    trigAlert: true
 });
 
 watch(() => props.process, async (newVal) => {
@@ -32,7 +33,7 @@ watch(() => props.process, async (newVal) => {
         Object.assign(form, {
             ...newVal,
             displayValue: frameStore.meanValue
-        });
+        })
     }
 },
     {
@@ -112,6 +113,9 @@ const onSubmit = async () => {
         </el-form-item>
         <el-form-item :label="$t('product.tolerance')">
             <el-input-number v-model="form.tolerance" :min="1" :max="50" :precision="0" />
+        </el-form-item>
+        <el-form-item :label="$t('product.trig')">
+            <el-switch v-model="form.trigAlert" size="large"  />
         </el-form-item>
         <el-form-item :label="$t('product.scale')">
             <el-input-number class="scale" v-model="form.scale" :step="0.1" :max="50" :precision="3" />

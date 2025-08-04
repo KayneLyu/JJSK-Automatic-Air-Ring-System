@@ -2,6 +2,7 @@
 import { watch } from 'vue';
 import { useApiDataStore } from '@/store/polling-data';
 import { useFrameStore } from '@/store/frame';
+import { useProduct } from '@/store/product';
 import { db } from "@/utils/dexie";
 import { getVDPBaseData, getVDPProcess, getKPEThickData } from '@/api';
 import { formateKunFrame } from "@/utils/format-data";
@@ -12,6 +13,7 @@ import ContentComponent from './content/index.vue';
 
 const store = useApiDataStore();
 const frameStore = useFrameStore();
+const productStore = useProduct();
 
 watch(() => store.VDPData.time, async () => {
     if (store.VDPData.targetTmdState !== "measuring_TD") return
@@ -41,6 +43,10 @@ watch(() => store.VDPData.time, async () => {
                 rotation: takeOffRotation,
                 sigma,
                 sigmaPercent,
+            }
+            // 超出公差
+            if (sigmaPercent > productStore.param.tolerance) {
+                store.isOverFlow = true
             }
             if (endTime == frameStore.updateTime) return
             const id = await db.Frame.add(frameData)

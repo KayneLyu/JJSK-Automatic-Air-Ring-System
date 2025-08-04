@@ -2,9 +2,11 @@
 import Header from './header.vue';
 import Footer from './footer.vue';
 import { useApiDataStore } from '@/store/polling-data';
+import { useProduct } from '@/store/product';
 import PositionIcon from '@/components/icons/Position.vue';
 
 const store = useApiDataStore();
+const productStore = useProduct();
 
 </script>
 
@@ -13,18 +15,23 @@ const store = useApiDataStore();
         <div class="layout_header">
             <Header />
             <div class="progress">
-                <el-progress :text-inside="true" :show-text="false" :duration="30" striped-flow :percentage="50"
+                <el-progress :text-inside="true" :show-text="false" :duration="30" striped-flow :percentage="store.VDPData.position/360"
                     :stroke-width="20" :striped="store.VDPData.targetTmdState == 'measuring_TD'">
                     <span>
                         <el-icon>
                             <PositionIcon />
                         </el-icon>
-                        22 um / 
+                        {{ store.VDPData.actualVal }} um /
                         {{ store.VDPData.position }} °
                     </span>
                 </el-progress>
             </div>
+            <!-- 警告信息 -->
+            <div v-show="productStore.param.trigAlert && store.isOverFlow">
+                <el-alert :closable="false" center class="alert" show-icon :title="$t('product.trig')" type="error" effect="dark" />
+            </div>
         </div>
+
         <div class="layout_views">
             <router-view v-slot="{ Component }">
                 <transition name="fade" mode="out-in">
@@ -32,6 +39,7 @@ const store = useApiDataStore();
                 </transition>
             </router-view>
         </div>
+
         <div class="layout_footer">
             <Footer />
         </div>
@@ -61,6 +69,8 @@ const store = useApiDataStore();
 .fade-leave-to {
     opacity: 0;
 }
-
-
+.alert {
+    margin-top: 5px;
+    height: 32px;
+}
 </style>
