@@ -3,7 +3,6 @@ import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router';
 import { Vue3Marquee } from 'vue3-marquee'
 import { useProduct } from "@/store/product";
-import { useFrameStore } from '@/store/frame';
 import { useApiDataStore } from "@/store/polling-data";
 import { compareArrays } from "@/utils/index";
 import { db } from '@/utils/dexie';
@@ -54,6 +53,7 @@ watch(() => pollingStore.warning.length, (value) => {
       }
     })
     saveAlarmHandle(addAlarmList)
+    window.ipcRenderer.send("win-alarm-trigger", true)
   }
   warningList.value = [...errorList]
 },
@@ -86,7 +86,6 @@ watch(() => pollingStore.warning.length, (value) => {
         <p>{{ `${useDateFormat(frameStore.lastFrame.StartTime, dateType).value} ~
           ${useDateFormat(frameStore.lastFrame.EndTime, dateType).value}` }}</p>
       </div> -->
-
     </div>
 
     <div @click="router.push('/alarm')" v-if="warningList.length" class="marquee_container">
