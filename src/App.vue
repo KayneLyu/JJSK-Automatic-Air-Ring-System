@@ -45,7 +45,6 @@ const getAirRingData = async () => {
     }
     if (warningData) {
       const errorList = formatKunErrors(warningData as string)
-      console.log('errorList', errorList);
       if (errorList.length) {
         store.warning = errorList
       } else {
