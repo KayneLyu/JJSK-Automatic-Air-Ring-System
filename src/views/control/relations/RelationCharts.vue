@@ -620,8 +620,6 @@ watch(() => frameStore.hasBadChannels, async (newData) => {
     }
 )
 
-
-
 onMounted(() => {
     selectBrush()
 })

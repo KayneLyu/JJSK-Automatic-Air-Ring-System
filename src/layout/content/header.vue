@@ -69,6 +69,8 @@ watch([() => pollingStore.apiThickData.ErrCode, () => pollingStore.apiAirRingDat
 
   if (errCodeList.includes('warning2.1')) {
     frameStore.hasBadChannels = true
+  } else {
+    frameStore.hasBadChannels = false
   }
   warningList.value = [...errCodeList]
 },
