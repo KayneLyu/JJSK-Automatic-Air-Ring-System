@@ -44,8 +44,8 @@ const trendInfo = ref({
           :sigma-data="sigmaDataList" 
           :frameData="meanDataList" 
           :handleCurrent="changeCurrentIndex" 
-          :start-date="queryDataList[0]?.endTime"
-          :end-date="queryDataList[queryDataList.length - 1]?.endTime"
+          :start-date="queryDataList[0]?.date"
+          :end-date="queryDataList[queryDataList.length - 1]?.date"
           />
       </el-card>
     </div>
@@ -56,11 +56,10 @@ const trendInfo = ref({
       </div>
       <el-card class="charts_container">
         <FrameCharts 
-          :currentId="currentFrame?.frameId"
-          :startDate="currentFrame?.startTime"
-          :endDate="currentFrame?.endTime"
-          :frameData="<number[]>currentFrame?.datalist"
-          :mean="currentFrame?.mean"
+          :currentId="currentFrame?.id"
+          :endDate="currentFrame?.date"
+          :frameData="currentFrame?.dataList"
+          :mean="currentFrame?.meanValue"
         />
       </el-card>
     </div>

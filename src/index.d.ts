@@ -25,7 +25,7 @@ interface IWarningList {
 }
 
 interface IHeats {
-    time: string,
+    frameId: number,
     heats: [number, number][]
 }
 

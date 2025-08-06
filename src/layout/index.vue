@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { watch } from 'vue';
+import { watch, toRaw } from 'vue';
 import { useApiDataStore } from '@/store/polling-data';
 import { useFrameStore } from '@/store/frame';
 import { useProduct } from '@/store/product';
@@ -50,13 +50,15 @@ watch(() => store.VDPData.time, async () => {
             }
             if (endTime == frameStore.updateTime) return
             const id = await db.Frame.add(frameData)
-            await db.Heats.put({
-                time: endTime,
-                heats: store.KPEData.data
-            })
             frameStore.updateFrameId = id
             frameStore.meanValue = meanVal
             frameStore.updateTime = endTime
+            const heatsData = toRaw(store.KPEData.data)
+            console.log('heatsData:', heatsData,  store.KPEData);
+            await db.Heats.put({
+                frameId: id,
+                heats: heatsData
+            })
         }
     } catch (error) {
         console.log('Home get Frame-Data error =====>' + error);

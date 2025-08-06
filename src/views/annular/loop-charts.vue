@@ -72,7 +72,7 @@ let option: ECOption = {
             min: 0,
             max: 360,
             // data: resetOrderDeg(30),
-            startAngle: 0,
+            startAngle: -90,
             axisLabel: {
                 align: "center",
                 interval: 9,

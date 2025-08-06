@@ -1,6 +1,6 @@
 export default {
     layout: {
-        title: "Hệ thống vòng gió tự động máy đo độ dày quét phẳng",
+        title: "Máy đo độ dày quét vòng Hệ thống vòng gió tự động Phần mềm khách",
         full: "Chuyển chế độ toàn màn hình",
         percent: "Phần trăm",
         value: "Giá trị cụ thể",
@@ -81,7 +81,9 @@ export default {
         display: "Giá trị hiển thị",
         setting: "Tính toán",
         target: "Giá trị mục tiêu",
-        trig: "Báo động vượt quá dung sai"
+        trig: "Báo động vượt quá dung sai",
+        position: "Vị trí đo",
+        thickness: "Độ dày theo thời gian thực"
     },
     annular: {
         circle: "Biểu đồ vòng"

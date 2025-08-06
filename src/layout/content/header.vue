@@ -74,7 +74,7 @@ watch(() => pollingStore.warning.length, (value) => {
     <div class="target_value">
       <div class="target_content">
         <p class="target_tittle">{{ t('product.target') }} : </p>
-        <p style="margin-left: 5px;">{{ targetThick }}</p>
+        <p style="margin-left: 5px;">{{ targetThick.toFixed(1) }} </p>
         <span>μm</span>
       </div>
       <div class="target_content">
@@ -82,12 +82,25 @@ watch(() => pollingStore.warning.length, (value) => {
         <p>{{ store.param.scale.toFixed(3) }}</p>
       </div>
     </div>
-    <div class="update_roll">
-      <!-- <div class="update_roll_content">
+
+    <div class="target_value position">
+      <div class="target_content">
+        <p class="target_tittle">{{ t('product.thickness') }} : </p>
+        <p style="margin-left: 5px;">{{ pollingStore.VDPData.actualVal }}</p>
+        <span>μm</span>
+      </div>
+      <div class="target_content">
+        <p class="target_tittle">{{ t('product.position') }} : </p>
+        <p>{{ pollingStore.VDPData.position }} °</p>
+      </div>
+    </div>
+
+    <!-- <div class="update_roll">
+      <div class="update_roll_content">
         <p>{{ `${useDateFormat(frameStore.lastFrame.StartTime, dateType).value} ~
           ${useDateFormat(frameStore.lastFrame.EndTime, dateType).value}` }}</p>
-      </div> -->
-    </div>
+      </div>
+    </div> -->
 
     <div @click="router.push('/alarm')" v-if="warningList.length" class="marquee_container">
       <div style="margin:0 10px;">
@@ -153,12 +166,12 @@ watch(() => pollingStore.warning.length, (value) => {
   flex-direction: column;
   justify-content: center;
   height: 100%;
-
+  margin-right: 20px;
   .target_content {
     display: flex;
 
     .target_tittle {
-      width: 150px;
+      min-width: 160px;
       text-align: right;
     }
 

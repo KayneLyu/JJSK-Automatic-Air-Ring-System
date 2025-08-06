@@ -1,6 +1,6 @@
 export default {
     layout: {
-        title: "平扫测厚仪自动风环系统客户端",
+        title: "环扫测厚仪自动风环系统客户端",
         full: "全屏模式切换",
         percent: "百分比",
         value: "具体值",
@@ -82,6 +82,8 @@ export default {
         setting: "计算",
         target: "目标值",
         trig: "超出公差报警",
+        position:"测量位置",
+        thickness: "实时厚度"
     },
     annular: {
         circle: "环形图"

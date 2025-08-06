@@ -12,15 +12,14 @@ defineProps<{
                 <b>{{ thickInfo?.rotation == "CCW" ? $t("horizon.reverse") : $t("horizon.forward") }}</b>
             </p>
             <p>
-                2σ: <span>{{ thickInfo?.sigma }} <i>μm</i></span>
-                <span class="more_info">{{ thickInfo?.sigmaPercent.toFixed(1) }}<i>%</i></span>
+                2σ: <span>{{ thickInfo?.sigma.toFixed(1) }} <i>μm</i></span>
+                <span class="more_info">{{ thickInfo?.sigmaPercent }}<i>%</i></span>
             </p>
 
             <p >
                 {{$t("horizon.max")}}: <span>{{ thickInfo?.max }} <i>μm</i></span>
                 <span class="more_info">{{ thickInfo?.maxPercent.toFixed(1) }}<i>%</i></span>
             </p>
-
 
             <p>
                 {{ $t("horizon.min")}}: <span>{{ thickInfo?.min }} <i>μm</i> </span>

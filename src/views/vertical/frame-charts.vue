@@ -16,8 +16,7 @@ import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts';
 import { useProduct } from '@/store/product';
-import { useConfigStore } from '@/store/config';
-import { formateList } from '@/utils/ChartsData';
+
 import dayjs from "dayjs";
 
 type ECOption = echarts.ComposeOption<
@@ -37,12 +36,12 @@ echarts.use([
     MarkLineComponent
 ]);
 const store = useProduct();
-const configStore = useConfigStore();
+// const configStore = useConfigStore();
 
 const props = defineProps({
     frameData: {
         default: () => [],
-        type: Array<Number>,
+        type: Array<[number, number]>,
     },
     mean: {
         default: 0,
@@ -174,11 +173,10 @@ const { updateCharts } = useChartsInit('chartContainer', option)
 
 watch(() => props.frameData, (newValue) => {
     if (!newValue || newValue.length === 0) return
-    const data = formateList(<number[]>newValue, props.mean)
     updateCharts({
         series: [
             {},
-            { data: data },
+            { data: newValue },
         ]
     })
 },

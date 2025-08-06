@@ -15,14 +15,14 @@ const productStore = useProduct();
         <div class="layout_header">
             <Header />
             <div class="progress">
-                <el-progress :text-inside="true" :show-text="false" :duration="30" striped-flow :percentage="store.VDPData.position/360"
+                <el-progress :text-inside="true" :show-text="false" :duration="30" striped-flow :percentage="store.VDPData.position/360 * 100"
                     :stroke-width="20" :striped="store.VDPData.targetTmdState == 'measuring_TD'">
                     <span>
                         <el-icon>
                             <PositionIcon />
                         </el-icon>
-                        {{ store.VDPData.actualVal }} um /
-                        {{ store.VDPData.position }} °
+                        {{ store.VDPData.position }} ° /
+                        {{ store.VDPData.actualVal }} um 
                     </span>
                 </el-progress>
             </div>

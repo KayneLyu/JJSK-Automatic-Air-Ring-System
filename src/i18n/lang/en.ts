@@ -1,6 +1,6 @@
 export default {
   layout: {
-    title: "Automatic Air Ring System of X-Ray Thickness Scanner",
+    title: "Circumferential Scanning Thickness Gauge Automatic Air Ring System Client",
     full: "Toggle Fullscreen",
     percent: "Percentage",
     value: "Actual Value",
@@ -82,6 +82,8 @@ export default {
     setting: "Calculate",
     target: "Target Value",
     trig: "Tolerance exceeded alarm",
+    position: "Position",
+    thickness: "Thickness"
   },
   annular: {
     circle: "Annular Chart"
