@@ -1,12 +1,18 @@
 <script setup lang='ts'>
+import { watch } from "vue";
 import { useNow, useDateFormat } from "@vueuse/core";
 import { useApiDataStore } from '@/store/polling-data';
 import packageJson from "@/../package.json";
 
 const now = useNow();
 const newDate = useDateFormat(now, "YYYY-MM-DD HH:mm");
-
 const store = useApiDataStore();
+
+watch(() => store.KPEData.apcState, (value) => {
+    const isAutoMode = value == 'apcStateActive'
+    window.ipcRenderer.send("win-check-autoMode", isAutoMode)
+})
+
 </script>
 
 <template>

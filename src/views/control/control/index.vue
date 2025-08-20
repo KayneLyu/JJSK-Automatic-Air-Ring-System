@@ -1,15 +1,19 @@
 <script setup lang='ts'>
 import { ref } from 'vue';
-import { useApiDataStore } from '@/store/polling-data';
 import RobotIcon from "@/components/icons/Robot.vue";
 import { setVDPButtonStatus, setKPEButtonStatus } from '@/api';
 import { showNotification } from "@/utils/common";
 import StatusButton from "./button.vue";
 import { useI18n } from 'vue-i18n';
+import { useConfigStore } from '@/store/config';
+import { useApiDataStore } from '@/store/polling-data';
+import { useFrameStore } from '@/store/frame';
 
 const { t } = useI18n();
 
 const store = useApiDataStore()
+const configStore = useConfigStore()
+const frameStore = useFrameStore()
 
 const activeName = ref('auto-mode')
 
@@ -27,15 +31,18 @@ const checkoutMeasure = async () => {
 }
 
 const checkoutAutoMode = async () => {
-  const param = store.KPEData.apcState == 'apcStateActive' ? 'Off' : 'On'
-  window.ipcRenderer.send("win-check-autoMode", true)
+  const isAutoMode = store.KPEData.apcState == 'apcStateActive'
+  const param = isAutoMode ? 'Off' : 'On'
+  window.ipcRenderer.send("win-check-autoMode", !isAutoMode)
   try {
     await setKPEButtonStatus({
       ajaxRequest: 'jsonObjectRpc',
       rpcFunction: 'webRpcControlButtons',
       jsonObject: `{"buttonName":"controlRadioButton","buttonState":"${param}"}`
     })
-
+    if (!isAutoMode) {
+      configStore.beforeAutoID = frameStore.updateFrameId
+    }
   } catch (error) {
     showNotification("Error", t('notification.failed'), "error")
   }
@@ -71,9 +78,12 @@ const checkoutHoldMode = async () => {
             </span>
           </template>
           <div class="status_container">
-            <StatusButton :check-status="checkoutMeasure" :is-turn-on="store.VDPData.targetTmdState == 'measuring_TD'" text="测量" />
-            <StatusButton :check-status="checkoutAutoMode"  :is-turn-on="store.KPEData.apcState == 'apcStateActive'" text="自动" />
-            <StatusButton :check-status="checkoutHoldMode"  :is-turn-on="store.KPEData.apcState == 'apcStateHold'" text="保持" />
+            <StatusButton :check-status="checkoutMeasure" :is-turn-on="store.VDPData.targetTmdState == 'measuring_TD'"
+              text="测量" />
+            <StatusButton :check-status="checkoutAutoMode" :is-turn-on="store.KPEData.apcState == 'apcStateActive'"
+              text="自动" />
+            <StatusButton :check-status="checkoutHoldMode" :is-turn-on="store.KPEData.apcState == 'apcStateHold'"
+              text="保持" />
           </div>
         </el-tab-pane>
       </el-tabs>

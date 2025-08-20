@@ -1262,7 +1262,7 @@ function Y() {
   e.connectIfNeeded().then(() => {
     P = setInterval(() => {
       e.writeItems("DB7,X4.0", !0);
-    }, 1e4);
+    }, 5e3);
   }).catch((t) => {
     I.showErrorBox("PLC Initialization failed.", "连接PLC失败请联系管理员");
   });

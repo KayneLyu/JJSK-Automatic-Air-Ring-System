@@ -7,8 +7,8 @@ import { useApiDataStore } from '@/store/polling-data';
 
 import HorizonCharts from './frame-charts/AreaCharts.vue';
 import ThickInfo from '@/components/frame-info.vue';
-import HeatState from './heats/HeatsFrame.vue';
-import HeatsCardInfo from './heats/HeatsCard.vue';
+// import HeatState from './heats/HeatsFrame.vue';
+// import HeatsCardInfo from './heats/HeatsCard.vue';
 
 const store = useFrameStore()
 const configStore = useConfigStore()
@@ -125,7 +125,7 @@ const getBeforeAutoData = async () => {
       if (configStore.beforeAutoID) {
          result = await db.Frame.get(configStore.beforeAutoID)
       } else {
-         const [queryItem] = await db.Frame.orderBy('frameId').reverse().offset(19).limit(1).toArray()
+         const [queryItem] = await db.Frame.orderBy('id').reverse().offset(19).limit(1).toArray()
          result = queryItem
       }
       if (result) {
@@ -166,7 +166,7 @@ onMounted(() => {
          </div>
       </div>
 
-      <div class="charts_content">
+      <!-- <div class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
                <HeatState :frame-data="heatsChannel" />
@@ -177,7 +177,7 @@ onMounted(() => {
                <HeatsCardInfo />
             </el-card>
          </div>
-      </div>
+      </div> -->
    </div>
 </template>
 

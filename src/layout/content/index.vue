@@ -1,4 +1,5 @@
 <script setup lang='ts'>
+import { watch } from 'vue';
 import Header from './header.vue';
 import Footer from './footer.vue';
 import { useApiDataStore } from '@/store/polling-data';
@@ -8,6 +9,12 @@ import PositionIcon from '@/components/icons/Position.vue';
 const store = useApiDataStore();
 const productStore = useProduct();
 
+watch(() => store.isOverFlow, (over) => {
+    const isTrigger = over && productStore.param.trigAlert
+    window.ipcRenderer.send("win-alarm-trigger", isTrigger)
+    console.log('触发报警:', isTrigger);
+});
+
 </script>
 
 <template>
@@ -15,20 +22,22 @@ const productStore = useProduct();
         <div class="layout_header">
             <Header />
             <div class="progress">
-                <el-progress :text-inside="true" :show-text="false" :duration="30" striped-flow :percentage="store.VDPData.position/360 * 100"
-                    :stroke-width="20" :striped="store.VDPData.targetTmdState == 'measuring_TD'">
+                <el-progress :text-inside="true" :show-text="false" :duration="30" striped-flow
+                    :percentage="store.VDPData.position / 360 * 100" :stroke-width="20"
+                    :striped="store.VDPData.targetTmdState == 'measuring_TD'">
                     <span>
                         <el-icon>
                             <PositionIcon />
                         </el-icon>
                         {{ store.VDPData.position }} ° /
-                        {{ store.VDPData.actualVal }} um 
+                        {{ store.VDPData.actualVal }} um
                     </span>
                 </el-progress>
             </div>
             <!-- 警告信息 -->
             <div v-show="productStore.param.trigAlert && store.isOverFlow">
-                <el-alert :closable="false" center class="alert" show-icon :title="$t('product.trig')" type="error" effect="dark" />
+                <el-alert :closable="false" center class="alert" show-icon :title="$t('product.trig')" type="error"
+                    effect="dark" />
             </div>
         </div>
 
@@ -69,6 +78,7 @@ const productStore = useProduct();
 .fade-leave-to {
     opacity: 0;
 }
+
 .alert {
     margin-top: 5px;
     height: 32px;

@@ -10,7 +10,7 @@ import AutoIcon from "@/components/icons/Auto.vue";
 import AllUpIcon from '@/components/icons/Allup.vue';
 import AllDownIcon from '@/components/icons/Alldown.vue';
 import ResetIcon from '@/components/icons/Reset.vue';
-import SaveChannel from './channels/index.vue';
+// import SaveChannel from './channels/index.vue';
 
 const store = useApiDataStore()
 const configStore = useConfigStore()

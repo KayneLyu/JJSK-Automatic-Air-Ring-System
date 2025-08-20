@@ -49,7 +49,7 @@ function createWindow() {
   plc.connectIfNeeded().then(() => {
     intervalId = setInterval(() => {
       plc.writeItems('DB7,X4.0', true)
-    }, 10000)
+    }, 5000)
   }).catch(err => {
     dialog.showErrorBox('PLC Initialization failed.', "连接PLC失败请联系管理员")
   })

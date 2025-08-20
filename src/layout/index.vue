@@ -54,7 +54,6 @@ watch(() => store.VDPData.time, async () => {
             frameStore.meanValue = meanVal
             frameStore.updateTime = endTime
             const heatsData = toRaw(store.KPEData.data)
-            console.log('heatsData:', heatsData,  store.KPEData);
             await db.Heats.put({
                 frameId: id,
                 heats: heatsData
