@@ -67,11 +67,11 @@ app.on("ready", () => {
 
 app.on('will-finish-launching', () => {
   // 判断文件夹是否存在
-  if (!fs.existsSync('D:/JJSK_Data')) {
-    fs.mkdirSync('D:/JJSK_Data')
-  }
-  // 指定数据库文件夹和文件名
-  app.setPath('appData', 'D:/JJSK_Data')
+  // if (!fs.existsSync('D:/JJSK_Data')) {
+  //   fs.mkdirSync('D:/JJSK_Data')
+  // }
+  // // 指定数据库文件夹和文件名
+  // app.setPath('appData', 'D:/JJSK_Data')
 })
 
 app.on('before-quit', () => {
