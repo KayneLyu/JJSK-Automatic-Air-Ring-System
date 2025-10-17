@@ -1,9 +1,9 @@
 import { app, BrowserWindow, dialog, globalShortcut } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { setupRendererCommunicator } from './rendererCommunicator.ts';
-import { ensureServerRunning } from './utils.ts';
-import fs from "fs";
+import { setupRendererCommunicator } from './rendererCommunicator.ts'
+import { ensureServerRunning } from './utils.ts'
+import fs from 'fs'
 
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -15,7 +15,9 @@ export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
+  ? path.join(process.env.APP_ROOT, 'public')
+  : RENDERER_DIST
 
 let win: BrowserWindow | null
 
@@ -42,7 +44,6 @@ function createWindow() {
     // win.loadFile('dist/index.html')
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
-
 }
 // 防止重复点击软件
 const getLock = app.requestSingleInstanceLock()
@@ -57,13 +58,13 @@ if (!getLock) {
   })
 }
 
-app.on("ready", () => {
+app.on('ready', () => {
   // ensureServerRunning('JinJiu.Scan.Server2', 'D:/server/JinJiu.Scan.Server2.exe', dialog)
   // 开机自动启动应用
   app.setLoginItemSettings({
     openAtLogin: true,
   })
-});
+})
 
 app.on('will-finish-launching', () => {
   // 判断文件夹是否存在
@@ -79,7 +80,6 @@ app.on('before-quit', () => {
   globalShortcut.unregisterAll()
   win?.close()
 })
-
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
