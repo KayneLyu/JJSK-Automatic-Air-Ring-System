@@ -21,7 +21,7 @@ const meanValue = ref(0);
 watch(() => store.apiThickData.LastScanDataId, async() => {
     const data = await getFrame(null)
     const heats = await getHeats()
-    if (data && data !== null) {
+    if (data) {
         const formatValue = formatFrameData(data)
         // 拿到平均值给即时数据
         meanValue.value = formatValue.mean
