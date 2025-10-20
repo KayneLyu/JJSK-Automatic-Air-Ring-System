@@ -88,18 +88,25 @@ const fixScaleHandle = async () => {
     setTimeout(() => {
       loading.value = false
     }, 5000);
+
     ElNotification({
       title: t("notification.info"),
       message: t("notification.success"),
       type: "success",
-      offset: 70
+      offset: 70,
+      duration: 2500
     })
   } catch (error) {
     showNotification(t("notification.info"), t("notification.failed"), "error")
+    loading.value = false
   }
 }
-const changeThick = (e:FocusEvent) => {
-  if( targetThick.value !== 0 && targetThick.value !== null) return
+const changeThick = async (e: FocusEvent) => {
+  if (targetThick.value !== 0 && targetThick.value !== null) {
+    store.param.thick = targetThick.value
+    await db.product.put({ ...store.param, thick: targetThick.value })
+    return
+  }
   targetThick.value = store.param.thick
 }
 </script>
@@ -117,7 +124,7 @@ const changeThick = (e:FocusEvent) => {
         <span>μm</span>
       </div>
       <div class="target_content">
-        <p class="target_tittle">{{t('product.scale')}} : </p>
+        <p class="target_tittle">{{ t('product.scale') }} : </p>
         <p>{{ pollingStore.apiThickData.K.toFixed(3) }}</p>
       </div>
     </div>
