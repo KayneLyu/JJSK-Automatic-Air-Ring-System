@@ -1,0 +1,10 @@
+{
+    "i18n-ally.localesPaths": [
+        "src/i18n",
+        "src/i18n/lang",
+        "release/0.0.0/win-unpacked/locales",
+        "release/1.2.0/win-unpacked/locales",
+        "release/1.2.1/win-unpacked/locales",
+        "release/1.2.2/win-unpacked/locales"
+    ]
+}

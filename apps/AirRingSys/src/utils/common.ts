@@ -5,5 +5,6 @@ export const showNotification = (titleKey: string, messageKey: string, type: 'su
        message: messageKey,
        type,
        position: 'bottom-left',
+       duration: 3000
     });
  };

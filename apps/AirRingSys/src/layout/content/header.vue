@@ -92,14 +92,20 @@ const fixScaleHandle = async () => {
       title: t("notification.info"),
       message: t("notification.success"),
       type: "success",
-      offset: 70
+      offset: 70,
+      duration: 2500
     })
   } catch (error) {
+    loading.value = false
     showNotification(t("notification.info"), t("notification.failed"), "error")
   }
 }
-const changeThick = (e:FocusEvent) => {
-  if( targetThick.value !== 0 && targetThick.value !== null) return
+const changeThick = async (e:FocusEvent) => {
+  if (targetThick.value !== 0 && targetThick.value !== null) {
+    store.param.thick = targetThick.value
+    await db.product.put({ ...store.param, thick: targetThick.value })
+    return
+  }
   targetThick.value = store.param.thick
 }
 </script>

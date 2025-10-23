@@ -96,6 +96,13 @@ const onSubmit = async () => {
     }
 }
 
+// 同步修改目标厚度
+watch(() => productStore.param.thick, (newVal) => {
+    if (newVal) {
+        form.thick = newVal
+    }
+})
+
 </script>
 
 <template>
