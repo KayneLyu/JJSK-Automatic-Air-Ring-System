@@ -16,7 +16,7 @@ defineProps<{
 
 <template>
     <div class="button-status">
-        <p>{{ text }}:</p>
+        <p>{{ text }}</p>
         <div class="status" @click="checkStatus">
             <img :src="isTurnOn ? TurnOn : TurnOff " alt="status">
         </div>
@@ -30,6 +30,9 @@ defineProps<{
     width: 100%;
     box-sizing: border-box;
     padding: 0 5px;
+    p {
+        font-size: 14px;
+    }
 }
 .status {
     cursor: pointer;

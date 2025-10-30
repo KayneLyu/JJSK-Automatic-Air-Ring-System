@@ -64,7 +64,9 @@ export default {
         frame: "Đồ thị",
         saveDuct: "Lưu kênh",
         history: "Kênh lịch sử",
-        input: "Nhập tên kênh cần lưu"
+        input: "Nhập tên kênh cần lưu",
+        apcControl: "APC Control",
+        apcHold: "APC HOld"
     },
     product: {
         delete: "Xóa",

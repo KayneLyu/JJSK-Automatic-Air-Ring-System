@@ -79,11 +79,11 @@ const checkoutHoldMode = async () => {
           </template>
           <div class="status_container">
             <StatusButton :check-status="checkoutMeasure" :is-turn-on="store.VDPData.targetTmdState == 'measuring_TD'"
-              text="测量" />
+              :text="t('control.scan')" />
             <StatusButton :check-status="checkoutAutoMode" :is-turn-on="store.KPEData.apcState == 'apcStateActive'"
-              text="自动" />
+              :text="t('control.apcControl')" />
             <StatusButton :check-status="checkoutHoldMode" :is-turn-on="store.KPEData.apcState == 'apcStateHold'"
-              text="保持" />
+              :text="t('control.apcHold')" />
           </div>
         </el-tab-pane>
       </el-tabs>

@@ -60,7 +60,7 @@ const getAirRingData = async () => {
 const { start: startThickGauge, stop: stopThickGauge } = useTimeoutFn(() => {
   getThickData();
   startThickGauge()
-}, 100)
+}, 5000)
 
 const { start: start, stop: stopAirRing, } = useTimeoutFn(() => {
   getAirRingData();

@@ -65,6 +65,8 @@ export default {
     saveDuct: "Save Duct Values",
     history: "Duct Value History",
     input: "Please enter the name of the channel to be saved",
+    apcControl: "APC Control",
+    apcHold: "APC Hold"
   },
   product: {
     delete: "Delete",

@@ -65,6 +65,8 @@ export default {
         saveDuct: "保存通道",
         history: "历史通道",
         input: "请输入要保存的通道名称",
+        apcControl: "APC控制",
+        apcHold: "APC保持"
     },
     product: {
         delete: "删除",

@@ -31,14 +31,12 @@ watch(() => store.param.thick, (newVal) => {
 
 
 watch(() => pollingStore.warning.length, (value) => {
-  console.log('warningList', pollingStore.warning);
   if (value == 0) {
     window.ipcRenderer.send("win-alarm-trigger", false)
     warningList.value = []
     return
   }
   window.ipcRenderer.send("win-alarm-trigger", true)
-  console.log('触发报警:  warning list');
   let errorList = pollingStore.warning.map((item) => {
     const code = item.replace(/\./g, '-');
     return `alarmKun.${code}`
@@ -62,7 +60,6 @@ watch(() => pollingStore.warning.length, (value) => {
     immediate: true,
   }
 )
-
 
 </script>
 

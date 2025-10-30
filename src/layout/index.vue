@@ -16,7 +16,7 @@ const frameStore = useFrameStore();
 const productStore = useProduct();
 
 watch(() => store.VDPData.time, async () => {
-    if (store.VDPData.targetTmdState !== "measuring_TD") return
+    if (store.VDPData.targetTmdState !== "measuring_TD" || store.VDPData.actualVal == 0) return
     try {
         // VDP 测厚仪基础数据
         const baseData = await getVDPBaseData();
@@ -31,6 +31,8 @@ watch(() => store.VDPData.time, async () => {
             const endTime = date + ' ' + time
             const { max, min, maxPercent, minPercent, sigma, sigmaPercent } = formateKunFrame(data, mean)
             const meanVal = Number(mean.toFixed(1))
+            // 如果vdp不出图，则不进行保存
+            if (sigma == 0 || meanVal == 0) return
             let frameData = {
                 dataList: data,
                 meanValue: meanVal,
@@ -48,7 +50,9 @@ watch(() => store.VDPData.time, async () => {
             if (sigmaPercent > productStore.param.tolerance) {
                 store.isOverFlow = true
             }
-            if (endTime == frameStore.updateTime) return
+            const exists = await db.Frame.where('date').equals(endTime).first()
+            // 存在相同时间或者上次时间相同j数据，则不保存
+            if (exists || endTime == frameStore.updateTime) return
             const id = await db.Frame.add(frameData)
             frameStore.updateFrameId = id
             frameStore.meanValue = meanVal
