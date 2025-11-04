@@ -19,6 +19,6 @@ export const ThicknessConnection = async (
 ) => {
   const { type, url } = options
   if (type === 'opcua') {
-    const OPCUAClient = await Client(url)
+    const OPCUAClient = Client(url)
   }
 }
