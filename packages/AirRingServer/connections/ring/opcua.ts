@@ -8,14 +8,12 @@ import {
 } from 'node-opcua'
 
 // ==================== 配置 ====================
-
 const nodeIdList = [
   'ns=1;s=ThicknessGauge.X1_RightLimit',
   'ns=1;s=ThicknessGauge.X2_LeftLimit',
   'ns=1;s=ThicknessGauge.X3_RightLimit',
   'ns=1;s=ThicknessGauge.X10_ProductionSpeed',
 ] // 要监听的变量 nodeId
-
 // ==================== 创建 OPC UA 客户端 ====================
 const client = OPCUAClient.create({
   endpointMustExist: false,
@@ -24,7 +22,6 @@ const client = OPCUAClient.create({
 // ==================== 变量存储（可选） ====================
 const latestData = {}
 
-// ==================== 主逻辑 ====================
 export const Client = async (url: string) => {
   try {
     console.log('📡 正在连接到 OPC UA 服务器:', url)

@@ -1,9 +1,7 @@
-import { app, BrowserWindow, dialog, globalShortcut } from 'electron'
+import { app, BrowserWindow, globalShortcut } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { setupRendererCommunicator } from './rendererCommunicator.ts'
-import { ensureServerRunning } from './utils.ts'
-import fs from 'fs'
 
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -41,7 +39,6 @@ function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    // win.loadFile('dist/index.html')
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
 }
@@ -50,7 +47,7 @@ const getLock = app.requestSingleInstanceLock()
 if (!getLock) {
   app.quit()
 } else {
-  app.on('second-instance', (event) => {
+  app.on('second-instance', () => {
     if (win) {
       if (win.isMinimized()) win.restore()
       win.focus()
@@ -64,15 +61,6 @@ app.on('ready', () => {
   app.setLoginItemSettings({
     openAtLogin: true,
   })
-})
-
-app.on('will-finish-launching', () => {
-  // 判断文件夹是否存在
-  // if (!fs.existsSync('D:/JJSK_Data')) {
-  //   fs.mkdirSync('D:/JJSK_Data')
-  // }
-  // // 指定数据库文件夹和文件名
-  // app.setPath('appData', 'D:/JJSK_Data')
 })
 
 app.on('before-quit', () => {

@@ -45,9 +45,6 @@ const updateThicknessData = () => {
   // )
 }
 
-// 每 1ms 秒更新一次数据
-setInterval(updateThicknessData, 1)
-
 // ==================== 3. 构建 OPC UA 地址空间 ====================
 const initialize = async () => {
   const addressSpace = server.engine.addressSpace
@@ -209,6 +206,9 @@ const startServer = async () => {
   } catch (err) {
     console.error('❌ 启动失败:', err)
   }
+
+  // 每 1ms 秒更新一次数据
+  setInterval(updateThicknessData, 1)
 }
 
 export { startServer }
