@@ -6,14 +6,20 @@ import {
   OPCUAClient,
   TimestampsToReturn,
 } from 'node-opcua'
+import { atom } from 'nanostores'
 
+export interface ThickNessData {
+  leftLimit?: boolean // 左限位
+  rightLimit?: boolean // 右限位
+  timestamp?: string
+}
 // ==================== 配置 ====================
 
 const nodeIdList = [
-  'ns=1;s=ThicknessGauge.X1_RightLimit',
-  'ns=1;s=ThicknessGauge.X2_LeftLimit',
-  'ns=1;s=ThicknessGauge.X3_RightLimit',
-  'ns=1;s=ThicknessGauge.X10_ProductionSpeed',
+  'ns=1;s=X1_RightLimit',
+  'ns=1;s=X2_LeftLimit',
+  'ns=1;s=X3_RightLimit',
+  'ns=1;s=X10_ProductionSpeed',
 ] // 要监听的变量 nodeId
 
 // ==================== 创建 OPC UA 客户端 ====================
@@ -21,33 +27,91 @@ const client = OPCUAClient.create({
   endpointMustExist: false,
 })
 
-// ==================== 变量存储（可选） ====================
-const latestData = {}
-
-// ==================== 主逻辑 ====================
-export const Client = async (url: string) => {
+// ==================== 测试连接 ====================
+const tryConnect = async (url: string) => {
+  console.log('📡 正在连接到 OPC UA 服务器:', url)
   try {
-    console.log('📡 正在连接到 OPC UA 服务器:', url)
     await client.connect(url)
     console.log('✅ 连接成功！')
-
-    // 创建会话
-    const session = await client.createSession()
-    console.log('🔐 会话创建成功')
-
-    // 浏览节点以确认存在（可选）
-    await browseNodes(session)
-
-    // 创建订阅
-    const subscription = await createSubscription(session)
-
-    // 监听多个变量
-    await monitorItems(subscription, nodeIdList)
-
-    // 保持运行（Ctrl+C 退出）
-    console.log('📈 客户端正在监听数据变化...\n')
+    return true
   } catch (err) {
-    console.error('❌ 客户端错误:', err.message || err)
+    console.error('❌ 连接失败:', (err as Error).message || err)
+    return false
+  } finally {
+    await client.disconnect()
+  }
+}
+// 定义可订阅的状态
+type ClientState =
+  | {
+      status: 'idle' | 'connecting' | 'disconnected'
+    }
+  | {
+      status: 'connected'
+      session: ClientSession
+    }
+  | {
+      status: 'error'
+      error?: Error
+    }
+
+// ==================== 主逻辑 ====================
+export const Client = (url: string) => {
+  const $clientState = atom<ClientState>({
+    status: 'idle',
+  })
+  /**
+   * 连接到服务器
+   * */
+  const connect = async () => {
+    const state = $clientState.get()
+    if (state.status === 'connected') return state.session
+    if (state.status === 'connecting') {
+      // 返回一个等待状态变更的 promise（或者缓存 promise，同上）
+      return new Promise<ClientSession>((resolve, reject) => {
+        const unsub = $clientState.subscribe((s) => {
+          if (s.status === 'connected') {
+            unsub()
+            resolve(s.session)
+          } else if (s.status === 'error') {
+            unsub()
+            reject(s.error)
+          }
+        })
+      })
+    }
+
+    $clientState.set({ status: 'connecting' })
+    try {
+      console.log('📡 正在连接到 OPC UA 服务器:', url)
+      await client.connect(url)
+      console.log('✅ 连接成功！')
+      const session = await client.createSession()
+      console.log('🔐 会话创建成功')
+      $clientState.set({ status: 'connected', session })
+      browseNodes(session)
+      return session
+    } catch (err) {
+      console.error('❌ 连接失败:', (err as Error).message || err)
+      $clientState.set({ status: 'error', error: err as Error })
+    }
+  }
+  const subscribe = async (
+    listener: (value: ThickNessData, oldValue?: ThickNessData) => void
+  ) => {
+    // 创建订阅
+    const session = await connect()
+    if (session) {
+      const subscription = await createSubscription(session)
+      await monitorItems(subscription, nodeIdList, listener)
+    }
+  }
+  const testConnect = () => {
+    return tryConnect(url)
+  }
+  return {
+    testConnect,
+    subscribe,
   }
 }
 
@@ -88,10 +152,15 @@ const createSubscription = async (session: ClientSession) => {
   return subscription
 }
 
+const NODE_VALUE_MAP: Record<string, keyof ThickNessData> = {
+  'ns=1;s=X1_RightLimit': 'rightLimit',
+  'ns=1;s=X2_LeftLimit': 'leftLimit',
+}
 // ==================== 监听多个变量 ====================
 const monitorItems = async (
   subscription: ClientSubscription,
-  nodeIds: string[]
+  nodeIds: string[],
+  listener: (value: ThickNessData, oldValue?: ThickNessData) => void
 ) => {
   const itemsToMonitor = nodeIds.map((nodeId) => ({
     nodeId: coerceNodeId(nodeId),
@@ -115,16 +184,19 @@ const monitorItems = async (
   nodeIds.forEach((id) => console.log(`   📌 ${id}`))
   console.log('')
 
+  let oldValue: ThickNessData | undefined = undefined
   // 为每个变量绑定变化事件
   monitoredItems.on('changed', (_, dataValue, index) => {
     const nodeId = nodeIds[index]
     const value = dataValue.value.value
 
-    // 更新本地缓存
-    latestData[nodeId] = {
-      value,
+    const newValue: ThickNessData = {
+      ...(oldValue || {}),
+      [NODE_VALUE_MAP[nodeId]]: value,
       timestamp: dataValue.serverTimestamp?.toISOString(),
     }
+    listener(newValue, oldValue)
+    oldValue = newValue
 
     // 格式化输出
     const formattedValue =
