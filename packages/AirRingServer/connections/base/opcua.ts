@@ -42,7 +42,7 @@ const tryConnect = async (url: string) => {
   }
 }
 // 定义可订阅的状态
-type ClientState =
+export type ClientState =
   | {
       status: 'idle' | 'connecting' | 'disconnected'
     }
@@ -96,9 +96,10 @@ export const Client = <T extends OPCUAData>(options: ClientOptions<T>) => {
       $clientState.set({ status: 'error', error: err as Error })
     }
   }
-  const subscribe = async <T extends OPCUAData>(
-    listener: (value: T, oldValue?: T) => void
-  ) => {
+  /**
+   * 订阅数据
+   * */
+  const subscribe = async (listener: (value: T, oldValue?: T) => void) => {
     // 创建订阅
     const session = await connect()
     if (session) {
@@ -106,10 +107,15 @@ export const Client = <T extends OPCUAData>(options: ClientOptions<T>) => {
       await monitorItems<T>(subscription, nodeIdValueMap, listener)
     }
   }
+  /**
+   * 测试连接
+   * */
   const testConnect = () => {
     return tryConnect(url)
   }
   return {
+    state: $clientState,
+    connect,
     testConnect,
     subscribe,
   }
@@ -170,7 +176,6 @@ const monitorItems = async <T extends OPCUAData>(
 
   console.log(`👀 已开始监控 ${nodeIds.length} 个变量：`)
   nodeIds.forEach((id) => console.log(`   📌 ${id}`))
-  console.log('')
 
   let oldValue: T | undefined = undefined
   // 为每个变量绑定变化事件

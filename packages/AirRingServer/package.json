@@ -12,7 +12,7 @@
   "packageManager": "pnpm@10.18.3",
   "devDependencies": {
     "@jjsk/thickness-gauge-simulation": "workspace:^",
-    "vitest": "^3.2.4"
+    "vitest": "^4.0.0"
   },
   "dependencies": {
     "nanostores": "^1.0.1",

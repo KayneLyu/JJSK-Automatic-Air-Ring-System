@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
-    "@types/echarts": "^4.9.22",
     "@vueuse/core": "^12.2.0",
     "axios": "^1.7.9",
     "dayjs": "^1.11.13",
@@ -18,25 +17,25 @@
     "echarts": "^5.5.1",
     "element-plus": "^2.8.8",
     "lru-cache": "^11.0.2",
-    "pinia": "^2.3.0",
+    "pinia": "^3.0.0",
     "pinia-plugin-persistedstate": "^4.2.0",
     "vue": "^3.4.21",
     "vue-i18n": "^10.0.5",
-    "vue-router": "4",
+    "vue-router": "^4",
     "vue3-marquee": "^4.2.2"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.0.4",
+    "@types/echarts": "^4.9.22",
+    "@vitejs/plugin-vue": "^6.0.0",
     "electron": "^30.0.1",
     "electron-builder": "^24.13.3",
     "less": "^4.2.1",
     "typescript": "^5.2.2",
     "unplugin-auto-import": "^0.18.6",
     "unplugin-vue-components": "^0.27.5",
-    "vite": "^7.1.0",
+    "vite": "^7.1.11",
     "vite-plugin-electron": "^0.28.6",
-    "vite-plugin-electron-renderer": "^0.14.5",
-    "vue-tsc": "^2.0.26"
+    "vite-plugin-electron-renderer": "^0.14.5"
   },
   "main": "dist-electron/main.js"
 }

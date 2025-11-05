@@ -14,11 +14,10 @@ export interface ThicknessConnectionOptions {
 /**
  * 测厚仪连接
  * */
-export const ThicknessConnection = async (
-  options: ThicknessConnectionOptions
-) => {
+export const ThicknessConnection = (options: ThicknessConnectionOptions) => {
   const { type, url } = options
   if (type === 'opcua') {
-    const OPCUAClient = Client(url)
+    return Client(url)
   }
+  throw new Error('Thickness connection type not supported')
 }
