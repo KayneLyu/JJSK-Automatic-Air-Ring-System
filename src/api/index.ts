@@ -88,11 +88,11 @@ export const getKPEThickData = () => {
  * 获取自动控制按钮状态
  */
 
-export const getAutoStatus = (param:string) => {
+export const getAutoStatus = (param: string) => {
     return formateResult<IApcInfo>(postRequest("http://127.0.0.1:8081/cgi/cgi.json", {
         ajaxRequest: 'jsonObjectRpc',
         rpcFunction: 'webRpcGetData',
-        jsonObject: {"actuatorValue":"0","actuatorIndex":"-1","rotation":param ,"actuatorMirrored":"0"}
+        jsonObject: { "actuatorValue": "0", "actuatorIndex": "-1", "rotation": param, "actuatorMirrored": "0" }
     }))
 }
 
@@ -100,27 +100,40 @@ export const getAutoStatus = (param:string) => {
  *  获取报警内容页面
  */
 export const getWarningPage = () => {
-    return formateResult(getRequest("http://127.168.15.100:8090/templates/diagn_t_flags.html"))
+    return formateResult(getRequest("http://127.0.0.1:8090/templates/diagn_t_flags.html"))
 }
 
 /**
- *  设置放大倍数/校准系数 & 目标厚度
+ *  设置放大倍数/校准系数 & 目标厚度  http://127.168.15.100:8090
  * @returns 
  */
-export const setCalibration = (factor:number, targetThick:number) => {
-    return formateResult(postRequest("http://127.168.15.100:8090/templates/param_measurement.html",{
-        setSV_calFactor:factor,
+export const setCalibration = (factor: number, targetThick: number) => {
+    return formateResult(postRequest("http://127.0.0.1:8090/templates/param_measurement.html", {
+        setSV_calFactor: factor,
         setSV_targetThickness: targetThick,
-        saveSV:'SAVE'
+        saveSV: 'SAVE'
     }))
 }
 
 /**
- *  获取放大倍数/校准系数 & 目标厚度
+ *  获取放大倍数/校准系数 & 目标厚度 http://127.168.15.100:8090
  * @returns 
  */
 export const getCalibration = () => {
-    return formateResult(getRequest("http://127.168.15.100:8090/templates/param_measurement.html"))
+    return formateResult(getRequest("http://127.0.0.1:8090/templates/param_measurement.html"))
 }
 
+
+/**
+ *  设置风门初始值
+ * @returns 
+ */
+export const setActuatorValue = (rotationDegree: number, biasValue: number) => {
+    return formateResult(postRequest("http://127.0.0.1:8081/templates/param_equalizer.html", {
+        setSV_actuatorOutputRotation: rotationDegree,
+        setSV_actuatorBias: biasValue,
+        setSV_actuatorOffValue: biasValue,
+        saveSvRpc_webParamEqualizer: 'SAVE'
+    }))
+}
 

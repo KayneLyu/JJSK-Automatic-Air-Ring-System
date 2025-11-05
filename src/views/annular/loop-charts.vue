@@ -104,7 +104,7 @@ let option: ECOption = {
             startAngle: (-startDeg) + (360 / 63 / 2),
             data: monitorsList,
             axisTick: {
-                length: 25,
+                length: 24,
                 inside: true,
                 lineStyle: {
                     width: 1,

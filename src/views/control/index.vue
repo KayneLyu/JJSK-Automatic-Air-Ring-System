@@ -116,7 +116,7 @@ const relationRef = ref<InstanceType<typeof RelationCharts> | null>(null)
 
 .sigma-charts {
   display: flex;
-  height: 25%;
+  height: 28%;
 
   .sigma_charts_content {
     flex: 1;

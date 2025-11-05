@@ -1,13 +1,16 @@
 <script setup lang='ts'>
-import { computed } from 'vue';
+import { computed, watch, ref } from 'vue';
 import { useApiDataStore } from '@/store/polling-data';
-import dayjs from "dayjs";
+import { setActuatorValue } from "@/api/index";
+// import dayjs from "dayjs";
 
 const { sigmaList } = defineProps<{
   sigmaList: Array<[string, number]>
 }>()
 
 const configStore = useApiDataStore()
+const rotationDeg = ref(0)
+const biasValue = ref(0)
 
 const sigmaTotalInfo = computed(() => {
   if (!sigmaList || !sigmaList.length) return
@@ -21,15 +24,44 @@ const sigmaTotalInfo = computed(() => {
     meanNum
   }
 })
+
+// 拿到当前初始值
+watch([() => configStore.KPEData.rotation, () => configStore.KPEData.bias], ([rotation, bias]) => {
+  rotationDeg.value = rotation;
+  biasValue.value = bias;
+},
+  {
+    immediate: true
+  }
+)
+
+const setRotaionBias = async () => {
+  try {
+    await setActuatorValue(rotationDeg.value, biasValue.value)
+  } catch (error) {
+
+  }
+}
 </script>
 
 <template>
   <el-card>
     <div class="info_container">
       <div class="sigma_info">
-        <p>2σ{{$t("horizon.mean")}}: <b>{{ sigmaTotalInfo?.meanSigma || 0 }}</b> %</p>
-        <p>{{$t("horizon.max")}}: <b>{{ sigmaTotalInfo?.MaxNum  || 0 }}</b> %</p>
-        <p>{{$t("horizon.min")}}: <b>{{ sigmaTotalInfo?.meanNum || 0 }}</b> %</p>
+        <p>2σ{{ $t("horizon.mean") }}: <b>{{ sigmaTotalInfo?.meanSigma || 0 }}</b> %</p>
+        <p>{{ $t("horizon.max") }}: <b>{{ sigmaTotalInfo?.MaxNum || 0 }}</b> %</p>
+        <p>{{ $t("horizon.min") }}: <b>{{ sigmaTotalInfo?.meanNum || 0 }}</b> %</p>
+      </div>
+
+      <div class="value_set">
+        <div class="value_item"> <span>1# 电机角度 : </span><span style="width: 80px;"><el-input size="default"
+              v-model="rotationDeg" /></span>
+        </div>
+        <div class="value_item"><span>风道初始值: </span> <span style="width: 80px;"><el-input size="default"
+              v-model="biasValue" /></span> </div>
+        <div>
+          <el-button @click="setRotaionBias" type="primary">保存</el-button>
+        </div>
       </div>
 
       <!-- <div class="effective_time">
@@ -54,21 +86,39 @@ const sigmaTotalInfo = computed(() => {
   box-sizing: border-box;
   padding: 10px;
 }
+
 .sigma_info {
   p {
     font-size: 15px;
     margin-bottom: 10px;
+
     b {
       font-size: 15px;
     }
   }
 }
+
 .effective_time {
   width: 100%;
   border-top: 1px solid #a9a9a990;
   padding-top: 10px;
+
   b {
     font-size: 16px;
+  }
+}
+
+.value_set {
+  font-size: 14px;
+
+  .value_item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+
+    span:first-child {
+      min-width: 60%;
+    }
   }
 }
 </style>
