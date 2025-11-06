@@ -1,10 +1,11 @@
 {
-  "name": "@jjsk/thickness-gauge-simulation",
+  "name": "@jjsk/simulation",
   "version": "1.0.0",
   "description": "测厚仪模拟器",
   "main": "index.js",
   "scripts": {
-    "start": "vite-node index.ts"
+    "start": "vite-node index.ts",
+    "generator": "vite-node scripts/generator.ts"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +15,7 @@
     "node-opcua": "^2.157.0"
   },
   "devDependencies": {
+    "node-opcua-generator": "^2.157.0",
     "vite-node": "^3.2.4"
   }
 }
