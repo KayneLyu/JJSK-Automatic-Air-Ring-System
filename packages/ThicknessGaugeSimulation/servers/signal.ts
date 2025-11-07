@@ -1,24 +1,4 @@
-// 接口：参数类型
-interface BlowingParams {
-    filmWidth: number; // mm
-    angleVelocity: number; // min/R
-    angleRange: number; // 角度
-    // 加其他参数如需
-}
 
-// 接口：信号类型（布尔/数值）
-interface Signals {
-    horizontalPulse: number; // 横向脉冲
-    probeValue: number; // 探头值 μm
-    leftLimit: boolean; // 左限位
-    rightLimit: boolean; // 右限位
-    motionDirection: boolean; // 运动方向
-    rotationDirection: boolean; // 旋转正反
-    rotationPulse: number; // 旋转脉冲
-    inverterFreq: number; // 变频频率 Hz
-    resetSignal: boolean; // 复位
-    swapDirection: boolean; // 换向
-}
 
 /**
  * 模拟器 
@@ -68,7 +48,6 @@ class SignalSimulator {
             leftLimit: false,
             rightLimit: false,
             motionDirection: true,
-            rotationDirection: true,
             rotationPulse: 0,
             inverterFreq: 50,
             resetSignal: false,
