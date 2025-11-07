@@ -1,145 +1,160 @@
 
+import { EventEmitter } from "events";
 
 /**
  * 模拟器 
  */
-class SignalSimulator {
+class Simulator extends EventEmitter {
+    // ========== 配置参数 ==========（实际可设定）
     // 编码器比例
     private encoderRatio = 0.14;
-    // 机架长度 脉冲
-    private rackLength = 13900;
     // 编码脉冲
     private encoderPulse = 1;
     // 电机脉冲
     private motorPulse = 4;
-
+    // 机架长度 脉冲
+    private rackLength = 13900;
     // 机架总长度 实际 mm
     private rackLengthMm = this.rackLength * this.encoderRatio;
-
     // 探头移动速度  脉冲/s  
     private probeSpeed = 3000;
     // 探头移动速度  m/min  
-    public probeSpeedMm = this.probeSpeed / this.motorPulse * this.encoderRatio * 60 * this.encoderPulse;
+    private probeSpeedMm = this.probeSpeed / this.motorPulse * this.encoderRatio * 60 * this.encoderPulse;
+    // 辊周长
+    private rollCircumference = 0.05;
 
-    // 探头当前运动方向 0 = 停止 1 = 前进 2 = 后退
-    private motionDirection = 0;
+    private tickInterval = 10; // ms 采样周期
 
+    //  ========== 运行时状态 ==========
+    private rackState: IPollingRackData;
+    private rotationState: IPollingRotationData;
+    private timer?: NodeJS.Timeout;
+    private lastTime = Date.now();
 
-    private params: BlowingParams;
-    public signals: Signals;
-
-
-    // 边界查找
-
-
-    constructor(params?: Partial<BlowingParams>) {
-        // 默认参数
-        this.params = {
-            filmWidth: 1500,
-            angleVelocity: 6,
-            angleRange: 350,
-            ...params // 合并传入
-        };
-
-        // 初始化信号
-        this.signals = {
+    constructor() {
+        super();
+        this.rackState = {
             horizontalPulse: 0,
-            probeValue: 800,
             leftLimit: false,
             rightLimit: false,
-            motionDirection: true,
-            rotationPulse: 0,
-            inverterFreq: 50,
             resetSignal: false,
-            swapDirection: false
+            swapDirection: false,
+            motionDirection: true,
+            probeValue: 0,
+            rollSpeedSignal: false,
+            rollSpeedTime: 0,
+            filmSpeed: 0,
         };
 
-        console.log('初始探头值:', this.signals.probeValue, 'μm');
-        console.log('初始横向脉冲:', this.signals.horizontalPulse);
+        this.rotationState = {
+            forwardRotation: true,
+            reverseRotation: false,
+            forwardDirectionChange: false,
+            reverseDirectionChange: false,
+            reset: false,
+            motorFrequency: 50,
+            rotationPulse: 6000,
+            rotationAngle: 0,
+            rotationMaxPulse: 6000,
+            maxAngle: 330,
+        };
     }
 
-    // 更新一步（10ms模拟）
-    public updateOneStep(deltaTimeMs: number = 10, currAngle: number = 0): void {
-        // 横向脉冲：假设扫描速0.1mm/ms
-        this.signals.horizontalPulse += Math.floor(0.1 * deltaTimeMs);
 
-        // 探头值：sin波动模拟厚度
-        this.signals.probeValue = Math.floor(800 + 100 * Math.sin(currAngle / 180 * Math.PI));
+    /** 启动模拟器 */
+    public start() {
+        if (this.timer) return;
+        this.timer = setInterval(() => this.tick(), this.tickInterval);
+    }
 
-        // 左右限位：基于角度
-        const limitThreshold = this.params.angleRange / 2;
-        this.signals.leftLimit = currAngle <= -limitThreshold;
-        this.signals.rightLimit = currAngle >= limitThreshold;
+    /** 停止模拟器 */
+    public stop() {
+        if (this.timer) clearInterval(this.timer);
+        this.timer = undefined;
+    }
 
-        // 运动方向：同步旋转
-        this.signals.motionDirection = this.signals.rotationDirection;
+    /** 每次tick的逻辑（模拟1帧数据） */
+    private tick() {
+        const now = Date.now();
+        const dt = (now - this.lastTime) / 1000; // 秒
+        this.lastTime = now;
 
-        // 旋转脉冲：角度变化 → 脉冲 (1° = PosOfR/360)
-        const pulsePerDegree = 50000 / 360;
-        this.signals.rotationPulse += Math.floor(
-            (deltaTimeMs / 1000) * (this.params.angleVelocity * 60 / 360) * pulsePerDegree
-        );
+        this.updateRack(dt);
+        this.updateRotation(dt);
+        this.emit("data", {
+            timestamp: now,
+            rack: { ...this.rackState },
+            rotation: { ...this.rotationState },
+        });
+    }
 
-        // 变频频率：速度映射
-        this.signals.inverterFreq = Math.floor(50 * (this.params.angleVelocity / 6));
+    /** 模拟机架系统运动 */
+    private updateRack(dt: number) {
+        const direction = this.rackState.motionDirection ? 1 : -1;
+        this.rackState.horizontalPulse += direction * this.probeSpeed * dt;
 
-        // 复位：角度近0
-        this.signals.resetSignal = Math.abs(currAngle) < 5;
-
-        // 换向：限位触发
-        this.signals.swapDirection = this.signals.leftLimit || this.signals.rightLimit;
-
-        // 输出（可选，调试用）
-        if (deltaTimeMs % 1000 === 0) { // 每1s打印
-            console.log(
-                `[一步更新] 角度${currAngle.toFixed(1)}°: 横脉冲${this.signals.horizontalPulse}, ` +
-                `探头${this.signals.probeValue}μm, 左限${this.signals.leftLimit}, 右限${this.signals.rightLimit}, ` +
-                `频率${this.signals.inverterFreq}Hz, 复位${this.signals.resetSignal}, 换向${this.signals.swapDirection}`
-            );
+        // 到达限位自动换向
+        if (this.rackState.horizontalPulse >= this.rackLength) {
+            this.rackState.rightLimit = true;
+            this.rackState.leftLimit = false;
+            this.rackState.swapDirection = true;
+            this.rackState.motionDirection = false;
+        } else if (this.rackState.horizontalPulse <= 0) {
+            this.rackState.leftLimit = true;
+            this.rackState.rightLimit = false;
+            this.rackState.swapDirection = true;
+            this.rackState.motionDirection = true;
+        } else {
+            this.rackState.leftLimit = this.rackState.rightLimit = false;
+            this.rackState.swapDirection = false;
         }
+
+        // 模拟厚度信号波动
+        this.rackState.probeValue =
+            50 + 5 * Math.sin((this.rackState.horizontalPulse / this.rackLength) * Math.PI * 2);
+
+        // 模拟辊速信号（周期性触发）
+        const rollPeriod = 1.2; // s 每圈时间
+        const rollSignal = Math.floor(Date.now() / (rollPeriod * 1000)) % 2 === 0;
+        this.rackState.rollSpeedSignal = rollSignal;
+        this.rackState.rollSpeedTime = rollPeriod;
+        this.rackState.filmSpeed = this.rollCircumference / rollPeriod; // m/s
+
+        // 模拟探头采集值 (模拟量)
     }
 
-    // 实时模拟启动
-    public startRealtime(durationMs: number = 10000): NodeJS.Timeout {
-        let lastTime = Date.now();
-        let simAngle = 0; // 简单匀速
+    /** 模拟上旋系统 */
+    private updateRotation(dt: number) {
+        const state = this.rotationState;
+        const anglePerSecond = (state.motorFrequency / 50) * 30; // Hz -> 角速度(°/s)
+        const deltaAngle = anglePerSecond * dt;
 
-        const intervalId = setInterval(() => {
-            const now = Date.now();
-            const deltaTime = now - lastTime;
-            lastTime = now;
-
-            // 简单角度更新
-            simAngle = (simAngle + (this.params.angleVelocity / 6) * (deltaTime / 1000)) % 360;
-
-            this.updateOneStep(deltaTime, simAngle);
-
-            // 每1s摘要
-            if (now % 1000 < 10) {
-                console.log(
-                    `[实时摘要 ${new Date(now).toLocaleTimeString()}] 角度${simAngle.toFixed(1)}°, ` +
-                    `总横脉冲${this.signals.horizontalPulse}, 平均探头${Math.floor(this.signals.probeValue)}μm`
-                );
+        if (state.forwardRotation) {
+            state.rotationAngle += deltaAngle;
+            state.rotationPulse += deltaAngle * 10; // 脉冲计数模拟
+            if (state.rotationAngle >= state.maxAngle) {
+                state.forwardRotation = false;
+                state.reverseRotation = true;
+                state.forwardDirectionChange = true;
+            } else {
+                state.forwardDirectionChange = false;
             }
-
-            // 超时停
-            if (now - lastTime > durationMs) {
-                clearInterval(intervalId);
-                console.log('🛑 实时模拟结束');
-                process.exit(0);
+        } else {
+            state.rotationAngle -= deltaAngle;
+            state.rotationPulse -= deltaAngle * 10;
+            if (state.rotationAngle <= 0) {
+                state.forwardRotation = true;
+                state.reverseRotation = false;
+                state.reverseDirectionChange = true;
+            } else {
+                state.reverseDirectionChange = false;
             }
-        }, 10); // 10ms
+        }
 
-        console.log('🚀 实时模拟启动（', durationMs / 1000, 's后停）');
-        return intervalId;
+        // 限制角度范围
+        state.rotationAngle = Math.max(0, Math.min(state.rotationAngle, state.maxAngle));
     }
 }
 
 
-// 测试
-if (require.main === module) {
-    const sim = new SignalSimulator();
-    sim.startRealtime(5000);
-}
-
-export { SignalSimulator, BlowingParams };
+export default Simulator;

@@ -2,7 +2,7 @@
  * 上旋系统原始信号
  * 描述上旋的运动和传感器状态
  */
-export interface UpperRotationSignal {
+interface UpperRotationSignal {
   /**
    * 正向旋转信号
    * 类型：布尔值，表示是否处于正向旋转状态
@@ -34,10 +34,11 @@ export interface UpperRotationSignal {
   reset: boolean;
 
   /**
-   * 电机频率- 旋转速度
-   * 类型：数值，表示电机当前频率（单位：Hz）
-   */
+     * 电机频率- 旋转速度
+     * 类型：数值，表示电机当前频率（单位：Hz）
+     */
   motorFrequency: number;
+
 }
 
 
@@ -45,7 +46,7 @@ export interface UpperRotationSignal {
  * 机架系统原始信号接口
  * 描述横向扫描机架的运动和传感器状态
  */
-export interface RackSignals {
+interface RackSignals {
   /**
    * 横向脉冲计数 数值增加=前进，反之后退
    * 类型：数值，表示当前横向位置的脉冲累计（单位：脉冲数）
@@ -92,5 +93,51 @@ export interface RackSignals {
    * 辊速信号
    * 类型：boolean，表示当前辊速信号状态（true 转过一圈，false 未到接触点）
    */
-  probeValue: boolean;
+  rollSpeedSignal: boolean;
+}
+
+
+/**
+ * 上旋系统数据模拟
+ */
+interface IPollingRotationData extends UpperRotationSignal {
+  /**
+   * 模拟脉冲总行程 （实际不存在，通过监听旋转信号模拟）
+   * 类型：数值，表示上旋总行程
+   */
+  rotationMaxPulse: number;
+
+  /**
+   * 模拟当前脉冲 （实际不存在，通过监听旋转信号模拟）
+   * 类型：数值，表示上旋位置
+   */
+  rotationPulse: number;
+  /**
+   * 最大旋转角度
+   * 类型：数值，需要通过计算得出最大旋转角度
+   */
+  maxAngle: number;
+
+  /**
+   * 当前角度
+   * 类型：数值，表示当前旋转的角度 deg
+   */
+  rotationAngle: number;
+}
+
+/**
+ * 机架系统数据模拟
+ */
+
+interface IPollingRackData extends RackSignals {
+  /**
+    * 模拟辊速信号时间间隔 （实际不存在，通过监听辊速信号）
+    * 类型：数值，表示辊转一圈花费时间
+    */
+  rollSpeedTime: number;
+  /**
+   * 膜速度  （生产速度）
+   * 类型：数值，描述薄膜的生产速度 mm/s
+   */
+  filmSpeed: number;
 }
