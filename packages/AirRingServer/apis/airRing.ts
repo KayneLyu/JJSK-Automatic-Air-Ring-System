@@ -8,7 +8,7 @@ export const setHeats = (params: number[]) => {
 }
 
 /**
- *获取热量
+ * 获取热量
  */
 export const getHeats = (): number[] => {
   /* TODO */

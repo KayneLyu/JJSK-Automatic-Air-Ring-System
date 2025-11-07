@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import path from 'node:path'
 import electron from 'vite-plugin-electron/simple'
 import vue from '@vitejs/plugin-vue'
-import { join } from 'path';
+import { join } from 'path'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
@@ -11,9 +11,9 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 export default defineConfig({
   resolve: {
     alias: {
-      '@': join(__dirname, '/src')   // 路径别名
+      '@': join(__dirname, '/src'), // 路径别名
     },
-    extensions: ['.js', '.json', '.ts', '.tsx']
+    extensions: ['.js', '.json', '.ts', '.tsx'],
   },
   plugins: [
     vue(),
@@ -36,10 +36,11 @@ export default defineConfig({
       // Ployfill the Electron and Node.js API for Renderer process.
       // If you want use Node.js in Renderer process, the `nodeIntegration` needs to be enabled in the Main process.
       // See 👉 https://github.com/electron-vite/vite-plugin-electron-renderer
-      renderer: process.env.NODE_ENV === 'test'
-        // https://github.com/electron-vite/vite-plugin-electron-renderer/issues/78#issuecomment-2053600808
-        ? undefined
-        : {},
+      renderer:
+        process.env.NODE_ENV === 'test'
+          ? // https://github.com/electron-vite/vite-plugin-electron-renderer/issues/78#issuecomment-2053600808
+            undefined
+          : {},
     }),
   ],
 })

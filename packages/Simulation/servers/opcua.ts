@@ -1,10 +1,10 @@
-import opcua from 'node-opcua'
+import { Variant, OPCUAServer, nodesets, DataType } from 'node-opcua'
 
 // ==================== 1. 配置 OPC UA 服务器 ====================
-const server = new opcua.OPCUAServer({
+const server = new OPCUAServer({
   port: 4334,
   host: 'localhost',
-  nodeset_filename: [opcua.nodesets.standard],
+  nodeset_filename: [nodesets.standard],
 })
 
 // ==================== 2. 模拟测厚仪数据 ====================
@@ -45,9 +45,6 @@ const updateThicknessData = () => {
   // )
 }
 
-// 每 1ms 秒更新一次数据
-setInterval(updateThicknessData, 1)
-
 // ==================== 3. 构建 OPC UA 地址空间 ====================
 const initialize = async () => {
   const addressSpace = server.engine.addressSpace
@@ -62,28 +59,28 @@ const initialize = async () => {
   })
 
   // 添加各个变量
-  namespace.addVariable({
+  const rightLimit = namespace.addVariable({
     componentOf: gauge,
     nodeId: 'ns=1;s=X1_RightLimit',
     browseName: 'X1_右限位',
     dataType: 'Boolean',
     value: {
       get: () =>
-        new opcua.Variant({
-          dataType: opcua.DataType.Boolean,
+        new Variant({
+          dataType: DataType.Boolean,
           value: thicknessData.X1,
         }),
     },
   })
-  namespace.addVariable({
+  const leftLimit = namespace.addVariable({
     componentOf: gauge,
     nodeId: 'ns=1;s=X2_LeftLimit',
     browseName: 'X2_左限位',
     dataType: 'Boolean',
     value: {
       get: () =>
-        new opcua.Variant({
-          dataType: opcua.DataType.Boolean,
+        new Variant({
+          dataType: DataType.Boolean,
           value: thicknessData.X2,
         }),
     },
@@ -96,8 +93,8 @@ const initialize = async () => {
     dataType: 'Boolean',
     value: {
       get: () =>
-        new opcua.Variant({
-          dataType: opcua.DataType.Boolean,
+        new Variant({
+          dataType: DataType.Boolean,
           value: thicknessData.X3,
         }),
     },
@@ -110,8 +107,8 @@ const initialize = async () => {
     dataType: 'UInt16',
     value: {
       get: () =>
-        new opcua.Variant({
-          dataType: opcua.DataType.UInt16,
+        new Variant({
+          dataType: DataType.UInt16,
           value: thicknessData.X10,
         }),
     },
@@ -124,8 +121,8 @@ const initialize = async () => {
     dataType: 'Boolean',
     value: {
       get: () =>
-        new opcua.Variant({
-          dataType: opcua.DataType.Boolean,
+        new Variant({
+          dataType: DataType.Boolean,
           value: thicknessData.A_minus,
         }),
     },
@@ -135,11 +132,11 @@ const initialize = async () => {
     componentOf: gauge,
     nodeId: 'ns=1;s=B_minus_Direction',
     browseName: 'B_方向信号',
-    dataType: opcua.DataType.Boolean,
+    dataType: DataType.Boolean,
     value: {
       get: () =>
-        new opcua.Variant({
-          dataType: opcua.DataType.Boolean,
+        new Variant({
+          dataType: DataType.Boolean,
           value: thicknessData.B_minus,
         }),
     },
@@ -152,8 +149,8 @@ const initialize = async () => {
     dataType: 'Boolean',
     value: {
       get: () =>
-        new opcua.Variant({
-          dataType: opcua.DataType.Boolean,
+        new Variant({
+          dataType: DataType.Boolean,
           value: thicknessData.SP,
         }),
     },
@@ -166,8 +163,8 @@ const initialize = async () => {
     dataType: 'Boolean',
     value: {
       get: () =>
-        new opcua.Variant({
-          dataType: opcua.DataType.Boolean,
+        new Variant({
+          dataType: DataType.Boolean,
           value: thicknessData.S1,
         }),
     },
@@ -183,8 +180,8 @@ const initialize = async () => {
         dataType: 'Boolean',
         value: {
           get: () =>
-            new opcua.Variant({
-              dataType: opcua.DataType.Boolean,
+            new Variant({
+              dataType: DataType.Boolean,
               value: thicknessData[key as keyof typeof thicknessData],
             }),
         },
@@ -193,6 +190,22 @@ const initialize = async () => {
   })
 
   console.log('OPC UA 服务器地址空间构建完成')
+  // 每 1ms 秒更新一次数据
+  setInterval(() => {
+    updateThicknessData()
+    rightLimit.setValueFromSource(
+      new Variant({
+        dataType: DataType.Boolean,
+        value: thicknessData.X1,
+      })
+    )
+    leftLimit.setValueFromSource(
+      new Variant({
+        dataType: DataType.Boolean,
+        value: thicknessData.X2,
+      })
+    )
+  }, 1)
 }
 
 // ==================== 4. 启动服务器 ====================

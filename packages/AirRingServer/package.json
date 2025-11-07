@@ -11,10 +11,12 @@
   "license": "ISC",
   "packageManager": "pnpm@10.18.3",
   "devDependencies": {
-    "vitest": "^3.2.4",
-    "@jjsk/thickness-gauge-simulation": "workspace:^"
+    "@jjsk/simulation": "workspace:^",
+    "vitest": "^4.0.0"
   },
   "dependencies": {
+    "nanostores": "^1.0.1",
+    "neverthrow": "^8.2.0",
     "node-opcua": "^2.157.0"
   }
 }
