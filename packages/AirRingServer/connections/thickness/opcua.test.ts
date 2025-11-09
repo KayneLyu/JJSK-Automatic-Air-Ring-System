@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { startServer } from '@jjsk/thickness-gauge-simulation'
+import { startServer } from '@jjsk/simulation'
 import { Client } from './opcua'
 
 const url = 'opc.tcp://localhost:4334' // 你的 OPC UA 服务器地址
@@ -23,7 +23,7 @@ test('监听数据变化', async () => {
       expect(callback).toHaveBeenCalled()
       const { calls } = callback.mock
       const hasExpectedCall = calls.some(
-        ([arg]) => arg && typeof arg === 'object' && arg.rightLimit === false
+        ([arg]) => arg && typeof arg === 'object' && arg.LeftLimit === false
       )
       expect(hasExpectedCall).toBe(true)
     },

@@ -1,14 +1,26 @@
 import { Client as OPCUAClient, OPCUAData } from '../base/opcua'
 
 export interface ThickNessData extends OPCUAData {
-  leftLimit?: boolean // 左限位
-  rightLimit?: boolean // 右限位
+  HorizontalPulse?: number // 左限位
+  LeftLimit?: boolean // 右限位
+  RightLimit?: boolean
+  ResetSignal?: boolean
+  SwapDirection?: boolean
+  MotionDirection?: boolean
+  ProbeValue?: boolean
+  RollSpeedSignal?: number
 }
 // ==================== 配置 ====================
 
 const NODE_VALUE_MAP: Record<string, keyof ThickNessData> = {
-  'ns=1;s=X1_RightLimit': 'rightLimit',
-  'ns=1;s=X2_LeftLimit': 'leftLimit',
+  'ns=1;i=1002': 'HorizontalPulse',
+  'ns=1;i=1003': 'LeftLimit',
+  'ns=1;i=1004': 'RightLimit',
+  'ns=1;i=1005': 'ResetSignal',
+  'ns=1;i=1006': 'SwapDirection',
+  'ns=1;i=1007': 'MotionDirection',
+  'ns=1;i=1008': 'ProbeValue',
+  'ns=1;i=1009': 'RollSpeedSignal',
 }
 export const Client = (url: string) => {
   return OPCUAClient<ThickNessData>({

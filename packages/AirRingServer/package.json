@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest --standalone connections/thickness/opcua.test.ts -t=^连接测试$"
   },
   "keywords": [],
   "author": "",

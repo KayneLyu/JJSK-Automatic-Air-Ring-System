@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://support.sterfive.com/nodeset2.schema.json
+namespaceUri: https://jinjiutech.com/opcua/thickness
+version: 1.0.0
+publicationDate: 2025-11-06T00:00:00Z
+namespaces:
+  - di
+objectTypes:
+  - browseName: ThicknessDeviceType
+    subtypeOf: di:DeviceType
+    components:
+      - browseName: di:ParameterSet
+        components:
+          - browseName: HorizontalPulse
+            dataType: ua:Double
+            engineeringUnits: 脉冲数
+            description: |
+              横向脉冲计数 数值增加=前进，反之后退
+              表示当前横向位置的脉冲累计
+          - browseName: LeftLimit
+            dataType: ua:Boolean
+            description: 左限位信号，表示是否触发左端限位开关（true 为已触发）
+          - browseName: RightLimit
+            dataType: ua:Boolean
+            description: 右限位信号，表示是否触发右端限位开关（true 为已触发）
+          - browseName: ResetSignal
+            dataType: ua:Boolean
+            description: 归零信号，表示是否检测到归零点（原点）触发（true 为触发）
+          - browseName: SwapDirection
+            dataType: ua:Boolean
+            description: 换向信号，表示方向切换触发（true 为换向发生）
+          - browseName: MotionDirection
+            dataType: ua:Boolean
+            description: 运动方向，表示当前运动方向（true 为正向/向右，false 为反向/向左）
+          - browseName: ProbeValue
+            dataType: ua:Double
+            description: 运动方向，表示当前探头检测的厚度值（单位：μm）
+          - browseName: RollSpeedSignal
+            dataType: ua:Double
+            description: 辊速信号，表示当前辊速信号状态（true 转过一圈，false 未到接触点）
+
+instances:
+  - browseName: Thickness
+    typeDefinition: ThicknessType
+    organizedBy: /ua:Objects/di:DeviceSet

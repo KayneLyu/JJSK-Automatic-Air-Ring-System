@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=https://support.sterfive.com/nodeset2.schema.json
+namespaceUri: https://jinjiutech.com/opcua/AriRing
+version: 1.0.0
+publicationDate: 2025-11-06T00:00:00Z
+namespaces:
+  - di
+objectTypes:
+  - browseName: UpperRotationDeviceType
+    subtypeOf: di:DeviceType
+    description: |
+      上旋系统原始信号
+      描述上旋的运动和传感器状态
+    components:
+      - browseName: di:ParameterSet
+        components:
+          - browseName: ForwardRotation
+            dataType: ua:Boolean
+            description: 正向旋转信号，表示是否处于正向旋转状态
+          - browseName: ReverseRotation
+            dataType: ua:Boolean
+            description: 反向旋转信号，表示是否处于反向旋转状态
+          - browseName: ForwardDirectionChange
+            dataType: ua:Boolean
+            description: 正换向信号，表示正向换向触发
+          - browseName: ReverseDirectionChange
+            dataType: ua:Boolean
+            description: 反换向信号，表示反向换向触发
+          - browseName: Reset
+            dataType: ua:Boolean
+            description: 复位信号，表示复位触发
+          - browseName: MotorFrequency
+            dataType: ua:Double
+            description: 电机频率- 旋转速度，表示电机当前频率（单位：Hz）
+  - browseName: AirRingDeviceType
+    subtypeOf: di:DeviceType
+    description: 风环系统原始信号
+    components:
+      - browseName: di:ParameterSet
+        components:
+          - browseName: Heats
+            dataType: ua:Double
+            valueRank: 1
+            description: 风环热量
+      - browseName: di:MethodSet
+        methods:
+          - browseName: SetHeats
+            dataType: ua:Double
+            valueRank: 1
+            description: 设置风环热量
+instances:
+  - browseName: Thickness
+    typeDefinition: ThicknessType
+    organizedBy: /ua:Objects/di:DeviceSet
