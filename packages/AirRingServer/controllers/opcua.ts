@@ -1,12 +1,19 @@
 import { AirRingConnection } from '../connections/airRing'
 import { ThicknessConnection } from '../connections/thickness'
+import { ThickNessData } from '../connections/thickness/opcua'
+import { RingData } from '../connections/airRing/opcua'
+import { tracker } from '../utils/tracker'
 
 export interface OPCUAControllerOptions {
   airRingUrl: string
   thicknessUrl: string
+  /**
+   * 上旋电机速率 即每Hz旋转多少圈rpm
+   * */
+  UP_FREQ_TO_RPS: number
 }
 export const OPCUAController = (options: OPCUAControllerOptions) => {
-  const { airRingUrl, thicknessUrl } = options
+  const { airRingUrl, thicknessUrl, UP_FREQ_TO_RPS } = options
   const AirRingClient = AirRingConnection({
     url: airRingUrl,
     type: 'opcua',
@@ -36,10 +43,20 @@ export const OPCUAController = (options: OPCUAControllerOptions) => {
    * */
   const testDisconnect = async () => {
     await AirRingClient.setHeats()
+    const buffer: {
+      thickness: ThickNessData[]
+      airRing: RingData[]
+    } = {
+      thickness: [],
+      airRing: [],
+    }
+    await ThicknessClient.subscribe((data) => {
+      buffer.thickness.push(data)
+      const { maxAngle } = tracker(buffer, { UP_FREQ_TO_RPS })
+    })
     await AirRingClient.subscribe((data) => {
-      if (data.angleRange) {
-        /* */
-      }
+      buffer.thickness.push(data)
+      const { maxAngle } = tracker(buffer, { UP_FREQ_TO_RPS })
     })
   }
   return {

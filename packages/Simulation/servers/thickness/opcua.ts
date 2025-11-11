@@ -57,7 +57,7 @@ const createModel = async (
   const ProbeValue = ns.addVariable({
     browseName: 'ProbeValue',
     componentOf: ParameterSet,
-    dataType: DataType.Boolean,
+    dataType: DataType.Double,
     description: '运动方向，表示当前探头检测的厚度值（单位：μm）',
   })
   const RollSpeedSignal = ns.addVariable({

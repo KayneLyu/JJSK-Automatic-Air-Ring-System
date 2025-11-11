@@ -63,7 +63,6 @@ class Simulator extends EventEmitter {
     }
   }
 
-
   /** 启动模拟器 */
   public start() {
     if (this.timer) return

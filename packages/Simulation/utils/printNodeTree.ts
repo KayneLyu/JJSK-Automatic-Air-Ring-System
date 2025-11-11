@@ -4,11 +4,9 @@ import { NodeClass } from 'node-opcua-data-model'
 export const printNodeTree = (node: BaseNode, indent = '') => {
   const { browseName, nodeId } = node
   const nodeClass = NodeClass[node.nodeClass]
-  // 获取 TypeDefinition（如果是 Object）
-  let typeInfo = ''
 
   console.log(
-    `${indent} ├─ ${browseName}  [${nodeId.toString()}] <${nodeClass}>${typeInfo}`
+    `${indent} ├─ ${browseName}  [${nodeId.toString()}] <${nodeClass}>`
   )
   // 遍历子节点（HasComponent / Organizes）
   const hasComponentRefs = node.findReferences('HasComponent', true) // true = isForward

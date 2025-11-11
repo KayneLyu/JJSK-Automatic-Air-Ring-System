@@ -9,7 +9,7 @@ import {
 import { atom } from 'nanostores'
 
 export interface OPCUAData {
-  timestamp?: string
+  timestamp?: number
 }
 
 export interface ClientOptions<T extends OPCUAData> {
@@ -186,7 +186,7 @@ const monitorItems = async <T extends OPCUAData>(
     const newValue = {
       ...(oldValue || {}),
       [nodeIdValueMap[nodeId]]: value,
-      timestamp: dataValue.serverTimestamp?.toISOString(),
+      timestamp: dataValue.serverTimestamp?.getTime(),
     } as T
     listener(newValue, oldValue)
     oldValue = newValue
