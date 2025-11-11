@@ -1,9 +1,8 @@
-import { EventEmitter } from 'events'
 
 /**
  * 模拟器
  */
-class Simulator extends EventEmitter {
+class Simulator {
   // ========== 配置参数 ==========（实际可设定）
   // 编码器比例
   private encoderRatio = 0.14
@@ -35,7 +34,6 @@ class Simulator extends EventEmitter {
   private lastTime = Date.now()
 
   constructor() {
-    super()
     this.rackState = {
       horizontalPulse: 0,
       leftLimit: false,
@@ -64,12 +62,6 @@ class Simulator extends EventEmitter {
   }
 
 
-  /** 启动模拟器 */
-  public start() {
-    if (this.timer) return
-    this.timer = setInterval(() => this.tick(), this.tickInterval)
-  }
-
   /** 停止模拟器 */
   public stop() {
     if (this.timer) clearInterval(this.timer)
@@ -77,18 +69,16 @@ class Simulator extends EventEmitter {
   }
 
   /** 每次tick的逻辑（模拟1帧数据） */
-  private tick() {
+  private updateTick() {
     const now = Date.now()
     const dt = (now - this.lastTime) / 1000 // 秒
     this.lastTime = now
-
     this.updateRack(dt)
     this.updateRotation(dt)
-    this.emit('data', {
-      timestamp: now,
-      rack: { ...this.rackState },
-      rotation: { ...this.rotationState },
-    })
+
+    return {
+
+    }
   }
 
   /** 模拟机架系统运动 */
@@ -127,7 +117,6 @@ class Simulator extends EventEmitter {
     this.rackState.rollSpeedTime = rollPeriod
     this.rackState.filmSpeed = this.rollCircumference / rollPeriod // m/s
 
-    // 模拟探头采集值 (模拟量)
   }
 
   /** 模拟上旋系统 */

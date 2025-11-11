@@ -16,6 +16,7 @@ const createModel = async (
     browseName: 'ParameterSet',
     componentOf: ThicknessDeviceType,
   })
+  // 横扫测厚仪
   const HorizontalPulse = ns.addVariable({
     browseName: 'HorizontalPulse',
     componentOf: ParameterSet,
@@ -57,7 +58,7 @@ const createModel = async (
   const ProbeValue = ns.addVariable({
     browseName: 'ProbeValue',
     componentOf: ParameterSet,
-    dataType: DataType.Boolean,
+    dataType: DataType.Double,
     description: '运动方向，表示当前探头检测的厚度值（单位：μm）',
   })
   const RollSpeedSignal = ns.addVariable({
@@ -67,6 +68,57 @@ const createModel = async (
     description:
       '辊速信号，表示当前辊速信号状态（true 转过一圈，false 未到接触点）',
   })
+
+  // ======上旋系统
+  const forwardRotation = ns.addVariable({
+    browseName: 'forwardRotation',
+    componentOf: ParameterSet,
+    dataType: DataType.Boolean,
+    description:
+      '正向旋转信号, 表示是否处于正向旋转状态',
+  })
+
+  const reverseRotation = ns.addVariable({
+    browseName: 'reverseRotation',
+    componentOf: ParameterSet,
+    dataType: DataType.Boolean,
+    description:
+      '反向旋转信号,表示旋转架是否处于反向旋转状态',
+  })
+
+  const forwardDirectionChange = ns.addVariable({
+    browseName: 'forwardDirectionChange',
+    componentOf: ParameterSet,
+    dataType: DataType.Boolean,
+    description:
+      '正换向信号 ,表示旋转架是否处于正换向触发',
+  })
+
+  const reverseDirectionChange = ns.addVariable({
+    browseName: 'reverseDirectionChange',
+    componentOf: ParameterSet,
+    dataType: DataType.Boolean,
+    description:
+      '反换向信号 ,表示旋转架是否处于反向换向触发',
+  })
+
+  const rotationReset = ns.addVariable({
+    browseName: 'rotationReset',
+    componentOf: ParameterSet,
+    dataType: DataType.Boolean,
+    description:
+      '复位信号 ,表示旋转架是否处于复位状态',
+  })
+
+  const motorFrequency = ns.addVariable({
+    browseName: 'motorFrequency',
+    componentOf: ParameterSet,
+    dataType: DataType.Boolean,
+    description:
+      '电机频率（变频器) , 表示旋转架当前转速',
+  })
+
+
   printNodeTree(ThicknessDeviceType)
   return {
     HorizontalPulse,
@@ -77,6 +129,12 @@ const createModel = async (
     MotionDirection,
     ProbeValue,
     RollSpeedSignal,
+    forwardRotation,
+    reverseRotation,
+    forwardDirectionChange,
+    reverseDirectionChange,
+    rotationReset,
+    motorFrequency
   }
 }
 
@@ -85,7 +143,7 @@ const startServer = async () => {
     port: 4334,
     createModel,
   })
-  // 每 1ms 秒更新一次数据
+  // 每 10ms 秒更新一次数据
   setInterval(() => {
     updateVariables({
       HorizontalPulse: Math.floor(Math.random() * 1000),
@@ -97,7 +155,7 @@ const startServer = async () => {
       ProbeValue: Math.random() >= 0.5,
       RollSpeedSignal: Math.floor(Math.random() * 1000),
     })
-  }, 1)
+  }, 10)
 }
 
 export { startServer }
