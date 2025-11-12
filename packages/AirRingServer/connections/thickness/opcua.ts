@@ -40,7 +40,7 @@ export interface ThickNessData extends OPCUAData {
    * 辊速信号
    * 表示当前辊速信号状态（true 转过一圈，false 未到接触点）
    * */
-  RollSpeedSignal?: number // 辊速信号
+  RollSpeedSignal?: boolean
 }
 // ==================== 配置 ====================
 
