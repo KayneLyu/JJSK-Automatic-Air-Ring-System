@@ -37,6 +37,7 @@ export interface RingData extends OPCUAData {
    * */
   Heats?: number[]
 }
+
 // ==================== 配置 ====================
 
 const NODE_VALUE_MAP: Record<string, keyof RingData> = {
