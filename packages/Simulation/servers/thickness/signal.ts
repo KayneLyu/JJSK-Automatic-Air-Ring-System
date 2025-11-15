@@ -1,4 +1,3 @@
-
 /**
  * 模拟器
  */
@@ -24,7 +23,6 @@ class Simulator {
     this.encoderPulse
   // 辊周长
   private rollCircumference = 0.05
-
   private tickInterval = 10 // ms 采样周期
 
   //  ========== 运行时状态 ==========
@@ -61,7 +59,6 @@ class Simulator {
     }
   }
 
-
   /** 停止模拟器 */
   public stop() {
     if (this.timer) clearInterval(this.timer)
@@ -69,19 +66,43 @@ class Simulator {
   }
 
   /** 每次tick的逻辑（模拟1帧数据） */
-  private updateTick() {
+  public updateTick() {
     const now = Date.now()
     const dt = (now - this.lastTime) / 1000 // 秒
     this.lastTime = now
     this.updateRack(dt)
     this.updateRotation(dt)
-
     return {
-
+      HorizontalPulse: this.rackState.horizontalPulse,
+      LeftLimit: this.rackState.leftLimit,
+      RightLimit: this.rackState.rightLimit,
+      ResetSignal: this.rackState.leftLimit,
+      SwapDirection: this.rackState.leftLimit,
+      MotionDirection: this.rackState.leftLimit,
+      ProbeValue: this.rackState.leftLimit,
+      RollSpeedSignal: this.rackState.leftLimit,
+      ForwardRotation: this.rackState.leftLimit,
+      ReverseRotation: this.rackState.leftLimit,
+      ForwardDirectionChange: this.rackState.leftLimit,
+      ReverseDirectionChange: this.rackState.leftLimit,
+      RotationReset: this.rackState.leftLimit,
+      MotorFrequency: this.rackState.leftLimit
     }
   }
 
-  /** 模拟机架系统运动 */
+  // 模拟探头厚度：随 position 变化呈周期性波动 + 随机噪声
+  private simulatedThicknessAt(positionMm: number) {
+    // 基线厚度（μm）
+    const base = 50 // 50 μm
+    // 按位置生成波形
+    const normalized = (positionMm % (this.rackLengthMm * 0.6)) / this.rackLengthMm * 0.6
+    const wave = Math.sin(normalized * Math.PI * 4) * 8 // ±8 μm
+    const localPeak = Math.exp(-Math.pow((normalized - 0.5) * 6, 2)) * 20 // 中间峰
+    const noise = (Math.random() - 0.5) * 2 // ±1 μm 随机噪声
+    return Math.max(0, base + wave + localPeak + noise)
+  }
+
+  /** 模拟横扫机架系统运动 */
   private updateRack(dt: number) {
     const direction = this.rackState.motionDirection ? 1 : -1
     this.rackState.horizontalPulse += direction * this.probeSpeed * dt
@@ -103,12 +124,7 @@ class Simulator {
     }
 
     // 模拟厚度信号波动
-    this.rackState.probeValue =
-      50 +
-      5 *
-        Math.sin(
-          (this.rackState.horizontalPulse / this.rackLength) * Math.PI * 2
-        )
+    this.rackState.probeValue = this.simulatedThicknessAt( this.rackState.horizontalPulse * this.encoderRatio)
 
     // 模拟辊速信号（周期性触发）
     const rollPeriod = 1.2 // s 每圈时间

@@ -2,6 +2,7 @@ import { DataType, UAObjectType } from 'node-opcua'
 import { startServer as StartOPCUAServer } from '../base/opcua'
 import { AddressSpace } from 'node-opcua-address-space'
 import { printNodeTree } from '../../utils/printNodeTree'
+import Simulator from './signal';
 
 const createModel = async (
   addressSpace: AddressSpace,
@@ -70,7 +71,7 @@ const createModel = async (
   })
 
   // ======上旋系统
-  const forwardRotation = ns.addVariable({
+  const ForwardRotation = ns.addVariable({
     browseName: 'forwardRotation',
     componentOf: ParameterSet,
     dataType: DataType.Boolean,
@@ -78,7 +79,7 @@ const createModel = async (
       '正向旋转信号, 表示是否处于正向旋转状态',
   })
 
-  const reverseRotation = ns.addVariable({
+  const ReverseRotation = ns.addVariable({
     browseName: 'reverseRotation',
     componentOf: ParameterSet,
     dataType: DataType.Boolean,
@@ -86,7 +87,7 @@ const createModel = async (
       '反向旋转信号,表示旋转架是否处于反向旋转状态',
   })
 
-  const forwardDirectionChange = ns.addVariable({
+  const ForwardDirectionChange = ns.addVariable({
     browseName: 'forwardDirectionChange',
     componentOf: ParameterSet,
     dataType: DataType.Boolean,
@@ -94,7 +95,7 @@ const createModel = async (
       '正换向信号 ,表示旋转架是否处于正换向触发',
   })
 
-  const reverseDirectionChange = ns.addVariable({
+  const ReverseDirectionChange = ns.addVariable({
     browseName: 'reverseDirectionChange',
     componentOf: ParameterSet,
     dataType: DataType.Boolean,
@@ -102,7 +103,7 @@ const createModel = async (
       '反换向信号 ,表示旋转架是否处于反向换向触发',
   })
 
-  const rotationReset = ns.addVariable({
+  const RotationReset = ns.addVariable({
     browseName: 'rotationReset',
     componentOf: ParameterSet,
     dataType: DataType.Boolean,
@@ -110,14 +111,13 @@ const createModel = async (
       '复位信号 ,表示旋转架是否处于复位状态',
   })
 
-  const motorFrequency = ns.addVariable({
+  const MotorFrequency = ns.addVariable({
     browseName: 'motorFrequency',
     componentOf: ParameterSet,
     dataType: DataType.Boolean,
     description:
       '电机频率（变频器) , 表示旋转架当前转速',
   })
-
 
   printNodeTree(ThicknessDeviceType)
   return {
@@ -129,12 +129,12 @@ const createModel = async (
     MotionDirection,
     ProbeValue,
     RollSpeedSignal,
-    forwardRotation,
-    reverseRotation,
-    forwardDirectionChange,
-    reverseDirectionChange,
-    rotationReset,
-    motorFrequency
+    ForwardRotation,
+    ReverseRotation,
+    ForwardDirectionChange,
+    ReverseDirectionChange,
+    RotationReset,
+    MotorFrequency
   }
 }
 
@@ -143,18 +143,11 @@ const startServer = async () => {
     port: 4334,
     createModel,
   })
+  const simulator = new Simulator()
   // 每 10ms 秒更新一次数据
   setInterval(() => {
-    updateVariables({
-      HorizontalPulse: Math.floor(Math.random() * 1000),
-      LeftLimit: Math.random() >= 0.5,
-      RightLimit: Math.random() >= 0.5,
-      ResetSignal: Math.random() >= 0.5,
-      SwapDirection: Math.random() >= 0.5,
-      MotionDirection: Math.random() >= 0.5,
-      ProbeValue: Math.random() >= 0.5,
-      RollSpeedSignal: Math.floor(Math.random() * 1000),
-    })
+    const values = simulator.updateTick()
+    updateVariables(values)
   }, 10)
 }
 
