@@ -4,12 +4,13 @@ import {
   ClientSubscription,
   coerceNodeId,
   OPCUAClient,
+  ReadValueIdOptions,
   TimestampsToReturn,
 } from 'node-opcua'
 import { atom } from 'nanostores'
 
-export interface OPCUAData {
-  timestamp?: string
+export interface OPCUAData extends Record<string, unknown> {
+  timestamp?: number
 }
 
 export interface ClientOptions<T extends OPCUAData> {
@@ -108,6 +109,32 @@ export const Client = <T extends OPCUAData>(options: ClientOptions<T>) => {
     }
   }
   /**
+   * 读取数据
+   * */
+  const read = async () => {
+    const nodeIds = Object.keys(nodeIdValueMap)
+    const nodesToRead = nodeIds.map<ReadValueIdOptions>((nodeId) => ({
+      nodeId: nodeId,
+      attributeId: AttributeIds.Value,
+    }))
+    const session = await connect()
+    if (session) {
+      const dataValues = await session.read(
+        nodesToRead,
+        TimestampsToReturn.Both
+      )
+
+      const res = {} as T
+      for (let i = 0; i < nodeIds.length; i++) {
+        const nodeId = nodeIds[i]
+        const dataValue = dataValues[i]
+        res[nodeIdValueMap[nodeId]] = dataValue.value?.value
+        res['timestamp'] = dataValue.serverTimestamp?.getTime()
+      }
+      return res
+    }
+  }
+  /**
    * 测试连接
    * */
   const testConnect = () => {
@@ -118,6 +145,7 @@ export const Client = <T extends OPCUAData>(options: ClientOptions<T>) => {
     connect,
     testConnect,
     subscribe,
+    read,
   }
 }
 
@@ -186,7 +214,7 @@ const monitorItems = async <T extends OPCUAData>(
     const newValue = {
       ...(oldValue || {}),
       [nodeIdValueMap[nodeId]]: value,
-      timestamp: dataValue.serverTimestamp?.toISOString(),
+      timestamp: dataValue.serverTimestamp?.getTime(),
     } as T
     listener(newValue, oldValue)
     oldValue = newValue
