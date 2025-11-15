@@ -1,5 +1,5 @@
 import { startServer as StartOPCUAServer } from '../base/opcua'
-import Simulator from '../thickness/signal'
+import Simulator from '../../mocks/thickness/signal'
 import { AddressSpace } from 'node-opcua-address-space'
 import { DataType, UAObjectType } from 'node-opcua'
 

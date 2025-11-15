@@ -1,5 +1,5 @@
 import { startServer } from '../../servers/thickness/opcua'
-import Simulator from '../../servers/thickness/signal'
+import Simulator from './signal'
 
 /**
  * 数据模拟样本1
