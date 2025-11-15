@@ -2,7 +2,6 @@ import { DataType, UAObjectType } from 'node-opcua'
 import { startServer as StartOPCUAServer } from '../base/opcua'
 import { AddressSpace } from 'node-opcua-address-space'
 import { printNodeTree } from '../../utils/printNodeTree'
-import Simulator from './signal';
 
 const createModel = async (
   addressSpace: AddressSpace,
@@ -70,55 +69,6 @@ const createModel = async (
       '辊速信号，表示当前辊速信号状态（true 转过一圈，false 未到接触点）',
   })
 
-  // ======上旋系统
-  const ForwardRotation = ns.addVariable({
-    browseName: 'forwardRotation',
-    componentOf: ParameterSet,
-    dataType: DataType.Boolean,
-    description:
-      '正向旋转信号, 表示是否处于正向旋转状态',
-  })
-
-  const ReverseRotation = ns.addVariable({
-    browseName: 'reverseRotation',
-    componentOf: ParameterSet,
-    dataType: DataType.Boolean,
-    description:
-      '反向旋转信号,表示旋转架是否处于反向旋转状态',
-  })
-
-  const ForwardDirectionChange = ns.addVariable({
-    browseName: 'forwardDirectionChange',
-    componentOf: ParameterSet,
-    dataType: DataType.Boolean,
-    description:
-      '正换向信号 ,表示旋转架是否处于正换向触发',
-  })
-
-  const ReverseDirectionChange = ns.addVariable({
-    browseName: 'reverseDirectionChange',
-    componentOf: ParameterSet,
-    dataType: DataType.Boolean,
-    description:
-      '反换向信号 ,表示旋转架是否处于反向换向触发',
-  })
-
-  const RotationReset = ns.addVariable({
-    browseName: 'rotationReset',
-    componentOf: ParameterSet,
-    dataType: DataType.Boolean,
-    description:
-      '复位信号 ,表示旋转架是否处于复位状态',
-  })
-
-  const MotorFrequency = ns.addVariable({
-    browseName: 'motorFrequency',
-    componentOf: ParameterSet,
-    dataType: DataType.Boolean,
-    description:
-      '电机频率（变频器) , 表示旋转架当前转速',
-  })
-
   printNodeTree(ThicknessDeviceType)
   return {
     HorizontalPulse,
@@ -129,12 +79,6 @@ const createModel = async (
     MotionDirection,
     ProbeValue,
     RollSpeedSignal,
-    ForwardRotation,
-    ReverseRotation,
-    ForwardDirectionChange,
-    ReverseDirectionChange,
-    RotationReset,
-    MotorFrequency
   }
 }
 
@@ -143,12 +87,9 @@ const startServer = async () => {
     port: 4334,
     createModel,
   })
-  const simulator = new Simulator()
-  // 每 10ms 秒更新一次数据
-  setInterval(() => {
-    const values = simulator.updateTick()
-    updateVariables(values)
-  }, 10)
+  return {
+    updateVariables,
+  }
 }
 
 export { startServer }

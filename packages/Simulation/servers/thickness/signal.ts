@@ -86,7 +86,7 @@ class Simulator {
       ForwardDirectionChange: this.rackState.leftLimit,
       ReverseDirectionChange: this.rackState.leftLimit,
       RotationReset: this.rackState.leftLimit,
-      MotorFrequency: this.rackState.leftLimit
+      MotorFrequency: this.rackState.leftLimit,
     }
   }
 
@@ -95,7 +95,8 @@ class Simulator {
     // 基线厚度（μm）
     const base = 50 // 50 μm
     // 按位置生成波形
-    const normalized = (positionMm % (this.rackLengthMm * 0.6)) / this.rackLengthMm * 0.6
+    const normalized =
+      ((positionMm % (this.rackLengthMm * 0.6)) / this.rackLengthMm) * 0.6
     const wave = Math.sin(normalized * Math.PI * 4) * 8 // ±8 μm
     const localPeak = Math.exp(-Math.pow((normalized - 0.5) * 6, 2)) * 20 // 中间峰
     const noise = (Math.random() - 0.5) * 2 // ±1 μm 随机噪声
@@ -124,7 +125,9 @@ class Simulator {
     }
 
     // 模拟厚度信号波动
-    this.rackState.probeValue = this.simulatedThicknessAt( this.rackState.horizontalPulse * this.encoderRatio)
+    this.rackState.probeValue = this.simulatedThicknessAt(
+      this.rackState.horizontalPulse * this.encoderRatio
+    )
 
     // 模拟辊速信号（周期性触发）
     const rollPeriod = 1.2 // s 每圈时间
@@ -132,7 +135,6 @@ class Simulator {
     this.rackState.rollSpeedSignal = rollSignal
     this.rackState.rollSpeedTime = rollPeriod
     this.rackState.filmSpeed = this.rollCircumference / rollPeriod // m/s
-
   }
 
   /** 模拟上旋系统 */
