@@ -3,6 +3,7 @@
  * */
 import { RingData } from '../../connections/airRing/opcua'
 import { ScanSegment } from './thickness'
+import { UpperRotationDeltaRange } from '../types'
 
 export interface AngleEvent {
   timestamp: number
@@ -119,4 +120,51 @@ export const evaluateDeltaTheta = (
   }
 
   return lowEnergy / (highEnergy + 1e-6)
+}
+
+export type InferMaxAngleOptions = {
+  /**
+   * 风道数量
+   * */
+  CHANNEL_COUNT: number
+  /**
+   * 最后一次有效扫描数据
+   * */
+  latestScan: ScanSegment
+  /**
+   * 上旋数据
+   * */
+  ringData: RingData[]
+  /**
+   * 上旋最大旋转角度评估范围
+   * */
+  deltaRange?: UpperRotationDeltaRange
+}
+/**
+ * 推断上旋最大角度
+ * */
+export const inferMaxAngle = ({
+  latestScan,
+  ringData,
+  deltaRange: { min = 180, max = 359, step = 1 } = {},
+  CHANNEL_COUNT,
+}: InferMaxAngleOptions): number | null => {
+  // ---------- 构建角度事件（暂用默认 Δθ=270° 做初步映射）----------
+  // 实际中可缓存上一次的 maxAngleDeg 作为初始猜测，加速收敛
+  let bestScore = -Infinity
+  let bestDelta: number | null = null
+
+  for (let delta = min; delta <= max; delta += step) {
+    const score = evaluateDeltaTheta(
+      [latestScan],
+      ringData,
+      delta,
+      CHANNEL_COUNT
+    )
+    if (score > bestScore) {
+      bestScore = score
+      bestDelta = delta
+    }
+  }
+  return bestDelta
 }

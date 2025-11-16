@@ -199,3 +199,35 @@ export const extractScanSegmentsAdaptive = (
 
   return segments
 }
+
+/**
+ * 计算牵引速度，平滑算法
+ * @param data 测厚仪数据
+ * @param Circumference 辊周长，单位：mm
+ * @param numCycles 使用最近 N 圈计算平均速度
+ * @param maxIntervalMs 最大允许脉冲间隔（防停机误判，默认 10_000 ms = 10秒）
+ * @returns 速度（mm/s），若无法计算则返回 null
+ * */
+export const computeTractionSpeedSmooth = (
+  data: ThickNessData[],
+  Circumference: number,
+  numCycles: number = 3, // 使用最近 N 圈计算平均速度
+  maxIntervalMs: number = 10_000
+): number | null => {
+  const pulseTimes: number[] = data
+    .filter((d) => d.RollSpeedSignal === true && d.timestamp != null)
+    .sort((a, b) => a.timestamp! - b.timestamp!)
+    .map((d) => d.timestamp!)
+
+  if (pulseTimes.length < numCycles + 1) return null
+
+  const recentPulses = pulseTimes.slice(-(numCycles + 1))
+  const totalDistance = Circumference * numCycles
+  const totalTime_ms = recentPulses[recentPulses.length - 1] - recentPulses[0]
+
+  if (totalTime_ms <= 0 || totalTime_ms > maxIntervalMs * numCycles) {
+    return null
+  }
+
+  return (totalDistance * 1000) / totalTime_ms // mm/s
+}
