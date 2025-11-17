@@ -47,7 +47,3 @@ objectTypes:
             dataType: ua:Double
             valueRank: 1
             description: 设置风环热量
-instances:
-  - browseName: Thickness
-    typeDefinition: ThicknessType
-    organizedBy: /ua:Objects/di:DeviceSet

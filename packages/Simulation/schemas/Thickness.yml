@@ -32,13 +32,14 @@ objectTypes:
             dataType: ua:Boolean
             description: 运动方向，表示当前运动方向（true 为正向/向右，false 为反向/向左）
           - browseName: ProbeValue
-            dataType: ua:Double
+            dataType: ua:Boolean
             description: 探头测量值，表示当前探头检测的厚度值（单位：μm）
+
+  - browseName: RollerDeviceType
+    subtypeOf: di:DeviceType
+    components:
+      - browseName: di:ParameterSet
+        components:
           - browseName: RollSpeedSignal
             dataType: ua:Boolean
             description: 辊速信号，表示当前辊速信号状态（true 转过一圈，false 未到接触点）
-
-instances:
-  - browseName: Thickness
-    typeDefinition: ThicknessType
-    organizedBy: /ua:Objects/di:DeviceSet

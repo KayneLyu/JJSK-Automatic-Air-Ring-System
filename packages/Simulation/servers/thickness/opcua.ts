@@ -61,10 +61,19 @@ const createModel = async (
     dataType: DataType.Double,
     description: '运动方向，表示当前探头检测的厚度值（单位：μm）',
   })
+  // 辊
+  const RollerDeviceType = ns.addObjectType({
+    browseName: 'RollerDeviceType',
+    subtypeOf: deviceType,
+  })
+  const RollerParameterSet = ns.addObject({
+    browseName: 'ParameterSet',
+    componentOf: RollerDeviceType,
+  })
   const RollSpeedSignal = ns.addVariable({
     browseName: 'RollSpeedSignal',
-    componentOf: ParameterSet,
-    dataType: DataType.Double,
+    componentOf: RollerParameterSet,
+    dataType: DataType.Boolean,
     description:
       '辊速信号，表示当前辊速信号状态（true 转过一圈，false 未到接触点）',
   })

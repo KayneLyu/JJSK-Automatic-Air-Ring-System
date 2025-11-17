@@ -67,6 +67,7 @@ export const Client = (url: string) => {
       })
       return result.statusCode === StatusCodes.Good
     }
+    return false
   }
   return {
     state,

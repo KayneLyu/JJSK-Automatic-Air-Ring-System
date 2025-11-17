@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "vite-node index.ts",
-    "generator": "vite-node scripts/generator.ts"
+    "generator": "vite-node scripts/generator.ts",
+    "test": "vitest --run mocks/upperRotation.mock.test.ts -t=^测试模拟数$"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +20,7 @@
     "node-opcua-address-space": "^2.157.0",
     "node-opcua-generator": "^2.157.0",
     "node-opcua-modeler": "^2.157.0",
-    "vite-node": "^3.2.4"
+    "vite-node": "^3.2.4",
+    "vitest": "^4.0.0"
   }
 }

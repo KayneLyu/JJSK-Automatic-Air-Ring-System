@@ -144,7 +144,7 @@ class Simulator {
     const deltaAngle = anglePerSecond * dt
 
     if (state.forwardRotation) {
-      state.rotationAngle += deltaAngle
+        state.rotationAngle += deltaAngle
       state.rotationPulse += deltaAngle * 10 // 脉冲计数模拟
       if (state.rotationAngle >= state.maxAngle) {
         state.forwardRotation = false

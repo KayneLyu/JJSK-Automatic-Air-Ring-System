@@ -2,18 +2,16 @@ import { AirRingConnection } from '../connections/airRing'
 import { ThicknessConnection } from '../connections/thickness'
 import { ThickNessData } from '../connections/thickness/opcua'
 import { RingData } from '../connections/airRing/opcua'
-import { tracker } from '../utils/tracker'
+import { calibrate } from './calibration'
+import { CalibrationConfig } from './types'
 
 export interface OPCUAControllerOptions {
   airRingUrl: string
   thicknessUrl: string
-  /**
-   * 上旋电机速率 即每Hz旋转多少圈rpm
-   * */
-  UP_FREQ_TO_RPS: number
+  config: CalibrationConfig
 }
 export const OPCUAController = (options: OPCUAControllerOptions) => {
-  const { airRingUrl, thicknessUrl, UP_FREQ_TO_RPS } = options
+  const { airRingUrl, thicknessUrl, config } = options
   const AirRingClient = AirRingConnection({
     url: airRingUrl,
     type: 'opcua',
@@ -37,30 +35,47 @@ export const OPCUAController = (options: OPCUAControllerOptions) => {
   }
 
   /**
-   * 测试距离
-   * 测厚仪到上旋距离 L1
-   * 上旋到风环距离 L2
+   * 系统标定
    * */
-  const testDisconnect = async () => {
-    await AirRingClient.setHeats()
-    const buffer: {
-      thickness: ThickNessData[]
-      airRing: RingData[]
-    } = {
-      thickness: [],
-      airRing: [],
+  const sysCalibrate = async () => {
+    const res = await AirRingClient.setHeats()
+    const disturbanceTs = Date.now()
+    if (res) {
+      const buffer: {
+        thickness: ThickNessData[]
+        airRing: RingData[]
+      } = {
+        thickness: [],
+        airRing: [],
+      }
+      let pending = false
+
+      function scheduleCalibrate() {
+        if (pending) return
+        pending = true
+
+        queueMicrotask(() => {
+          pending = false
+          calibrate({
+            thicknessData: buffer.thickness,
+            ringData: buffer.airRing,
+            disturbanceTs,
+            config,
+          })
+        })
+      }
+      await ThicknessClient.subscribe((data) => {
+        buffer.thickness.push(data)
+        scheduleCalibrate()
+      })
+      await AirRingClient.subscribe((data) => {
+        buffer.thickness.push(data)
+        scheduleCalibrate()
+      })
     }
-    await ThicknessClient.subscribe((data) => {
-      buffer.thickness.push(data)
-      const { maxAngle } = tracker(buffer, { UP_FREQ_TO_RPS })
-    })
-    await AirRingClient.subscribe((data) => {
-      buffer.thickness.push(data)
-      const { maxAngle } = tracker(buffer, { UP_FREQ_TO_RPS })
-    })
   }
   return {
     testConnect,
-    testDisconnect,
+    sysCalibrate,
   }
 }
