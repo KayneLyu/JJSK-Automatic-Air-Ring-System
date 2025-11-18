@@ -1,42 +1,14 @@
 import { Client as OPCUAClient, OPCUAData } from '../base/opcua'
 import { StatusCodes } from 'node-opcua'
+import { UpperRotationDevice } from '@jjsk/core'
 
-export interface RingData extends OPCUAData {
-  /**
-   * 正向旋转信号
-   * 表示是否处于正向旋转状态
-   * */
-  ForwardRotation?: boolean
-  /**
-   * 反向旋转信号
-   * 表示是否处于反向旋转状态
-   * */
-  ReverseRotation?: boolean
-  /**
-   * 正换向信号
-   * 表示正向换向触发
-   * */
-  ForwardDirectionChange?: boolean
-  /**
-   * 反换向信号
-   * 表示反向换向触发
-   * */
-  ReverseDirectionChange?: boolean
-  /**
-   * 复位信号
-   * 表示复位触发
-   * */
-  Reset?: boolean
-  /**
-   * 电机频率- 旋转速度
-   * 表示电机当前频率（单位：Hz）
-   * */
-  MotorFrequency?: number
-  /**
-   * 风环热量
-   * */
-  Heats?: number[]
-}
+export type RingData = OPCUAData &
+  UpperRotationDevice & {
+    /**
+     * 风环热量
+     * */
+    Heats?: number[]
+  }
 
 // ==================== 配置 ====================
 

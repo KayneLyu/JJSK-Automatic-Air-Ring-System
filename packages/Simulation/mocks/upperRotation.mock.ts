@@ -1,6 +1,6 @@
-import { UpperRotationDevice } from '../types'
+import { UpperRotationDevice } from '@jjsk/core'
 
-export type MockOptions = {
+export type UpperRotationMockOptions = {
   /**
    * 电机最大频率 默认：30Hz
    * */
@@ -36,7 +36,7 @@ export const mockUpperRotation = ({
   tripDuration = 6 * 60,
   decelerationDuration = 20,
   PULSE_WINDOW = 50,
-}: MockOptions) => {
+}: UpperRotationMockOptions) => {
   // 总周期：往返一次的时间
   const cycleDuration = tripDuration * 2 // 秒
   // 脉冲窗口
@@ -46,20 +46,17 @@ export const mockUpperRotation = ({
   const tResetReverse =
     tripDuration + ((maxAngle - resetAngle) / maxAngle) * tripDuration // 反向经过 resetAngle 的时间
 
-  const data: UpperRotationDevice & {
-    timestamp?: number
-  } = {}
-  let startTime = 0
+  let startTime: number | null = null
   const next = (): UpperRotationDevice => {
     const now = Date.now()
-    if (!data.timestamp) {
+    if (!startTime) {
       // 初始状态
       startTime = now
 
-      data.timestamp = now
-      data.ForwardRotation = true
-      data.MotorFrequency = 0
-      return data
+      return {
+        ForwardRotation: true,
+        MotorFrequency: 0,
+      }
     }
     const elapsed = (now - startTime) / 1000 // 秒，从开始经过的时间
     const tInCycle = elapsed % cycleDuration // 在当前周期内的偏移（秒）

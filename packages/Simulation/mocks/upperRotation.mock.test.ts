@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest'
 import { mockUpperRotation } from './upperRotation.mock'
 
-test('测试模拟数', async () => {
+test('测试模拟上旋数据', async () => {
   vi.useFakeTimers()
   // 固定初始时间
   const startTime = new Date('2025-11-18T12:00:00Z').getTime()

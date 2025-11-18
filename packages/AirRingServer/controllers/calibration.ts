@@ -4,7 +4,7 @@
 import { ThickNessData } from '../connections/thickness/opcua'
 import { RingData } from '../connections/airRing/opcua'
 import { CalibrationConfig } from './types'
-import { getCircumference } from '../utils'
+import { getCircumference } from '@jjsk/core'
 import {
   computeTractionSpeedSmooth,
   extractScanSegments,

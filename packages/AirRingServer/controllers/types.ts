@@ -1,25 +1,4 @@
-/**
- * 收卷辊的标定量
- * */
-export type RollerStandardized =
-  | {
-      /**
-       * 直径
-       * */
-      DIAMETER: number
-    }
-  | {
-      /**
-       * 半径
-       * */
-      RADIUS: number
-    }
-  | {
-      /**
-       * 周长
-       * */
-      CIRCUMFERENCE: number
-    }
+import { RollerStandardized } from '@jjsk/core'
 
 /**
  * 上旋最大旋转角度评估范围

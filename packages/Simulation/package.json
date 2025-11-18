@@ -6,7 +6,7 @@
   "scripts": {
     "start": "vite-node index.ts",
     "generator": "vite-node scripts/generator.ts",
-    "test": "vitest --run mocks/upperRotation.mock.test.ts -t=^测试模拟数$"
+    "test": "vitest --run mocks/roller.mock.test.ts -t=^测试模拟辊数据"
   },
   "keywords": [],
   "author": "",
@@ -14,7 +14,8 @@
   "packageManager": "pnpm@10.18.3",
   "dependencies": {
     "node-opcua": "^2.157.0",
-    "node-opcua-data-model": "^2.157.0"
+    "node-opcua-data-model": "^2.157.0",
+    "@jjsk/core": "workspace:^"
   },
   "devDependencies": {
     "node-opcua-address-space": "^2.157.0",
