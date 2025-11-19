@@ -70,12 +70,6 @@ interface RackSignals {
   resetSignal: boolean
 
   /**
-   * 换向信号
-   * 类型：布尔值，表示方向切换触发（true 为换向发生）
-   */
-  swapDirection: boolean
-
-  /**
    * 运动方向
    * 类型：布尔值，表示当前运动方向（true 为正向/向右，false 为反向/向左）
    */

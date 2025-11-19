@@ -21,13 +21,15 @@ class Simulator {
     this.encoderRatio *
     60 *
     this.encoderPulse
-  // 辊周长
-  private rollCircumference = 0.05
-  private tickInterval = 10 // ms 采样周期
+
+  // 辊速信号周期 s
+  private rollPeriod = 1.2
+
+  // private tickInterval = 10 // ms 采样周期
 
   //  ========== 运行时状态 ==========
-  private rackState: IPollingRackData
-  private rotationState: IPollingRotationData
+  private rackState: RackSignals
+  // private rotationState: IPollingRotationData
   private timer?: NodeJS.Timeout
   private lastTime = Date.now()
 
@@ -37,25 +39,9 @@ class Simulator {
       leftLimit: false,
       rightLimit: false,
       resetSignal: false,
-      swapDirection: false,
       motionDirection: true,
       probeValue: 0,
       rollSpeedSignal: false,
-      rollSpeedTime: 0,
-      filmSpeed: 0,
-    }
-
-    this.rotationState = {
-      forwardRotation: true,
-      reverseRotation: false,
-      forwardDirectionChange: false,
-      reverseDirectionChange: false,
-      reset: false,
-      motorFrequency: 50,
-      rotationPulse: 6000,
-      rotationAngle: 0,
-      rotationMaxPulse: 6000,
-      maxAngle: 330,
     }
   }
 
@@ -71,22 +57,14 @@ class Simulator {
     const dt = (now - this.lastTime) / 1000 // 秒
     this.lastTime = now
     this.updateRack(dt)
-    this.updateRotation(dt)
     return {
       HorizontalPulse: this.rackState.horizontalPulse,
       LeftLimit: this.rackState.leftLimit,
       RightLimit: this.rackState.rightLimit,
-      ResetSignal: this.rackState.leftLimit,
-      SwapDirection: this.rackState.leftLimit,
-      MotionDirection: this.rackState.leftLimit,
-      ProbeValue: this.rackState.leftLimit,
-      RollSpeedSignal: this.rackState.leftLimit,
-      ForwardRotation: this.rackState.leftLimit,
-      ReverseRotation: this.rackState.leftLimit,
-      ForwardDirectionChange: this.rackState.leftLimit,
-      ReverseDirectionChange: this.rackState.leftLimit,
-      RotationReset: this.rackState.leftLimit,
-      MotorFrequency: this.rackState.leftLimit,
+      ResetSignal:  this.rackState.resetSignal,
+      MotionDirection:  this.rackState.motionDirection,
+      ProbeValue:  this.rackState.probeValue,
+      RollSpeedSignal:  this.rackState.rollSpeedSignal,
     }
   }
 
@@ -112,16 +90,13 @@ class Simulator {
     if (this.rackState.horizontalPulse >= this.rackLength) {
       this.rackState.rightLimit = true
       this.rackState.leftLimit = false
-      this.rackState.swapDirection = true
       this.rackState.motionDirection = false
     } else if (this.rackState.horizontalPulse <= 0) {
       this.rackState.leftLimit = true
       this.rackState.rightLimit = false
-      this.rackState.swapDirection = true
       this.rackState.motionDirection = true
     } else {
       this.rackState.leftLimit = this.rackState.rightLimit = false
-      this.rackState.swapDirection = false
     }
 
     // 模拟厚度信号波动
@@ -130,46 +105,10 @@ class Simulator {
     )
 
     // 模拟辊速信号（周期性触发）
-    const rollPeriod = 1.2 // s 每圈时间
-    const rollSignal = Math.floor(Date.now() / (rollPeriod * 1000)) % 2 === 0
-    this.rackState.rollSpeedSignal = rollSignal
-    this.rackState.rollSpeedTime = rollPeriod
-    this.rackState.filmSpeed = this.rollCircumference / rollPeriod // m/s
-  }
-
-  /** 模拟上旋系统 */
-  private updateRotation(dt: number) {
-    const state = this.rotationState
-    const anglePerSecond = (state.motorFrequency / 50) * 30 // Hz -> 角速度(°/s)
-    const deltaAngle = anglePerSecond * dt
-
-    if (state.forwardRotation) {
-        state.rotationAngle += deltaAngle
-      state.rotationPulse += deltaAngle * 10 // 脉冲计数模拟
-      if (state.rotationAngle >= state.maxAngle) {
-        state.forwardRotation = false
-        state.reverseRotation = true
-        state.forwardDirectionChange = true
-      } else {
-        state.forwardDirectionChange = false
-      }
-    } else {
-      state.rotationAngle -= deltaAngle
-      state.rotationPulse -= deltaAngle * 10
-      if (state.rotationAngle <= 0) {
-        state.forwardRotation = true
-        state.reverseRotation = false
-        state.reverseDirectionChange = true
-      } else {
-        state.reverseDirectionChange = false
-      }
-    }
-
-    // 限制角度范围
-    state.rotationAngle = Math.max(
-      0,
-      Math.min(state.rotationAngle, state.maxAngle)
-    )
+    const now = Date.now();
+    const phase = (now / 1000) % this.rollPeriod;
+    // 重新进入 0~50ms 区间就视为触发
+    this.rackState.rollSpeedSignal =  phase < 0.05 || phase > this.rollPeriod - 0.01;
   }
 }
 
