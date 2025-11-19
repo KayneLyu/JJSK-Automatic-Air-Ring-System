@@ -8,7 +8,7 @@ test('测试模拟辊数据', async () => {
   vi.setSystemTime(startTime)
 
   // 模拟收卷速度为 20米/分钟
-  // 辊的半径为 15厘米
+  // 模拟辊的半径为 15厘米
   const { next } = mockRoller({
     speed: (20 * 1000) / 60,
     RADIUS: 15 * 10,
