@@ -6,8 +6,7 @@
   "scripts": {
     "start": "vite-node index.ts",
     "generator": "vite-node scripts/generator.ts",
-    "test": "vitest --run mocks/roller.mock.test.ts -t=^测试模拟辊数据",
-    "test2": "vitest --run mocks/Simulator.test.ts"
+    "test": "vitest --run mocks/thickness.mock.test.ts -t=^测试模拟测厚仪数据"
   },
   "keywords": [],
   "author": "",
