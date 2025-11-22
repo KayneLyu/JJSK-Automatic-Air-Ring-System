@@ -38,41 +38,42 @@ export const OPCUAController = (options: OPCUAControllerOptions) => {
    * 系统标定
    * */
   const sysCalibrate = async () => {
-    const res = await AirRingClient.setHeats()
+    // const res = await AirRingClient.setHeats()
     const disturbanceTs = Date.now()
-    if (res) {
-      const buffer: {
-        thickness: ThickNessData[]
-        airRing: RingData[]
-      } = {
-        thickness: [],
-        airRing: [],
-      }
-      let pending = false
+    // if (!res) return
+    const buffer: {
+      thickness: ThickNessData[]
+      airRing: RingData[]
+    } = {
+      thickness: [],
+      airRing: [],
+    }
+    let pending = false
 
-      function scheduleCalibrate() {
-        if (pending) return
-        pending = true
+    const scheduleCalibrate = () => {
+      if (pending) return
+      pending = true
 
-        queueMicrotask(() => {
-          pending = false
-          calibrate({
-            thicknessData: buffer.thickness,
-            ringData: buffer.airRing,
-            disturbanceTs,
-            config,
-          })
+      queueMicrotask(() => {
+        pending = false
+        const res = calibrate({
+          thicknessData: buffer.thickness,
+          ringData: buffer.airRing,
+          disturbanceTs,
+          config,
         })
-      }
-      await ThicknessClient.subscribe((data) => {
-        buffer.thickness.push(data)
-        scheduleCalibrate()
-      })
-      await AirRingClient.subscribe((data) => {
-        buffer.thickness.push(data)
-        scheduleCalibrate()
+        if (res) console.log(res)
       })
     }
+    await ThicknessClient.subscribe((data) => {
+      buffer.thickness.push(data)
+      scheduleCalibrate()
+    })
+    await AirRingClient.subscribe((data) => {
+      buffer.airRing.push(data)
+      scheduleCalibrate()
+    })
+    return new Promise((resolve, reject) => {})
   }
   return {
     testConnect,

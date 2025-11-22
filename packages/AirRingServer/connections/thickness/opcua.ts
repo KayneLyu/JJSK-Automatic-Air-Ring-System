@@ -12,7 +12,7 @@ const NODE_VALUE_MAP: Record<string, keyof ThickNessData> = {
   'ns=1;i=1006': 'SwapDirection',
   'ns=1;i=1007': 'MotionDirection',
   'ns=1;i=1008': 'ProbeValue',
-  'ns=1;i=1009': 'RollSpeedSignal',
+  'ns=1;i=1011': 'RollSpeedSignal',
 }
 export const Client = (url: string) => {
   return OPCUAClient<ThickNessData>({

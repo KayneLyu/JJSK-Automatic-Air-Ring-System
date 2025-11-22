@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "vitest --standalone connections/thickness/opcua.test.ts -t=^连接测试$"
+    "test": "vitest --run controllers/opcua.test.ts -t=^测试标定算法$"
   },
   "keywords": [],
   "author": "",

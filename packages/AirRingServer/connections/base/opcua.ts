@@ -23,25 +23,7 @@ export interface ClientOptions<T extends OPCUAData> {
    * */
   nodeIdValueMap: Record<string, keyof T>
 }
-// ==================== 创建 OPC UA 客户端 ====================
-const client = OPCUAClient.create({
-  endpointMustExist: false,
-})
 
-// ==================== 测试连接 ====================
-const tryConnect = async (url: string) => {
-  console.log('📡 正在连接到 OPC UA 服务器:', url)
-  try {
-    await client.connect(url)
-    console.log('✅ 连接成功！')
-    return true
-  } catch (err) {
-    console.error('❌ 连接失败:', (err as Error).message || err)
-    return false
-  } finally {
-    await client.disconnect()
-  }
-}
 // 定义可订阅的状态
 export type ClientState =
   | {
@@ -58,10 +40,17 @@ export type ClientState =
 
 // ==================== 主逻辑 ====================
 export const Client = <T extends OPCUAData>(options: ClientOptions<T>) => {
+  // ==================== 创建 OPC UA 客户端 ====================
+  const client = OPCUAClient.create({
+    endpointMustExist: false,
+  })
+
   const { url, nodeIdValueMap } = options
+
   const $clientState = atom<ClientState>({
     status: 'idle',
   })
+
   /**
    * 连接到服务器
    * */
@@ -137,8 +126,18 @@ export const Client = <T extends OPCUAData>(options: ClientOptions<T>) => {
   /**
    * 测试连接
    * */
-  const testConnect = () => {
-    return tryConnect(url)
+  const testConnect = async () => {
+    console.log('📡 正在连接到 OPC UA 服务器:', url)
+    try {
+      await client.connect(url)
+      console.log('✅ 连接成功！')
+      return true
+    } catch (err) {
+      console.error('❌ 连接失败:', (err as Error).message || err)
+      return false
+    } finally {
+      await client.disconnect()
+    }
   }
   return {
     state: $clientState,
@@ -184,27 +183,23 @@ const monitorItems = async <T extends OPCUAData>(
   listener: (value: T, oldValue?: T) => void
 ) => {
   const nodeIds = Object.keys(nodeIdValueMap)
-  const itemsToMonitor = nodeIds.map((nodeId) => ({
+  const itemsToMonitor: ReadValueIdOptions[] = nodeIds.map((nodeId) => ({
     nodeId: coerceNodeId(nodeId),
     attributeId: AttributeIds.Value,
-    samplingInterval: 1, // 每 500ms 采样一次
-    discardOldest: true,
-    queueSize: 1,
   }))
 
   const monitoredItems = await subscription.monitorItems(
     itemsToMonitor,
     {
-      samplingInterval: 500,
+      samplingInterval: 10,
       filter: null,
-      queueSize: 1,
+      queueSize: 10,
     },
-    TimestampsToReturn.Source
+    TimestampsToReturn.Both
   )
 
   console.log(`👀 已开始监控 ${nodeIds.length} 个变量：`)
   nodeIds.forEach((id) => console.log(`   📌 ${id}`))
-
   let oldValue: T | undefined = undefined
   // 为每个变量绑定变化事件
   monitoredItems.on('changed', (_, dataValue, index) => {

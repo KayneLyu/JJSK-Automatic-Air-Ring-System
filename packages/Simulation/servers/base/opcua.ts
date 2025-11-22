@@ -14,9 +14,14 @@ const updateVariables = <T extends Record<string, unknown>>(
   variablesMap: Record<string, UAVariable>,
   variables: T
 ) => {
-  for (const [name, val] of Object.entries(variables)) {
+  for (const [name, value] of Object.entries(variables)) {
     const node = variablesMap[name]
-    node.setValueFromSource({ value: val })
+    if (node) {
+      const dataType = node.getBasicDataType()
+      node.setValueFromSource({ value, dataType: dataType })
+    } else {
+      console.warn(`${name}: ${name} not found`)
+    }
   }
 }
 export const startServer = async (options: StartServerOptions) => {

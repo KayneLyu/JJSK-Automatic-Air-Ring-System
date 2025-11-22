@@ -1,6 +1,7 @@
 import { startServer as StartOPCUAServer } from '../base/opcua'
 import { AddressSpace } from 'node-opcua-address-space'
 import { DataType, UAObjectType } from 'node-opcua'
+import { printNodeTree } from '../../utils/printNodeTree'
 
 const createModel = async (
   addressSpace: AddressSpace,
@@ -18,49 +19,49 @@ const createModel = async (
     componentOf: UpperRotationDeviceType,
   })
   const ForwardRotation = ns.addVariable({
-    browseName: 'forwardRotation',
+    browseName: 'ForwardRotation',
     componentOf: UpperRotationParameterSet,
     dataType: DataType.Boolean,
     description: '正向旋转信号, 表示是否处于正向旋转状态',
   })
 
   const ReverseRotation = ns.addVariable({
-    browseName: 'reverseRotation',
+    browseName: 'ReverseRotation',
     componentOf: UpperRotationParameterSet,
     dataType: DataType.Boolean,
     description: '反向旋转信号,表示旋转架是否处于反向旋转状态',
   })
 
   const ForwardDirectionChange = ns.addVariable({
-    browseName: 'forwardDirectionChange',
+    browseName: 'ForwardDirectionChange',
     componentOf: UpperRotationParameterSet,
     dataType: DataType.Boolean,
     description: '正换向信号 ,表示旋转架是否处于正换向触发',
   })
 
   const ReverseDirectionChange = ns.addVariable({
-    browseName: 'reverseDirectionChange',
+    browseName: 'ReverseDirectionChange',
     componentOf: UpperRotationParameterSet,
     dataType: DataType.Boolean,
     description: '反换向信号 ,表示旋转架是否处于反向换向触发',
   })
 
-  const RotationReset = ns.addVariable({
-    browseName: 'rotationReset',
+  const Reset = ns.addVariable({
+    browseName: 'Reset',
     componentOf: UpperRotationParameterSet,
     dataType: DataType.Boolean,
     description: '复位信号 ,表示旋转架是否处于复位状态',
   })
 
   const MotorFrequency = ns.addVariable({
-    browseName: 'motorFrequency',
+    browseName: 'MotorFrequency',
     componentOf: UpperRotationParameterSet,
-    dataType: DataType.Boolean,
+    dataType: DataType.Double,
     description: '电机频率（变频器) , 表示旋转架当前转速',
   })
   // ======风环系统
   const AirRingDeviceType = ns.addObjectType({
-    browseName: 'UpperRotationDeviceType',
+    browseName: 'AirRingDeviceType',
     subtypeOf: deviceType,
   })
   const AirRingParameterSet = ns.addObject({
@@ -91,12 +92,14 @@ const createModel = async (
       },
     ],
   })
+  printNodeTree(UpperRotationDeviceType)
+  printNodeTree(AirRingDeviceType)
   return {
     ForwardRotation,
     ReverseRotation,
     ForwardDirectionChange,
     ReverseDirectionChange,
-    RotationReset,
+    Reset,
     MotorFrequency,
     Heats,
   }

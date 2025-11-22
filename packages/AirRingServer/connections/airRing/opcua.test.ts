@@ -1,25 +1,18 @@
 import { expect, test, vi } from 'vitest'
-import { startThicknessServer } from '@jjsk/simulation'
+import { startAirRingServer } from '@jjsk/simulation'
 import { Client } from './opcua'
-import { mockThickness } from '@jjsk/simulation/mocks/thickness.mock'
 
-const url = 'opc.tcp://localhost:4334' // 你的 OPC UA 服务器地址
+const url = 'opc.tcp://localhost:4344' // 你的 OPC UA 服务器地址
 
 test('连接测试', async () => {
-  await startThicknessServer()
+  await startAirRingServer()
   const { testConnect } = Client(url)
   const connected = await testConnect()
   expect(connected).toBe(true)
 })
 
 test('监听数据变化', async () => {
-  const { updateVariables } = await startThicknessServer()
-  const { next } = mockThickness({})
-
-  setInterval(() => {
-    const data = next()
-    updateVariables(data)
-  }, 10)
+  await startAirRingServer()
 
   const callback = vi.fn()
   const { subscribe } = Client(url)
@@ -30,10 +23,10 @@ test('监听数据变化', async () => {
       expect(callback).toHaveBeenCalled()
       const { calls } = callback.mock
       const hasExpectedCall = calls.some(
-        ([arg]) => arg && typeof arg === 'object' && arg.HorizontalPulse > 0
+        ([arg]) => arg && typeof arg === 'object' && arg.LeftLimit === false
       )
       expect(hasExpectedCall).toBe(true)
     },
     { timeout: 5000 }
   )
-}, 100_000)
+})

@@ -42,12 +42,12 @@ const createModel = async (
     dataType: DataType.Boolean,
     description: '归零信号，表示是否检测到归零点（原点）触发（true 为触发）',
   })
-  // const SwapDirection = ns.addVariable({
-  //   browseName: 'SwapDirection',
-  //   componentOf: ParameterSet,
-  //   dataType: DataType.Boolean,
-  //   description: '换向信号，表示方向切换触发（true 为换向发生）',
-  // })
+  const SwapDirection = ns.addVariable({
+    browseName: 'SwapDirection',
+    componentOf: ParameterSet,
+    dataType: DataType.Boolean,
+    description: '换向信号，表示方向切换触发（true 为换向发生）',
+  })
   const MotionDirection = ns.addVariable({
     browseName: 'MotionDirection',
     componentOf: ParameterSet,
@@ -79,6 +79,7 @@ const createModel = async (
   })
 
   printNodeTree(ThicknessDeviceType)
+  printNodeTree(RollerDeviceType)
   return {
     HorizontalPulse,
     LeftLimit,
@@ -87,7 +88,7 @@ const createModel = async (
     MotionDirection,
     ProbeValue,
     RollSpeedSignal,
-    // SwapDirection,
+    SwapDirection,
   }
 }
 
