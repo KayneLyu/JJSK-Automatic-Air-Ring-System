@@ -49,7 +49,7 @@ export const calibrate = ({
 }: CalibrateOptions): CalibrateResult | null => {
   const {
     standardized: { CHANNEL_COUNT, roller },
-    roller: { numCycles = 3, maxIntervalMs = 10_000 },
+    roller: { numCycles = 10, maxIntervalMs = 10_000 },
     upperRotation: { deltaRange: { min = 180, max = 359, step = 1 } = {} },
   } = config
   const deltaRange = { min, max, step }

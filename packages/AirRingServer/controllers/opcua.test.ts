@@ -14,7 +14,9 @@ test('测试标定算法', async () => {
           RADIUS: 15 * 10,
         },
       },
-      roller: {},
+      roller: {
+        numCycles: 10,
+      },
       upperRotation: {},
     },
   })

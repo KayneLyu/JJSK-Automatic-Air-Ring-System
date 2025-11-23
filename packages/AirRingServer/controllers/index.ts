@@ -10,8 +10,8 @@ import {
   evaluateDeltaTheta,
   interpolateAngle,
 } from './common/upperRotation'
-import { getCircumference } from '../utils'
 import { CalibrationConfig } from './types'
+import { getCircumference } from '@jjsk/core'
 
 // ----------------------------
 // 主函数：自动优化 Δθ 并返回调节量

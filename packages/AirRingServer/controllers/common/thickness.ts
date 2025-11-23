@@ -211,17 +211,36 @@ export const extractScanSegmentsAdaptive = (
 export const computeTractionSpeedSmooth = (
   data: ThickNessData[],
   Circumference: number,
-  numCycles: number = 3, // 使用最近 N 圈计算平均速度
+  numCycles: number = 10, // 使用最近 N 圈计算平均速度
   maxIntervalMs: number = 10_000
 ): number | null => {
-  const pulseTimes: number[] = data
-    .filter((d) => d.RollSpeedSignal === true && d.timestamp != null)
+  if (data.length === 0) return null
+
+  // Step 1: 按时间排序（确保时序正确）
+  const sorted = [...data]
+    .filter((d) => d.timestamp != null)
     .sort((a, b) => a.timestamp! - b.timestamp!)
-    .map((d) => d.timestamp!)
 
-  if (pulseTimes.length < numCycles + 1) return null
+  // Step 2: 检测上升沿（false → true），记录上升沿时间戳
+  const risingEdgeTimes: number[] = []
+  let prevSignal: boolean | null = null
 
-  const recentPulses = pulseTimes.slice(-(numCycles + 1))
+  for (const item of sorted) {
+    const currentSignal = Boolean(item.RollSpeedSignal) // 容错：转为布尔
+
+    if (prevSignal === false && currentSignal) {
+      // 上升沿：记录当前时间戳作为一圈的开始
+      risingEdgeTimes.push(item.timestamp!)
+    }
+
+    prevSignal = currentSignal
+  }
+  // Step 3: 检查是否有足够圈数（需要 N+1 个边沿才能算 N 圈）
+  if (risingEdgeTimes.length < numCycles + 1) {
+    return null
+  }
+
+  const recentPulses = risingEdgeTimes.slice(-(numCycles + 1))
   const totalDistance = Circumference * numCycles
   const totalTime_ms = recentPulses[recentPulses.length - 1] - recentPulses[0]
 

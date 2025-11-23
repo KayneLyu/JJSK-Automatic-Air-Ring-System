@@ -12,8 +12,8 @@ export const calibrateCase = async () => {
   const { next: upperRotationNext } = mockUpperRotation({ maxAngle: 330 })
   const { next: thicknessNext } = mockThickness({})
   const { next: rollerNext } = mockRoller({
-    speed: (20 * 1000) / 60,
-    RADIUS: 15 * 10,
+    speed: (20 * 1000) / 60, // 20米/分钟
+    RADIUS: 15 * 10, // 15厘米
   })
   // 每 10ms 秒更新一次数据
   setInterval(() => {
