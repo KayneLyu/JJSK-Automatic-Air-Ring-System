@@ -1,4 +1,4 @@
-import { RollerStandardized } from '@jjsk/core'
+import { RollerScalar } from '@jjsk/core'
 
 /**
  * 上旋最大旋转角度评估范围
@@ -22,28 +22,15 @@ export type UpperRotationDeltaRange = {
  * */
 export type CalibrationConfig = {
   /**
-   * 标定量
-   * */
-  standardized: {
-    /**
-     * 风道数量
-     * */
-    CHANNEL_COUNT: number
-    /**
-     * 辊的标定量
-     * */
-    roller: RollerStandardized
-  }
-  /**
    * 辊参配置参数
    * */
   roller: {
     /**
-     * 度评估圈数 默认：3
+     * 度评估圈数
      * */
     numCycles?: number
     /**
-     * 最大允许脉冲间隔 默认10_000 ms = 10秒
+     * 最大允许脉冲间隔
      * */
     maxIntervalMs?: number
   }
@@ -56,4 +43,21 @@ export type CalibrationConfig = {
      * */
     deltaRange?: UpperRotationDeltaRange
   }
+}
+/**
+ * 标量
+ * */
+export type Scalar = {
+  /**
+   * 风道数量
+   * */
+  CHANNEL_COUNT: number
+  /**
+   * 测厚仪单位脉冲位移量 单位：毫米/每脉冲
+   * */
+  THICKNESS_UNIT_PULSE_DIS: number
+  /**
+   * 辊的标定量
+   * */
+  ROLLER: RollerScalar
 }

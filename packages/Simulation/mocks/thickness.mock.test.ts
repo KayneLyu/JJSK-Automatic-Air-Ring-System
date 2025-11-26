@@ -8,7 +8,9 @@ test('测试模拟测厚仪数据', async () => {
   vi.setSystemTime(startTime)
 
   // 模拟单程时长为 3分钟，最大脉冲数为 10000
-  const { next } = mockThickness({})
+  const { next } = mockThickness({
+    THICKNESS_PULSE_PER: 1.2,
+  })
 
   const frame1 = next()
   expect(frame1.MotionDirection, '收到信号').toBe(true)

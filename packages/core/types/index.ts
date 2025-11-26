@@ -35,9 +35,9 @@ export type UpperRotationDevice = {
 }
 
 /**
- * 收卷辊的标定量
+ * 收卷辊的定量
  * */
-export type RollerStandardized =
+export type RollerScalar =
   | {
       /**
        * 直径

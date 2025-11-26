@@ -10,7 +10,10 @@ export const calibrateCase = async () => {
   const { updateVariables: updateThicknessVer } = await StartThicknessServer()
   const { updateVariables: updateAirRingVer } = await StartAirRingServer()
   const { next: upperRotationNext } = mockUpperRotation({ maxAngle: 330 })
-  const { next: thicknessNext } = mockThickness({})
+  const { next: thicknessNext } = mockThickness({
+    mutationT: 1.25 * 60,
+    THICKNESS_PULSE_PER: 1.2,
+  })
   const { next: rollerNext } = mockRoller({
     speed: (20 * 1000) / 60, // 20米/分钟
     RADIUS: 15 * 10, // 15厘米

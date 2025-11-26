@@ -250,3 +250,34 @@ export const computeTractionSpeedSmooth = (
 
   return (totalDistance * 1000) / totalTime_ms // mm/s
 }
+
+/**
+ * 查找厚度凹陷处
+ * */
+export const findSignificantDip = (
+  data: ThickNessData[],
+  /**
+   * 最大差值
+   * */
+  deviation: number = 0.05
+): ThickNessData | null => {
+  const valid = data.filter((d) => d.timestamp != null && d.ProbeValue != null)
+  if (valid.length === 0) return null
+
+  let total = valid[0].ProbeValue!
+  // 找最低点
+  let min = valid[0].ProbeValue!
+
+  for (let i = 1; i < valid.length; i++) {
+    const current = valid[i].ProbeValue!
+    total += current
+    if (current < min) {
+      min = current
+      const avg = total / (i + 1)
+      if (current < avg * (1 - deviation)) {
+        return valid[i]
+      }
+    }
+  }
+  return null
+}

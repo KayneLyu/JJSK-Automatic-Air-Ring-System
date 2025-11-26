@@ -3,19 +3,19 @@
  * */
 import { ThickNessData } from '../connections/thickness/opcua'
 import { RingData } from '../connections/airRing/opcua'
-import { CalibrationConfig } from './types'
+import { CalibrationConfig, Scalar } from './types'
 import { getCircumference } from '@jjsk/core'
 import {
   computeTractionSpeedSmooth,
   extractScanSegments,
-  ScanSegment,
+  findSignificantDip,
 } from './common/thickness'
 import { inferMaxAngle } from './common/upperRotation'
-import { findSignificantDip } from '../utils/thickness'
 
 export type CalibrateOptions = {
   thicknessData: ThickNessData[]
   ringData: RingData[]
+  standardized: Scalar
   config: CalibrationConfig
   /**
    * 开始扰动时间戳
@@ -36,6 +36,10 @@ export type CalibrateResult = {
    * 上旋人字架最大旋转角度
    * */
   maxAngle?: number
+  /**
+   * 膜宽 单位：mm
+   * */
+  membraneWidth?: number
 }
 
 /**
@@ -46,15 +50,16 @@ export const calibrate = ({
   ringData,
   config,
   disturbanceTs,
+  standardized,
 }: CalibrateOptions): CalibrateResult | null => {
+  const { CHANNEL_COUNT, ROLLER } = standardized
   const {
-    standardized: { CHANNEL_COUNT, roller },
     roller: { numCycles = 10, maxIntervalMs = 10_000 },
     upperRotation: { deltaRange: { min = 180, max = 359, step = 1 } = {} },
   } = config
   const deltaRange = { min, max, step }
   // ---------- Step 1: 计算牵引速度 ----------
-  const circumference = getCircumference(roller)
+  const circumference = getCircumference(ROLLER)
   const v = computeTractionSpeedSmooth(
     thicknessData,
     circumference,
@@ -65,36 +70,28 @@ export const calibrate = ({
     /* 无法计算牵引速度 */
     return null
   }
-
-  // ---------- Step 2: 提取测厚仪有效扫描段 ----------
-  const segments = extractScanSegments(thicknessData)
-  if (segments.length === 0) {
-    /* 无法提取有效扫描数据 */
-    return {
-      tractionSpeed: v,
-    }
-  }
-
-  // ---------- Step 3: 检测厚度凹陷 ----------
-  let responseSeg: ScanSegment | null = null
-
-  for (const seg of segments) {
-    const dip = findSignificantDip(seg)
-    if (dip.found) {
-      responseSeg = seg
-      break
-    }
-  }
-  if (!responseSeg) {
+  // ---------- Step 2: 检测厚度凹陷 ----------
+  const dip = findSignificantDip(thicknessData)
+  if (dip === null) {
     /* 未检测到有效扰动响应 */
     return {
       tractionSpeed: v,
     }
   }
+  // ---------- Step 3: 计算上旋人字架到测厚仪的距离 ----------
+  const tau_ms = dip.timestamp! - disturbanceTs
 
-  // ---------- Step 4: 计算上旋人字架到测厚仪的距离 ----------
-  const tau_ms = responseSeg.startTime - disturbanceTs
   const distance = v * (tau_ms / 1000)
+
+  // ---------- Step 4: 提取测厚仪有效扫描段 ----------
+  const segments = extractScanSegments(thicknessData)
+  if (segments.length === 0) {
+    /* 无法提取有效扫描数据 */
+    return {
+      tractionSpeed: v,
+      distance,
+    }
+  }
 
   const latestScan = segments[segments.length - 1]
 
