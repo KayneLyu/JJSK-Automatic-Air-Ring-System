@@ -9,7 +9,7 @@ test('测试模拟测厚仪数据', async () => {
 
   // 模拟单程时长为 3分钟，最大脉冲数为 10000
   const { next } = mockThickness({
-    THICKNESS_PULSE_PER: 1.2,
+    THICKNESS_UNIT_PULSE_DIS: 0.12,
   })
 
   const frame1 = next()
