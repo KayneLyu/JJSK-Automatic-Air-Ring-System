@@ -13,6 +13,7 @@ test('生成模拟数据', async () => {
 
   const { next: upperRotationNext } = mockUpperRotation({ maxAngle: 330 })
   const { next: thicknessNext } = mockThickness({
+    THICKNESS_UNIT_PULSE_DIS: 0.12,
     mutationT: 1.25 * 60,
   })
   const { next: rollerNext } = mockRoller({

@@ -7,36 +7,38 @@ test('测试模拟测厚仪数据', async () => {
   const startTime = new Date('2025-11-18T12:00:00Z').getTime()
   vi.setSystemTime(startTime)
 
-  // 模拟单程时长为 3分钟，最大脉冲数为 10000
+  const maxSpeed = (4 * 1000) / (60 * 1000) //最大速度 4米/分钟
+  const THICKNESS_UNIT_PULSE_DIS = 0.12 // 测厚仪单位脉冲位移量 0.12毫米/脉冲
+  const membraneWidth = 1200 // 膜宽 1200毫米
+  const maxPulseSpeed = maxSpeed / THICKNESS_UNIT_PULSE_DIS // pulse/ms
+  const inMembraneTime = membraneWidth / maxSpeed // 膜内时间
   const { next } = mockThickness({
-    THICKNESS_UNIT_PULSE_DIS: 0.12,
+    membraneWidth,
+    maxSpeed,
+    THICKNESS_UNIT_PULSE_DIS,
   })
 
   const frame1 = next()
   expect(frame1.MotionDirection, '收到信号').toBe(true)
+  expect(frame1.ResetSignal, '收到信号').toBe(true)
 
-  // 快进 2s 看是否收到信号
-  vi.advanceTimersByTime(2 * 1000)
+  // 快进 200ms 看是正在加速
+  vi.advanceTimersByTime(200)
   const frame2 = next()
   expect(frame2.MotionDirection, '正在向右扫描').toBe(true)
-  expect(frame2.HorizontalPulse).toBeGreaterThan(111)
-  expect(frame2.ProbeValue).toBeGreaterThan(100)
+  expect(frame2.HorizontalPulse).toBe(Math.round(200 * maxPulseSpeed * 0.5))
+  expect(frame2.ProbeValue).toBe(0)
 
-  // 快进 178.01s 看是否收到限位
-  vi.advanceTimersByTime(178.01 * 1000)
+  // 快进 900ms 看是否已经扫描到膜
+  vi.advanceTimersByTime(900)
   const frame3 = next()
-  expect(frame3.MotionDirection, '正在向左扫描').toBe(false)
-  expect(frame3.SwapDirection, '正在换向').toBe(true)
-  expect(frame3.RightLimit, '到达右限位').toBe(true)
-  expect(frame3.HorizontalPulse).toBeLessThan(10000)
-  expect(frame3.ProbeValue).toBeLessThan(100)
+  expect(frame3.MotionDirection, '正在向右扫描').toBe(true)
+  expect(frame3.ProbeValue).toBeGreaterThan(0)
 
-  // 快进 10s 看是否收到限位
-  vi.advanceTimersByTime(10 * 1000)
+  // 快进 18s 看是否进入缓冲区
+  vi.advanceTimersByTime(18 * 1000)
   const frame4 = next()
-  expect(frame4.MotionDirection, '正在向左扫描').toBe(false)
-  expect(frame4.SwapDirection, '正在换向').toBe(false)
-  expect(frame4.RightLimit, '到达右限位').toBe(false)
-  expect(frame4.HorizontalPulse).toBeLessThan(10000)
-  expect(frame4.ProbeValue).toBeLessThan(100)
+  expect(frame4.MotionDirection, '正在向右扫描').toBe(true)
+  expect(frame4.HorizontalPulse).toBe(10500)
+  expect(frame4.ProbeValue).toBe(0)
 })

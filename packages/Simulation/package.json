@@ -6,7 +6,7 @@
   "scripts": {
     "start": "vite-node index.ts",
     "generator": "vite-node scripts/generator.ts",
-    "test": "vitest --run mocks/thickness.mock.test.ts -t=^测试模拟测厚仪数据"
+    "test": "vitest --run scripts/mockData.test.ts -t=^生成模拟数据"
   },
   "keywords": [],
   "author": "",

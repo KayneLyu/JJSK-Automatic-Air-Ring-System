@@ -64,6 +64,7 @@ export const mockThickness = ({
   THICKNESS_UNIT_PULSE_DIS,
   PULSE_WINDOW = 50,
   START_TIME = 1000,
+  SAMPLE_INTERVAL = 30,
 }: ThicknessMockOptions) => {
   // === 脉冲域参数 ===
   const maxPulseSpeed = maxSpeed / THICKNESS_UNIT_PULSE_DIS // pulse/ms
@@ -120,7 +121,7 @@ export const mockThickness = ({
     if (elapsed <= START_TIME) {
       const pulse = getStartPulse(elapsed, accelTime, maxPulseSpeed, accelPulse)
       return {
-        HorizontalPulse: pulse,
+        HorizontalPulse: Math.round(pulse),
         MotionDirection: true,
         ProbeValue: 0,
       }
@@ -133,11 +134,12 @@ export const mockThickness = ({
           period,
           elapsed,
           PULSE_WINDOW,
+          SAMPLE_INTERVAL,
           mutationT
         )
         const pulse = startPulse + (elapsed - START_TIME) * maxPulseSpeed
         return {
-          HorizontalPulse: pulse,
+          HorizontalPulse: Math.round(pulse),
           MotionDirection: true,
           ProbeValue: probeValue,
           ResetSignal: false,
@@ -147,7 +149,7 @@ export const mockThickness = ({
       if (elapsed <= START_TIME + maxSpeedTime) {
         const pulse = startPulse + (elapsed - START_TIME) * maxPulseSpeed
         return {
-          HorizontalPulse: pulse,
+          HorizontalPulse: Math.round(pulse),
           MotionDirection: true,
           ProbeValue: 0,
         }
@@ -158,7 +160,7 @@ export const mockThickness = ({
         maxSpeedPulse +
         (elapsed - START_TIME - maxSpeedTime) * maxPulseSpeed * 0.5
       return {
-        HorizontalPulse: pulse,
+        HorizontalPulse: Math.round(pulse),
         MotionDirection: true,
         ProbeValue: 0,
       }
@@ -175,6 +177,7 @@ export const mockThickness = ({
       period,
       elapsed,
       PULSE_WINDOW,
+      SAMPLE_INTERVAL,
       mutationT
     )
 
@@ -217,13 +220,25 @@ const getStartPulse = (
   }
 }
 
+let cacheProbeValue: {
+  value: number
+  time: number
+} | null = null
 const getProbeValue = (
   deviation: number,
   period: number,
   elapsed: number,
   PULSE_WINDOW: number,
+  SAMPLE_INTERVAL: number,
   mutationT?: number
 ) => {
+  /* 存在缓存值 */
+  if (cacheProbeValue) {
+    /* 缓存的值 距离当下时间小于 扫描频率 则返回缓存值 */
+    if (cacheProbeValue.time + SAMPLE_INTERVAL < elapsed) {
+      return cacheProbeValue.value
+    }
+  }
   // --- 探头值：模拟厚度，例如以正弦波叠加噪声 ---
   const baseValue = 100 // μm
   const maxDeviation = baseValue * deviation // 5% → 5 μm
@@ -247,7 +262,9 @@ const getProbeValue = (
       probeValue = baseValue - maxDeviation * 1.2
     }
   }
-  return probeValue
+  const value = parseFloat(probeValue.toFixed(2))
+  cacheProbeValue = { value, time: elapsed }
+  return value
 }
 
 const getDataInCycle = (
@@ -269,7 +286,7 @@ const getDataInCycle = (
     /* 换向阶段 */
     if (tInTrip <= PULSE_WINDOW) {
       return {
-        HorizontalPulse: maxPulse,
+        HorizontalPulse: Math.round(maxPulse),
         MotionDirection: !direction,
         ProbeValue: 0,
         SwapDirection: true,
@@ -278,8 +295,9 @@ const getDataInCycle = (
     /* 加速阶段 */
     if (tInTrip <= PULSE_WINDOW + accelTime) {
       return {
-        HorizontalPulse:
-          maxPulse - (tInTrip - PULSE_WINDOW) * maxPulseSpeed * 0.5,
+        HorizontalPulse: Math.round(
+          maxPulse - (tInTrip - PULSE_WINDOW) * maxPulseSpeed * 0.5
+        ),
         MotionDirection: !direction,
         ProbeValue: 0,
       }
@@ -296,13 +314,13 @@ const getDataInCycle = (
       ) {
         /* 进入膜内 */
         return {
-          HorizontalPulse: pulse,
+          HorizontalPulse: Math.round(pulse),
           MotionDirection: !direction,
           ProbeValue: probeValue,
         }
       }
       return {
-        HorizontalPulse: pulse,
+        HorizontalPulse: Math.round(pulse),
         MotionDirection: !direction,
         ProbeValue: 0,
       }
@@ -316,7 +334,7 @@ const getDataInCycle = (
         maxPulseSpeed *
         0.5
     return {
-      HorizontalPulse: pulse,
+      HorizontalPulse: Math.round(pulse),
       MotionDirection: !direction,
       ProbeValue: 0,
     }
@@ -325,7 +343,7 @@ const getDataInCycle = (
   /* 换向阶段 */
   if (tInTrip <= PULSE_WINDOW) {
     return {
-      HorizontalPulse: minPulse,
+      HorizontalPulse: Math.round(minPulse),
       MotionDirection: !direction,
       ProbeValue: 0,
       SwapDirection: true,
@@ -334,8 +352,9 @@ const getDataInCycle = (
   /* 加速阶段 */
   if (tInTrip <= PULSE_WINDOW + accelTime) {
     return {
-      HorizontalPulse:
-        minPulse + (tInTrip - PULSE_WINDOW) * maxPulseSpeed * 0.5,
+      HorizontalPulse: Math.round(
+        minPulse + (tInTrip - PULSE_WINDOW) * maxPulseSpeed * 0.5
+      ),
       MotionDirection: !direction,
       ProbeValue: 0,
     }
@@ -352,13 +371,13 @@ const getDataInCycle = (
     ) {
       /* 进入膜内 */
       return {
-        HorizontalPulse: pulse,
+        HorizontalPulse: Math.round(pulse),
         MotionDirection: !direction,
         ProbeValue: probeValue,
       }
     }
     return {
-      HorizontalPulse: pulse,
+      HorizontalPulse: Math.round(pulse),
       MotionDirection: !direction,
       ProbeValue: 0,
     }
@@ -372,7 +391,7 @@ const getDataInCycle = (
       maxPulseSpeed *
       0.5
   return {
-    HorizontalPulse: pulse,
+    HorizontalPulse: Math.round(pulse),
     MotionDirection: !direction,
     ProbeValue: 0,
   }
