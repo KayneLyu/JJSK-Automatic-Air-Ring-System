@@ -1,6 +1,6 @@
 import { AirRingConnection } from '../connections/airRing'
 import { ThicknessConnection } from '../connections/thickness'
-import { ThickNessData } from '../connections/thickness/opcua'
+import { ThicknessData } from '../connections/thickness/opcua'
 import { RingData } from '../connections/airRing/opcua'
 import { calibrate } from './calibration'
 import { CalibrationConfig } from './types'
@@ -42,7 +42,7 @@ export const OPCUAController = (options: OPCUAControllerOptions) => {
     const disturbanceTs = Date.now()
     // if (!res) return
     const buffer: {
-      thickness: ThickNessData[]
+      thickness: ThicknessData[]
       airRing: RingData[]
     } = {
       thickness: [],

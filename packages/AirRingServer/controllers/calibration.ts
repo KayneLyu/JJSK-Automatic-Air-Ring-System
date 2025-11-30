@@ -1,7 +1,7 @@
 /**
  * 数据标定
  * */
-import { ThickNessData } from '../connections/thickness/opcua'
+import { ThicknessData } from '../connections/thickness/opcua'
 import { RingData } from '../connections/airRing/opcua'
 import { CalibrationConfig, Scalar } from './types'
 import { getCircumference } from '@jjsk/core'
@@ -13,7 +13,7 @@ import {
 import { inferMaxAngle } from './common/upperRotation'
 
 export type CalibrateOptions = {
-  thicknessData: ThickNessData[]
+  thicknessData: ThicknessData[]
   ringData: RingData[]
   standardized: Scalar
   config: CalibrationConfig

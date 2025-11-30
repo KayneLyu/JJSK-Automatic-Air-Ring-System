@@ -168,3 +168,66 @@ export const inferMaxAngle = ({
   }
   return bestDelta
 }
+
+export type Measurement = {
+  timestamp: number // ms
+  thickness: number // μm or arbitrary unit
+}
+export type TripSegment = {
+  measurements: readonly Measurement[]
+  startTimeMs: number
+  durationMs: number // should be T_half
+  isForward: boolean
+}
+export type ThetaMaxEstimateResult = {
+  thetaMaxDeg: number
+  rSquared: number
+  residual: number
+  validPoints: number
+}
+/**
+ * 从正向+反向行程联合估计人字架最大旋转角度
+ * @param forwardTrip 正向行程（0° → θ_max）
+ * @param backwardTrip 反向行程（θ_max → 0°）
+ * @returns 估计结果
+ */
+export const estimateMaxAngle = (
+  forwardTrip: TripSegment,
+  backwardTrip: TripSegment
+): ThetaMaxEstimateResult | null => {
+  // 校验周期一致性
+  const dt = Math.abs(forwardTrip.durationMs - backwardTrip.durationMs)
+  if (dt > 2000) {
+    console.warn(`Half-cycle mismatch: ${dt} ms`)
+    return null
+  }
+}
+
+// 预处理：提取有效连续段（最长连续有效子序列）
+const processTrip = (trip: TripSegment): Array<{ t: number; y: number }> => {
+  const valid = trip.measurements
+    .filter((m) => m.thickness > MIN_VALID_THICKNESS)
+    .map((m) => ({
+      t: (m.timestamp - trip.startTimeMs) / 1000,
+      y: m.thickness,
+    }))
+    .sort((a, b) => a.t - b.t)
+
+  if (valid.length < MIN_POINTS_PER_TRIP) return []
+
+  // 找最长连续段（gap < 0.5s）
+  let bestSegment: typeof valid = []
+  let current: typeof valid = [valid[0]]
+
+  for (let i = 1; i < valid.length; i++) {
+    if (valid[i].t - valid[i - 1].t < 0.5) {
+      current.push(valid[i])
+    } else {
+      if (current.length > bestSegment.length) bestSegment = [...current]
+      current = [valid[i]]
+    }
+  }
+  if (current.length > bestSegment.length) bestSegment = current
+
+  return bestSegment.length >= MIN_POINTS_PER_TRIP ? bestSegment : []
+}

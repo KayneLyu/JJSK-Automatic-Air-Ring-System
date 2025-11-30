@@ -13,11 +13,12 @@
   "license": "ISC",
   "packageManager": "pnpm@10.18.3",
   "dependencies": {
+    "@jjsk/core": "workspace:^",
     "node-opcua": "^2.157.0",
-    "node-opcua-data-model": "^2.157.0",
-    "@jjsk/core": "workspace:^"
+    "node-opcua-data-model": "^2.157.0"
   },
   "devDependencies": {
+    "@fast-csv/format": "^5.0.5",
     "node-opcua-address-space": "^2.157.0",
     "node-opcua-generator": "^2.157.0",
     "node-opcua-modeler": "^2.157.0",

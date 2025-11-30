@@ -1,4 +1,4 @@
-import { ThickNessData } from '../connections/thickness/opcua'
+import { ThicknessData } from '../connections/thickness/opcua'
 import { RingData } from '../connections/airRing/opcua'
 
 interface FullRingData extends RingData {
@@ -6,7 +6,7 @@ interface FullRingData extends RingData {
 }
 export const tracker = (
   data: {
-    thickness: ThickNessData[]
+    thickness: ThicknessData[]
     airRing: FullRingData[]
   },
   options: {
@@ -59,7 +59,7 @@ export interface ThicknessProfilePoint {
  * @returns 厚度分布数组 [{ position: 脉冲数, thickness: μm }]
  */
 const extractThicknessProfile = (
-  rawData: ThickNessData[],
+  rawData: ThicknessData[],
   options: {
     useBidirectional?: boolean // 是否融合正反向数据（默认 false：仅用正向）
     binSize?: number // 融合时的位置分箱大小（脉冲数，默认 10）

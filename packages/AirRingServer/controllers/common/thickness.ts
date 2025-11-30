@@ -2,7 +2,8 @@
  * 测厚仪相关算法
  * */
 
-import { ThickNessData } from '../../connections/thickness/opcua'
+import { RequireKeysAndNonNullable } from '@jjsk/core'
+import { ThicknessData } from '../../connections/thickness/opcua'
 
 export interface ScanSegment {
   startTime: number
@@ -14,7 +15,7 @@ export interface ScanSegment {
 /**
  * 提取扫描片段
  * */
-export const extractScanSegments = (data: ThickNessData[]): ScanSegment[] => {
+export const extractScanSegments = (data: ThicknessData[]): ScanSegment[] => {
   const valid = data.filter((d) => d.timestamp != null && d.ProbeValue != null)
   if (valid.length === 0) return []
 
@@ -102,104 +103,6 @@ export const extractScanSegments = (data: ThickNessData[]): ScanSegment[] => {
   return segments
 }
 
-type ValidThickNessData = {
-  ts: number
-  pulse: number
-  thickness: number
-  leftLimit: boolean
-  rightLimit: boolean
-  swap: boolean
-  direction: boolean
-}
-
-/**
- * 自适应提取有效扫描段
- * */
-export const extractScanSegmentsAdaptive = (
-  data: ThickNessData[],
-  minPulseSpanRatio: number = 0.8,
-  minPoints: number = 8 // 绝对下限，防止单点误判
-): ScanSegment[] => {
-  const valid: ValidThickNessData[] = data
-    .filter(
-      (d) =>
-        d.timestamp != null && d.ProbeValue != null && d.HorizontalPulse != null
-    )
-    .map((d) => ({
-      ts: d.timestamp!,
-      pulse: d.HorizontalPulse!,
-      thickness: d.ProbeValue!,
-      leftLimit: !!d.LeftLimit,
-      rightLimit: !!d.RightLimit,
-      swap: !!d.SwapDirection,
-      direction: !!d.MotionDirection,
-    }))
-
-  if (valid.length === 0) return []
-
-  // 先粗分割：按 SwapDirection 或脉冲跳变
-  const rawSegments: ValidThickNessData[][] = []
-  let currentSeg: ValidThickNessData[] = [valid[0]]
-
-  for (let i = 1; i < valid.length; i++) {
-    const prev = valid[i - 1]
-    const curr = valid[i]
-
-    const isSwap = curr.swap
-    const isPulseJump = Math.abs(curr.pulse - prev.pulse) > 1e6 // 归零跳变
-
-    if (isSwap || isPulseJump) {
-      if (currentSeg.length >= minPoints) {
-        rawSegments.push([...currentSeg])
-      }
-      currentSeg = [curr]
-    } else {
-      currentSeg.push(curr)
-    }
-  }
-  if (currentSeg.length >= minPoints) rawSegments.push(currentSeg)
-
-  // 计算历史最大脉冲跨度（用于归一化）
-  const spans = rawSegments.map((seg) => {
-    const pulses = seg.map((p) => p.pulse)
-    return Math.max(...pulses) - Math.min(...pulses)
-  })
-  const maxSpan = spans.length > 0 ? Math.max(...spans) : 1
-
-  // 筛选有效段：跨度足够 + 包含限位（可选）
-  const segments: ScanSegment[] = []
-  for (const seg of rawSegments) {
-    const pulses = seg.map((p) => p.pulse)
-    const span = Math.max(...pulses) - Math.min(...pulses)
-
-    const hasLeft = seg.some((p) => p.leftLimit)
-    const hasRight = seg.some((p) => p.rightLimit)
-    const hasBothLimits = hasLeft && hasRight
-
-    // 判据：要么有双限位，要么脉冲跨度足够大
-    const isValid = hasBothLimits || span >= minPulseSpanRatio * maxSpan
-
-    if (isValid && seg.length >= minPoints) {
-      const minP = Math.min(...pulses)
-      const maxP = Math.max(...pulses)
-      const points = seg.map((p) => ({
-        timestamp: p.ts,
-        position: maxP === minP ? 0.5 : (p.pulse - minP) / (maxP - minP),
-        thickness: p.thickness,
-      }))
-
-      segments.push({
-        startTime: points[0].timestamp,
-        endTime: points[points.length - 1].timestamp,
-        direction: seg[0].direction ? 'left-to-right' : 'right-to-left',
-        points,
-      })
-    }
-  }
-
-  return segments
-}
-
 /**
  * 计算牵引速度，平滑算法
  * @param data 测厚仪数据
@@ -209,7 +112,7 @@ export const extractScanSegmentsAdaptive = (
  * @returns 速度（mm/s），若无法计算则返回 null
  * */
 export const computeTractionSpeedSmooth = (
-  data: ThickNessData[],
+  data: ThicknessData[],
   Circumference: number,
   numCycles: number = 10, // 使用最近 N 圈计算平均速度
   maxIntervalMs: number = 10_000
@@ -253,14 +156,13 @@ export const computeTractionSpeedSmooth = (
 
 /**
  * 查找厚度凹陷处
+ * @param data 测厚仪数据
+ * @param deviation 最大差值
  * */
 export const findSignificantDip = (
-  data: ThickNessData[],
-  /**
-   * 最大差值
-   * */
+  data: ThicknessData[],
   deviation: number = 0.05
-): ThickNessData | null => {
+): ThicknessData | null => {
   const valid = data.filter((d) => d.timestamp != null && d.ProbeValue != null)
   if (valid.length === 0) return null
 
@@ -280,4 +182,91 @@ export const findSignificantDip = (
     }
   }
   return null
+}
+
+const estimateSamplingInterval = (
+  data: readonly RequireKeysAndNonNullable<ThicknessData, 'timestamp'>[]
+): number => {
+  if (data.length < 2) return 0.1 // default 10 Hz
+
+  // 计算所有相邻时间差（单位：秒）
+  const intervals = data
+    .slice(1)
+    .map((m, i) => (m.timestamp - data[i].timestamp) / 1000)
+    .filter((dt) => dt > 0 && dt < 2) // 排除异常大跳变
+
+  if (intervals.length === 0) return 0.1
+
+  // 取中位数（抗异常值）
+  const sorted = [...intervals].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]
+
+  // 容忍最多连续丢失 2 个点
+  return median * 3
+}
+
+/**
+ * 有效测厚仪数据
+ * */
+export type ValidThicknessData = {
+  /**
+   * 时间戳
+   * */
+  t: number
+  /**
+   * 厚度
+   * */
+  y: number
+}
+/**
+ * 提取测厚仪数据片段
+ * @param data 测厚仪数据
+ * @param startTime 开始时间 单位：毫秒
+ * @param duration 持续时间 单位：毫秒
+ * @param minPoints 最小样本数 默认：100
+ * */
+export const extractSegment = (
+  data: ThicknessData[],
+  startTime: number,
+  duration: number,
+  minPoints: number = 100
+) => {
+  //过滤没有时间戳的数据
+  const tValid: RequireKeysAndNonNullable<ThicknessData, 'timestamp'>[] =
+    data.filter((d) => !!d.timestamp)
+  // Step 1: 剔除物理无效点
+  const valid = tValid
+    .filter((d) => {
+      if ((d.ProbeValue || 0) <= 0) return false //过滤无效厚度数据
+      if (d.timestamp < startTime) return false //过滤不在时间范围内的数据
+      if (d.timestamp > startTime + duration) return false //过滤不在时间范围内的数据
+      return true
+    })
+    .map((d) => {
+      return {
+        t: d.timestamp! - startTime,
+        y: d.ProbeValue!,
+      }
+    })
+    .sort((a, b) => a.t - b.t)
+
+  if (valid.length < minPoints) return null
+  // Step 2: 自适应 gap 阈值
+  const baseInterval = estimateSamplingInterval(data)
+  const maxGapSec = Math.min(1.0, Math.max(0.1, baseInterval * 3))
+
+  let bestSegment: ValidThicknessData[] = []
+  let current: ValidThicknessData[] = [valid[0]]
+
+  for (let i = 1; i < valid.length; i++) {
+    if (valid[i].t - valid[i - 1].t < maxGapSec) {
+      current.push(valid[i])
+    } else {
+      if (current.length > bestSegment.length) bestSegment = [...current]
+      current = [valid[i]]
+    }
+  }
+  if (current.length > bestSegment.length) bestSegment = current
+  if (bestSegment.length < minPoints) return null
+  return bestSegment
 }

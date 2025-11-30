@@ -1,9 +1,9 @@
-import { RollerStandardized } from '../types'
+import { RollerScalar } from '../types'
 
 /**
  * 获取周长
  * */
-export const getCircumference = (options: RollerStandardized) => {
+export const getCircumference = (options: RollerScalar) => {
   if ('CIRCUMFERENCE' in options) {
     return options.CIRCUMFERENCE
   }

@@ -1,6 +1,6 @@
-import { getCircumference, RollerStandardized, RollerDevice } from '@jjsk/core'
+import { getCircumference, RollerScalar, RollerDevice } from '@jjsk/core'
 
-export type RollerMockOptions = RollerStandardized & {
+export type RollerMockOptions = RollerScalar & {
   /**
    * 收卷速度 单位：毫米/秒
    * */

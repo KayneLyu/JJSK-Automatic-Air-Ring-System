@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "vitest --run controllers/opcua.test.ts -t=^测试标定算法$"
+    "test": "vitest --run controllers/common/upperRotation.test.ts -t=^测试估算最大旋转角度$"
   },
   "keywords": [],
   "author": "",

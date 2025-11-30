@@ -1,4 +1,4 @@
-import { ThickNessData } from '../connections/thickness/opcua'
+import { ThicknessData } from '../connections/thickness/opcua'
 import { RingData } from '../connections/airRing/opcua'
 import {
   computeTractionSpeedSmooth,
@@ -17,7 +17,7 @@ import { getCircumference } from '@jjsk/core'
 // 主函数：自动优化 Δθ 并返回调节量
 // ----------------------------
 export const computeAirRingAdjustment = (
-  thicknessData: ThickNessData[],
+  thicknessData: ThicknessData[],
   ringData: RingData[],
   L_mm: number,
   config: CalibrationConfig

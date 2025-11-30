@@ -1,10 +1,10 @@
 import { RollerDevice, ThicknessDevice } from '@jjsk/core'
 import { Client as OPCUAClient, OPCUAData } from '../base/opcua'
 
-export type ThickNessData = OPCUAData & RollerDevice & ThicknessDevice
+export type ThicknessData = OPCUAData & RollerDevice & ThicknessDevice
 // ==================== 配置 ====================
 
-const NODE_VALUE_MAP: Record<string, keyof ThickNessData> = {
+const NODE_VALUE_MAP: Record<string, keyof ThicknessData> = {
   'ns=1;i=1002': 'HorizontalPulse',
   'ns=1;i=1003': 'LeftLimit',
   'ns=1;i=1004': 'RightLimit',
@@ -15,7 +15,7 @@ const NODE_VALUE_MAP: Record<string, keyof ThickNessData> = {
   'ns=1;i=1011': 'RollSpeedSignal',
 }
 export const Client = (url: string) => {
-  return OPCUAClient<ThickNessData>({
+  return OPCUAClient<ThicknessData>({
     url,
     nodeIdValueMap: NODE_VALUE_MAP,
   })

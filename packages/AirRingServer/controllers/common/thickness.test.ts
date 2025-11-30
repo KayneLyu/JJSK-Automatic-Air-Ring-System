@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { ThickNessData } from '../../connections/thickness/opcua'
+import { ThicknessData } from '../../connections/thickness/opcua'
 import { mockRoller } from '@jjsk/simulation'
 import { computeTractionSpeedSmooth } from './thickness'
 import { getCircumference } from '@jjsk/core'
@@ -18,7 +18,7 @@ test('验证计算牵引速度算法', async () => {
     speed,
     RADIUS,
   })
-  const data: ThickNessData[] = []
+  const data: ThicknessData[] = []
   setInterval(() => {
     const rollerDevice = next()
     data.push({

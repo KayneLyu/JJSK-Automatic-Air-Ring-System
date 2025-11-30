@@ -12,7 +12,7 @@ export const calibrateCase = async () => {
   const { next: upperRotationNext } = mockUpperRotation({ maxAngle: 330 })
   const { next: thicknessNext } = mockThickness({
     mutationT: 1.25 * 60,
-    THICKNESS_PULSE_PER: 1.2,
+    THICKNESS_UNIT_PULSE_DIS: 1.2,
   })
   const { next: rollerNext } = mockRoller({
     speed: (20 * 1000) / 60, // 20米/分钟
