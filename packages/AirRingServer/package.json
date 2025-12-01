@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "vitest --run controllers/common/upperRotation.test.ts -t=^测试估算最大旋转角度$"
+    "test": "vitest --run controllers/common/upperRotation.test.ts -t=^测试估算最大旋转角度2$"
   },
   "keywords": [],
   "author": "",

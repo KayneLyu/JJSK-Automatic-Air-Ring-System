@@ -107,6 +107,4 @@ export type ThicknessDevice = {
   ProbeValue?: number
 }
 
-export type RequireKeysAndNonNullable<T, K extends keyof T> = Omit<T, K> & {
-  [P in K]-?: NonNullable<T[P]>
-}
+export type WithRequired<T, K extends keyof T> = T & { [P in K]-?: T[P] }

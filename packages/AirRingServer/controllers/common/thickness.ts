@@ -2,7 +2,7 @@
  * 测厚仪相关算法
  * */
 
-import { RequireKeysAndNonNullable } from '@jjsk/core'
+import { WithRequired } from '@jjsk/core'
 import { ThicknessData } from '../../connections/thickness/opcua'
 
 export interface ScanSegment {
@@ -120,9 +120,12 @@ export const computeTractionSpeedSmooth = (
   if (data.length === 0) return null
 
   // Step 1: 按时间排序（确保时序正确）
-  const sorted = [...data]
-    .filter((d) => d.timestamp != null)
-    .sort((a, b) => a.timestamp! - b.timestamp!)
+  const sorted = (
+    data.filter((d) => !!d.timestamp) as WithRequired<
+      ThicknessData,
+      'timestamp'
+    >[]
+  ).sort((a, b) => a.timestamp - b.timestamp)
 
   // Step 2: 检测上升沿（false → true），记录上升沿时间戳
   const risingEdgeTimes: number[] = []
@@ -133,7 +136,7 @@ export const computeTractionSpeedSmooth = (
 
     if (prevSignal === false && currentSignal) {
       // 上升沿：记录当前时间戳作为一圈的开始
-      risingEdgeTimes.push(item.timestamp!)
+      risingEdgeTimes.push(item.timestamp)
     }
 
     prevSignal = currentSignal
@@ -163,15 +166,17 @@ export const findSignificantDip = (
   data: ThicknessData[],
   deviation: number = 0.05
 ): ThicknessData | null => {
-  const valid = data.filter((d) => d.timestamp != null && d.ProbeValue != null)
+  const valid = data.filter(
+    (d) => !!d.timestamp && !!d.ProbeValue
+  ) as WithRequired<ThicknessData, 'timestamp' | 'ProbeValue'>[]
   if (valid.length === 0) return null
 
-  let total = valid[0].ProbeValue!
+  let total = valid[0].ProbeValue
   // 找最低点
-  let min = valid[0].ProbeValue!
+  let min = valid[0].ProbeValue
 
   for (let i = 1; i < valid.length; i++) {
-    const current = valid[i].ProbeValue!
+    const current = valid[i].ProbeValue
     total += current
     if (current < min) {
       min = current
@@ -185,17 +190,17 @@ export const findSignificantDip = (
 }
 
 const estimateSamplingInterval = (
-  data: readonly RequireKeysAndNonNullable<ThicknessData, 'timestamp'>[]
+  data: WithRequired<ThicknessData, 'timestamp'>[]
 ): number => {
-  if (data.length < 2) return 0.1 // default 10 Hz
+  if (data.length < 2) return 100 // default 10 Hz
 
   // 计算所有相邻时间差（单位：秒）
   const intervals = data
     .slice(1)
-    .map((m, i) => (m.timestamp - data[i].timestamp) / 1000)
+    .map((m, i) => m.timestamp - data[i].timestamp)
     .filter((dt) => dt > 0 && dt < 2) // 排除异常大跳变
 
-  if (intervals.length === 0) return 0.1
+  if (intervals.length === 0) return 100
 
   // 取中位数（抗异常值）
   const sorted = [...intervals].sort((a, b) => a - b)
@@ -214,7 +219,7 @@ export type ValidThicknessData = {
    * */
   t: number
   /**
-   * 厚度
+   * 厚度 单位：微米
    * */
   y: number
 }
@@ -232,8 +237,11 @@ export const extractSegment = (
   minPoints: number = 100
 ) => {
   //过滤没有时间戳的数据
-  const tValid: RequireKeysAndNonNullable<ThicknessData, 'timestamp'>[] =
-    data.filter((d) => !!d.timestamp)
+  const tValid = data.filter((d) => !!d.timestamp) as WithRequired<
+    ThicknessData,
+    'timestamp'
+  >[]
+
   // Step 1: 剔除物理无效点
   const valid = tValid
     .filter((d) => {
@@ -244,7 +252,7 @@ export const extractSegment = (
     })
     .map((d) => {
       return {
-        t: d.timestamp! - startTime,
+        t: d.timestamp - startTime,
         y: d.ProbeValue!,
       }
     })
@@ -252,9 +260,10 @@ export const extractSegment = (
 
   if (valid.length < minPoints) return null
   // Step 2: 自适应 gap 阈值
-  const baseInterval = estimateSamplingInterval(data)
-  const maxGapSec = Math.min(1.0, Math.max(0.1, baseInterval * 3))
+  const baseInterval = estimateSamplingInterval(tValid)
+  const maxGapSec = Math.min(1000, Math.max(100, baseInterval * 3))
 
+  // Step 3: 提取最长连续段
   let bestSegment: ValidThicknessData[] = []
   let current: ValidThicknessData[] = [valid[0]]
 
