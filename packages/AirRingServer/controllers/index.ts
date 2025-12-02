@@ -9,7 +9,7 @@ import {
   buildAngleEvents,
   evaluateDeltaTheta,
   interpolateAngle,
-} from './common/upperRotation'
+} from './common/upperRotation.c'
 import { CalibrationConfig } from './types'
 import { getCircumference } from '@jjsk/core'
 

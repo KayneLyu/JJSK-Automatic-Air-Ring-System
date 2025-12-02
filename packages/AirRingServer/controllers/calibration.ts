@@ -10,7 +10,7 @@ import {
   extractScanSegments,
   findSignificantDip,
 } from './common/thickness'
-import { inferMaxAngle } from './common/upperRotation'
+import { inferMaxAngle } from './common/upperRotation.c'
 
 export type CalibrateOptions = {
   thicknessData: ThicknessData[]

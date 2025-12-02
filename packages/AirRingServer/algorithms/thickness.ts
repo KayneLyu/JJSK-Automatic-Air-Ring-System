@@ -3,7 +3,8 @@
  * */
 
 import { WithRequired } from '@jjsk/core'
-import { ThicknessData } from '../../connections/thickness/opcua'
+import { ThicknessData } from '../connections/thickness/opcua'
+import { ValidThicknessData } from '../types'
 
 export interface ScanSegment {
   startTime: number
@@ -210,19 +211,6 @@ const estimateSamplingInterval = (
   return median * 3
 }
 
-/**
- * 有效测厚仪数据
- * */
-export type ValidThicknessData = {
-  /**
-   * 时间戳
-   * */
-  t: number
-  /**
-   * 厚度 单位：微米
-   * */
-  y: number
-}
 /**
  * 提取测厚仪数据片段
  * @param data 测厚仪数据
