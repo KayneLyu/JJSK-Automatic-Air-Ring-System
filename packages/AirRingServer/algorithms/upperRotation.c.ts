@@ -4,9 +4,9 @@
 
 import { goldenSectionSearch } from '../utils'
 import {
-  ValidThicknessData,
   ThetaMaxEstimateResult,
   TripSegment,
+  ValidThicknessData,
 } from '../types'
 
 /**
@@ -36,7 +36,10 @@ export const estimateThetaMaxWithPhaseCorrection = (
     return null
   }
   const dataF = forwardTrip.measurements
-  const dataB = backwardTrip.measurements
+  const dataB = backwardTrip.measurements.map((p) => ({
+    ...p,
+    t: backwardTrip.duration - p.t,
+  })) // ← 关键！
   if (dataF.length === 0 || dataB.length === 0) {
     return null
   }
@@ -47,7 +50,7 @@ export const estimateThetaMaxWithPhaseCorrection = (
 
   // 在 [180, 360] 搜索 theta_max
   for (let theta = 180; theta < 360; theta += 2) {
-    const loss = evaluatePhaseConsistency(
+    const loss = evaluatePhaseConsistencyV2(
       dataF,
       dataB,
       theta,
@@ -63,7 +66,7 @@ export const estimateThetaMaxWithPhaseCorrection = (
   // 可选：精细搜索
   const refined = goldenSectionSearch(
     (th) =>
-      evaluatePhaseConsistency(
+      evaluatePhaseConsistencyV2(
         dataF,
         dataB,
         th,
@@ -94,55 +97,43 @@ export const estimateThetaMaxWithPhaseCorrection = (
 }
 
 /**
- * 核心：评估相位一致性（越小越好）
- */
-const evaluatePhaseConsistency = (
-  dataF: readonly ValidThicknessData[],
-  dataB: readonly ValidThicknessData[],
-  thetaMaxDeg: number,
-  T_half_sec: number,
-  K: number
-): number => {
+ * 构建角度-时间映射函数
+ * */
+const buildTimeToAngle = (thetaMaxDeg: number, T_half: number, K: number) => {
   const totalAngle = (thetaMaxDeg * Math.PI) / 180
   const segmentAngle = totalAngle / K
-
   // 假设每段匀速 → 计算每段应耗时
-  const nominalSegmentTime = T_half_sec / K
+  const nominalSegmentTime = T_half / K
 
-  // 实际：允许每段时间浮动（但总和=T_half_sec）
+  // 实际：允许每段时间浮动（但总和=T_half）
   // 为简化，先假设匀速（后续可扩展为优化 {dt_k}）
-  const segmentTimes = Array(K).fill(nominalSegmentTime)
+  const segmentTimes = Array(K).fill(nominalSegmentTime) // 可扩展为优化变量
 
-  // 构建角度-时间映射函数
-  const timeToAngle = (t: number, isForward: boolean): number => {
-    if (isForward) {
-      // 正向：0 → thetaMax
-      let elapsed = 0
-      for (let i = 0; i < K; i++) {
-        if (t <= elapsed + segmentTimes[i]) {
-          const localT = t - elapsed
-          return i * segmentAngle + (localT / segmentTimes[i]) * segmentAngle
-        }
-        elapsed += segmentTimes[i]
+  // 构建角度映射
+  return (t: number, isForward: boolean): number => {
+    let elapsed = 0
+    for (let i = 0; i < K; i++) {
+      if (t <= elapsed + segmentTimes[i]) {
+        const localT = t - elapsed
+        const localAngle = (localT / segmentTimes[i]) * segmentAngle
+        return isForward
+          ? i * segmentAngle + localAngle
+          : totalAngle - (i * segmentAngle + localAngle)
       }
-      return totalAngle
-    } else {
-      // 反向：thetaMax → 0
-      let elapsed = 0
-      for (let i = 0; i < K; i++) {
-        if (t <= elapsed + segmentTimes[i]) {
-          const localT = t - elapsed
-          return (
-            totalAngle -
-            (i * segmentAngle + (localT / segmentTimes[i]) * segmentAngle)
-          )
-        }
-        elapsed += segmentTimes[i]
-      }
-      return 0
+      elapsed += segmentTimes[i]
     }
+    return isForward ? totalAngle : 0
   }
+}
 
+/**
+ * 构建相位映射
+ * */
+const buildPhaseMap = (
+  dataF: readonly ValidThicknessData[],
+  dataB: readonly ValidThicknessData[],
+  timeToAngle: (t: number, isForward: boolean) => number
+) => {
   // 将所有点映射到膜泡相位 φ ∈ [0, 2π)
   const phiF = dataF.map(
     (p) =>
@@ -152,7 +143,24 @@ const evaluatePhaseConsistency = (
     (p) =>
       ((timeToAngle(p.t, false) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
   )
-
+  return {
+    phiF,
+    phiB,
+  }
+}
+/**
+ * 核心：评估相位一致性（越小越好）
+ * 相邻匹配法
+ */
+const evaluatePhaseConsistencyV1 = (
+  dataF: readonly ValidThicknessData[],
+  dataB: readonly ValidThicknessData[],
+  thetaMaxDeg: number,
+  T_half: number,
+  K: number
+): number => {
+  const timeToAngle = buildTimeToAngle(thetaMaxDeg, T_half, K)
+  const { phiF, phiB } = buildPhaseMap(dataF, dataB, timeToAngle)
   // 使用最近邻匹配正反向点（简化版）
   let totalDiff = 0
   let count = 0
@@ -179,31 +187,11 @@ const computeR2WithPhaseCorrection = (
   dataF: readonly ValidThicknessData[],
   dataB: readonly ValidThicknessData[],
   thetaMaxDeg: number,
-  T_half_sec: number,
+  T_half: number,
   K: number,
   N: number
 ): number => {
-  const totalAngle = (thetaMaxDeg * Math.PI) / 180
-  const segmentAngle = totalAngle / K
-  const nominalSegmentTime = T_half_sec / K
-  const segmentTimes = Array(K).fill(nominalSegmentTime) // 可扩展为优化变量
-
-  // 构建角度映射（同 evaluatePhaseConsistency）
-  const timeToAngle = (t: number, isForward: boolean): number => {
-    let elapsed = 0
-    for (let i = 0; i < K; i++) {
-      if (t <= elapsed + segmentTimes[i]) {
-        const localT = t - elapsed
-        const localAngle = (localT / segmentTimes[i]) * segmentAngle
-        return isForward
-          ? i * segmentAngle + localAngle
-          : totalAngle - (i * segmentAngle + localAngle)
-      }
-      elapsed += segmentTimes[i]
-    }
-    return isForward ? totalAngle : 0
-  }
-
+  const timeToAngle = buildTimeToAngle(thetaMaxDeg, T_half, K)
   // 将所有点映射到膜泡相位 φ ∈ [0, 2π)
   const allPoints = [
     ...dataF.map((p) => ({
@@ -350,4 +338,81 @@ const findBestMatchWithWrap = (
   }
 
   return bestDiff < maxSearchWindowRad ? { diff: bestDiff, y: bestY } : null
+}
+
+/**
+ * 评估相位一致性：通过比较正向/反向行程在膜泡相位域的厚度分布相似性
+ * 越小越好。不依赖固定容差，适用于大相位偏移场景。
+ * 直方图法
+ */
+const evaluatePhaseConsistencyV2 = (
+  dataF: readonly ValidThicknessData[],
+  dataB: readonly ValidThicknessData[],
+  thetaMaxDeg: number,
+  T_half: number,
+  K: number // 相位分段数（用于构建 φ(t) 映射）
+): number => {
+  const timeToAngle = buildTimeToAngle(thetaMaxDeg, T_half, K)
+  const { phiF, phiB } = buildPhaseMap(dataF, dataB, timeToAngle)
+  const yF = dataF.map((p) => p.y)
+  const yB = dataB.map((p) => p.y)
+
+  // === 核心：相位直方图一致性评估 ===
+  const NUM_BINS = 36 // 每 10° 一个 bin，可根据需要调整（建议 18~72）
+  const binWidth = (2 * Math.PI) / NUM_BINS
+
+  // 初始化直方图（存储每个 bin 的厚度总和和计数）
+  const sumF = new Float64Array(NUM_BINS)
+  const cntF = new Uint32Array(NUM_BINS)
+  const sumB = new Float64Array(NUM_BINS)
+  const cntB = new Uint32Array(NUM_BINS)
+
+  // 填充正向行程直方图
+  for (let i = 0; i < phiF.length; i++) {
+    const binIdx = Math.floor(phiF[i] / binWidth) % NUM_BINS
+    sumF[binIdx] += yF[i]
+    cntF[binIdx]++
+  }
+
+  // 填充反向行程直方图
+  for (let i = 0; i < phiB.length; i++) {
+    const binIdx = Math.floor(phiB[i] / binWidth) % NUM_BINS
+    sumB[binIdx] += yB[i]
+    cntB[binIdx]++
+  }
+
+  // 计算有效 bin 的均方误差（MSE）
+  let totalMSE = 0
+  let validBinCount = 0
+
+  for (let i = 0; i < NUM_BINS; i++) {
+    // 仅当正反行程在该 bin 都有数据时才参与评估
+    if (cntF[i] > 0 && cntB[i] > 0) {
+      const avgF = sumF[i] / cntF[i]
+      const avgB = sumB[i] / cntB[i]
+      const diff = avgF - avgB
+      totalMSE += diff * diff
+      validBinCount++
+    }
+  }
+
+  // 若几乎没有重叠 bin，返回高损失
+  if (validBinCount === 0) {
+    return Infinity
+  }
+
+  // 返回归一化 MSE（可选：除以厚度方差以无量纲化）
+  const meanThickness =
+    (yF.reduce((a, b) => a + b, 0) + yB.reduce((a, b) => a + b, 0)) /
+    (yF.length + yB.length)
+  const thicknessStd = Math.sqrt(
+    [...yF, ...yB].reduce((sum, y) => sum + Math.pow(y - meanThickness, 2), 0) /
+      (yF.length + yB.length)
+  )
+
+  // 避免除零；若信号平坦，用绝对 MSE
+
+  return thicknessStd > 1
+    ? totalMSE / (validBinCount * thicknessStd * thicknessStd)
+    : totalMSE / validBinCount
 }

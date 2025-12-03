@@ -3,7 +3,7 @@ import { ThicknessConnection } from '../connections/thickness'
 import { ThicknessData } from '../connections/thickness/opcua'
 import { RingData } from '../connections/airRing/opcua'
 import { calibrate } from './calibration'
-import { CalibrationConfig } from './types'
+import { CalibrationConfig } from '../types'
 
 export interface OPCUAControllerOptions {
   airRingUrl: string
@@ -61,6 +61,7 @@ export const OPCUAController = (options: OPCUAControllerOptions) => {
           ringData: buffer.airRing,
           disturbanceTs,
           config,
+          standardized: {},
         })
         if (res) console.log(res)
       })

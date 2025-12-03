@@ -3,14 +3,14 @@
  * */
 import { ThicknessData } from '../connections/thickness/opcua'
 import { RingData } from '../connections/airRing/opcua'
-import { CalibrationConfig, Scalar } from './types'
 import { getCircumference } from '@jjsk/core'
 import {
   computeTractionSpeedSmooth,
   extractScanSegments,
   findSignificantDip,
-} from './common/thickness'
-import { inferMaxAngle } from './common/upperRotation.c'
+} from '../algorithms/thickness'
+import { inferMaxAngle } from '../algorithms/upperRotation.a'
+import { CalibrationConfig, Scalar } from '../types'
 
 export type CalibrateOptions = {
   thicknessData: ThicknessData[]

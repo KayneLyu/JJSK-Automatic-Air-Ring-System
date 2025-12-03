@@ -68,7 +68,7 @@ export type Scalar = {
  * */
 export type ValidThicknessData = {
   /**
-   * 时间戳
+   * 相对时间 单位：毫秒
    * */
   t: number
   /**

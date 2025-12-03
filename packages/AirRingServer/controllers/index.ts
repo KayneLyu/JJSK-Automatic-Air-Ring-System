@@ -4,13 +4,13 @@ import {
   computeTractionSpeedSmooth,
   extractScanSegments,
   ScanSegment,
-} from './common/thickness'
+} from '../algorithms/thickness'
 import {
   buildAngleEvents,
   evaluateDeltaTheta,
   interpolateAngle,
-} from './common/upperRotation.c'
-import { CalibrationConfig } from './types'
+} from '../algorithms/upperRotation.a'
+import { CalibrationConfig } from '../types'
 import { getCircumference } from '@jjsk/core'
 
 // ----------------------------
