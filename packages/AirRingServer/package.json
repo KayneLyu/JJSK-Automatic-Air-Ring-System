@@ -11,8 +11,8 @@
   "license": "ISC",
   "packageManager": "pnpm@10.18.3",
   "devDependencies": {
-    "@jjsk/simulation": "workspace:^",
     "@jjsk/core": "workspace:^",
+    "@jjsk/simulation": "workspace:^",
     "vitest": "^4.0.0"
   },
   "dependencies": {

@@ -1,8 +1,10 @@
 import {
   AttributeIds,
+  ClientMonitoredItemBase,
   ClientSession,
   ClientSubscription,
   coerceNodeId,
+  DataValue,
   OPCUAClient,
   ReadValueIdOptions,
   TimestampsToReturn,
@@ -94,8 +96,9 @@ export const Client = <T extends OPCUAData>(options: ClientOptions<T>) => {
     const session = await connect()
     if (session) {
       const subscription = await createSubscription(session)
-      await monitorItems<T>(subscription, nodeIdValueMap, listener)
+      return await monitorItems<T>(subscription, nodeIdValueMap, listener)
     }
+    return () => {}
   }
   /**
    * 读取数据
@@ -201,8 +204,11 @@ const monitorItems = async <T extends OPCUAData>(
   console.log(`👀 已开始监控 ${nodeIds.length} 个变量：`)
   nodeIds.forEach((id) => console.log(`   📌 ${id}`))
   let oldValue: T | undefined = undefined
-  // 为每个变量绑定变化事件
-  monitoredItems.on('changed', (_, dataValue, index) => {
+  const onChanged = (
+    _: ClientMonitoredItemBase,
+    dataValue: DataValue,
+    index: number
+  ) => {
     const nodeId = nodeIds[index]
     const value = dataValue.value.value
 
@@ -220,5 +226,10 @@ const monitorItems = async <T extends OPCUAData>(
     console.log(`🔄 [${new Date().toISOString()}] ${nodeId}`)
     console.log(`   值: ${formattedValue}`)
     console.log(`   时间: ${dataValue.serverTimestamp?.toISOString()}\n`)
-  })
+  }
+  // 为每个变量绑定变化事件
+  monitoredItems.on('changed', onChanged)
+  return () => {
+    monitoredItems.off('changed', onChanged)
+  }
 }

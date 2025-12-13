@@ -4,13 +4,12 @@
 import { ThicknessData } from '../connections/thickness/opcua'
 import { RingData } from '../connections/airRing/opcua'
 import { getCircumference } from '@jjsk/core'
-import {
-  computeTractionSpeedSmooth,
-  extractScanSegments,
-  findSignificantDip,
-} from '../algorithms/thickness'
+import { extractScanSegments } from '../algorithms/thickness'
 import { inferMaxAngle } from '../algorithms/upperRotation.a'
 import { CalibrationConfig, Scalar } from '../types'
+import { calibrateTractionSpeedSmooth } from '../algorithms/tractionSpeedSmooth'
+import { calibrateMutationWindowSize } from '../algorithms/mutationWindowSize'
+import { findMutation } from '../algorithms/findMutation'
 
 export type CalibrateOptions = {
   thicknessData: ThicknessData[]
@@ -40,6 +39,10 @@ export type CalibrateResult = {
    * 膜宽 单位：mm
    * */
   membraneWidth?: number
+  /**
+   * 突变窗口数
+   * */
+  mutationWindowSize?: number
 }
 
 /**
@@ -51,68 +54,95 @@ export const calibrate = ({
   config,
   disturbanceTs,
   standardized,
-}: CalibrateOptions): CalibrateResult | null => {
+}: CalibrateOptions) => {
   const { CHANNEL_COUNT, ROLLER } = standardized
   const {
     roller: { numCycles = 10, maxIntervalMs = 10_000 },
     upperRotation: { deltaRange: { min = 180, max = 359, step = 1 } = {} },
   } = config
   const deltaRange = { min, max, step }
-  // ---------- Step 1: 计算牵引速度 ----------
   const circumference = getCircumference(ROLLER)
-  const v = computeTractionSpeedSmooth(
-    thicknessData,
+  const { next: TractionSpeedSmoothNext } = calibrateTractionSpeedSmooth(
     circumference,
     numCycles,
     maxIntervalMs
   )
-  if (v === null || v <= 0) {
-    /* 无法计算牵引速度 */
-    return null
-  }
-  // ---------- Step 2: 检测厚度凹陷 ----------
-  const dip = findSignificantDip(thicknessData)
-  if (dip === null) {
-    /* 未检测到有效扰动响应 */
-    return {
-      tractionSpeed: v,
-    }
-  }
-  // ---------- Step 3: 计算上旋人字架到测厚仪的距离 ----------
-  const tau_ms = dip.timestamp! - disturbanceTs
-
-  const distance = v * (tau_ms / 1000)
-
-  // ---------- Step 4: 提取测厚仪有效扫描段 ----------
-  const segments = extractScanSegments(thicknessData)
-  if (segments.length === 0) {
-    /* 无法提取有效扫描数据 */
-    return {
-      tractionSpeed: v,
-      distance,
-    }
-  }
-
-  const latestScan = segments[segments.length - 1]
-
-  // ---------- Step 5: 推测上旋人字架最大旋转角度 ----------
-  const maxAngle = inferMaxAngle({
+  const { next: MutationWindowSizeNext } = calibrateMutationWindowSize({
     CHANNEL_COUNT,
-    ringData,
-    deltaRange,
-    latestScan,
   })
-  if (!maxAngle) {
-    /* 无法上旋计算最大旋转角度 */
+  const { next: FindMutationNext, setWindowSize } = findMutation()
+  const next = ({
+    thickness,
+    airRing,
+  }: {
+    thickness?: ThicknessData
+    airRing?: RingData
+  }): CalibrateResult | null => {
+    // ---------- Step 1: 计算牵引速度 ----------
+    const v = thickness ? TractionSpeedSmoothNext(thickness) : null
+    if (!v || v <= 0) {
+      /* 无法计算牵引速度 */
+      return null
+    }
+    // ---------- Step 2: 标定突变检测窗口大小 ----------
+    const windowSize = MutationWindowSizeNext({ thickness, airRing })
+
+    // ---------- Step 3: 检测厚度突变 ----------
+    const mutation = thickness ? FindMutationNext(thickness) : null
+    if (!windowSize) {
+      /* 突变窗口未完成标定 */
+      return {
+        tractionSpeed: v,
+      }
+    }
+    setWindowSize(windowSize)
+    if (!mutation) {
+      /* 未检测到有效扰动响应 */
+      return {
+        tractionSpeed: v,
+        mutationWindowSize: windowSize,
+      }
+    }
+    // ---------- Step 4: 计算上旋人字架到测厚仪的距离 ----------
+    const tau_ms = mutation.timestamp! - disturbanceTs
+
+    const distance = v * (tau_ms / 1000)
+
+    // ---------- Step 5: 提取测厚仪有效扫描段 ----------
+    const segments = extractScanSegments(thicknessData)
+    if (segments.length === 0) {
+      /* 无法提取有效扫描数据 */
+      return {
+        tractionSpeed: v,
+        mutationWindowSize: windowSize,
+        distance,
+      }
+    }
+
+    const latestScan = segments[segments.length - 1]
+
+    // ---------- Step 6: 推测上旋人字架最大旋转角度 ----------
+    const maxAngle = inferMaxAngle({
+      CHANNEL_COUNT,
+      ringData,
+      deltaRange,
+      latestScan,
+    })
+    if (!maxAngle) {
+      /* 无法上旋计算最大旋转角度 */
+      return {
+        tractionSpeed: v,
+        mutationWindowSize: windowSize,
+        distance,
+      }
+    }
+
     return {
       tractionSpeed: v,
+      mutationWindowSize: windowSize,
+      maxAngle,
       distance,
     }
   }
-
-  return {
-    tractionSpeed: v,
-    maxAngle,
-    distance,
-  }
+  return { next }
 }

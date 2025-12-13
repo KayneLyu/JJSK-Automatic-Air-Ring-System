@@ -1,7 +1,6 @@
 import { expect, test, vi } from 'vitest'
-import { ThicknessData } from '../../connections/thickness/opcua'
 import { mockRoller } from '@jjsk/simulation'
-import { computeTractionSpeedSmooth } from './thickness'
+import { calibrateTractionSpeedSmooth } from './tractionSpeedSmooth'
 import { getCircumference } from '@jjsk/core'
 
 test('验证计算牵引速度算法', async () => {
@@ -18,10 +17,16 @@ test('验证计算牵引速度算法', async () => {
     speed,
     RADIUS,
   })
-  const data: ThicknessData[] = []
+  const circumference = getCircumference({ RADIUS })
+  const { next: TractionSpeedSmoothNext } = calibrateTractionSpeedSmooth(
+    circumference,
+    10,
+    10_100
+  )
+  let v: number | null = null
   setInterval(() => {
     const rollerDevice = next()
-    data.push({
+    v = TractionSpeedSmoothNext({
       ...rollerDevice,
       timestamp: Date.now(),
     })
@@ -29,8 +34,7 @@ test('验证计算牵引速度算法', async () => {
 
   // 快进50s
   vi.advanceTimersByTime(50 * 1000)
-  const circumference = getCircumference({ RADIUS })
-  const v = computeTractionSpeedSmooth(data, circumference, 10, 10_100)
+
   if (v) {
     const delta = Math.abs(v - speed)
     expect(delta).toBeLessThanOrEqual(0.1)
