@@ -10,13 +10,13 @@ test('验证生成旋转单程片段数据', async () => {
   vi.setSystemTime(startTime)
 
   const { next: upperRotationNext } = mockUpperRotation({ maxAngle: 330 })
-  const { next: BuildTripSegmentNext } = buildTripSegment()
+  const { next: buildTripSegmentNext } = buildTripSegment()
   let tripSegment: BaseTripSegment[] = []
   setInterval(() => {
     const timestamp = Date.now()
     const upperRotationValues = upperRotationNext()
 
-    tripSegment = BuildTripSegmentNext({
+    tripSegment = buildTripSegmentNext({
       ...upperRotationValues,
       timestamp,
     })

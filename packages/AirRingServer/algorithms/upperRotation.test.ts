@@ -3,11 +3,13 @@ import { mockUpperRotation } from '@jjsk/simulation/mocks/upperRotation.mock'
 import { mockThickness } from '@jjsk/simulation/mocks/thickness.mock'
 import { mockRoller } from '@jjsk/simulation'
 import { ThicknessDevice, UpperRotationDevice } from '@jjsk/core'
-import { extractScanSegments, extractSegment } from './thickness'
-import { buildTripSegment, estimateMaxAngle } from './upperRotation.b'
+import { extractScanSegments } from './thickness'
+import { estimateMaxAngle } from './upperRotation.b'
 import { inferMaxAngle } from './upperRotation.a'
-import { TripSegment } from '../types'
+import { BaseTripSegment, TripSegment } from '../types'
 import { estimateThetaMaxWithPhaseCorrection } from './upperRotation.c'
+import { buildTripSegment } from './buildTripSegment'
+import { extractSegment } from './extractSegment'
 
 test('测试估算最大旋转角度1', () => {
   vi.useFakeTimers()
@@ -73,14 +75,15 @@ test('测试估算最大旋转角度2', () => {
     speed: (20 * 1000) / 60, // 20米/分钟
     RADIUS: 15 * 10, // 15厘米
   })
-
+  const { next: buildTripSegmentNext } = buildTripSegment()
   const thickness: (ThicknessDevice & { timestamp: number })[] = []
-  const upperRotation: (UpperRotationDevice & { timestamp: number })[] = []
+
+  let tripSegment: BaseTripSegment[] = []
   setInterval(() => {
     const timestamp = Date.now()
     const upperRotationValues = upperRotationNext()
 
-    upperRotation.push({
+    tripSegment = buildTripSegmentNext({
       ...upperRotationValues,
       timestamp,
     })
@@ -91,7 +94,6 @@ test('测试估算最大旋转角度2', () => {
 
   // 快进 20分钟 生成数据
   vi.advanceTimersByTime(20 * 60 * 1000)
-  const tripSegment = buildTripSegment(upperRotation)
   if (tripSegment.length < 2) {
     return
   }
@@ -126,14 +128,14 @@ test('测试估算最大旋转角度3', () => {
     speed: (20 * 1000) / 60, // 20米/分钟
     RADIUS: 15 * 10, // 15厘米
   })
-
+  const { next: buildTripSegmentNext } = buildTripSegment()
   const thickness: (ThicknessDevice & { timestamp: number })[] = []
-  const upperRotation: (UpperRotationDevice & { timestamp: number })[] = []
+  let tripSegment: BaseTripSegment[] = []
   setInterval(() => {
     const timestamp = Date.now()
     const upperRotationValues = upperRotationNext()
 
-    upperRotation.push({
+    tripSegment = buildTripSegmentNext({
       ...upperRotationValues,
       timestamp,
     })
@@ -144,7 +146,6 @@ test('测试估算最大旋转角度3', () => {
 
   // 快进 20分钟 生成数据
   vi.advanceTimersByTime(20 * 60 * 1000)
-  const tripSegment = buildTripSegment(upperRotation)
   if (tripSegment.length < 2) {
     return
   }

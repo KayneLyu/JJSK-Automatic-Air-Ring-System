@@ -10,6 +10,7 @@ import { CalibrationConfig, Scalar } from '../types'
 import { calibrateTractionSpeedSmooth } from '../algorithms/tractionSpeedSmooth'
 import { calibrateMutationWindowSize } from '../algorithms/mutationWindowSize'
 import { findMutation } from '../algorithms/findMutation'
+import { buildTripSegment } from '../algorithms/buildTripSegment'
 
 export type CalibrateOptions = {
   thicknessData: ThicknessData[]
@@ -71,6 +72,7 @@ export const calibrate = ({
     CHANNEL_COUNT,
   })
   const { next: FindMutationNext, setWindowSize } = findMutation()
+  const { next: BuildTripSegmentNext } = buildTripSegment()
   const next = ({
     thickness,
     airRing,
@@ -80,15 +82,20 @@ export const calibrate = ({
   }): CalibrateResult | null => {
     // ---------- Step 1: 计算牵引速度 ----------
     const v = thickness ? TractionSpeedSmoothNext(thickness) : null
-    if (!v || v <= 0) {
-      /* 无法计算牵引速度 */
-      return null
-    }
+
     // ---------- Step 2: 标定突变检测窗口大小 ----------
     const windowSize = MutationWindowSizeNext({ thickness, airRing })
 
     // ---------- Step 3: 检测厚度突变 ----------
     const mutation = thickness ? FindMutationNext(thickness) : null
+
+    // ---------- Step 4: 生成单程片段数据 ----------
+    const tripSegment = airRing ? BuildTripSegmentNext(airRing) : []
+
+    if (!v || v <= 0) {
+      /* 无法计算牵引速度 */
+      return null
+    }
     if (!windowSize) {
       /* 突变窗口未完成标定 */
       return {
@@ -103,11 +110,18 @@ export const calibrate = ({
         mutationWindowSize: windowSize,
       }
     }
-    // ---------- Step 4: 计算上旋人字架到测厚仪的距离 ----------
+    // ---------- Step 5: 计算上旋人字架到测厚仪的距离 ----------
     const tau_ms = mutation.timestamp! - disturbanceTs
 
     const distance = v * (tau_ms / 1000)
 
+    if (tripSegment.length < 2) {
+      return {
+        tractionSpeed: v,
+        mutationWindowSize: windowSize,
+        distance,
+      }
+    }
     // ---------- Step 5: 提取测厚仪有效扫描段 ----------
     const segments = extractScanSegments(thicknessData)
     if (segments.length === 0) {
