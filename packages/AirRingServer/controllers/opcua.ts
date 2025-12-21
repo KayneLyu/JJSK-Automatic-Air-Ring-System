@@ -1,19 +1,17 @@
 import { AirRingConnection } from '../connections/airRing'
 import { ThicknessConnection } from '../connections/thickness'
-import { ThicknessData } from '../connections/thickness/opcua'
-import { RingData } from '../connections/airRing/opcua'
 import { calibrate } from './calibration'
-import { CalibrationConfig } from '../types'
-import { atom } from 'nanostores'
-import { findMutation } from '../algorithms/thickness'
+import { CalibrationConfig, Scalar } from '../types'
+import { findMutation } from '../algorithms/findMutation'
 
 export interface OPCUAControllerOptions {
   airRingUrl: string
   thicknessUrl: string
   config: CalibrationConfig
+  standardized: Scalar
 }
 export const OPCUAController = (options: OPCUAControllerOptions) => {
-  const { airRingUrl, thicknessUrl, config } = options
+  const { airRingUrl, thicknessUrl, config, standardized } = options
   const AirRingClient = AirRingConnection({
     url: airRingUrl,
     type: 'opcua',
@@ -43,60 +41,36 @@ export const OPCUAController = (options: OPCUAControllerOptions) => {
     // const res = await AirRingClient.setHeats()
     const disturbanceTs = Date.now()
     // if (!res) return
-    const buffer = atom<{
-      thickness: ThicknessData[]
-      airRing: RingData[]
-    }>({
-      thickness: [],
-      airRing: [],
-    })
-    const unsub1 = await ThicknessClient.subscribe((data) => {
-      buffer.set({
-        airRing: buffer.get().airRing,
-        thickness: [...buffer.value.thickness, data],
+
+    return new Promise(async (resolve, reject) => {
+      const { next } = calibrate({
+        disturbanceTs,
+        config,
+        standardized,
       })
-    })
-    const unsub2 = await AirRingClient.subscribe((data) => {
-      buffer.set({
-        airRing: [...buffer.get().airRing, data],
-        thickness: buffer.value.thickness,
+      const unsub1 = await ThicknessClient.subscribe((data) => {
+        const res = next({ thickness: data })
+        if (res) {
+          resolve(res)
+
+          unsub1()
+          unsub2()
+        }
       })
-    })
-    return new Promise((resolve, reject) => {
-      let pending = false
+      const unsub2 = await AirRingClient.subscribe((data) => {
+        const res = next({ airRing: data })
+        if (res) {
+          resolve(res)
 
-      const scheduleCalibrate = (data: {
-        thickness: ThicknessData[]
-        airRing: RingData[]
-      }) => {
-        if (pending) return
-        pending = true
-
-        queueMicrotask(() => {
-          pending = false
-          const res = calibrate({
-            thicknessData: data.thickness,
-            ringData: data.airRing,
-            disturbanceTs,
-            config,
-            standardized: {},
-          })
-          if (res) {
-            resolve(res)
-            unsub1()
-            unsub2()
-            unsub()
-          }
-        })
-      }
-
-      const unsub = buffer.subscribe(scheduleCalibrate)
+          unsub1()
+          unsub2()
+        }
+      })
       const timer = setTimeout(
         () => {
           reject()
           unsub1()
           unsub2()
-          unsub()
           clearTimeout(timer)
         },
         30 * 60 * 1000
@@ -107,23 +81,17 @@ export const OPCUAController = (options: OPCUAControllerOptions) => {
   /**
    * 自动调节风环
    * */
-  const autoAdjustment = async () => {
-    let thicknessData: ThicknessData[] = []
+  const autoAdjustment = async (windowSize: number) => {
+    const { next: FindMutationNext, setWindowSize } = findMutation()
+    setWindowSize(windowSize)
     const unsub1 = await ThicknessClient.subscribe((data) => {
-      thicknessData.push(data)
-      const dip = findMutation(thicknessData)
-      if (dip === null) {
+      const mutation = FindMutationNext(data)
+      if (mutation) {
+        /* 发生突变 */
       }
     })
-    let preSignal: boolean | null = null
-    const unsub2 = await AirRingClient.subscribe((data) => {
-      const currentSignal = !!data.ForwardRotation && !data.ReverseRotation
-      if (currentSignal != preSignal) {
-        /* 换向之后清空厚度数据 */
-        thicknessData = []
-        preSignal = currentSignal
-      }
-    })
+
+    const unsub2 = await AirRingClient.subscribe((data) => {})
     return () => {
       unsub1()
       unsub2()

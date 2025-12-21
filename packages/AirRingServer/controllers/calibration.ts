@@ -4,17 +4,14 @@
 import { ThicknessData } from '../connections/thickness/opcua'
 import { RingData } from '../connections/airRing/opcua'
 import { getCircumference } from '@jjsk/core'
-import { extractScanSegments } from '../algorithms/thickness'
-import { inferMaxAngle } from '../algorithms/upperRotation.a'
 import { CalibrationConfig, Scalar } from '../types'
 import { calibrateTractionSpeedSmooth } from '../algorithms/tractionSpeedSmooth'
 import { calibrateMutationWindowSize } from '../algorithms/mutationWindowSize'
 import { findMutation } from '../algorithms/findMutation'
 import { buildTripSegment } from '../algorithms/buildTripSegment'
+import { estimateThetaMaxWithPhaseCorrection } from '../algorithms/upperRotation.c'
 
 export type CalibrateOptions = {
-  thicknessData: ThicknessData[]
-  ringData: RingData[]
   standardized: Scalar
   config: CalibrationConfig
   /**
@@ -50,8 +47,6 @@ export type CalibrateResult = {
  * 标定，用于设备特征标定
  * */
 export const calibrate = ({
-  thicknessData,
-  ringData,
   config,
   disturbanceTs,
   standardized,
@@ -90,7 +85,10 @@ export const calibrate = ({
     const mutation = thickness ? FindMutationNext(thickness) : null
 
     // ---------- Step 4: 生成单程片段数据 ----------
-    const tripSegment = airRing ? BuildTripSegmentNext(airRing) : []
+    const tripSegment = BuildTripSegmentNext({
+      airRing,
+      thickness,
+    })
 
     if (!v || v <= 0) {
       /* 无法计算牵引速度 */
@@ -115,6 +113,7 @@ export const calibrate = ({
 
     const distance = v * (tau_ms / 1000)
 
+    // ---------- Step 6: 提取测厚仪有效扫描段 ----------
     if (tripSegment.length < 2) {
       return {
         tractionSpeed: v,
@@ -122,26 +121,11 @@ export const calibrate = ({
         distance,
       }
     }
-    // ---------- Step 5: 提取测厚仪有效扫描段 ----------
-    const segments = extractScanSegments(thicknessData)
-    if (segments.length === 0) {
-      /* 无法提取有效扫描数据 */
-      return {
-        tractionSpeed: v,
-        mutationWindowSize: windowSize,
-        distance,
-      }
-    }
-
-    const latestScan = segments[segments.length - 1]
-
-    // ---------- Step 6: 推测上旋人字架最大旋转角度 ----------
-    const maxAngle = inferMaxAngle({
-      CHANNEL_COUNT,
-      ringData,
-      deltaRange,
-      latestScan,
-    })
+    const maxAngle = estimateThetaMaxWithPhaseCorrection(
+      tripSegment[0],
+      tripSegment[1],
+      { deltaRange, segments: CHANNEL_COUNT }
+    )
     if (!maxAngle) {
       /* 无法上旋计算最大旋转角度 */
       return {
@@ -154,7 +138,7 @@ export const calibrate = ({
     return {
       tractionSpeed: v,
       mutationWindowSize: windowSize,
-      maxAngle,
+      maxAngle: maxAngle.thetaMaxDeg,
       distance,
     }
   }

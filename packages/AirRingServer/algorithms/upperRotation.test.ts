@@ -6,10 +6,9 @@ import { ThicknessDevice, UpperRotationDevice } from '@jjsk/core'
 import { extractScanSegments } from './thickness'
 import { estimateMaxAngle } from './upperRotation.b'
 import { inferMaxAngle } from './upperRotation.a'
-import { BaseTripSegment, TripSegment } from '../types'
+import { TripSegment } from '../types'
 import { estimateThetaMaxWithPhaseCorrection } from './upperRotation.c'
 import { buildTripSegment } from './buildTripSegment'
-import { extractSegment } from './extractSegment'
 
 test('测试估算最大旋转角度1', () => {
   vi.useFakeTimers()
@@ -76,20 +75,21 @@ test('测试估算最大旋转角度2', () => {
     RADIUS: 15 * 10, // 15厘米
   })
   const { next: buildTripSegmentNext } = buildTripSegment()
-  const thickness: (ThicknessDevice & { timestamp: number })[] = []
 
-  let tripSegment: BaseTripSegment[] = []
+  let tripSegment: TripSegment[] = []
   setInterval(() => {
     const timestamp = Date.now()
     const upperRotationValues = upperRotationNext()
 
-    tripSegment = buildTripSegmentNext({
-      ...upperRotationValues,
-      timestamp,
-    })
     const thicknessGaugeValue = thicknessNext()
     const rollerValue = rollerNext()
-    thickness.push({ ...thicknessGaugeValue, ...rollerValue, timestamp })
+    tripSegment = buildTripSegmentNext({
+      airRing: {
+        ...upperRotationValues,
+        timestamp,
+      },
+      thickness: { ...thicknessGaugeValue, ...rollerValue, timestamp },
+    })
   }, 10)
 
   // 快进 20分钟 生成数据
@@ -97,19 +97,7 @@ test('测试估算最大旋转角度2', () => {
   if (tripSegment.length < 2) {
     return
   }
-  const data = tripSegment
-    .map((d) => {
-      const s = extractSegment(thickness, d.startTime, d.duration)
-      return {
-        ...d,
-        measurements: s,
-      }
-    })
-    .filter((d) => !!d.measurements) as TripSegment[]
-  if (data.length < 2) {
-    return
-  }
-  const maxAngle = estimateMaxAngle(data[0], data[1])
+  const maxAngle = estimateMaxAngle(tripSegment[0], tripSegment[1])
   expect(maxAngle?.thetaMaxDeg).toBe(330)
 })
 
@@ -129,19 +117,20 @@ test('测试估算最大旋转角度3', () => {
     RADIUS: 15 * 10, // 15厘米
   })
   const { next: buildTripSegmentNext } = buildTripSegment()
-  const thickness: (ThicknessDevice & { timestamp: number })[] = []
-  let tripSegment: BaseTripSegment[] = []
+  let tripSegment: TripSegment[] = []
   setInterval(() => {
     const timestamp = Date.now()
     const upperRotationValues = upperRotationNext()
 
-    tripSegment = buildTripSegmentNext({
-      ...upperRotationValues,
-      timestamp,
-    })
     const thicknessGaugeValue = thicknessNext()
     const rollerValue = rollerNext()
-    thickness.push({ ...thicknessGaugeValue, ...rollerValue, timestamp })
+    tripSegment = buildTripSegmentNext({
+      airRing: {
+        ...upperRotationValues,
+        timestamp,
+      },
+      thickness: { ...thicknessGaugeValue, ...rollerValue, timestamp },
+    })
   }, 10)
 
   // 快进 20分钟 生成数据
@@ -149,18 +138,9 @@ test('测试估算最大旋转角度3', () => {
   if (tripSegment.length < 2) {
     return
   }
-  const data = tripSegment
-    .map((d) => {
-      const s = extractSegment(thickness, d.startTime, d.duration)
-      return {
-        ...d,
-        measurements: s,
-      }
-    })
-    .filter((d) => !!d.measurements) as TripSegment[]
-  if (data.length < 2) {
-    return
-  }
-  const maxAngle = estimateThetaMaxWithPhaseCorrection(data[0], data[1])
+  const maxAngle = estimateThetaMaxWithPhaseCorrection(
+    tripSegment[0],
+    tripSegment[1]
+  )
   expect(maxAngle?.thetaMaxDeg).toBe(330)
 })

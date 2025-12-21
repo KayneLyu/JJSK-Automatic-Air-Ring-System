@@ -6,6 +6,7 @@ import { goldenSectionSearch } from '../utils'
 import {
   ThetaMaxEstimateResult,
   TripSegment,
+  UpperRotationDeltaRange,
   ValidThicknessData,
 } from '../types'
 
@@ -18,6 +19,7 @@ export const estimateThetaMaxWithPhaseCorrection = (
   {
     harmonics = 2,
     segments = 20,
+    deltaRange: { min = 180, max = 359, step = 1 } = {},
   }: {
     /**
      * 傅里叶阶数 默认：2
@@ -27,6 +29,10 @@ export const estimateThetaMaxWithPhaseCorrection = (
      * 相位分段数 默认：20
      * */
     segments?: number
+    /**
+     * 上旋最大旋转角度评估范围
+     * */
+    deltaRange?: UpperRotationDeltaRange
   } = {}
 ): ThetaMaxEstimateResult | null => {
   // 校验周期一致性
@@ -49,7 +55,7 @@ export const estimateThetaMaxWithPhaseCorrection = (
   let bestLoss = Infinity
 
   // 在 [180, 360] 搜索 theta_max
-  for (let theta = 180; theta < 360; theta += 2) {
+  for (let theta = min; theta < max; theta += step) {
     const loss = evaluatePhaseConsistencyV2(
       dataF,
       dataB,

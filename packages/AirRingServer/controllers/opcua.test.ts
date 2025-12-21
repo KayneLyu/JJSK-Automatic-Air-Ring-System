@@ -8,12 +8,6 @@ test('测试标定算法', async () => {
     airRingUrl: 'opc.tcp://localhost:4344',
     thicknessUrl: 'opc.tcp://localhost:4334',
     config: {
-      standardized: {
-        CHANNEL_COUNT: 64,
-        roller: {
-          RADIUS: 15 * 10,
-        },
-      },
       roller: {
         numCycles: 10,
       },
