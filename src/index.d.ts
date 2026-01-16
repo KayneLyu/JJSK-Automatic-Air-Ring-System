@@ -1,26 +1,46 @@
 interface IThickInfoData {
-    AD: number, //采集器 的模拟量采集值 ,
-    Thk: number, //厚度 um ,
-    K: number, //厚度放大倍数 ,
-    Position: number, //探头位置 脉冲 ,
-    PosLength: number, //机架总长度 脉冲 ,
-    PosMm: number, //number //探头位置 mm ,
-    PosLenMm: number,
-    Velocity: number,//探头速度 m/min ,
-    Width: number //膜折径 mm ,
-    FilmVelocity: number,//生产速度 m/min ,
-    ControllerState: string, //运行状态 ,
-    IStatus: number //采集器输入口状态 ,
-    OStatus: number //采集器输出口状态 ,
-    IsFlyAdConnected: boolean//采集器 连接状态 ,
-    SampleAD: number //空气采集值 ,
-    IsRotationCW: boolean//旋转架 是 顺时针 clockwise ,
-    ARoundTimeOfRotation: number //旋转一圈时间 min ,
-    PastTimeOfRotation: number //转向发生到现在已经过去的时间 min ,
-    AngleOfRotation: number //旋转角度 ° ,
-    LastScanDataId: number //数据库中 扫描数据表 最新的ID
-    ErrCode: number
-}
+    CurrThk: number; // 膜泡厚度 um ,
+    OrgThk: number; // 原始厚度 um ,
+    CurrThkAd: number; // 膜泡厚度 AD ,
+    SampleAd: number; // 空气 AD ,
+    SampleThk: number; // 样品厚度 um ,
+    IsSampling: boolean; //  采样中 ,
+    IsWaitThkStabilize: boolean; //  碰了膜，等等温度上次，厚度稳定 ,
+    WaitThkSurplusSec: number; //  厚度稳定剩余时间（S） 
+    FilmWidth: number; // 膜泡折径 mm ,
+    CurrRotatePosition: number; // 当前小车旋转角度 (°) ,
+    TotalRotateLength: number; //  旋转总角度 ,
+    CurrRotateVelocity: number; // 当前小车旋转速度 (s/360°) ,
+    CurrStretchPosition: number; // 当前摆臂位置 (mm) 当前摆臂位置 = 轨道半径 - 当前探头与中心距离 ,
+    CurrStretchSpeed: number; // 当前摆臂移动速度 (mm/s) ,
+    CurrBubbleShape: number; // 膜泡尺寸 (mm) 膜泡尺寸 = 轨道半径 - 膜泡位置 当 CurrBubbleDistance 无效时，为NaN ,
+    RailwayRadius: number; //  轨道半径 (mm) ,
+    CurrUs: number; // 膜泡距离 (mm) 就是超声波传感器的测量值 ,
+    CurrHall: number; // 霍尔位置 (mm) ,
+    CurrAp: number; // 气压(kPa) ,
+    CurrTemp: number; // 温度(℃) ,
+    IsTempOk: boolean; // 温度稳定 ,
+    IsSensorOn: boolean; // 探头启动了 ,
+    CurrPwm: number; //   当前PWM ,
+    CurrPwmSpeed: number; // PWM 速度 ,
+    CurrTempSpeed: number; // 温度 速度 ,
+    CurrThkSpeed: number; // 厚度 速度 ,
+    BubbleBiasMm: number; // 膜泡偏心距离 mm ,
+    BubbleBiasDeg: number; // 膜泡偏心角度 ° ,
+    IsTrackingOK: boolean; // 膜泡跟踪成功 ,
+    IsCW: boolean; // 旋转架 顺时针 clockwise ,
+    RealTimeOfR: string; // 真实旋转一圈时间 ,
+    MinuteOfR: number; // 频率算出来的时间 ,
+    PastTime: string; // 已经过去的时间 ,
+    IsRotaryOn: boolean; // 旋转中 ,
+    RotaryFreq: number; // 旋转频率 ,
+    RotaryProgess: number; // 旋转进度 0~100% ,
+    ControllerState: string; // 动作状态 FIX,STOP,RETRACT,SCAN ,
+    LastScanDataId: number; // 数据库中 扫描数据表 最新的ID ,
+    ErrCode: number;  // 异常代码 0为无异常，按位触发
+  }
+  
+  
 
 // 旧数据 获取一幅图数据
 interface IFrameData {
