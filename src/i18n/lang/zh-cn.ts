@@ -66,7 +66,9 @@ export default {
         history: "历史通道",
         input: "请输入要保存的通道名称",
         apcControl: "APC控制",
-        apcHold: "APC保持"
+        apcHold: "APC保持",
+        bias:"风道初始值",
+        rotation: "1# 电机角度"
     },
     product: {
         delete: "删除",

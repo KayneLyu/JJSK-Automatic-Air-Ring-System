@@ -66,7 +66,9 @@ export default {
         history: "Kênh lịch sử",
         input: "Nhập tên kênh cần lưu",
         apcControl: "APC Control",
-        apcHold: "APC HOld"
+        apcHold: "APC HOld",
+        bias:"Actuator bias",
+        rotation: "Actuator output rotation"
     },
     product: {
         delete: "Xóa",

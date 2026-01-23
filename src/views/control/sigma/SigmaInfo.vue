@@ -54,10 +54,10 @@ const setRotaionBias = async () => {
       </div>
 
       <div class="value_set">
-        <div class="value_item"> <span>1# 电机角度 : </span><span style="width: 80px;"><el-input size="default"
+        <div class="value_item"> <span>{{ $t("control.rotation") }} : </span><span style="width: 80px;"><el-input size="default"
               v-model="rotationDeg" /></span>
         </div>
-        <div class="value_item"><span>风道初始值: </span> <span style="width: 80px;"><el-input size="default"
+        <div class="value_item"><span>{{ $t("control.bias") }}: </span> <span style="width: 80px;"><el-input size="default"
               v-model="biasValue" /></span> </div>
         <div>
           <el-button @click="setRotaionBias" type="primary">保存</el-button>

@@ -66,7 +66,9 @@ export default {
     history: "Duct Value History",
     input: "Please enter the name of the channel to be saved",
     apcControl: "APC Control",
-    apcHold: "APC Hold"
+    apcHold: "APC Hold",
+    bias:"Actuator bias",
+    rotation: "Actuator output rotation"
   },
   product: {
     delete: "Delete",
