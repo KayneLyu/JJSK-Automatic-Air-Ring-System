@@ -60,7 +60,7 @@ const setRotaionBias = async () => {
         <div class="value_item"><span>{{ $t("control.bias") }}: </span> <span style="width: 80px;"><el-input size="default"
               v-model="biasValue" /></span> </div>
         <div>
-          <el-button @click="setRotaionBias" type="primary">保存</el-button>
+          <el-button @click="setRotaionBias" type="primary">{{ $t("control.apply") }}</el-button>
         </div>
       </div>
 

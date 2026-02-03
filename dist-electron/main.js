@@ -1,2171 +1,1086 @@
-var __defProp = Object.defineProperty;
-var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-import { ipcMain, app, dialog, globalShortcut, BrowserWindow } from "electron";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-import fs from "fs";
-import require$$0 from "net";
-import require$$1 from "util";
-function getDefaultExportFromCjs(x) {
-  return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
+var Z = Object.defineProperty;
+var J = (e, t, r) => t in e ? Z(e, t, { enumerable: !0, configurable: !0, writable: !0, value: r }) : e[t] = r;
+var v = (e, t, r) => J(e, typeof t != "symbol" ? t + "" : t, r);
+import { ipcMain as R, app as k, dialog as I, globalShortcut as $, BrowserWindow as q } from "electron";
+import { fileURLToPath as j } from "node:url";
+import b from "node:path";
+import x from "fs";
+import ee from "net";
+import te from "util";
+function re(e) {
+  return e && e.__esModule && Object.prototype.hasOwnProperty.call(e, "default") ? e.default : e;
 }
-var net = require$$0;
-var util = require$$1;
-var effectiveDebugLevel = 0;
-var silentMode = false;
-var nodeS7 = NodeS7;
-function NodeS7(opts) {
-  opts = opts || {};
-  silentMode = opts.silent || false;
-  effectiveDebugLevel = opts.debug ? 99 : 0;
-  var self = this;
-  self.connectReq = Buffer.from([3, 0, 0, 22, 17, 224, 0, 0, 0, 2, 0, 192, 1, 10, 193, 2, 1, 0, 194, 2, 1, 2]);
-  self.negotiatePDU = Buffer.from([3, 0, 0, 25, 2, 240, 128, 50, 1, 0, 0, 0, 0, 0, 8, 0, 0, 240, 0, 0, 8, 0, 8, 3, 192]);
-  self.readReqHeader = Buffer.from([3, 0, 0, 31, 2, 240, 128, 50, 1, 0, 0, 8, 0, 0, 14, 0, 0, 4, 1]);
-  self.readReq = Buffer.alloc(1500);
-  self.writeReqHeader = Buffer.from([3, 0, 0, 31, 2, 240, 128, 50, 1, 0, 0, 8, 0, 0, 14, 0, 0, 5, 1]);
-  self.writeReq = Buffer.alloc(1500);
-  self.resetPending = false;
-  self.resetTimeout = void 0;
-  self.isoclient = void 0;
-  self.isoConnectionState = 0;
-  self.requestMaxPDU = 960;
-  self.maxPDU = 960;
-  self.requestMaxParallel = 8;
-  self.maxParallel = 8;
-  self.parallelJobsNow = 0;
-  self.maxGap = 5;
-  self.doNotOptimize = false;
-  self.connectCallback = void 0;
-  self.readDoneCallback = void 0;
-  self.writeDoneCallback = void 0;
-  self.connectTimeout = void 0;
-  self.PDUTimeout = void 0;
-  self.globalTimeout = 1500;
-  self.rack = 0;
-  self.slot = 2;
-  self.localTSAP = null;
-  self.remoteTSAP = null;
-  self.readPacketArray = [];
-  self.writePacketArray = [];
-  self.polledReadBlockList = [];
-  self.instantWriteBlockList = [];
-  self.globalReadBlockList = [];
-  self.globalWriteBlockList = [];
-  self.masterSequenceNumber = 1;
-  self.translationCB = doNothing;
-  self.connectionParams = void 0;
-  self.connectionID = "UNDEF";
-  self.addRemoveArray = [];
-  self.readPacketValid = false;
-  self.writeInQueue = false;
-  self.connectCBIssued = false;
-  self.dropConnectionCallback = null;
-  self.dropConnectionTimer = null;
-  self.reconnectTimer = void 0;
-  self.rereadTimer = void 0;
+var ne = ee, O = te, M = 0, V = !1, ae = c;
+function c(e) {
+  e = e || {}, V = e.silent || !1, M = e.debug ? 99 : 0;
+  var t = this;
+  t.connectReq = Buffer.from([3, 0, 0, 22, 17, 224, 0, 0, 0, 2, 0, 192, 1, 10, 193, 2, 1, 0, 194, 2, 1, 2]), t.negotiatePDU = Buffer.from([3, 0, 0, 25, 2, 240, 128, 50, 1, 0, 0, 0, 0, 0, 8, 0, 0, 240, 0, 0, 8, 0, 8, 3, 192]), t.readReqHeader = Buffer.from([3, 0, 0, 31, 2, 240, 128, 50, 1, 0, 0, 8, 0, 0, 14, 0, 0, 4, 1]), t.readReq = Buffer.alloc(1500), t.writeReqHeader = Buffer.from([3, 0, 0, 31, 2, 240, 128, 50, 1, 0, 0, 8, 0, 0, 14, 0, 0, 5, 1]), t.writeReq = Buffer.alloc(1500), t.resetPending = !1, t.resetTimeout = void 0, t.isoclient = void 0, t.isoConnectionState = 0, t.requestMaxPDU = 960, t.maxPDU = 960, t.requestMaxParallel = 8, t.maxParallel = 8, t.parallelJobsNow = 0, t.maxGap = 5, t.doNotOptimize = !1, t.connectCallback = void 0, t.readDoneCallback = void 0, t.writeDoneCallback = void 0, t.connectTimeout = void 0, t.PDUTimeout = void 0, t.globalTimeout = 1500, t.rack = 0, t.slot = 2, t.localTSAP = null, t.remoteTSAP = null, t.readPacketArray = [], t.writePacketArray = [], t.polledReadBlockList = [], t.instantWriteBlockList = [], t.globalReadBlockList = [], t.globalWriteBlockList = [], t.masterSequenceNumber = 1, t.translationCB = N, t.connectionParams = void 0, t.connectionID = "UNDEF", t.addRemoveArray = [], t.readPacketValid = !1, t.writeInQueue = !1, t.connectCBIssued = !1, t.dropConnectionCallback = null, t.dropConnectionTimer = null, t.reconnectTimer = void 0, t.rereadTimer = void 0;
 }
-NodeS7.prototype.getNextSeqNum = function() {
-  var self = this;
-  self.masterSequenceNumber += 1;
-  if (self.masterSequenceNumber > 32767) {
-    self.masterSequenceNumber = 1;
-  }
-  outputLog("seqNum is " + self.masterSequenceNumber, 1, self.connectionID);
-  return self.masterSequenceNumber;
+c.prototype.getNextSeqNum = function() {
+  var e = this;
+  return e.masterSequenceNumber += 1, e.masterSequenceNumber > 32767 && (e.masterSequenceNumber = 1), i("seqNum is " + e.masterSequenceNumber, 1, e.connectionID), e.masterSequenceNumber;
 };
-NodeS7.prototype.setTranslationCB = function(cb) {
-  var self = this;
-  if (typeof cb === "function") {
-    outputLog("Translation OK");
-    self.translationCB = cb;
-  }
+c.prototype.setTranslationCB = function(e) {
+  var t = this;
+  typeof e == "function" && (i("Translation OK"), t.translationCB = e);
 };
-NodeS7.prototype.initiateConnection = function(cParam, callback) {
-  var self = this;
-  if (cParam === void 0) {
-    cParam = { port: 102, host: "192.168.8.106" };
-  }
-  outputLog("Initiate Called - Connecting to PLC with address and parameters:");
-  outputLog(cParam);
-  if (typeof cParam.rack !== "undefined") {
-    self.rack = cParam.rack;
-  }
-  if (typeof cParam.slot !== "undefined") {
-    self.slot = cParam.slot;
-  }
-  if (typeof cParam.localTSAP !== "undefined") {
-    self.localTSAP = cParam.localTSAP;
-  }
-  if (typeof cParam.remoteTSAP !== "undefined") {
-    self.remoteTSAP = cParam.remoteTSAP;
-  }
-  if (typeof cParam.connection_name === "undefined") {
-    self.connectionID = cParam.host + " S" + self.slot;
-  } else {
-    self.connectionID = cParam.connection_name;
-  }
-  if (typeof cParam.doNotOptimize !== "undefined") {
-    self.doNotOptimize = cParam.doNotOptimize;
-  }
-  if (typeof cParam.timeout !== "undefined") {
-    self.globalTimeout = cParam.timeout;
-  }
-  self.connectionParams = cParam;
-  self.connectCallback = callback;
-  self.connectCBIssued = false;
-  self.connectNow(self.connectionParams, false);
+c.prototype.initiateConnection = function(e, t) {
+  var r = this;
+  e === void 0 && (e = { port: 102, host: "192.168.8.106" }), i("Initiate Called - Connecting to PLC with address and parameters:"), i(e), typeof e.rack < "u" && (r.rack = e.rack), typeof e.slot < "u" && (r.slot = e.slot), typeof e.localTSAP < "u" && (r.localTSAP = e.localTSAP), typeof e.remoteTSAP < "u" && (r.remoteTSAP = e.remoteTSAP), typeof e.connection_name > "u" ? r.connectionID = e.host + " S" + r.slot : r.connectionID = e.connection_name, typeof e.doNotOptimize < "u" && (r.doNotOptimize = e.doNotOptimize), typeof e.timeout < "u" && (r.globalTimeout = e.timeout), r.connectionParams = e, r.connectCallback = t, r.connectCBIssued = !1, r.connectNow(r.connectionParams, !1);
 };
-NodeS7.prototype.dropConnection = function(callback) {
-  var self = this;
-  clearTimeout(self.reconnectTimer);
-  clearTimeout(self.rereadTimer);
-  clearTimeout(self.connectTimeout);
-  clearTimeout(self.PDUTimeout);
-  self.reconnectTimer = void 0;
-  self.rereadTimer = void 0;
-  self.connectTimeout = void 0;
-  self.PDUTimeout = void 0;
-  if (typeof self.isoclient !== "undefined") {
-    self.dropConnectionCallback = callback;
-    self.isoclient.end();
-    self.dropConnectionTimer = setTimeout(function() {
-      if (self.dropConnectionCallback) {
-        self.connectionCleanup();
-        self.dropConnectionCallback();
-        self.dropConnectionCallback = null;
-      }
-    }, 2500);
-  } else {
-    callback();
-  }
+c.prototype.dropConnection = function(e) {
+  var t = this;
+  clearTimeout(t.reconnectTimer), clearTimeout(t.rereadTimer), clearTimeout(t.connectTimeout), clearTimeout(t.PDUTimeout), t.reconnectTimer = void 0, t.rereadTimer = void 0, t.connectTimeout = void 0, t.PDUTimeout = void 0, typeof t.isoclient < "u" ? (t.dropConnectionCallback = e, t.isoclient.end(), t.dropConnectionTimer = setTimeout(function() {
+    t.dropConnectionCallback && (t.connectionCleanup(), t.dropConnectionCallback(), t.dropConnectionCallback = null);
+  }, 2500)) : e();
 };
-NodeS7.prototype.connectNow = function(cParam) {
-  var self = this;
-  clearTimeout(self.reconnectTimer);
-  self.reconnectTimer = void 0;
-  if (self.isoConnectionState >= 1) {
+c.prototype.connectNow = function(e) {
+  var t = this;
+  clearTimeout(t.reconnectTimer), t.reconnectTimer = void 0, !(t.isoConnectionState >= 1) && (t.connectionCleanup(), t.isoclient = ne.connect(e), t.isoclient.setTimeout(e.timeout || 5e3, () => {
+    t.isoclient.destroy(), t.connectError.apply(t, [{ code: "EUSERTIMEOUT" }]);
+  }), t.isoclient.once("connect", () => {
+    t.isoclient.setTimeout(0), t.onTCPConnect.apply(t, arguments);
+  }), t.isoConnectionState = 1, t.isoclient.on("error", function() {
+    t.connectError.apply(t, arguments);
+  }), i("<initiating a new connection " + Date() + ">", 1, t.connectionID), i("Attempting to connect to host...", 0, t.connectionID));
+};
+c.prototype.connectError = function(e) {
+  var t = this;
+  i("We Caught a connect error " + e.code, 0, t.connectionID), !t.connectCBIssued && typeof t.connectCallback == "function" && (t.connectCBIssued = !0, t.connectCallback(e)), t.isoConnectionState = 0;
+};
+c.prototype.readWriteError = function(e) {
+  var t = this;
+  i("We Caught a read/write error " + e.code + " - will DISCONNECT and attempt to reconnect."), t.isoConnectionState = 0, t.connectionReset();
+};
+c.prototype.packetTimeout = function(e, t) {
+  var r = this;
+  if (i("PacketTimeout called with type " + e + " and seq " + t, 1, r.connectionID), e === "connect") {
+    i("TIMED OUT connecting to the PLC - Disconnecting", 0, r.connectionID), i("Wait for 2 seconds then try again.", 0, r.connectionID), r.connectionReset(), i("Scheduling a reconnect from packetTimeout, connect type", 0, r.connectionID), clearTimeout(r.reconnectTimer), r.reconnectTimer = setTimeout(function() {
+      i("The scheduled reconnect from packetTimeout, connect type, is happening now", 0, r.connectionID), r.isoConnectionState === 0 && r.connectNow.apply(r, arguments);
+    }, 2e3, r.connectionParams);
     return;
   }
-  self.connectionCleanup();
-  self.isoclient = net.connect(cParam);
-  self.isoclient.setTimeout(cParam.timeout || 5e3, () => {
-    self.isoclient.destroy();
-    self.connectError.apply(self, [{ code: "EUSERTIMEOUT" }]);
-  });
-  self.isoclient.once("connect", () => {
-    self.isoclient.setTimeout(0);
-    self.onTCPConnect.apply(self, arguments);
-  });
-  self.isoConnectionState = 1;
-  self.isoclient.on("error", function() {
-    self.connectError.apply(self, arguments);
-  });
-  outputLog("<initiating a new connection " + Date() + ">", 1, self.connectionID);
-  outputLog("Attempting to connect to host...", 0, self.connectionID);
-};
-NodeS7.prototype.connectError = function(e) {
-  var self = this;
-  outputLog("We Caught a connect error " + e.code, 0, self.connectionID);
-  if (!self.connectCBIssued && typeof self.connectCallback === "function") {
-    self.connectCBIssued = true;
-    self.connectCallback(e);
-  }
-  self.isoConnectionState = 0;
-};
-NodeS7.prototype.readWriteError = function(e) {
-  var self = this;
-  outputLog("We Caught a read/write error " + e.code + " - will DISCONNECT and attempt to reconnect.");
-  self.isoConnectionState = 0;
-  self.connectionReset();
-};
-NodeS7.prototype.packetTimeout = function(packetType, packetSeqNum) {
-  var self = this;
-  outputLog("PacketTimeout called with type " + packetType + " and seq " + packetSeqNum, 1, self.connectionID);
-  if (packetType === "connect") {
-    outputLog("TIMED OUT connecting to the PLC - Disconnecting", 0, self.connectionID);
-    outputLog("Wait for 2 seconds then try again.", 0, self.connectionID);
-    self.connectionReset();
-    outputLog("Scheduling a reconnect from packetTimeout, connect type", 0, self.connectionID);
-    clearTimeout(self.reconnectTimer);
-    self.reconnectTimer = setTimeout(function() {
-      outputLog("The scheduled reconnect from packetTimeout, connect type, is happening now", 0, self.connectionID);
-      if (self.isoConnectionState === 0) {
-        self.connectNow.apply(self, arguments);
-      }
-    }, 2e3, self.connectionParams);
-    return void 0;
-  }
-  if (packetType === "PDU") {
-    outputLog("TIMED OUT waiting for PDU reply packet from PLC - Disconnecting");
-    outputLog("Wait for 2 seconds then try again.", 0, self.connectionID);
-    self.connectionReset();
-    outputLog("Scheduling a reconnect from packetTimeout, connect type", 0, self.connectionID);
-    clearTimeout(self.reconnectTimer);
-    self.reconnectTimer = setTimeout(function() {
-      outputLog("The scheduled reconnect from packetTimeout, PDU type, is happening now", 0, self.connectionID);
-      self.connectNow.apply(self, arguments);
-    }, 2e3, self.connectionParams);
-    return void 0;
-  }
-  if (packetType === "read") {
-    outputLog("READ TIMEOUT on sequence number " + packetSeqNum, 0, self.connectionID);
-    if (self.isoConnectionState === 4) {
-      outputLog("ConnectionReset from read packet timeout.", 0, self.connectionID);
-      self.connectionReset();
-    }
-    self.readResponse(void 0, self.findReadIndexOfSeqNum(packetSeqNum));
-    return void 0;
-  }
-  if (packetType === "write") {
-    outputLog("WRITE TIMEOUT on sequence number " + packetSeqNum, 0, self.connectionID);
-    if (self.isoConnectionState === 4) {
-      outputLog("ConnectionReset from write packet timeout.", 0, self.connectionID);
-      self.connectionReset();
-    }
-    self.writeResponse(void 0, self.findWriteIndexOfSeqNum(packetSeqNum));
-    return void 0;
-  }
-  outputLog("Unknown timeout error.  Nothing was done - this shouldn't happen.");
-};
-NodeS7.prototype.onTCPConnect = function() {
-  var self = this, connBuf;
-  outputLog("TCP Connection Established to " + self.isoclient.remoteAddress + " on port " + self.isoclient.remotePort, 0, self.connectionID);
-  outputLog("Will attempt ISO-on-TCP connection", 0, self.connectionID);
-  self.isoConnectionState = 2;
-  self.connectTimeout = setTimeout(function() {
-    self.packetTimeout.apply(self, arguments);
-  }, self.globalTimeout, "connect");
-  connBuf = self.connectReq.slice();
-  if (self.localTSAP !== null && self.remoteTSAP !== null) {
-    outputLog("Using localTSAP [0x" + self.localTSAP.toString(16) + "] and remoteTSAP [0x" + self.remoteTSAP.toString(16) + "]", 0, self.connectionID);
-    connBuf.writeUInt16BE(self.localTSAP, 16);
-    connBuf.writeUInt16BE(self.remoteTSAP, 20);
-  } else {
-    outputLog("Using rack [" + self.rack + "] and slot [" + self.slot + "]", 0, self.connectionID);
-    connBuf[21] = self.rack * 32 + self.slot;
-  }
-  self.isoclient.write(connBuf);
-  self.isoclient.on("data", function() {
-    self.onISOConnectReply.apply(self, arguments);
-  });
-  self.isoclient.on("end", function() {
-    self.onClientDisconnect.apply(self, arguments);
-  });
-  self.isoclient.on("close", function() {
-    self.onClientClose.apply(self, arguments);
-  });
-};
-NodeS7.prototype.onISOConnectReply = function(data) {
-  var self = this;
-  self.isoclient.removeAllListeners("data");
-  clearTimeout(self.connectTimeout);
-  if (self.isoConnectionState != 2) {
-    outputLog("Ignoring ISO connect reply, expecting isoConnectionState of 2, is currently " + self.isoConnectionState, 0, self.connectionID);
+  if (e === "PDU") {
+    i("TIMED OUT waiting for PDU reply packet from PLC - Disconnecting"), i("Wait for 2 seconds then try again.", 0, r.connectionID), r.connectionReset(), i("Scheduling a reconnect from packetTimeout, connect type", 0, r.connectionID), clearTimeout(r.reconnectTimer), r.reconnectTimer = setTimeout(function() {
+      i("The scheduled reconnect from packetTimeout, PDU type, is happening now", 0, r.connectionID), r.connectNow.apply(r, arguments);
+    }, 2e3, r.connectionParams);
     return;
   }
-  self.isoConnectionState = 3;
-  if (data.readInt16BE(2) !== data.length || data.length < 22 || data[5] !== 208 || data[4] !== data.length - 5) {
-    outputLog("INVALID PACKET or CONNECTION REFUSED - DISCONNECTING");
-    outputLog(data);
-    outputLog("TPKT Length From Header is " + data.readInt16BE(2) + " and RCV buffer length is " + data.length + " and COTP length is " + data.readUInt8(4) + " and data[5] is " + data[5]);
-    self.connectionReset();
-    return null;
-  }
-  outputLog("ISO-on-TCP Connection Confirm Packet Received", 0, self.connectionID);
-  self.negotiatePDU.writeInt16BE(self.requestMaxParallel, 19);
-  self.negotiatePDU.writeInt16BE(self.requestMaxParallel, 21);
-  self.negotiatePDU.writeInt16BE(self.requestMaxPDU, 23);
-  self.PDUTimeout = setTimeout(function() {
-    self.packetTimeout.apply(self, arguments);
-  }, self.globalTimeout, "PDU");
-  self.isoclient.write(self.negotiatePDU.slice(0, 25));
-  self.isoclient.on("data", function() {
-    self.onPDUReply.apply(self, arguments);
-  });
-  self.isoclient.removeAllListeners("error");
-  self.isoclient.on("error", function() {
-    self.readWriteError.apply(self, arguments);
-  });
-};
-NodeS7.prototype.onPDUReply = function(theData) {
-  var self = this;
-  self.isoclient.removeAllListeners("data");
-  self.isoclient.removeAllListeners("error");
-  clearTimeout(self.PDUTimeout);
-  var data = checkRFCData(theData);
-  if (data === "fastACK") {
-    outputLog("Fast Acknowledge received.", 0, self.connectionID);
-    self.isoclient.removeAllListeners("error");
-    self.isoclient.removeAllListeners("data");
-    self.isoclient.on("data", function() {
-      self.onPDUReply.apply(self, arguments);
-    });
-    self.isoclient.on("error", function() {
-      self.readWriteError.apply(self, arguments);
-    });
-  } else if (data[4] + 1 + 12 + data.readInt16BE(13) === data.readInt16BE(2) - 4) {
-    self.isoConnectionState = 4;
-    self.parallelJobsNow = 0;
-    var partnerMaxParallel1 = data.readInt16BE(21);
-    var partnerMaxParallel2 = data.readInt16BE(23);
-    var partnerPDU = data.readInt16BE(25);
-    self.maxParallel = self.requestMaxParallel;
-    if (partnerMaxParallel1 < self.requestMaxParallel) {
-      self.maxParallel = partnerMaxParallel1;
-    }
-    if (partnerMaxParallel2 < self.requestMaxParallel) {
-      self.maxParallel = partnerMaxParallel2;
-    }
-    if (partnerPDU < self.requestMaxPDU) {
-      self.maxPDU = partnerPDU;
-    } else {
-      self.maxPDU = self.requestMaxPDU;
-    }
-    outputLog("Received PDU Response - Proceeding with PDU " + self.maxPDU + " and " + self.maxParallel + " max parallel connections.", 0, self.connectionID);
-    self.isoclient.on("data", function() {
-      self.onResponse.apply(self, arguments);
-    });
-    self.isoclient.on("error", function() {
-      self.readWriteError.apply(self, arguments);
-    });
-    if (!self.connectCBIssued && typeof self.connectCallback === "function") {
-      self.connectCBIssued = true;
-      self.connectCallback();
-    }
-  } else {
-    outputLog("INVALID Telegram ", 0, self.connectionID);
-    outputLog("Byte 0 From Header is " + theData[0] + " it has to be 0x03, Byte 5 From Header is  " + theData[5] + " and it has to be 0x0F ", 0, self.connectionID);
-    outputLog("INVALID PDU RESPONSE or CONNECTION REFUSED - DISCONNECTING", 0, self.connectionID);
-    outputLog("TPKT Length From Header is " + theData.readInt16BE(2) + " and RCV buffer length is " + theData.length + " and COTP length is " + theData.readUInt8(4) + " and data[6] is " + theData[6], 0, self.connectionID);
-    outputLog(theData);
-    self.isoclient.end();
-    clearTimeout(self.reconnectTimer);
-    self.reconnectTimer = setTimeout(function() {
-      self.connectNow.apply(self, arguments);
-    }, 2e3, self.connectionParams);
-    return null;
-  }
-};
-NodeS7.prototype.writeItems = function(arg, value, cb) {
-  var self = this, i;
-  outputLog("Preparing to WRITE " + arg + " to value " + value, 0, self.connectionID);
-  if (self.isWriting() || self.writeInQueue) {
-    outputLog("You must wait until all previous writes have finished before scheduling another. ", 0, self.connectionID);
-    return 1;
-  }
-  if (typeof cb === "function") {
-    self.writeDoneCallback = cb;
-  } else {
-    self.writeDoneCallback = doNothing;
-  }
-  self.instantWriteBlockList = [];
-  if (typeof arg === "string") {
-    self.instantWriteBlockList.push(stringToS7Addr(self.translationCB(arg), arg, self.connectionParams));
-    if (typeof self.instantWriteBlockList[self.instantWriteBlockList.length - 1] !== "undefined") {
-      self.instantWriteBlockList[self.instantWriteBlockList.length - 1].writeValue = value;
-    }
-  } else if (Array.isArray(arg) && Array.isArray(value) && arg.length == value.length) {
-    for (i = 0; i < arg.length; i++) {
-      if (typeof arg[i] === "string") {
-        self.instantWriteBlockList.push(stringToS7Addr(self.translationCB(arg[i]), arg[i], self.connectionParams));
-        if (typeof self.instantWriteBlockList[self.instantWriteBlockList.length - 1] !== "undefined") {
-          self.instantWriteBlockList[self.instantWriteBlockList.length - 1].writeValue = value[i];
-        }
-      }
-    }
-  }
-  for (i = self.instantWriteBlockList.length - 1; i >= 0; i--) {
-    if (self.instantWriteBlockList[i] === void 0) {
-      self.instantWriteBlockList.splice(i, 1);
-      outputLog("Dropping an undefined write item.");
-    }
-  }
-  self.prepareWritePacket();
-  if (!self.isReading()) {
-    self.sendWritePacket();
-  } else {
-    if (self.writeInQueue) {
-      outputLog("Write was already in queue - should be prevented above", 1, self.connectionID);
-    }
-    self.writeInQueue = true;
-    outputLog("Adding write to queue");
-  }
-  return 0;
-};
-NodeS7.prototype.findItem = function(useraddr) {
-  var self = this, i;
-  var commstate = { value: self.isoConnectionState !== 4, quality: "OK" };
-  if (useraddr === "_COMMERR") {
-    return commstate;
-  }
-  for (i = 0; i < self.polledReadBlockList.length; i++) {
-    if (self.polledReadBlockList[i].useraddr === useraddr) {
-      return self.polledReadBlockList[i];
-    }
-  }
-  return void 0;
-};
-NodeS7.prototype.addItems = function(arg) {
-  var self = this;
-  self.addRemoveArray.push({ arg, action: "add" });
-};
-NodeS7.prototype.addItemsNow = function(arg) {
-  var self = this, i;
-  outputLog("Adding " + arg, 0, self.connectionID);
-  if (typeof arg === "string" && arg !== "_COMMERR") {
-    self.polledReadBlockList.push(stringToS7Addr(self.translationCB(arg), arg, self.connectionParams));
-  } else if (Array.isArray(arg)) {
-    for (i = 0; i < arg.length; i++) {
-      if (typeof arg[i] === "string" && arg[i] !== "_COMMERR") {
-        self.polledReadBlockList.push(stringToS7Addr(self.translationCB(arg[i]), arg[i], self.connectionParams));
-      }
-    }
-  }
-  for (i = self.polledReadBlockList.length - 1; i >= 0; i--) {
-    if (self.polledReadBlockList[i] === void 0) {
-      self.polledReadBlockList.splice(i, 1);
-      outputLog("Dropping an undefined request item.", 0, self.connectionID);
-    }
-  }
-  self.readPacketValid = false;
-};
-NodeS7.prototype.removeItems = function(arg) {
-  var self = this;
-  self.addRemoveArray.push({ arg, action: "remove" });
-};
-NodeS7.prototype.removeItemsNow = function(arg) {
-  var self = this, i;
-  if (typeof arg === "undefined") {
-    self.polledReadBlockList = [];
-  } else if (typeof arg === "string") {
-    for (i = 0; i < self.polledReadBlockList.length; i++) {
-      outputLog("TCBA " + self.translationCB(arg));
-      if (self.polledReadBlockList[i].addr === self.translationCB(arg)) {
-        outputLog("Splicing");
-        self.polledReadBlockList.splice(i, 1);
-      }
-    }
-  } else if (Array.isArray(arg)) {
-    for (i = 0; i < self.polledReadBlockList.length; i++) {
-      for (var j = 0; j < arg.length; j++) {
-        if (self.polledReadBlockList[i].addr === self.translationCB(arg[j])) {
-          self.polledReadBlockList.splice(i, 1);
-        }
-      }
-    }
-  }
-  self.readPacketValid = false;
-};
-NodeS7.prototype.readAllItems = function(arg) {
-  var self = this;
-  outputLog("Reading All Items (readAllItems was called)", 1, self.connectionID);
-  if (typeof arg === "function") {
-    self.readDoneCallback = arg;
-  } else {
-    self.readDoneCallback = doNothing;
-  }
-  if (self.isoConnectionState !== 4) {
-    outputLog("Unable to read when not connected. Return bad values.", 0, self.connectionID);
-  }
-  if (self.isWaiting()) {
-    outputLog("Waiting to read for all R/W operations to complete.  Will re-trigger readAllItems in 100ms.", 0, self.connectionID);
-    clearTimeout(self.rereadTimer);
-    self.rereadTimer = setTimeout(function() {
-      self.rereadTimer = void 0;
-      self.readAllItems.apply(self, arguments);
-    }, 100, arg);
+  if (e === "read") {
+    i("READ TIMEOUT on sequence number " + t, 0, r.connectionID), r.isoConnectionState === 4 && (i("ConnectionReset from read packet timeout.", 0, r.connectionID), r.connectionReset()), r.readResponse(void 0, r.findReadIndexOfSeqNum(t));
     return;
   }
-  self.addRemoveArray.forEach(function(element) {
-    outputLog("Adding or Removing " + util.format(element), 1, self.connectionID);
-    if (element.action === "remove") {
-      self.removeItemsNow(element.arg);
-    }
-    if (element.action === "add") {
-      self.addItemsNow(element.arg);
-    }
+  if (e === "write") {
+    i("WRITE TIMEOUT on sequence number " + t, 0, r.connectionID), r.isoConnectionState === 4 && (i("ConnectionReset from write packet timeout.", 0, r.connectionID), r.connectionReset()), r.writeResponse(void 0, r.findWriteIndexOfSeqNum(t));
+    return;
+  }
+  i("Unknown timeout error.  Nothing was done - this shouldn't happen.");
+};
+c.prototype.onTCPConnect = function() {
+  var e = this, t;
+  i("TCP Connection Established to " + e.isoclient.remoteAddress + " on port " + e.isoclient.remotePort, 0, e.connectionID), i("Will attempt ISO-on-TCP connection", 0, e.connectionID), e.isoConnectionState = 2, e.connectTimeout = setTimeout(function() {
+    e.packetTimeout.apply(e, arguments);
+  }, e.globalTimeout, "connect"), t = e.connectReq.slice(), e.localTSAP !== null && e.remoteTSAP !== null ? (i("Using localTSAP [0x" + e.localTSAP.toString(16) + "] and remoteTSAP [0x" + e.remoteTSAP.toString(16) + "]", 0, e.connectionID), t.writeUInt16BE(e.localTSAP, 16), t.writeUInt16BE(e.remoteTSAP, 20)) : (i("Using rack [" + e.rack + "] and slot [" + e.slot + "]", 0, e.connectionID), t[21] = e.rack * 32 + e.slot), e.isoclient.write(t), e.isoclient.on("data", function() {
+    e.onISOConnectReply.apply(e, arguments);
+  }), e.isoclient.on("end", function() {
+    e.onClientDisconnect.apply(e, arguments);
+  }), e.isoclient.on("close", function() {
+    e.onClientClose.apply(e, arguments);
   });
-  self.addRemoveArray = [];
-  if (!self.readPacketValid) {
-    self.prepareReadPacket();
+};
+c.prototype.onISOConnectReply = function(e) {
+  var t = this;
+  if (t.isoclient.removeAllListeners("data"), clearTimeout(t.connectTimeout), t.isoConnectionState != 2) {
+    i("Ignoring ISO connect reply, expecting isoConnectionState of 2, is currently " + t.isoConnectionState, 0, t.connectionID);
+    return;
   }
-  outputLog("Calling SRP from RAI", 1, self.connectionID);
-  self.sendReadPacket();
+  if (t.isoConnectionState = 3, e.readInt16BE(2) !== e.length || e.length < 22 || e[5] !== 208 || e[4] !== e.length - 5)
+    return i("INVALID PACKET or CONNECTION REFUSED - DISCONNECTING"), i(e), i("TPKT Length From Header is " + e.readInt16BE(2) + " and RCV buffer length is " + e.length + " and COTP length is " + e.readUInt8(4) + " and data[5] is " + e[5]), t.connectionReset(), null;
+  i("ISO-on-TCP Connection Confirm Packet Received", 0, t.connectionID), t.negotiatePDU.writeInt16BE(t.requestMaxParallel, 19), t.negotiatePDU.writeInt16BE(t.requestMaxParallel, 21), t.negotiatePDU.writeInt16BE(t.requestMaxPDU, 23), t.PDUTimeout = setTimeout(function() {
+    t.packetTimeout.apply(t, arguments);
+  }, t.globalTimeout, "PDU"), t.isoclient.write(t.negotiatePDU.slice(0, 25)), t.isoclient.on("data", function() {
+    t.onPDUReply.apply(t, arguments);
+  }), t.isoclient.removeAllListeners("error"), t.isoclient.on("error", function() {
+    t.readWriteError.apply(t, arguments);
+  });
 };
-NodeS7.prototype.isWaiting = function() {
-  var self = this;
-  return self.isReading() || self.isWriting();
+c.prototype.onPDUReply = function(e) {
+  var t = this;
+  t.isoclient.removeAllListeners("data"), t.isoclient.removeAllListeners("error"), clearTimeout(t.PDUTimeout);
+  var r = Q(e);
+  if (r === "fastACK")
+    i("Fast Acknowledge received.", 0, t.connectionID), t.isoclient.removeAllListeners("error"), t.isoclient.removeAllListeners("data"), t.isoclient.on("data", function() {
+      t.onPDUReply.apply(t, arguments);
+    }), t.isoclient.on("error", function() {
+      t.readWriteError.apply(t, arguments);
+    });
+  else if (r[4] + 1 + 12 + r.readInt16BE(13) === r.readInt16BE(2) - 4) {
+    t.isoConnectionState = 4, t.parallelJobsNow = 0;
+    var n = r.readInt16BE(21), a = r.readInt16BE(23), o = r.readInt16BE(25);
+    t.maxParallel = t.requestMaxParallel, n < t.requestMaxParallel && (t.maxParallel = n), a < t.requestMaxParallel && (t.maxParallel = a), o < t.requestMaxPDU ? t.maxPDU = o : t.maxPDU = t.requestMaxPDU, i("Received PDU Response - Proceeding with PDU " + t.maxPDU + " and " + t.maxParallel + " max parallel connections.", 0, t.connectionID), t.isoclient.on("data", function() {
+      t.onResponse.apply(t, arguments);
+    }), t.isoclient.on("error", function() {
+      t.readWriteError.apply(t, arguments);
+    }), !t.connectCBIssued && typeof t.connectCallback == "function" && (t.connectCBIssued = !0, t.connectCallback());
+  } else
+    return i("INVALID Telegram ", 0, t.connectionID), i("Byte 0 From Header is " + e[0] + " it has to be 0x03, Byte 5 From Header is  " + e[5] + " and it has to be 0x0F ", 0, t.connectionID), i("INVALID PDU RESPONSE or CONNECTION REFUSED - DISCONNECTING", 0, t.connectionID), i("TPKT Length From Header is " + e.readInt16BE(2) + " and RCV buffer length is " + e.length + " and COTP length is " + e.readUInt8(4) + " and data[6] is " + e[6], 0, t.connectionID), i(e), t.isoclient.end(), clearTimeout(t.reconnectTimer), t.reconnectTimer = setTimeout(function() {
+      t.connectNow.apply(t, arguments);
+    }, 2e3, t.connectionParams), null;
 };
-NodeS7.prototype.isReading = function() {
-  var self = this, i;
-  for (i = 0; i < self.readPacketArray.length; i++) {
-    if (self.readPacketArray[i].sent === true) {
-      return true;
+c.prototype.writeItems = function(e, t, r) {
+  var n = this, a;
+  if (i("Preparing to WRITE " + e + " to value " + t, 0, n.connectionID), n.isWriting() || n.writeInQueue)
+    return i("You must wait until all previous writes have finished before scheduling another. ", 0, n.connectionID), 1;
+  if (typeof r == "function" ? n.writeDoneCallback = r : n.writeDoneCallback = N, n.instantWriteBlockList = [], typeof e == "string")
+    n.instantWriteBlockList.push(U(n.translationCB(e), e, n.connectionParams)), typeof n.instantWriteBlockList[n.instantWriteBlockList.length - 1] < "u" && (n.instantWriteBlockList[n.instantWriteBlockList.length - 1].writeValue = t);
+  else if (Array.isArray(e) && Array.isArray(t) && e.length == t.length)
+    for (a = 0; a < e.length; a++)
+      typeof e[a] == "string" && (n.instantWriteBlockList.push(U(n.translationCB(e[a]), e[a], n.connectionParams)), typeof n.instantWriteBlockList[n.instantWriteBlockList.length - 1] < "u" && (n.instantWriteBlockList[n.instantWriteBlockList.length - 1].writeValue = t[a]));
+  for (a = n.instantWriteBlockList.length - 1; a >= 0; a--)
+    n.instantWriteBlockList[a] === void 0 && (n.instantWriteBlockList.splice(a, 1), i("Dropping an undefined write item."));
+  return n.prepareWritePacket(), n.isReading() ? (n.writeInQueue && i("Write was already in queue - should be prevented above", 1, n.connectionID), n.writeInQueue = !0, i("Adding write to queue")) : n.sendWritePacket(), 0;
+};
+c.prototype.findItem = function(e) {
+  var t = this, r, n = { value: t.isoConnectionState !== 4, quality: "OK" };
+  if (e === "_COMMERR")
+    return n;
+  for (r = 0; r < t.polledReadBlockList.length; r++)
+    if (t.polledReadBlockList[r].useraddr === e)
+      return t.polledReadBlockList[r];
+};
+c.prototype.addItems = function(e) {
+  var t = this;
+  t.addRemoveArray.push({ arg: e, action: "add" });
+};
+c.prototype.addItemsNow = function(e) {
+  var t = this, r;
+  if (i("Adding " + e, 0, t.connectionID), typeof e == "string" && e !== "_COMMERR")
+    t.polledReadBlockList.push(U(t.translationCB(e), e, t.connectionParams));
+  else if (Array.isArray(e))
+    for (r = 0; r < e.length; r++)
+      typeof e[r] == "string" && e[r] !== "_COMMERR" && t.polledReadBlockList.push(U(t.translationCB(e[r]), e[r], t.connectionParams));
+  for (r = t.polledReadBlockList.length - 1; r >= 0; r--)
+    t.polledReadBlockList[r] === void 0 && (t.polledReadBlockList.splice(r, 1), i("Dropping an undefined request item.", 0, t.connectionID));
+  t.readPacketValid = !1;
+};
+c.prototype.removeItems = function(e) {
+  var t = this;
+  t.addRemoveArray.push({ arg: e, action: "remove" });
+};
+c.prototype.removeItemsNow = function(e) {
+  var t = this, r;
+  if (typeof e > "u")
+    t.polledReadBlockList = [];
+  else if (typeof e == "string")
+    for (r = 0; r < t.polledReadBlockList.length; r++)
+      i("TCBA " + t.translationCB(e)), t.polledReadBlockList[r].addr === t.translationCB(e) && (i("Splicing"), t.polledReadBlockList.splice(r, 1));
+  else if (Array.isArray(e))
+    for (r = 0; r < t.polledReadBlockList.length; r++)
+      for (var n = 0; n < e.length; n++)
+        t.polledReadBlockList[r].addr === t.translationCB(e[n]) && t.polledReadBlockList.splice(r, 1);
+  t.readPacketValid = !1;
+};
+c.prototype.readAllItems = function(e) {
+  var t = this;
+  if (i("Reading All Items (readAllItems was called)", 1, t.connectionID), typeof e == "function" ? t.readDoneCallback = e : t.readDoneCallback = N, t.isoConnectionState !== 4 && i("Unable to read when not connected. Return bad values.", 0, t.connectionID), t.isWaiting()) {
+    i("Waiting to read for all R/W operations to complete.  Will re-trigger readAllItems in 100ms.", 0, t.connectionID), clearTimeout(t.rereadTimer), t.rereadTimer = setTimeout(function() {
+      t.rereadTimer = void 0, t.readAllItems.apply(t, arguments);
+    }, 100, e);
+    return;
+  }
+  t.addRemoveArray.forEach(function(r) {
+    i("Adding or Removing " + O.format(r), 1, t.connectionID), r.action === "remove" && t.removeItemsNow(r.arg), r.action === "add" && t.addItemsNow(r.arg);
+  }), t.addRemoveArray = [], t.readPacketValid || t.prepareReadPacket(), i("Calling SRP from RAI", 1, t.connectionID), t.sendReadPacket();
+};
+c.prototype.isWaiting = function() {
+  var e = this;
+  return e.isReading() || e.isWriting();
+};
+c.prototype.isReading = function() {
+  var e = this, t;
+  for (t = 0; t < e.readPacketArray.length; t++)
+    if (e.readPacketArray[t].sent === !0)
+      return !0;
+  return !1;
+};
+c.prototype.isWriting = function() {
+  var e = this, t;
+  for (t = 0; t < e.writePacketArray.length; t++)
+    if (e.writePacketArray[t].sent === !0)
+      return !0;
+  return !1;
+};
+c.prototype.clearReadPacketTimeouts = function() {
+  var e = this, t;
+  for (i("Clearing read PacketTimeouts", 1, e.connectionID), t = 0; t < e.readPacketArray.length; t++)
+    clearTimeout(e.readPacketArray[t].timeout), e.readPacketArray[t].sent = !1, e.readPacketArray[t].rcvd = !1;
+};
+c.prototype.clearWritePacketTimeouts = function() {
+  var e = this, t;
+  for (i("Clearing write PacketTimeouts", 1, e.connectionID), t = 0; t < e.writePacketArray.length; t++)
+    clearTimeout(e.writePacketArray[t].timeout), e.writePacketArray[t].sent = !1, e.writePacketArray[t].rcvd = !1;
+};
+c.prototype.prepareWritePacket = function() {
+  var e = this, t, r = e.instantWriteBlockList, n = [], a = 0;
+  if (r.sort(X), r.length !== 0) {
+    e.globalWriteBlockList = [], e.globalWriteBlockList[0] = r[0], e.globalWriteBlockList[0].itemReference = [], e.globalWriteBlockList[0].itemReference.push(r[0]);
+    var o = 0;
+    r[0].block = o;
+    var s = 4 * Math.floor((e.maxPDU - 18 - 12) / 4);
+    for (s = 8 * Math.floor((e.maxPDU - 18 - 12) / 8), t = 0; t < r.length; t++)
+      e.globalWriteBlockList[t] = r[t], e.globalWriteBlockList[t].isOptimized = !1, e.globalWriteBlockList[t].itemReference = [], e.globalWriteBlockList[t].itemReference.push(r[t]), de(r[t]);
+    var l = 0;
+    for (t = 0; t < e.globalWriteBlockList.length; t++) {
+      var f = e.globalWriteBlockList[t].offset, u = e.globalWriteBlockList[t].byteLength, d = 0;
+      n[l] = e.globalWriteBlockList[t].clone(), e.globalWriteBlockList[t].parts = Math.ceil(e.globalWriteBlockList[t].byteLength / s), e.globalWriteBlockList[t].requestReference = [];
+      for (var g = 0; g < e.globalWriteBlockList[t].parts; g++)
+        n[l] = e.globalWriteBlockList[t].clone(), e.globalWriteBlockList[t].requestReference.push(n[l]), n[l].offset = f, n[l].byteLength = Math.min(s, u), n[l].byteLengthWithFill = n[l].byteLength, n[l].byteLengthWithFill % 2 && (n[l].byteLengthWithFill += 1), n[l].writeBuffer = e.globalWriteBlockList[t].writeBuffer.slice(d, d + n[l].byteLengthWithFill), n[l].writeQualityBuffer = e.globalWriteBlockList[t].writeQualityBuffer.slice(d, d + n[l].byteLengthWithFill), d += e.globalWriteBlockList[t].requestReference[g].byteLength, e.globalWriteBlockList[t].parts > 1 && (n[l].datatype = "BYTE", n[l].dtypelen = 1, n[l].arrayLength = n[l].byteLength), u -= s, l++, f += s;
     }
-  }
-  return false;
-};
-NodeS7.prototype.isWriting = function() {
-  var self = this, i;
-  for (i = 0; i < self.writePacketArray.length; i++) {
-    if (self.writePacketArray[i].sent === true) {
-      return true;
-    }
-  }
-  return false;
-};
-NodeS7.prototype.clearReadPacketTimeouts = function() {
-  var self = this, i;
-  outputLog("Clearing read PacketTimeouts", 1, self.connectionID);
-  for (i = 0; i < self.readPacketArray.length; i++) {
-    clearTimeout(self.readPacketArray[i].timeout);
-    self.readPacketArray[i].sent = false;
-    self.readPacketArray[i].rcvd = false;
-  }
-};
-NodeS7.prototype.clearWritePacketTimeouts = function() {
-  var self = this, i;
-  outputLog("Clearing write PacketTimeouts", 1, self.connectionID);
-  for (i = 0; i < self.writePacketArray.length; i++) {
-    clearTimeout(self.writePacketArray[i].timeout);
-    self.writePacketArray[i].sent = false;
-    self.writePacketArray[i].rcvd = false;
-  }
-};
-NodeS7.prototype.prepareWritePacket = function() {
-  var self = this, i;
-  var itemList = self.instantWriteBlockList;
-  var requestList = [];
-  var requestNumber = 0;
-  itemList.sort(itemListSorter);
-  if (itemList.length === 0) {
-    return void 0;
-  }
-  self.globalWriteBlockList = [];
-  self.globalWriteBlockList[0] = itemList[0];
-  self.globalWriteBlockList[0].itemReference = [];
-  self.globalWriteBlockList[0].itemReference.push(itemList[0]);
-  var thisBlock = 0;
-  itemList[0].block = thisBlock;
-  var maxByteRequest = 4 * Math.floor((self.maxPDU - 18 - 12) / 4);
-  maxByteRequest = 8 * Math.floor((self.maxPDU - 18 - 12) / 8);
-  for (i = 0; i < itemList.length; i++) {
-    self.globalWriteBlockList[i] = itemList[i];
-    self.globalWriteBlockList[i].isOptimized = false;
-    self.globalWriteBlockList[i].itemReference = [];
-    self.globalWriteBlockList[i].itemReference.push(itemList[i]);
-    bufferizeS7Item(itemList[i]);
-  }
-  var thisRequest = 0;
-  for (i = 0; i < self.globalWriteBlockList.length; i++) {
-    var startByte = self.globalWriteBlockList[i].offset;
-    var remainingLength = self.globalWriteBlockList[i].byteLength;
-    var lengthOffset = 0;
-    requestList[thisRequest] = self.globalWriteBlockList[i].clone();
-    self.globalWriteBlockList[i].parts = Math.ceil(self.globalWriteBlockList[i].byteLength / maxByteRequest);
-    self.globalWriteBlockList[i].requestReference = [];
-    for (var j = 0; j < self.globalWriteBlockList[i].parts; j++) {
-      requestList[thisRequest] = self.globalWriteBlockList[i].clone();
-      self.globalWriteBlockList[i].requestReference.push(requestList[thisRequest]);
-      requestList[thisRequest].offset = startByte;
-      requestList[thisRequest].byteLength = Math.min(maxByteRequest, remainingLength);
-      requestList[thisRequest].byteLengthWithFill = requestList[thisRequest].byteLength;
-      if (requestList[thisRequest].byteLengthWithFill % 2) {
-        requestList[thisRequest].byteLengthWithFill += 1;
-      }
-      requestList[thisRequest].writeBuffer = self.globalWriteBlockList[i].writeBuffer.slice(lengthOffset, lengthOffset + requestList[thisRequest].byteLengthWithFill);
-      requestList[thisRequest].writeQualityBuffer = self.globalWriteBlockList[i].writeQualityBuffer.slice(lengthOffset, lengthOffset + requestList[thisRequest].byteLengthWithFill);
-      lengthOffset += self.globalWriteBlockList[i].requestReference[j].byteLength;
-      if (self.globalWriteBlockList[i].parts > 1) {
-        requestList[thisRequest].datatype = "BYTE";
-        requestList[thisRequest].dtypelen = 1;
-        requestList[thisRequest].arrayLength = requestList[thisRequest].byteLength;
-      }
-      remainingLength -= maxByteRequest;
-      thisRequest++;
-      startByte += maxByteRequest;
-    }
-  }
-  self.clearWritePacketTimeouts();
-  self.writePacketArray = [];
-  while (requestNumber < requestList.length) {
-    var numItems = 0;
-    self.writeReqHeader.copy(self.writeReq, 0);
-    var packetWriteLength = 10 + 4;
-    self.writePacketArray.push(new S7Packet());
-    var thisPacketNumber = self.writePacketArray.length - 1;
-    self.writePacketArray[thisPacketNumber].seqNum = self.getNextSeqNum();
-    self.writePacketArray[thisPacketNumber].itemList = [];
-    for (i = requestNumber; i < requestList.length; i++) {
-      if (requestList[i].byteLengthWithFill + 12 + 4 + packetWriteLength > self.maxPDU) {
-        if (numItems === 0) {
-          outputLog("breaking when we shouldn't, byte length with fill is  " + requestList[i].byteLengthWithFill + " max byte request " + maxByteRequest, 0, self.connectionID);
-          throw new Error("Somehow write request didn't split properly - exiting.  Report this as a bug.");
+    for (e.clearWritePacketTimeouts(), e.writePacketArray = []; a < n.length; ) {
+      var C = 0;
+      e.writeReqHeader.copy(e.writeReq, 0);
+      var D = 14;
+      e.writePacketArray.push(new z());
+      var B = e.writePacketArray.length - 1;
+      for (e.writePacketArray[B].seqNum = e.getNextSeqNum(), e.writePacketArray[B].itemList = [], t = a; t < n.length; t++) {
+        if (n[t].byteLengthWithFill + 12 + 4 + D > e.maxPDU) {
+          if (C === 0)
+            throw i("breaking when we shouldn't, byte length with fill is  " + n[t].byteLengthWithFill + " max byte request " + s, 0, e.connectionID), new Error("Somehow write request didn't split properly - exiting.  Report this as a bug.");
+          break;
         }
-        break;
+        a++, C++, D += n[t].byteLengthWithFill + 12 + 4, e.writePacketArray[B].itemList.push(n[t]);
       }
-      requestNumber++;
-      numItems++;
-      packetWriteLength += requestList[i].byteLengthWithFill + 12 + 4;
-      self.writePacketArray[thisPacketNumber].itemList.push(requestList[i]);
     }
   }
 };
-NodeS7.prototype.prepareReadPacket = function() {
-  var self = this, i;
-  var itemList = self.polledReadBlockList;
-  var requestList = [];
-  for (i = itemList.length - 1; i >= 0; i--) {
-    if (itemList[i] === void 0) {
-      itemList.splice(i, 1);
-      outputLog("Dropping an undefined request item.", 0, self.connectionID);
+c.prototype.prepareReadPacket = function() {
+  var e = this, t, r = e.polledReadBlockList, n = [];
+  for (t = r.length - 1; t >= 0; t--)
+    r[t] === void 0 && (r.splice(t, 1), i("Dropping an undefined request item.", 0, e.connectionID));
+  if (r.sort(X), r.length !== 0) {
+    e.globalReadBlockList = [], e.globalReadBlockList[0] = r[0], e.globalReadBlockList[0].itemReference = [], e.globalReadBlockList[0].itemReference.push(r[0]);
+    var a = 0;
+    r[0].block = a;
+    var o = 4 * Math.floor((e.maxPDU - 18) / 4);
+    for (t = 1; t < r.length; t++)
+      r[t].areaS7Code !== e.globalReadBlockList[a].areaS7Code || // Can't optimize between areas
+      r[t].dbNumber !== e.globalReadBlockList[a].dbNumber || // Can't optimize across DBs
+      !e.isOptimizableArea(r[t].areaS7Code) || // Can't optimize T,C (I don't think) and definitely not P.
+      r[t].offset - e.globalReadBlockList[a].offset + r[t].byteLength > o || // If this request puts us over our max byte length, create a new block for consistency reasons.
+      r[t].offset - (e.globalReadBlockList[a].offset + e.globalReadBlockList[a].byteLength) > e.maxGap ? (i("Skipping optimization of item " + r[t].addr, 0, e.connectionID), a = a + 1, e.globalReadBlockList[a] = r[t], e.globalReadBlockList[a].isOptimized = !1, e.globalReadBlockList[a].itemReference = [], e.globalReadBlockList[a].itemReference.push(r[t])) : (i("Attempting optimization of item " + r[t].addr + " with " + e.globalReadBlockList[a].addr, 0, e.connectionID), e.globalReadBlockList[a].byteLength = Math.max(e.globalReadBlockList[a].byteLength, r[t].offset - e.globalReadBlockList[a].offset + r[t].byteLength), r[t].byteBuffer = e.globalReadBlockList[a].byteBuffer.slice(r[t].offset - e.globalReadBlockList[a].offset, r[t].offset - e.globalReadBlockList[a].offset + r[t].byteLength), r[t].qualityBuffer = e.globalReadBlockList[a].qualityBuffer.slice(r[t].offset - e.globalReadBlockList[a].offset, r[t].offset - e.globalReadBlockList[a].offset + r[t].byteLength), e.globalReadBlockList[a].isOptimized = !0, e.globalReadBlockList[a].itemReference.push(r[t]));
+    var s = 0;
+    for (t = 0; t < e.globalReadBlockList.length; t++) {
+      n[s] = e.globalReadBlockList[t].clone(), e.globalReadBlockList[t].parts = Math.ceil(e.globalReadBlockList[t].byteLength / o), i("self.globalReadBlockList " + t + " parts is " + e.globalReadBlockList[t].parts + " offset is " + e.globalReadBlockList[t].offset + " MBR is " + o, 1, e.connectionID);
+      var l = e.globalReadBlockList[t].offset, f = e.globalReadBlockList[t].byteLength;
+      e.globalReadBlockList[t].requestReference = [];
+      for (var u = 0; u < e.globalReadBlockList[t].parts; u++)
+        n[s] = e.globalReadBlockList[t].clone(), e.globalReadBlockList[t].requestReference.push(n[s]), n[s].offset = l, n[s].byteLength = Math.min(o, f), n[s].byteLengthWithFill = n[s].byteLength, n[s].byteLengthWithFill % 2 && (n[s].byteLengthWithFill += 1), e.globalReadBlockList[t].parts > 1 && (n[s].datatype = "BYTE", n[s].dtypelen = 1, n[s].arrayLength = n[s].byteLength), f -= o, s++, l += o;
     }
-  }
-  itemList.sort(itemListSorter);
-  if (itemList.length === 0) {
-    return void 0;
-  }
-  self.globalReadBlockList = [];
-  self.globalReadBlockList[0] = itemList[0];
-  self.globalReadBlockList[0].itemReference = [];
-  self.globalReadBlockList[0].itemReference.push(itemList[0]);
-  var thisBlock = 0;
-  itemList[0].block = thisBlock;
-  var maxByteRequest = 4 * Math.floor((self.maxPDU - 18) / 4);
-  for (i = 1; i < itemList.length; i++) {
-    if (itemList[i].areaS7Code !== self.globalReadBlockList[thisBlock].areaS7Code || // Can't optimize between areas
-    itemList[i].dbNumber !== self.globalReadBlockList[thisBlock].dbNumber || // Can't optimize across DBs
-    !self.isOptimizableArea(itemList[i].areaS7Code) || // Can't optimize T,C (I don't think) and definitely not P.
-    itemList[i].offset - self.globalReadBlockList[thisBlock].offset + itemList[i].byteLength > maxByteRequest || // If this request puts us over our max byte length, create a new block for consistency reasons.
-    itemList[i].offset - (self.globalReadBlockList[thisBlock].offset + self.globalReadBlockList[thisBlock].byteLength) > self.maxGap) {
-      outputLog("Skipping optimization of item " + itemList[i].addr, 0, self.connectionID);
-      thisBlock = thisBlock + 1;
-      self.globalReadBlockList[thisBlock] = itemList[i];
-      self.globalReadBlockList[thisBlock].isOptimized = false;
-      self.globalReadBlockList[thisBlock].itemReference = [];
-      self.globalReadBlockList[thisBlock].itemReference.push(itemList[i]);
-    } else {
-      outputLog("Attempting optimization of item " + itemList[i].addr + " with " + self.globalReadBlockList[thisBlock].addr, 0, self.connectionID);
-      self.globalReadBlockList[thisBlock].byteLength = Math.max(self.globalReadBlockList[thisBlock].byteLength, itemList[i].offset - self.globalReadBlockList[thisBlock].offset + itemList[i].byteLength);
-      itemList[i].byteBuffer = self.globalReadBlockList[thisBlock].byteBuffer.slice(itemList[i].offset - self.globalReadBlockList[thisBlock].offset, itemList[i].offset - self.globalReadBlockList[thisBlock].offset + itemList[i].byteLength);
-      itemList[i].qualityBuffer = self.globalReadBlockList[thisBlock].qualityBuffer.slice(itemList[i].offset - self.globalReadBlockList[thisBlock].offset, itemList[i].offset - self.globalReadBlockList[thisBlock].offset + itemList[i].byteLength);
-      self.globalReadBlockList[thisBlock].isOptimized = true;
-      self.globalReadBlockList[thisBlock].itemReference.push(itemList[i]);
-    }
-  }
-  var thisRequest = 0;
-  for (i = 0; i < self.globalReadBlockList.length; i++) {
-    requestList[thisRequest] = self.globalReadBlockList[i].clone();
-    self.globalReadBlockList[i].parts = Math.ceil(self.globalReadBlockList[i].byteLength / maxByteRequest);
-    outputLog("self.globalReadBlockList " + i + " parts is " + self.globalReadBlockList[i].parts + " offset is " + self.globalReadBlockList[i].offset + " MBR is " + maxByteRequest, 1, self.connectionID);
-    var startByte = self.globalReadBlockList[i].offset;
-    var remainingLength = self.globalReadBlockList[i].byteLength;
-    self.globalReadBlockList[i].requestReference = [];
-    for (var j = 0; j < self.globalReadBlockList[i].parts; j++) {
-      requestList[thisRequest] = self.globalReadBlockList[i].clone();
-      self.globalReadBlockList[i].requestReference.push(requestList[thisRequest]);
-      requestList[thisRequest].offset = startByte;
-      requestList[thisRequest].byteLength = Math.min(maxByteRequest, remainingLength);
-      requestList[thisRequest].byteLengthWithFill = requestList[thisRequest].byteLength;
-      if (requestList[thisRequest].byteLengthWithFill % 2) {
-        requestList[thisRequest].byteLengthWithFill += 1;
-      }
-      if (self.globalReadBlockList[i].parts > 1) {
-        requestList[thisRequest].datatype = "BYTE";
-        requestList[thisRequest].dtypelen = 1;
-        requestList[thisRequest].arrayLength = requestList[thisRequest].byteLength;
-      }
-      remainingLength -= maxByteRequest;
-      thisRequest++;
-      startByte += maxByteRequest;
-    }
-  }
-  var requestNumber = 0;
-  self.clearReadPacketTimeouts();
-  self.readPacketArray = [];
-  while (requestNumber < requestList.length) {
-    var numItems = 0;
-    self.readReqHeader.copy(self.readReq, 0);
-    var packetReplyLength = 12 + 2;
-    var packetRequestLength = 12;
-    self.readPacketArray.push(new S7Packet());
-    var thisPacketNumber = self.readPacketArray.length - 1;
-    self.readPacketArray[thisPacketNumber].seqNum = 0;
-    self.readPacketArray[thisPacketNumber].itemList = [];
-    for (i = requestNumber; i < requestList.length; i++) {
-      if (requestList[i].byteLengthWithFill + 4 + packetReplyLength > self.maxPDU || packetRequestLength + 12 > self.maxPDU) {
-        outputLog("Splitting request: " + numItems + " items, requestLength would be " + (packetRequestLength + 12) + ", replyLength would be " + (requestList[i].byteLengthWithFill + 4 + packetReplyLength) + ", PDU is " + self.maxPDU, 1, self.connectionID);
-        if (numItems === 0) {
-          outputLog("breaking when we shouldn't, rlibl " + requestList[i].byteLengthWithFill + " MBR " + maxByteRequest, 0, self.connectionID);
-          throw new Error("Somehow write request didn't split properly - exiting.  Report this as a bug.");
+    var d = 0;
+    for (e.clearReadPacketTimeouts(), e.readPacketArray = []; d < n.length; ) {
+      var g = 0;
+      e.readReqHeader.copy(e.readReq, 0);
+      var C = 14, D = 12;
+      e.readPacketArray.push(new z());
+      var B = e.readPacketArray.length - 1;
+      for (e.readPacketArray[B].seqNum = 0, e.readPacketArray[B].itemList = [], t = d; t < n.length; t++) {
+        if (n[t].byteLengthWithFill + 4 + C > e.maxPDU || D + 12 > e.maxPDU) {
+          if (i("Splitting request: " + g + " items, requestLength would be " + (D + 12) + ", replyLength would be " + (n[t].byteLengthWithFill + 4 + C) + ", PDU is " + e.maxPDU, 1, e.connectionID), g === 0)
+            throw i("breaking when we shouldn't, rlibl " + n[t].byteLengthWithFill + " MBR " + o, 0, e.connectionID), new Error("Somehow write request didn't split properly - exiting.  Report this as a bug.");
+          break;
         }
-        break;
+        d++, g++, C += n[t].byteLengthWithFill + 4, D += 12, e.readPacketArray[B].itemList.push(n[t]);
       }
-      requestNumber++;
-      numItems++;
-      packetReplyLength += requestList[i].byteLengthWithFill + 4;
-      packetRequestLength += 12;
-      self.readPacketArray[thisPacketNumber].itemList.push(requestList[i]);
     }
-  }
-  self.readPacketValid = true;
-};
-NodeS7.prototype.sendReadPacket = function() {
-  var self = this, i, j, flagReconnect = false;
-  outputLog("SendReadPacket called", 1, self.connectionID);
-  if (!self.readPacketArray.length && typeof self.readDoneCallback === "function") {
-    self.readDoneCallback(false, {});
-  }
-  for (i = 0; i < self.readPacketArray.length; i++) {
-    if (self.readPacketArray[i].sent) {
-      continue;
-    }
-    if (self.parallelJobsNow >= self.maxParallel) {
-      continue;
-    }
-    self.readPacketArray[i].seqNum = self.getNextSeqNum();
-    self.readPacketArray[i].reqTime = process.hrtime();
-    self.readReq.writeUInt8(self.readPacketArray[i].itemList.length, 18);
-    self.readReq.writeUInt16BE(19 + self.readPacketArray[i].itemList.length * 12, 2);
-    self.readReq.writeUInt16BE(self.readPacketArray[i].seqNum, 11);
-    self.readReq.writeUInt16BE(self.readPacketArray[i].itemList.length * 12 + 2, 13);
-    for (j = 0; j < self.readPacketArray[i].itemList.length; j++) {
-      S7AddrToBuffer(self.readPacketArray[i].itemList[j], false).copy(self.readReq, 19 + j * 12);
-    }
-    if (self.isoConnectionState == 4) {
-      outputLog("Sending Read Packet With Sequence Number " + self.readPacketArray[i].seqNum, 1, self.connectionID);
-      self.readPacketArray[i].timeout = setTimeout(function() {
-        self.packetTimeout.apply(self, arguments);
-      }, self.globalTimeout, "read", self.readPacketArray[i].seqNum);
-      self.isoclient.write(self.readReq.slice(0, 19 + self.readPacketArray[i].itemList.length * 12));
-      self.readPacketArray[i].sent = true;
-      self.readPacketArray[i].rcvd = false;
-      self.readPacketArray[i].timeoutError = false;
-      self.parallelJobsNow += 1;
-    } else {
-      self.readPacketArray[i].sent = true;
-      self.readPacketArray[i].rcvd = false;
-      self.readPacketArray[i].timeoutError = true;
-      if (!flagReconnect) {
-        outputLog("Not Sending Read Packet because we are not connected - ISO CS is " + self.isoConnectionState, 0, self.connectionID);
-      }
-      if (self.isoConnectionState === 0) {
-        flagReconnect = true;
-      }
-      outputLog("Requesting PacketTimeout Due to ISO CS NOT 4 - READ SN " + self.readPacketArray[i].seqNum, 1, self.connectionID);
-      self.readPacketArray[i].timeout = setTimeout(function() {
-        self.packetTimeout.apply(self, arguments);
-      }, 0, "read", self.readPacketArray[i].seqNum);
-    }
+    e.readPacketValid = !0;
   }
 };
-NodeS7.prototype.sendWritePacket = function() {
-  var self = this, i, dataBuffer, itemBuffer, dataBufferPointer;
-  dataBuffer = Buffer.alloc(8192);
-  self.writeInQueue = false;
-  for (i = 0; i < self.writePacketArray.length; i++) {
-    if (self.writePacketArray[i].sent) {
-      continue;
+c.prototype.sendReadPacket = function() {
+  var e = this, t, r, n = !1;
+  for (i("SendReadPacket called", 1, e.connectionID), !e.readPacketArray.length && typeof e.readDoneCallback == "function" && e.readDoneCallback(!1, {}), t = 0; t < e.readPacketArray.length; t++)
+    if (!e.readPacketArray[t].sent && !(e.parallelJobsNow >= e.maxParallel)) {
+      for (e.readPacketArray[t].seqNum = e.getNextSeqNum(), e.readPacketArray[t].reqTime = process.hrtime(), e.readReq.writeUInt8(e.readPacketArray[t].itemList.length, 18), e.readReq.writeUInt16BE(19 + e.readPacketArray[t].itemList.length * 12, 2), e.readReq.writeUInt16BE(e.readPacketArray[t].seqNum, 11), e.readReq.writeUInt16BE(e.readPacketArray[t].itemList.length * 12 + 2, 13), r = 0; r < e.readPacketArray[t].itemList.length; r++)
+        _(e.readPacketArray[t].itemList[r], !1).copy(e.readReq, 19 + r * 12);
+      e.isoConnectionState == 4 ? (i("Sending Read Packet With Sequence Number " + e.readPacketArray[t].seqNum, 1, e.connectionID), e.readPacketArray[t].timeout = setTimeout(function() {
+        e.packetTimeout.apply(e, arguments);
+      }, e.globalTimeout, "read", e.readPacketArray[t].seqNum), e.isoclient.write(e.readReq.slice(0, 19 + e.readPacketArray[t].itemList.length * 12)), e.readPacketArray[t].sent = !0, e.readPacketArray[t].rcvd = !1, e.readPacketArray[t].timeoutError = !1, e.parallelJobsNow += 1) : (e.readPacketArray[t].sent = !0, e.readPacketArray[t].rcvd = !1, e.readPacketArray[t].timeoutError = !0, n || i("Not Sending Read Packet because we are not connected - ISO CS is " + e.isoConnectionState, 0, e.connectionID), e.isoConnectionState === 0 && (n = !0), i("Requesting PacketTimeout Due to ISO CS NOT 4 - READ SN " + e.readPacketArray[t].seqNum, 1, e.connectionID), e.readPacketArray[t].timeout = setTimeout(function() {
+        e.packetTimeout.apply(e, arguments);
+      }, 0, "read", e.readPacketArray[t].seqNum));
     }
-    if (self.parallelJobsNow >= self.maxParallel) {
-      continue;
-    }
-    self.writePacketArray[i].reqTime = process.hrtime();
-    self.writeReq.writeUInt8(self.writePacketArray[i].itemList.length, 18);
-    self.writeReq.writeUInt16BE(self.writePacketArray[i].seqNum, 11);
-    dataBufferPointer = 0;
-    for (var j = 0; j < self.writePacketArray[i].itemList.length; j++) {
-      S7AddrToBuffer(self.writePacketArray[i].itemList[j], true).copy(self.writeReq, 19 + j * 12);
-      itemBuffer = getWriteBuffer(self.writePacketArray[i].itemList[j]);
-      itemBuffer.copy(dataBuffer, dataBufferPointer);
-      dataBufferPointer += itemBuffer.length;
-      if (j < self.writePacketArray[i].itemList.length - 1) {
-        if (itemBuffer.length % 2) {
-          dataBufferPointer += 1;
-        }
-      }
-    }
-    self.writeReq.writeUInt16BE(19 + self.writePacketArray[i].itemList.length * 12 + dataBufferPointer, 2);
-    self.writeReq.writeUInt16BE(self.writePacketArray[i].itemList.length * 12 + 2, 13);
-    self.writeReq.writeUInt16BE(dataBufferPointer, 15);
-    dataBuffer.copy(self.writeReq, 19 + self.writePacketArray[i].itemList.length * 12, 0, dataBufferPointer);
-    if (self.isoConnectionState === 4) {
-      self.writePacketArray[i].timeout = setTimeout(function() {
-        self.packetTimeout.apply(self, arguments);
-      }, self.globalTimeout, "write", self.writePacketArray[i].seqNum);
-      self.isoclient.write(self.writeReq.slice(0, 19 + dataBufferPointer + self.writePacketArray[i].itemList.length * 12));
-      self.writePacketArray[i].sent = true;
-      self.writePacketArray[i].rcvd = false;
-      self.writePacketArray[i].timeoutError = false;
-      self.parallelJobsNow += 1;
-      outputLog("Sending Write Packet With Sequence Number " + self.writePacketArray[i].seqNum, 1, self.connectionID);
-    } else {
-      self.writePacketArray[i].sent = true;
-      self.writePacketArray[i].rcvd = false;
-      self.writePacketArray[i].timeoutError = true;
-      self.writePacketArray[i].timeout = setTimeout(function() {
-        self.packetTimeout.apply(self, arguments);
-      }, 0, "write", self.writePacketArray[i].seqNum);
-      if (self.isoConnectionState === 0) ;
-    }
-  }
 };
-NodeS7.prototype.isOptimizableArea = function(area) {
-  var self = this;
-  if (self.doNotOptimize) {
-    return false;
-  }
-  switch (area) {
+c.prototype.sendWritePacket = function() {
+  var e = this, t, r, n, a;
+  for (r = Buffer.alloc(8192), e.writeInQueue = !1, t = 0; t < e.writePacketArray.length; t++)
+    if (!e.writePacketArray[t].sent && !(e.parallelJobsNow >= e.maxParallel)) {
+      e.writePacketArray[t].reqTime = process.hrtime(), e.writeReq.writeUInt8(e.writePacketArray[t].itemList.length, 18), e.writeReq.writeUInt16BE(e.writePacketArray[t].seqNum, 11), a = 0;
+      for (var o = 0; o < e.writePacketArray[t].itemList.length; o++)
+        _(e.writePacketArray[t].itemList[o], !0).copy(e.writeReq, 19 + o * 12), n = ce(e.writePacketArray[t].itemList[o]), n.copy(r, a), a += n.length, o < e.writePacketArray[t].itemList.length - 1 && n.length % 2 && (a += 1);
+      e.writeReq.writeUInt16BE(19 + e.writePacketArray[t].itemList.length * 12 + a, 2), e.writeReq.writeUInt16BE(e.writePacketArray[t].itemList.length * 12 + 2, 13), e.writeReq.writeUInt16BE(a, 15), r.copy(e.writeReq, 19 + e.writePacketArray[t].itemList.length * 12, 0, a), e.isoConnectionState === 4 ? (e.writePacketArray[t].timeout = setTimeout(function() {
+        e.packetTimeout.apply(e, arguments);
+      }, e.globalTimeout, "write", e.writePacketArray[t].seqNum), e.isoclient.write(e.writeReq.slice(0, 19 + a + e.writePacketArray[t].itemList.length * 12)), e.writePacketArray[t].sent = !0, e.writePacketArray[t].rcvd = !1, e.writePacketArray[t].timeoutError = !1, e.parallelJobsNow += 1, i("Sending Write Packet With Sequence Number " + e.writePacketArray[t].seqNum, 1, e.connectionID)) : (e.writePacketArray[t].sent = !0, e.writePacketArray[t].rcvd = !1, e.writePacketArray[t].timeoutError = !0, e.writePacketArray[t].timeout = setTimeout(function() {
+        e.packetTimeout.apply(e, arguments);
+      }, 0, "write", e.writePacketArray[t].seqNum), e.isoConnectionState);
+    }
+};
+c.prototype.isOptimizableArea = function(e) {
+  var t = this;
+  if (t.doNotOptimize)
+    return !1;
+  switch (e) {
     case 132:
     case 129:
     case 130:
     case 131:
-      return true;
+      return !0;
     default:
-      return false;
+      return !1;
   }
 };
-NodeS7.prototype.onResponse = function(theData) {
-  var self = this;
-  if (!(theData && theData.length > 6)) {
-    outputLog("INVALID READ RESPONSE - DISCONNECTING");
-    outputLog("The incoming packet doesn't have the required minimum length of 7 bytes");
-    outputLog(theData);
-    self.connectionReset();
+c.prototype.onResponse = function(e) {
+  var t = this;
+  if (!(e && e.length > 6)) {
+    i("INVALID READ RESPONSE - DISCONNECTING"), i("The incoming packet doesn't have the required minimum length of 7 bytes"), i(e), t.connectionReset();
     return;
   }
-  var data = checkRFCData(theData);
-  if (data === "fastACK") {
-    outputLog("Fast Acknowledge received.", 0, self.connectionID);
-    self.isoclient.removeAllListeners("error");
-    self.isoclient.removeAllListeners("data");
-    self.isoclient.on("data", function() {
-      self.onResponse.apply(self, arguments);
+  var r = Q(e);
+  if (r === "fastACK")
+    i("Fast Acknowledge received.", 0, t.connectionID), t.isoclient.removeAllListeners("error"), t.isoclient.removeAllListeners("data"), t.isoclient.on("data", function() {
+      t.onResponse.apply(t, arguments);
+    }), t.isoclient.on("error", function() {
+      t.readWriteError.apply(t, arguments);
     });
-    self.isoclient.on("error", function() {
-      self.readWriteError.apply(self, arguments);
-    });
-  } else if (data[7] === 50) {
-    if (data.length > 8 && data[8] != 3) {
-      outputLog("PDU type (byte 8) was returned as " + data[8] + " where the response PDU of 3 was expected.");
-      outputLog("Maybe you are requesting more than 240 bytes of data in a packet?");
-      outputLog(data);
-      self.connectionReset();
-      return null;
-    }
-    if (data.length > data.readInt16BE(2)) {
-      outputLog("An oversize packet was detected.  Excess length is " + (data.length - data.readInt16BE(2)) + ".  ");
-      outputLog("We assume this is because two packets were sent at nearly the same time by the PLC.");
-      outputLog("We are slicing the buffer and scheduling the second half for further processing next loop.");
-      setTimeout(function() {
-        self.onResponse.apply(self, arguments);
-      }, 0, data.slice(data.readInt16BE(2)));
-    }
-    if (data.length < data.readInt16BE(2) || data.readInt16BE(2) < 22 || data[5] !== 240 || data[4] + 1 + 12 + 4 + data.readInt16BE(13) + data.readInt16BE(15) !== data.readInt16BE(2) || !(data[6] >> 7) || data[7] !== 50 || data[8] !== 3) {
-      outputLog("INVALID READ RESPONSE - DISCONNECTING");
-      outputLog("TPKT Length From Header is " + data.readInt16BE(2) + " and RCV buffer length is " + data.length + " and COTP length is " + data.readUInt8(4) + " and data[6] is " + data[6]);
-      outputLog(data);
-      self.connectionReset();
-      return null;
-    }
-    outputLog("Received " + data.readUInt16BE(15) + " bytes of S7-data from PLC.  Sequence number is " + data.readUInt16BE(11), 1, self.connectionID);
-    var foundSeqNum;
-    var isReadResponse, isWriteResponse;
-    foundSeqNum = self.findReadIndexOfSeqNum(data.readUInt16BE(11));
-    if (foundSeqNum === void 0) {
-      foundSeqNum = self.findWriteIndexOfSeqNum(data.readUInt16BE(11));
-      if (foundSeqNum !== void 0) {
-        self.writeResponse(data, foundSeqNum);
-        isWriteResponse = true;
-      }
-    } else {
-      isReadResponse = true;
-      self.readResponse(data, foundSeqNum);
-    }
-    if (!isReadResponse && !isWriteResponse) {
-      outputLog("Sequence number that arrived wasn't a write reply either - dropping");
-      outputLog(data);
-      return null;
-    }
-  } else {
-    outputLog("INVALID READ RESPONSE - DISCONNECTING");
-    outputLog("TPKT Length From Header is " + theData.readInt16BE(2) + " and RCV buffer length is " + theData.length + " and COTP length is " + theData.readUInt8(4) + " and data[6] is " + theData[6]);
-    outputLog(theData);
-    self.connectionReset();
-    return null;
-  }
+  else if (r[7] === 50) {
+    if (r.length > 8 && r[8] != 3)
+      return i("PDU type (byte 8) was returned as " + r[8] + " where the response PDU of 3 was expected."), i("Maybe you are requesting more than 240 bytes of data in a packet?"), i(r), t.connectionReset(), null;
+    if (r.length > r.readInt16BE(2) && (i("An oversize packet was detected.  Excess length is " + (r.length - r.readInt16BE(2)) + ".  "), i("We assume this is because two packets were sent at nearly the same time by the PLC."), i("We are slicing the buffer and scheduling the second half for further processing next loop."), setTimeout(function() {
+      t.onResponse.apply(t, arguments);
+    }, 0, r.slice(r.readInt16BE(2)))), r.length < r.readInt16BE(2) || r.readInt16BE(2) < 22 || r[5] !== 240 || r[4] + 1 + 12 + 4 + r.readInt16BE(13) + r.readInt16BE(15) !== r.readInt16BE(2) || !(r[6] >> 7) || r[7] !== 50 || r[8] !== 3)
+      return i("INVALID READ RESPONSE - DISCONNECTING"), i("TPKT Length From Header is " + r.readInt16BE(2) + " and RCV buffer length is " + r.length + " and COTP length is " + r.readUInt8(4) + " and data[6] is " + r[6]), i(r), t.connectionReset(), null;
+    i("Received " + r.readUInt16BE(15) + " bytes of S7-data from PLC.  Sequence number is " + r.readUInt16BE(11), 1, t.connectionID);
+    var n, a, o;
+    if (n = t.findReadIndexOfSeqNum(r.readUInt16BE(11)), n === void 0 ? (n = t.findWriteIndexOfSeqNum(r.readUInt16BE(11)), n !== void 0 && (t.writeResponse(r, n), o = !0)) : (a = !0, t.readResponse(r, n)), !a && !o)
+      return i("Sequence number that arrived wasn't a write reply either - dropping"), i(r), null;
+  } else
+    return i("INVALID READ RESPONSE - DISCONNECTING"), i("TPKT Length From Header is " + e.readInt16BE(2) + " and RCV buffer length is " + e.length + " and COTP length is " + e.readUInt8(4) + " and data[6] is " + e[6]), i(e), t.connectionReset(), null;
 };
-NodeS7.prototype.findReadIndexOfSeqNum = function(seqNum) {
-  var self = this, packetCounter;
-  for (packetCounter = 0; packetCounter < self.readPacketArray.length; packetCounter++) {
-    if (self.readPacketArray[packetCounter].seqNum == seqNum) {
-      return packetCounter;
-    }
-  }
-  return void 0;
+c.prototype.findReadIndexOfSeqNum = function(e) {
+  var t = this, r;
+  for (r = 0; r < t.readPacketArray.length; r++)
+    if (t.readPacketArray[r].seqNum == e)
+      return r;
 };
-NodeS7.prototype.findWriteIndexOfSeqNum = function(seqNum) {
-  var self = this, packetCounter;
-  for (packetCounter = 0; packetCounter < self.writePacketArray.length; packetCounter++) {
-    if (self.writePacketArray[packetCounter].seqNum == seqNum) {
-      return packetCounter;
-    }
-  }
-  return void 0;
+c.prototype.findWriteIndexOfSeqNum = function(e) {
+  var t = this, r;
+  for (r = 0; r < t.writePacketArray.length; r++)
+    if (t.writePacketArray[r].seqNum == e)
+      return r;
 };
-NodeS7.prototype.writeResponse = function(data, foundSeqNum) {
-  var self = this, dataPointer = 21, i, anyBadQualities;
-  for (var itemCount = 0; itemCount < self.writePacketArray[foundSeqNum].itemList.length; itemCount++) {
-    dataPointer = processS7WriteItem(data, self.writePacketArray[foundSeqNum].itemList[itemCount], dataPointer);
-    if (!dataPointer) {
-      outputLog("Stopping Processing Write Response Packet due to unrecoverable packet error");
+c.prototype.writeResponse = function(e, t) {
+  for (var r = this, n = 21, a, o, s = 0; s < r.writePacketArray[t].itemList.length; s++)
+    if (n = oe(e, r.writePacketArray[t].itemList[s], n), !n) {
+      i("Stopping Processing Write Response Packet due to unrecoverable packet error");
       break;
     }
-  }
-  self.writePacketArray[foundSeqNum].reqTime = process.hrtime(self.writePacketArray[foundSeqNum].reqTime);
-  outputLog("Time is " + self.writePacketArray[foundSeqNum].reqTime[0] + " seconds and " + Math.round(self.writePacketArray[foundSeqNum].reqTime[1] * 10 / 1e6) / 10 + " ms.", 1, self.connectionID);
-  if (!self.writePacketArray[foundSeqNum].rcvd) {
-    self.writePacketArray[foundSeqNum].rcvd = true;
-    self.parallelJobsNow--;
-  }
-  clearTimeout(self.writePacketArray[foundSeqNum].timeout);
-  if (!self.writePacketArray.every(doneSending)) {
-    outputLog("Not done sending - sending more packets from writeResponse", 1, self.connectionID);
-    self.sendWritePacket();
-  } else {
-    outputLog("Received all packets in writeResponse", 1, self.connectionID);
-    for (i = 0; i < self.writePacketArray.length; i++) {
-      self.writePacketArray[i].sent = false;
-      self.writePacketArray[i].rcvd = false;
+  if (r.writePacketArray[t].reqTime = process.hrtime(r.writePacketArray[t].reqTime), i("Time is " + r.writePacketArray[t].reqTime[0] + " seconds and " + Math.round(r.writePacketArray[t].reqTime[1] * 10 / 1e6) / 10 + " ms.", 1, r.connectionID), r.writePacketArray[t].rcvd || (r.writePacketArray[t].rcvd = !0, r.parallelJobsNow--), clearTimeout(r.writePacketArray[t].timeout), !r.writePacketArray.every(F))
+    i("Not done sending - sending more packets from writeResponse", 1, r.connectionID), r.sendWritePacket();
+  else {
+    for (i("Received all packets in writeResponse", 1, r.connectionID), a = 0; a < r.writePacketArray.length; a++)
+      r.writePacketArray[a].sent = !1, r.writePacketArray[a].rcvd = !1;
+    for (o = !1, a = 0; a < r.globalWriteBlockList.length; a++) {
+      se(r.globalWriteBlockList[a]);
+      for (var l = 0; l < r.globalWriteBlockList[a].itemReference.length; l++)
+        i(r.globalWriteBlockList[a].itemReference[l].addr + " write completed with quality " + r.globalWriteBlockList[a].itemReference[l].writeQuality, 0, r.connectionID), S(r.globalWriteBlockList[a].itemReference[l].writeQuality) || (o = !0);
+      S(r.globalWriteBlockList[a].writeQuality) || (o = !0);
     }
-    anyBadQualities = false;
-    for (i = 0; i < self.globalWriteBlockList.length; i++) {
-      writePostProcess(self.globalWriteBlockList[i]);
-      for (var k = 0; k < self.globalWriteBlockList[i].itemReference.length; k++) {
-        outputLog(self.globalWriteBlockList[i].itemReference[k].addr + " write completed with quality " + self.globalWriteBlockList[i].itemReference[k].writeQuality, 0, self.connectionID);
-        if (!isQualityOK(self.globalWriteBlockList[i].itemReference[k].writeQuality)) {
-          anyBadQualities = true;
-        }
-      }
-      if (!isQualityOK(self.globalWriteBlockList[i].writeQuality)) {
-        anyBadQualities = true;
-      }
-    }
-    if (self.resetPending) {
-      outputLog("Calling reset from writeResponse as there is one pending", 0, self.connectionID);
-      self.resetNow();
-    }
-    if (self.isoConnectionState === 0) {
-      self.connectNow(self.connectionParams, false);
-    }
-    outputLog("We are calling back our writeDoneCallback.", 1, self.connectionID);
-    if (typeof self.writeDoneCallback === "function") {
-      self.writeDoneCallback(anyBadQualities);
-    }
+    r.resetPending && (i("Calling reset from writeResponse as there is one pending", 0, r.connectionID), r.resetNow()), r.isoConnectionState === 0 && r.connectNow(r.connectionParams, !1), i("We are calling back our writeDoneCallback.", 1, r.connectionID), typeof r.writeDoneCallback == "function" && r.writeDoneCallback(o);
   }
 };
-function doneSending(element) {
-  return element.sent && element.rcvd ? true : false;
+function F(e) {
+  return !!(e.sent && e.rcvd);
 }
-NodeS7.prototype.readResponse = function(data, foundSeqNum) {
-  var self = this, i;
-  var anyBadQualities;
-  var dataPointer = 21;
-  var dataObject = {};
-  outputLog("ReadResponse called", 1, self.connectionID);
-  if (!self.readPacketArray[foundSeqNum].sent) {
-    outputLog("WARNING: Received a read response packet that was not marked as sent", 0, self.connectionID);
-    return null;
-  }
-  if (self.readPacketArray[foundSeqNum].rcvd) {
-    outputLog("WARNING: Received a read response packet that was already marked as received", 0, self.connectionID);
-    return null;
-  }
-  for (var itemCount = 0; itemCount < self.readPacketArray[foundSeqNum].itemList.length; itemCount++) {
-    dataPointer = processS7Packet(data, self.readPacketArray[foundSeqNum].itemList[itemCount], dataPointer, self.connectionID);
-    if (!dataPointer) {
-      outputLog("Received a ZERO RESPONSE Processing Read Packet due to unrecoverable packet error", 0, self.connectionID);
+c.prototype.readResponse = function(e, t) {
+  var r = this, n, a, o = 21, s = {};
+  if (i("ReadResponse called", 1, r.connectionID), !r.readPacketArray[t].sent)
+    return i("WARNING: Received a read response packet that was not marked as sent", 0, r.connectionID), null;
+  if (r.readPacketArray[t].rcvd)
+    return i("WARNING: Received a read response packet that was already marked as received", 0, r.connectionID), null;
+  for (var l = 0; l < r.readPacketArray[t].itemList.length; l++)
+    o = ie(e, r.readPacketArray[t].itemList[l], o, r.connectionID), o || i("Received a ZERO RESPONSE Processing Read Packet due to unrecoverable packet error", 0, r.connectionID);
+  if (r.readPacketArray[t].reqTime = process.hrtime(r.readPacketArray[t].reqTime), i("Time is " + r.readPacketArray[t].reqTime[0] + " seconds and " + Math.round(r.readPacketArray[t].reqTime[1] * 10 / 1e6) / 10 + " ms.", 1, r.connectionID), r.readPacketArray[t].rcvd || (r.readPacketArray[t].rcvd = !0, r.parallelJobsNow--), clearTimeout(r.readPacketArray[t].timeout), r.readPacketArray.every(F)) {
+    for (n = 0; n < r.readPacketArray.length; n++)
+      r.readPacketArray[n].sent = !1, r.readPacketArray[n].rcvd = !1;
+    for (a = !1, n = 0; n < r.globalReadBlockList.length; n++) {
+      for (var f = 0, u = 0; u < r.globalReadBlockList[n].requestReference.length; u++)
+        r.globalReadBlockList[n].requestReference[u].byteBuffer.copy(r.globalReadBlockList[n].byteBuffer, f, 0, r.globalReadBlockList[n].requestReference[u].byteLength), r.globalReadBlockList[n].requestReference[u].qualityBuffer.copy(r.globalReadBlockList[n].qualityBuffer, f, 0, r.globalReadBlockList[n].requestReference[u].byteLength), f += r.globalReadBlockList[n].requestReference[u].byteLength;
+      for (var d = 0; d < r.globalReadBlockList[n].itemReference.length; d++)
+        le(r.globalReadBlockList[n].itemReference[d]), i("Address " + r.globalReadBlockList[n].itemReference[d].addr + " has value " + r.globalReadBlockList[n].itemReference[d].value + " and quality " + r.globalReadBlockList[n].itemReference[d].quality, 1, r.connectionID), S(r.globalReadBlockList[n].itemReference[d].quality) ? s[r.globalReadBlockList[n].itemReference[d].useraddr] = r.globalReadBlockList[n].itemReference[d].value : (a = !0, s[r.globalReadBlockList[n].itemReference[d].useraddr] = r.globalReadBlockList[n].itemReference[d].quality);
     }
-  }
-  self.readPacketArray[foundSeqNum].reqTime = process.hrtime(self.readPacketArray[foundSeqNum].reqTime);
-  outputLog("Time is " + self.readPacketArray[foundSeqNum].reqTime[0] + " seconds and " + Math.round(self.readPacketArray[foundSeqNum].reqTime[1] * 10 / 1e6) / 10 + " ms.", 1, self.connectionID);
-  if (!self.readPacketArray[foundSeqNum].rcvd) {
-    self.readPacketArray[foundSeqNum].rcvd = true;
-    self.parallelJobsNow--;
-  }
-  clearTimeout(self.readPacketArray[foundSeqNum].timeout);
-  if (self.readPacketArray.every(doneSending)) {
-    for (i = 0; i < self.readPacketArray.length; i++) {
-      self.readPacketArray[i].sent = false;
-      self.readPacketArray[i].rcvd = false;
-    }
-    anyBadQualities = false;
-    for (i = 0; i < self.globalReadBlockList.length; i++) {
-      var lengthOffset = 0;
-      for (var j = 0; j < self.globalReadBlockList[i].requestReference.length; j++) {
-        self.globalReadBlockList[i].requestReference[j].byteBuffer.copy(self.globalReadBlockList[i].byteBuffer, lengthOffset, 0, self.globalReadBlockList[i].requestReference[j].byteLength);
-        self.globalReadBlockList[i].requestReference[j].qualityBuffer.copy(self.globalReadBlockList[i].qualityBuffer, lengthOffset, 0, self.globalReadBlockList[i].requestReference[j].byteLength);
-        lengthOffset += self.globalReadBlockList[i].requestReference[j].byteLength;
-      }
-      for (var k = 0; k < self.globalReadBlockList[i].itemReference.length; k++) {
-        processS7ReadItem(self.globalReadBlockList[i].itemReference[k]);
-        outputLog("Address " + self.globalReadBlockList[i].itemReference[k].addr + " has value " + self.globalReadBlockList[i].itemReference[k].value + " and quality " + self.globalReadBlockList[i].itemReference[k].quality, 1, self.connectionID);
-        if (!isQualityOK(self.globalReadBlockList[i].itemReference[k].quality)) {
-          anyBadQualities = true;
-          dataObject[self.globalReadBlockList[i].itemReference[k].useraddr] = self.globalReadBlockList[i].itemReference[k].quality;
-        } else {
-          dataObject[self.globalReadBlockList[i].itemReference[k].useraddr] = self.globalReadBlockList[i].itemReference[k].value;
-        }
-      }
-    }
-    if (!self.writeInQueue) {
-      if (self.resetPending) {
-        outputLog("Calling reset from readResponse as there is one pending", 0, self.connectionID);
-        self.resetNow();
-      }
-      if (self.isoConnectionState === 0) {
-        self.connectNow(self.connectionParams, false);
-      }
-    } else {
-      outputLog("Write In Queue.  ICS " + self.isoConnectionState + " resetPending " + self.resetPending, 1, self.connectionID);
-    }
-    outputLog("We are calling back our readDoneCallback.", 1, self.connectionID);
-    if (typeof self.readDoneCallback === "function") {
-      self.readDoneCallback(anyBadQualities, dataObject);
-    }
-    if (!self.isReading() && self.writeInQueue) {
-      outputLog("SendWritePacket called because write was queued.", 0, self.connectionID);
-      self.sendWritePacket();
-    }
-  } else {
-    self.sendReadPacket();
-  }
+    r.writeInQueue ? i("Write In Queue.  ICS " + r.isoConnectionState + " resetPending " + r.resetPending, 1, r.connectionID) : (r.resetPending && (i("Calling reset from readResponse as there is one pending", 0, r.connectionID), r.resetNow()), r.isoConnectionState === 0 && r.connectNow(r.connectionParams, !1)), i("We are calling back our readDoneCallback.", 1, r.connectionID), typeof r.readDoneCallback == "function" && r.readDoneCallback(a, s), !r.isReading() && r.writeInQueue && (i("SendWritePacket called because write was queued.", 0, r.connectionID), r.sendWritePacket());
+  } else
+    r.sendReadPacket();
 };
-NodeS7.prototype.onClientDisconnect = function() {
-  var self = this;
-  outputLog("ISO-on-TCP connection DISCONNECTED.", 0, self.connectionID);
-  if (!self.connectCBIssued && typeof self.connectCallback === "function") {
-    self.connectCBIssued = true;
-    self.connectCallback("Error - TCP connected, ISO didn't");
-  }
-  self.connectionReset();
+c.prototype.onClientDisconnect = function() {
+  var e = this;
+  i("ISO-on-TCP connection DISCONNECTED.", 0, e.connectionID), !e.connectCBIssued && typeof e.connectCallback == "function" && (e.connectCBIssued = !0, e.connectCallback("Error - TCP connected, ISO didn't")), e.connectionReset();
 };
-NodeS7.prototype.onClientClose = function() {
-  var self = this;
-  self.connectionReset();
-  if (self.dropConnectionCallback) {
-    self.dropConnectionCallback();
-    self.dropConnectionCallback = null;
-    clearTimeout(self.dropConnectionTimer);
-  }
+c.prototype.onClientClose = function() {
+  var e = this;
+  e.connectionReset(), e.dropConnectionCallback && (e.dropConnectionCallback(), e.dropConnectionCallback = null, clearTimeout(e.dropConnectionTimer));
 };
-NodeS7.prototype.connectionReset = function() {
-  var self = this;
-  self.isoConnectionState = 0;
-  self.resetPending = true;
-  outputLog("ConnectionReset has been called to set the reset as pending", 0, self.connectionID);
-  if (!self.isReading() && !self.isWriting() && !self.writeInQueue && typeof self.resetTimeout === "undefined") {
-    self.resetTimeout = setTimeout(function() {
-      outputLog("Timed reset has happened. Ideally this would never be called as reset should be completed when done r/w.", 0, self.connectionID);
-      self.resetNow.apply(self, arguments);
-    }, 3500);
-  }
+c.prototype.connectionReset = function() {
+  var e = this;
+  e.isoConnectionState = 0, e.resetPending = !0, i("ConnectionReset has been called to set the reset as pending", 0, e.connectionID), !e.isReading() && !e.isWriting() && !e.writeInQueue && typeof e.resetTimeout > "u" && (e.resetTimeout = setTimeout(function() {
+    i("Timed reset has happened. Ideally this would never be called as reset should be completed when done r/w.", 0, e.connectionID), e.resetNow.apply(e, arguments);
+  }, 3500));
 };
-NodeS7.prototype.resetNow = function() {
-  var self = this;
-  self.isoConnectionState = 0;
-  self.isoclient.end();
-  outputLog("ResetNOW is happening", 0, self.connectionID);
-  self.resetPending = false;
-  if (typeof self.resetTimeout !== "undefined") {
-    clearTimeout(self.resetTimeout);
-    self.resetTimeout = void 0;
-    outputLog("Clearing an earlier scheduled reset", 0, self.connectionID);
-  }
+c.prototype.resetNow = function() {
+  var e = this;
+  e.isoConnectionState = 0, e.isoclient.end(), i("ResetNOW is happening", 0, e.connectionID), e.resetPending = !1, typeof e.resetTimeout < "u" && (clearTimeout(e.resetTimeout), e.resetTimeout = void 0, i("Clearing an earlier scheduled reset", 0, e.connectionID));
 };
-NodeS7.prototype.connectionCleanup = function() {
-  var self = this;
-  self.isoConnectionState = 0;
-  outputLog("Connection cleanup is happening", 0, self.connectionID);
-  if (typeof self.isoclient !== "undefined") {
-    self.isoclient.destroy();
-    self.isoclient.removeAllListeners("data");
-    self.isoclient.removeAllListeners("error");
-    self.isoclient.removeAllListeners("connect");
-    self.isoclient.removeAllListeners("end");
-    self.isoclient.removeAllListeners("close");
-    self.isoclient.on("error", function() {
-      outputLog("TCP socket error following connection cleanup");
-    });
-  }
-  clearTimeout(self.connectTimeout);
-  clearTimeout(self.PDUTimeout);
-  self.clearReadPacketTimeouts();
-  self.clearWritePacketTimeouts();
+c.prototype.connectionCleanup = function() {
+  var e = this;
+  e.isoConnectionState = 0, i("Connection cleanup is happening", 0, e.connectionID), typeof e.isoclient < "u" && (e.isoclient.destroy(), e.isoclient.removeAllListeners("data"), e.isoclient.removeAllListeners("error"), e.isoclient.removeAllListeners("connect"), e.isoclient.removeAllListeners("end"), e.isoclient.removeAllListeners("close"), e.isoclient.on("error", function() {
+    i("TCP socket error following connection cleanup");
+  })), clearTimeout(e.connectTimeout), clearTimeout(e.PDUTimeout), e.clearReadPacketTimeouts(), e.clearWritePacketTimeouts();
 };
-function checkRFCData(data) {
-  var ret = null;
-  var RFC_Version = data[0];
-  var TPKT_Length = data.readInt16BE(2);
-  var TPDU_Code = data[5];
-  var LastDataUnit = data[6];
-  if (RFC_Version !== 3 && TPDU_Code !== 240) {
-    return "error";
-  } else if (LastDataUnit >> 7 === 0 && TPKT_Length == data.length && data.length === 7) {
-    ret = "fastACK";
-  } else if (LastDataUnit >> 7 == 1 && TPKT_Length <= data.length) {
-    ret = data;
-  } else if (LastDataUnit >> 7 == 0 && TPKT_Length !== data.length) {
-    ret = data.slice(7, data.length);
-  } else {
-    ret = "error";
-  }
-  return ret;
+function Q(e) {
+  var t = null, r = e[0], n = e.readInt16BE(2), a = e[5], o = e[6];
+  return r !== 3 && a !== 240 ? "error" : (!(o >> 7) && n == e.length && e.length === 7 ? t = "fastACK" : o >> 7 == 1 && n <= e.length ? t = e : !(o >> 7) && n !== e.length ? t = e.slice(7, e.length) : t = "error", t);
 }
-function S7AddrToBuffer(addrinfo, isWriting) {
-  var thisBitOffset = 0, theReq = Buffer.from([18, 10, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-  theReq[3] = 2;
-  if (addrinfo.datatype === "X") {
-    theReq.writeUInt16BE(addrinfo.byteLength, 4);
-    if (isWriting && addrinfo.arrayLength === 1) {
-      theReq[3] = 1;
-      thisBitOffset = addrinfo.bitOffset;
-    }
-  } else if (addrinfo.datatype === "TIMER" || addrinfo.datatype === "COUNTER") {
-    theReq.writeUInt16BE(1, 4);
-    theReq.writeUInt8(addrinfo.areaS7Code, 3);
-  } else {
-    theReq.writeUInt16BE(addrinfo.byteLength, 4);
-  }
-  theReq.writeUInt16BE(addrinfo.dbNumber, 6);
-  theReq.writeUInt32BE(addrinfo.offset * 8 + thisBitOffset, 8);
-  theReq[8] |= addrinfo.areaS7Code;
-  return theReq;
+function _(e, t) {
+  var r = 0, n = Buffer.from([18, 10, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  return n[3] = 2, e.datatype === "X" ? (n.writeUInt16BE(e.byteLength, 4), t && e.arrayLength === 1 && (n[3] = 1, r = e.bitOffset)) : e.datatype === "TIMER" || e.datatype === "COUNTER" ? (n.writeUInt16BE(1, 4), n.writeUInt8(e.areaS7Code, 3)) : n.writeUInt16BE(e.byteLength, 4), n.writeUInt16BE(e.dbNumber, 6), n.writeUInt32BE(e.offset * 8 + r, 8), n[8] |= e.areaS7Code, n;
 }
-function processS7Packet(theData, theItem, thePointer, theCID) {
-  var remainingLength;
-  if (typeof theData === "undefined") {
-    remainingLength = 0;
-    outputLog("Processing an undefined packet, likely due to timeout error", 0, theCID);
-  } else if (isNaN(theItem.byteLength)) {
-    outputLog("Processing an undefined packet, perhaps bad input?", 0, theCID);
-    return 0;
-  } else {
-    remainingLength = theData.length - thePointer;
+function ie(e, t, r, n) {
+  var a;
+  if (typeof e > "u")
+    a = 0, i("Processing an undefined packet, likely due to timeout error", 0, n);
+  else {
+    if (isNaN(t.byteLength))
+      return i("Processing an undefined packet, perhaps bad input?", 0, n), 0;
+    a = e.length - r;
   }
-  var prePointer = thePointer;
-  theItem.qualityBuffer = Buffer.alloc(theItem.byteLength);
-  theItem.qualityBuffer.fill(255);
-  if (remainingLength < 4) {
-    theItem.valid = false;
-    if (typeof theData !== "undefined") {
-      theItem.errCode = "Malformed Packet - Less Than 4 Bytes.  TDL" + theData.length + "TP" + thePointer + "RL" + remainingLength;
-    } else {
-      theItem.errCode = "Timeout error - zero length packet";
-    }
-    outputLog(theItem.errCode, 0, theCID);
-    return 0;
-  }
-  var reportedDataLength;
-  if (theItem.readTransportCode == 4) {
-    reportedDataLength = theData.readUInt16BE(thePointer + 2) / 8;
-  } else {
-    reportedDataLength = theData.readUInt16BE(thePointer + 2);
-  }
-  var responseCode = theData[thePointer];
-  var transportCode = theData[thePointer + 1];
-  if (remainingLength == reportedDataLength + 2) {
-    outputLog("Not last part.", 0, theCID);
-  }
-  if (remainingLength < reportedDataLength + 2) {
-    theItem.valid = false;
-    theItem.errCode = "Malformed Packet - Item Data Length and Packet Length Disagree.  RDL+2 " + (reportedDataLength + 2) + " remainingLength " + remainingLength;
-    outputLog(theItem.errCode, 0, theCID);
-    return 0;
-  }
-  if (responseCode !== 255) {
-    theItem.valid = false;
-    theItem.errCode = "Invalid Response Code - " + responseCode;
-    outputLog(theItem.errCode, 0, theCID);
-    return thePointer + reportedDataLength + 4;
-  }
-  if (transportCode !== theItem.readTransportCode) {
-    theItem.valid = false;
-    theItem.errCode = "Invalid Transport Code - " + transportCode;
-    outputLog(theItem.errCode, 0, theCID);
-    return thePointer + reportedDataLength + 4;
-  }
-  var expectedLength = theItem.byteLength;
-  if (reportedDataLength !== expectedLength) {
-    theItem.valid = false;
-    theItem.errCode = "Invalid Response Length - Expected " + expectedLength + " but got " + reportedDataLength + " bytes.";
-    outputLog(theItem.errCode, 0, theCID);
-    return reportedDataLength + 2;
-  }
-  thePointer += 4;
-  theItem.valid = true;
-  theItem.byteBuffer = theData.slice(thePointer, thePointer + reportedDataLength);
-  theItem.qualityBuffer.fill(192);
-  thePointer += theItem.byteLength;
-  if ((thePointer - prePointer) % 2) {
-    thePointer += 1;
-  }
-  return thePointer;
+  var o = r;
+  if (t.qualityBuffer = Buffer.alloc(t.byteLength), t.qualityBuffer.fill(255), a < 4)
+    return t.valid = !1, typeof e < "u" ? t.errCode = "Malformed Packet - Less Than 4 Bytes.  TDL" + e.length + "TP" + r + "RL" + a : t.errCode = "Timeout error - zero length packet", i(t.errCode, 0, n), 0;
+  var s;
+  t.readTransportCode == 4 ? s = e.readUInt16BE(r + 2) / 8 : s = e.readUInt16BE(r + 2);
+  var l = e[r], f = e[r + 1];
+  if (a == s + 2 && i("Not last part.", 0, n), a < s + 2)
+    return t.valid = !1, t.errCode = "Malformed Packet - Item Data Length and Packet Length Disagree.  RDL+2 " + (s + 2) + " remainingLength " + a, i(t.errCode, 0, n), 0;
+  if (l !== 255)
+    return t.valid = !1, t.errCode = "Invalid Response Code - " + l, i(t.errCode, 0, n), r + s + 4;
+  if (f !== t.readTransportCode)
+    return t.valid = !1, t.errCode = "Invalid Transport Code - " + f, i(t.errCode, 0, n), r + s + 4;
+  var u = t.byteLength;
+  return s !== u ? (t.valid = !1, t.errCode = "Invalid Response Length - Expected " + u + " but got " + s + " bytes.", i(t.errCode, 0, n), s + 2) : (r += 4, t.valid = !0, t.byteBuffer = e.slice(r, r + s), t.qualityBuffer.fill(192), r += t.byteLength, (r - o) % 2 && (r += 1), r);
 }
-function processS7WriteItem(theData, theItem, thePointer) {
-  var remainingLength;
-  if (!theData) {
-    theItem.writeQualityBuffer.fill(255);
-    theItem.valid = false;
-    theItem.errCode = "We must have timed Out - we have no response to process";
-    outputLog(theItem.errCode);
-    return 0;
-  }
-  remainingLength = theData.length - thePointer;
-  if (remainingLength < 1) {
-    theItem.writeQualityBuffer.fill(255);
-    theItem.valid = false;
-    theItem.errCode = "Malformed Packet - Less Than 1 Byte.  TDL " + theData.length + " TP" + thePointer + " RL" + remainingLength;
-    outputLog(theItem.errCode);
-    return 0;
-  }
-  var writeResponse = theData.readUInt8(thePointer);
-  theItem.writeResponse = writeResponse;
-  if (writeResponse !== 255) {
-    outputLog("Received write error of " + theItem.writeResponse + " on " + theItem.addr);
-    theItem.writeQualityBuffer.fill(255);
-  } else {
-    theItem.writeQualityBuffer.fill(192);
-  }
-  return thePointer + 1;
+function oe(e, t, r) {
+  var n;
+  if (!e)
+    return t.writeQualityBuffer.fill(255), t.valid = !1, t.errCode = "We must have timed Out - we have no response to process", i(t.errCode), 0;
+  if (n = e.length - r, n < 1)
+    return t.writeQualityBuffer.fill(255), t.valid = !1, t.errCode = "Malformed Packet - Less Than 1 Byte.  TDL " + e.length + " TP" + r + " RL" + n, i(t.errCode), 0;
+  var a = e.readUInt8(r);
+  return t.writeResponse = a, a !== 255 ? (i("Received write error of " + t.writeResponse + " on " + t.addr), t.writeQualityBuffer.fill(255)) : t.writeQualityBuffer.fill(192), r + 1;
 }
-function writePostProcess(theItem) {
-  var thePointer = 0;
-  if (theItem.arrayLength === 1) {
-    if (theItem.writeQualityBuffer[0] === 255) {
-      theItem.writeQuality = "BAD";
-    } else {
-      theItem.writeQuality = "OK";
-    }
-  } else {
-    theItem.writeQuality = [];
-    for (var arrayIndex = 0; arrayIndex < theItem.arrayLength; arrayIndex++) {
-      if (theItem.writeQualityBuffer[thePointer] === 255) {
-        theItem.writeQuality[arrayIndex] = "BAD";
-      } else {
-        theItem.writeQuality[arrayIndex] = "OK";
-      }
-      if (theItem.datatype == "X") {
-        if ((arrayIndex + theItem.bitOffset + 1) % 8 === 0 || arrayIndex == theItem.arrayLength - 1) {
-          thePointer += theItem.dtypelen;
-        }
-      } else {
-        thePointer += theItem.dtypelen;
-      }
-    }
+function se(e) {
+  var t = 0;
+  if (e.arrayLength === 1)
+    e.writeQualityBuffer[0] === 255 ? e.writeQuality = "BAD" : e.writeQuality = "OK";
+  else {
+    e.writeQuality = [];
+    for (var r = 0; r < e.arrayLength; r++)
+      e.writeQualityBuffer[t] === 255 ? e.writeQuality[r] = "BAD" : e.writeQuality[r] = "OK", e.datatype == "X" ? ((r + e.bitOffset + 1) % 8 === 0 || r == e.arrayLength - 1) && (t += e.dtypelen) : t += e.dtypelen;
   }
 }
-function fromBCD(n) {
-  return (n >> 4) * 10 + (n & 15);
+function w(e) {
+  return (e >> 4) * 10 + (e & 15);
 }
-function toBCD(n) {
-  return n / 10 << 4 | n % 10;
+function p(e) {
+  return e / 10 << 4 | e % 10;
 }
-function readDT(buffer, offset, isUTC) {
-  let year = fromBCD(buffer.readUInt8(offset));
-  let month = fromBCD(buffer.readUInt8(offset + 1));
-  let day = fromBCD(buffer.readUInt8(offset + 2));
-  let hour = fromBCD(buffer.readUInt8(offset + 3));
-  let min = fromBCD(buffer.readUInt8(offset + 4));
-  let sec = fromBCD(buffer.readUInt8(offset + 5));
-  let ms_1 = fromBCD(buffer.readUInt8(offset + 6));
-  let ms_2 = fromBCD(buffer.readUInt8(offset + 7) & 240);
-  let date;
-  if (isUTC) {
-    date = new Date(Date.UTC(
-      (year > 89 ? 1900 : 2e3) + year,
-      month - 1,
-      day,
-      hour,
-      min,
-      sec,
-      ms_1 * 10 + ms_2 / 10
-    ));
-  } else {
-    date = new Date(
-      (year > 89 ? 1900 : 2e3) + year,
-      month - 1,
-      day,
-      hour,
-      min,
-      sec,
-      ms_1 * 10 + ms_2 / 10
-    );
-  }
-  return date;
+function A(e, t, r) {
+  let n = w(e.readUInt8(t)), a = w(e.readUInt8(t + 1)), o = w(e.readUInt8(t + 2)), s = w(e.readUInt8(t + 3)), l = w(e.readUInt8(t + 4)), f = w(e.readUInt8(t + 5)), u = w(e.readUInt8(t + 6)), d = w(e.readUInt8(t + 7) & 240), g;
+  return r ? g = new Date(Date.UTC(
+    (n > 89 ? 1900 : 2e3) + n,
+    a - 1,
+    o,
+    s,
+    l,
+    f,
+    u * 10 + d / 10
+  )) : g = new Date(
+    (n > 89 ? 1900 : 2e3) + n,
+    a - 1,
+    o,
+    s,
+    l,
+    f,
+    u * 10 + d / 10
+  ), g;
 }
-function writeDT(date, buffer, offset, isUTC) {
-  if (!(date instanceof Date)) {
-    if (date > 631152e6 && date < 3786911999999) {
-      date = new Date(date);
-    } else {
-      outputLog("Unsupported value of [" + date + "] for writing data of type DATE_AND_TIME. Skipping item");
+function E(e, t, r, n) {
+  if (!(e instanceof Date))
+    if (e > 631152e6 && e < 3786911999999)
+      e = new Date(e);
+    else {
+      i("Unsupported value of [" + e + "] for writing data of type DATE_AND_TIME. Skipping item");
       return;
     }
-  }
-  if (isUTC) {
-    buffer.writeUInt8(toBCD(date.getUTCFullYear() % 100), offset);
-    buffer.writeUInt8(toBCD(date.getUTCMonth() + 1), offset + 1);
-    buffer.writeUInt8(toBCD(date.getUTCDate()), offset + 2);
-    buffer.writeUInt8(toBCD(date.getUTCHours()), offset + 3);
-    buffer.writeUInt8(toBCD(date.getUTCMinutes()), offset + 4);
-    buffer.writeUInt8(toBCD(date.getUTCSeconds()), offset + 5);
-    buffer.writeUInt8(toBCD(date.getUTCMilliseconds() / 10 >> 0), offset + 6);
-    buffer.writeUInt8(toBCD(date.getUTCMilliseconds() % 10 * 10 + (date.getUTCDay() + 1)), offset + 7);
-  } else {
-    buffer.writeUInt8(toBCD(date.getFullYear() % 100), offset);
-    buffer.writeUInt8(toBCD(date.getMonth() + 1), offset + 1);
-    buffer.writeUInt8(toBCD(date.getDate()), offset + 2);
-    buffer.writeUInt8(toBCD(date.getHours()), offset + 3);
-    buffer.writeUInt8(toBCD(date.getMinutes()), offset + 4);
-    buffer.writeUInt8(toBCD(date.getSeconds()), offset + 5);
-    buffer.writeUInt8(toBCD(date.getMilliseconds() / 10 >> 0), offset + 6);
-    buffer.writeUInt8(toBCD(date.getMilliseconds() % 10 * 10 + (date.getDay() + 1)), offset + 7);
-  }
+  n ? (t.writeUInt8(p(e.getUTCFullYear() % 100), r), t.writeUInt8(p(e.getUTCMonth() + 1), r + 1), t.writeUInt8(p(e.getUTCDate()), r + 2), t.writeUInt8(p(e.getUTCHours()), r + 3), t.writeUInt8(p(e.getUTCMinutes()), r + 4), t.writeUInt8(p(e.getUTCSeconds()), r + 5), t.writeUInt8(p(e.getUTCMilliseconds() / 10 >> 0), r + 6), t.writeUInt8(p(e.getUTCMilliseconds() % 10 * 10 + (e.getUTCDay() + 1)), r + 7)) : (t.writeUInt8(p(e.getFullYear() % 100), r), t.writeUInt8(p(e.getMonth() + 1), r + 1), t.writeUInt8(p(e.getDate()), r + 2), t.writeUInt8(p(e.getHours()), r + 3), t.writeUInt8(p(e.getMinutes()), r + 4), t.writeUInt8(p(e.getSeconds()), r + 5), t.writeUInt8(p(e.getMilliseconds() / 10 >> 0), r + 6), t.writeUInt8(p(e.getMilliseconds() % 10 * 10 + (e.getDay() + 1)), r + 7));
 }
-function readDTL(buffer, offset, isUTC) {
-  let year = buffer.readUInt16BE(offset);
-  let month = buffer.readUInt8(offset + 2);
-  let day = buffer.readUInt8(offset + 3);
-  let hour = buffer.readUInt8(offset + 5);
-  let min = buffer.readUInt8(offset + 6);
-  let sec = buffer.readUInt8(offset + 7);
-  let ns = buffer.readUInt32BE(offset + 8);
-  let date;
-  if (isUTC) {
-    date = new Date(Date.UTC(
-      year,
-      month - 1,
-      day,
-      hour,
-      min,
-      sec,
-      ns / 1e6
-    ));
-  } else {
-    date = new Date(
-      year,
-      month - 1,
-      day,
-      hour,
-      min,
-      sec,
-      ns / 1e6
-    );
-  }
-  return date;
+function h(e, t, r) {
+  let n = e.readUInt16BE(t), a = e.readUInt8(t + 2), o = e.readUInt8(t + 3), s = e.readUInt8(t + 5), l = e.readUInt8(t + 6), f = e.readUInt8(t + 7), u = e.readUInt32BE(t + 8), d;
+  return r ? d = new Date(Date.UTC(
+    n,
+    a - 1,
+    o,
+    s,
+    l,
+    f,
+    u / 1e6
+  )) : d = new Date(
+    n,
+    a - 1,
+    o,
+    s,
+    l,
+    f,
+    u / 1e6
+  ), d;
 }
-function writeDTL(date, buffer, offset, isUTC) {
-  if (!(date instanceof Date)) {
-    if (date >= 0 && date < 9223382836854) {
-      date = new Date(date);
-    } else {
-      outputLog("Unsupported value of [" + date + "] for writing data of type DATE_AND_TIME. Skipping item");
+function m(e, t, r, n) {
+  if (!(e instanceof Date))
+    if (e >= 0 && e < 9223382836854)
+      e = new Date(e);
+    else {
+      i("Unsupported value of [" + e + "] for writing data of type DATE_AND_TIME. Skipping item");
       return;
     }
-  }
-  if (isUTC) {
-    buffer.writeUInt16BE(date.getUTCFullYear(), offset);
-    buffer.writeUInt8(date.getUTCMonth() + 1, offset + 2);
-    buffer.writeUInt8(date.getUTCDate(), offset + 3);
-    buffer.writeUInt8(date.getUTCDay() + 1, offset + 4);
-    buffer.writeUInt8(date.getUTCHours(), offset + 5);
-    buffer.writeUInt8(date.getUTCMinutes(), offset + 6);
-    buffer.writeUInt8(date.getUTCSeconds(), offset + 7);
-    buffer.writeUInt32BE(date.getUTCMilliseconds() * 1e6, offset + 8);
-  } else {
-    buffer.writeUInt16BE(date.getFullYear(), offset);
-    buffer.writeUInt8(date.getMonth() + 1, offset + 2);
-    buffer.writeUInt8(date.getDate(), offset + 3);
-    buffer.writeUInt8(date.getDay() + 1, offset + 4);
-    buffer.writeUInt8(date.getHours(), offset + 5);
-    buffer.writeUInt8(date.getMinutes(), offset + 6);
-    buffer.writeUInt8(date.getSeconds(), offset + 7);
-    buffer.writeUInt32BE(date.getMilliseconds() * 1e6, offset + 8);
-  }
+  n ? (t.writeUInt16BE(e.getUTCFullYear(), r), t.writeUInt8(e.getUTCMonth() + 1, r + 2), t.writeUInt8(e.getUTCDate(), r + 3), t.writeUInt8(e.getUTCDay() + 1, r + 4), t.writeUInt8(e.getUTCHours(), r + 5), t.writeUInt8(e.getUTCMinutes(), r + 6), t.writeUInt8(e.getUTCSeconds(), r + 7), t.writeUInt32BE(e.getUTCMilliseconds() * 1e6, r + 8)) : (t.writeUInt16BE(e.getFullYear(), r), t.writeUInt8(e.getMonth() + 1, r + 2), t.writeUInt8(e.getDate(), r + 3), t.writeUInt8(e.getDay() + 1, r + 4), t.writeUInt8(e.getHours(), r + 5), t.writeUInt8(e.getMinutes(), r + 6), t.writeUInt8(e.getSeconds(), r + 7), t.writeUInt32BE(e.getMilliseconds() * 1e6, r + 8));
 }
-function processS7ReadItem(theItem) {
-  var thePointer = 0;
-  var strlen = 0;
-  var tempString = "";
-  if (theItem.arrayLength > 1) {
-    if (theItem.datatype != "C" && theItem.datatype != "CHAR") {
-      theItem.value = [];
-      theItem.quality = [];
-    } else {
-      theItem.value = "";
-      theItem.quality = "";
-    }
-    var bitShiftAmount = theItem.bitOffset;
-    for (var arrayIndex = 0; arrayIndex < theItem.arrayLength; arrayIndex++) {
-      if (theItem.qualityBuffer[thePointer] !== 192) {
-        if (theItem.quality instanceof Array) {
-          theItem.value.push(theItem.badValue());
-          theItem.quality.push("BAD " + theItem.qualityBuffer[thePointer]);
-        } else {
-          theItem.value = theItem.badValue();
-          theItem.quality = "BAD " + theItem.qualityBuffer[thePointer];
-        }
-      } else {
-        if (theItem.quality instanceof Array) {
-          theItem.quality.push("OK");
-        } else {
-          theItem.quality = "OK";
-        }
-        switch (theItem.datatype) {
+function le(e) {
+  var t = 0, r = 0, n = "";
+  if (e.arrayLength > 1) {
+    e.datatype != "C" && e.datatype != "CHAR" ? (e.value = [], e.quality = []) : (e.value = "", e.quality = "");
+    for (var a = e.bitOffset, o = 0; o < e.arrayLength; o++) {
+      if (e.qualityBuffer[t] !== 192)
+        e.quality instanceof Array ? (e.value.push(e.badValue()), e.quality.push("BAD " + e.qualityBuffer[t])) : (e.value = e.badValue(), e.quality = "BAD " + e.qualityBuffer[t]);
+      else
+        switch (e.quality instanceof Array ? e.quality.push("OK") : e.quality = "OK", e.datatype) {
           case "DT":
-            theItem.value.push(readDT(theItem.byteBuffer, thePointer, false));
+            e.value.push(A(e.byteBuffer, t, !1));
             break;
           case "DTZ":
-            theItem.value.push(readDT(theItem.byteBuffer, thePointer, true));
+            e.value.push(A(e.byteBuffer, t, !0));
             break;
           case "DTL":
-            theItem.value.push(readDTL(theItem.byteBuffer, thePointer, false));
+            e.value.push(h(e.byteBuffer, t, !1));
             break;
           case "DTLZ":
-            theItem.value.push(readDTL(theItem.byteBuffer, thePointer, true));
+            e.value.push(h(e.byteBuffer, t, !0));
             break;
           case "REAL":
-            theItem.value.push(theItem.byteBuffer.readFloatBE(thePointer));
+            e.value.push(e.byteBuffer.readFloatBE(t));
             break;
           case "LREAL":
-            theItem.value.push(theItem.byteBuffer.readDoubleBE(thePointer));
+            e.value.push(e.byteBuffer.readDoubleBE(t));
             break;
           case "LINT":
             break;
           case "DWORD":
-            theItem.value.push(theItem.byteBuffer.readUInt32BE(thePointer));
+            e.value.push(e.byteBuffer.readUInt32BE(t));
             break;
           case "DINT":
-            theItem.value.push(theItem.byteBuffer.readInt32BE(thePointer));
+            e.value.push(e.byteBuffer.readInt32BE(t));
             break;
           case "INT":
-            theItem.value.push(theItem.byteBuffer.readInt16BE(thePointer));
+            e.value.push(e.byteBuffer.readInt16BE(t));
             break;
           case "WORD":
-            theItem.value.push(theItem.byteBuffer.readUInt16BE(thePointer));
+            e.value.push(e.byteBuffer.readUInt16BE(t));
             break;
           case "X":
-            theItem.value.push(theItem.byteBuffer.readUInt8(thePointer) >> bitShiftAmount & 1 ? true : false);
+            e.value.push(!!(e.byteBuffer.readUInt8(t) >> a & 1));
             break;
           case "B":
           case "BYTE":
-            theItem.value.push(theItem.byteBuffer.readUInt8(thePointer));
+            e.value.push(e.byteBuffer.readUInt8(t));
             break;
           case "S":
           case "STRING":
-            strlen = theItem.byteBuffer.readUInt8(thePointer + 1);
-            tempString = "";
-            for (var charOffset = 2; charOffset < theItem.dtypelen && charOffset - 2 < strlen; charOffset++) {
-              tempString += String.fromCharCode(theItem.byteBuffer.readUInt8(thePointer + charOffset));
-            }
-            theItem.value.push(tempString);
+            r = e.byteBuffer.readUInt8(t + 1), n = "";
+            for (var s = 2; s < e.dtypelen && s - 2 < r; s++)
+              n += String.fromCharCode(e.byteBuffer.readUInt8(t + s));
+            e.value.push(n);
             break;
           case "C":
           case "CHAR":
-            theItem.value += String.fromCharCode(theItem.byteBuffer.readUInt8(thePointer));
+            e.value += String.fromCharCode(e.byteBuffer.readUInt8(t));
             break;
           case "TIMER":
           case "COUNTER":
-            theItem.value.push(theItem.byteBuffer.readInt16BE(thePointer));
+            e.value.push(e.byteBuffer.readInt16BE(t));
             break;
           default:
-            outputLog("Unknown data type in response - should never happen.  Should have been caught earlier.  " + theItem.datatype);
-            return 0;
+            return i("Unknown data type in response - should never happen.  Should have been caught earlier.  " + e.datatype), 0;
         }
-      }
-      if (theItem.datatype == "X") {
-        bitShiftAmount++;
-        if ((arrayIndex + theItem.bitOffset + 1) % 8 === 0 || arrayIndex == theItem.arrayLength - 1) {
-          thePointer += theItem.dtypelen;
-          bitShiftAmount = 0;
-        }
-      } else {
-        thePointer += theItem.dtypelen;
-      }
+      e.datatype == "X" ? (a++, ((o + e.bitOffset + 1) % 8 === 0 || o == e.arrayLength - 1) && (t += e.dtypelen, a = 0)) : t += e.dtypelen;
     }
   } else {
-    if (theItem.qualityBuffer[thePointer] !== 192) {
-      theItem.value = theItem.badValue();
-      theItem.quality = "BAD " + theItem.qualityBuffer[thePointer];
-    } else {
-      theItem.quality = "OK";
-      switch (theItem.datatype) {
+    if (e.qualityBuffer[t] !== 192)
+      e.value = e.badValue(), e.quality = "BAD " + e.qualityBuffer[t];
+    else
+      switch (e.quality = "OK", e.datatype) {
         case "DT":
-          theItem.value = readDT(theItem.byteBuffer, thePointer, false);
+          e.value = A(e.byteBuffer, t, !1);
           break;
         case "DTZ":
-          theItem.value = readDT(theItem.byteBuffer, thePointer, true);
+          e.value = A(e.byteBuffer, t, !0);
           break;
         case "DTL":
-          theItem.value = readDTL(theItem.byteBuffer, thePointer, false);
+          e.value = h(e.byteBuffer, t, !1);
           break;
         case "DTLZ":
-          theItem.value = readDTL(theItem.byteBuffer, thePointer, true);
+          e.value = h(e.byteBuffer, t, !0);
           break;
         case "REAL":
-          theItem.value = theItem.byteBuffer.readFloatBE(thePointer);
+          e.value = e.byteBuffer.readFloatBE(t);
           break;
         case "LREAL":
-          theItem.value = theItem.byteBuffer.readDoubleBE(thePointer);
+          e.value = e.byteBuffer.readDoubleBE(t);
           break;
         case "LINT":
           break;
         case "DWORD":
-          theItem.value = theItem.byteBuffer.readUInt32BE(thePointer);
+          e.value = e.byteBuffer.readUInt32BE(t);
           break;
         case "DINT":
-          theItem.value = theItem.byteBuffer.readInt32BE(thePointer);
+          e.value = e.byteBuffer.readInt32BE(t);
           break;
         case "INT":
-          theItem.value = theItem.byteBuffer.readInt16BE(thePointer);
+          e.value = e.byteBuffer.readInt16BE(t);
           break;
         case "WORD":
-          theItem.value = theItem.byteBuffer.readUInt16BE(thePointer);
+          e.value = e.byteBuffer.readUInt16BE(t);
           break;
         case "X":
-          theItem.value = theItem.byteBuffer.readUInt8(thePointer) >> theItem.bitOffset & 1 ? true : false;
+          e.value = !!(e.byteBuffer.readUInt8(t) >> e.bitOffset & 1);
           break;
         case "B":
         case "BYTE":
-          theItem.value = theItem.byteBuffer.readUInt8(thePointer);
+          e.value = e.byteBuffer.readUInt8(t);
           break;
         case "S":
         case "STRING":
-          strlen = theItem.byteBuffer.readUInt8(thePointer + 1);
-          theItem.value = "";
-          for (var charOffset = 2; charOffset < theItem.dtypelen && charOffset - 2 < strlen; charOffset++) {
-            theItem.value += String.fromCharCode(theItem.byteBuffer.readUInt8(thePointer + charOffset));
-          }
+          r = e.byteBuffer.readUInt8(t + 1), e.value = "";
+          for (var s = 2; s < e.dtypelen && s - 2 < r; s++)
+            e.value += String.fromCharCode(e.byteBuffer.readUInt8(t + s));
           break;
         case "C":
         case "CHAR":
-          theItem.value = String.fromCharCode(theItem.byteBuffer.readUInt8(thePointer));
+          e.value = String.fromCharCode(e.byteBuffer.readUInt8(t));
           break;
         case "TIMER":
         case "COUNTER":
-          theItem.value = theItem.byteBuffer.readInt16BE(thePointer);
+          e.value = e.byteBuffer.readInt16BE(t);
           break;
         default:
-          outputLog("Unknown data type in response - should never happen.  Should have been caught earlier.  " + theItem.datatype);
-          return 0;
+          return i("Unknown data type in response - should never happen.  Should have been caught earlier.  " + e.datatype), 0;
       }
-    }
-    thePointer += theItem.dtypelen;
+    t += e.dtypelen;
   }
-  if (thePointer % 2) {
-    thePointer += 1;
-  }
-  return thePointer;
+  return t % 2 && (t += 1), t;
 }
-function getWriteBuffer(theItem) {
-  var newBuffer;
-  if (theItem.datatype === "X" && theItem.arrayLength === 1) {
-    newBuffer = Buffer.alloc(2 + 3);
-    newBuffer.fill(0);
-    newBuffer.writeUInt16BE(1, 2);
-  } else {
-    newBuffer = Buffer.alloc(theItem.byteLength + 4);
-    newBuffer.fill(0);
-    newBuffer.writeUInt16BE(theItem.byteLength * 8, 2);
-  }
-  if (theItem.writeBuffer.length < theItem.byteLengthWithFill) {
-    outputLog("Attempted to access part of the write buffer that wasn't there when writing an item.");
-  }
-  newBuffer[0] = 0;
-  newBuffer[1] = theItem.writeTransportCode;
-  theItem.writeBuffer.copy(newBuffer, 4, 0, theItem.byteLength);
-  return newBuffer;
+function ce(e) {
+  var t;
+  return e.datatype === "X" && e.arrayLength === 1 ? (t = Buffer.alloc(5), t.fill(0), t.writeUInt16BE(1, 2)) : (t = Buffer.alloc(e.byteLength + 4), t.fill(0), t.writeUInt16BE(e.byteLength * 8, 2)), e.writeBuffer.length < e.byteLengthWithFill && i("Attempted to access part of the write buffer that wasn't there when writing an item."), t[0] = 0, t[1] = e.writeTransportCode, e.writeBuffer.copy(t, 4, 0, e.byteLength), t;
 }
-function bufferizeS7Item(theItem) {
-  var thePointer, theByte;
-  theByte = 0;
-  thePointer = 0;
-  if (theItem.arrayLength > 1) {
-    var bitShiftAmount = theItem.bitOffset;
-    for (var arrayIndex = 0; arrayIndex < theItem.arrayLength; arrayIndex++) {
-      switch (theItem.datatype) {
+function de(e) {
+  var t, r;
+  if (r = 0, t = 0, e.arrayLength > 1)
+    for (var n = e.bitOffset, a = 0; a < e.arrayLength; a++) {
+      switch (e.datatype) {
         case "DT":
-          writeDT(theItem.writeValue[arrayIndex], theItem.writeBuffer, thePointer, false);
+          E(e.writeValue[a], e.writeBuffer, t, !1);
           break;
         case "DTZ":
-          writeDT(theItem.writeValue[arrayIndex], theItem.writeBuffer, thePointer, true);
+          E(e.writeValue[a], e.writeBuffer, t, !0);
           break;
         case "DTL":
-          writeDTL(theItem.writeValue[arrayIndex], theItem.writeBuffer, thePointer, false);
+          m(e.writeValue[a], e.writeBuffer, t, !1);
           break;
         case "DTLZ":
-          writeDTL(theItem.writeValue[arrayIndex], theItem.writeBuffer, thePointer, true);
+          m(e.writeValue[a], e.writeBuffer, t, !0);
           break;
         case "REAL":
-          theItem.writeBuffer.writeFloatBE(theItem.writeValue[arrayIndex], thePointer);
+          e.writeBuffer.writeFloatBE(e.writeValue[a], t);
           break;
         case "LREAL":
-          theItem.writeBuffer.writeDoubleBE(theItem.writeValue[arrayIndex], thePointer);
+          e.writeBuffer.writeDoubleBE(e.writeValue[a], t);
           break;
         case "LINT":
           break;
         case "DWORD":
-          theItem.writeBuffer.writeInt32BE(theItem.writeValue[arrayIndex], thePointer);
+          e.writeBuffer.writeInt32BE(e.writeValue[a], t);
           break;
         case "DINT":
-          theItem.writeBuffer.writeInt32BE(theItem.writeValue[arrayIndex], thePointer);
+          e.writeBuffer.writeInt32BE(e.writeValue[a], t);
           break;
         case "INT":
-          theItem.writeBuffer.writeInt16BE(theItem.writeValue[arrayIndex], thePointer);
+          e.writeBuffer.writeInt16BE(e.writeValue[a], t);
           break;
         case "WORD":
-          theItem.writeBuffer.writeUInt16BE(theItem.writeValue[arrayIndex], thePointer);
+          e.writeBuffer.writeUInt16BE(e.writeValue[a], t);
           break;
         case "X":
-          theByte = theByte | (theItem.writeValue[arrayIndex] === true ? 1 : 0) << bitShiftAmount;
-          theItem.writeBuffer.writeUInt8(theByte, thePointer);
-          bitShiftAmount++;
+          r = r | (e.writeValue[a] === !0 ? 1 : 0) << n, e.writeBuffer.writeUInt8(r, t), n++;
           break;
         case "B":
         case "BYTE":
-          theItem.writeBuffer.writeUInt8(theItem.writeValue[arrayIndex], thePointer);
+          e.writeBuffer.writeUInt8(e.writeValue[a], t);
           break;
         case "C":
         case "CHAR":
-          theItem.writeBuffer.writeUInt8(theItem.writeValue.charCodeAt(arrayIndex), thePointer);
+          e.writeBuffer.writeUInt8(e.writeValue.charCodeAt(a), t);
           break;
         case "S":
         case "STRING":
-          theItem.writeBuffer.writeUInt8(theItem.dtypelen - 2, thePointer);
-          theItem.writeBuffer.writeUInt8(Math.min(theItem.dtypelen - 2, theItem.writeValue[arrayIndex].length), thePointer + 1);
-          for (var charOffset = 2; charOffset < theItem.dtypelen; charOffset++) {
-            if (charOffset < theItem.writeValue[arrayIndex].length + 2) {
-              theItem.writeBuffer.writeUInt8(theItem.writeValue[arrayIndex].charCodeAt(charOffset - 2), thePointer + charOffset);
-            } else {
-              theItem.writeBuffer.writeUInt8(32, thePointer + charOffset);
-            }
-          }
+          e.writeBuffer.writeUInt8(e.dtypelen - 2, t), e.writeBuffer.writeUInt8(Math.min(e.dtypelen - 2, e.writeValue[a].length), t + 1);
+          for (var o = 2; o < e.dtypelen; o++)
+            o < e.writeValue[a].length + 2 ? e.writeBuffer.writeUInt8(e.writeValue[a].charCodeAt(o - 2), t + o) : e.writeBuffer.writeUInt8(32, t + o);
           break;
         case "TIMER":
         case "COUNTER":
-          theItem.writeBuffer.writeInt16BE(theItem.writeValue[arrayIndex], thePointer);
+          e.writeBuffer.writeInt16BE(e.writeValue[a], t);
           break;
         default:
-          outputLog("Unknown data type when preparing array write packet - should never happen.  Should have been caught earlier.  " + theItem.datatype);
-          return 0;
+          return i("Unknown data type when preparing array write packet - should never happen.  Should have been caught earlier.  " + e.datatype), 0;
       }
-      if (theItem.datatype == "X") {
-        if ((arrayIndex + theItem.bitOffset + 1) % 8 === 0 || arrayIndex == theItem.arrayLength - 1) {
-          thePointer += theItem.dtypelen;
-          bitShiftAmount = 0;
-          theByte = 0;
-        }
-      } else {
-        thePointer += theItem.dtypelen;
-      }
+      e.datatype == "X" ? ((a + e.bitOffset + 1) % 8 === 0 || a == e.arrayLength - 1) && (t += e.dtypelen, n = 0, r = 0) : t += e.dtypelen;
     }
-  } else {
-    switch (theItem.datatype) {
+  else {
+    switch (e.datatype) {
       case "DT":
-        writeDT(theItem.writeValue, theItem.writeBuffer, thePointer, false);
+        E(e.writeValue, e.writeBuffer, t, !1);
         break;
       case "DTZ":
-        writeDT(theItem.writeValue, theItem.writeBuffer, thePointer, true);
+        E(e.writeValue, e.writeBuffer, t, !0);
         break;
       case "DTL":
-        writeDTL(theItem.writeValue, theItem.writeBuffer, thePointer, false);
+        m(e.writeValue, e.writeBuffer, t, !1);
         break;
       case "DTLZ":
-        writeDTL(theItem.writeValue, theItem.writeBuffer, thePointer, true);
+        m(e.writeValue, e.writeBuffer, t, !0);
         break;
       case "REAL":
-        theItem.writeBuffer.writeFloatBE(theItem.writeValue, thePointer);
+        e.writeBuffer.writeFloatBE(e.writeValue, t);
         break;
       case "LREAL":
-        theItem.writeBuffer.writeDoubleBE(theItem.writeValue, thePointer);
+        e.writeBuffer.writeDoubleBE(e.writeValue, t);
         break;
       case "LINT":
         break;
       case "DWORD":
-        theItem.writeBuffer.writeUInt32BE(theItem.writeValue, thePointer);
+        e.writeBuffer.writeUInt32BE(e.writeValue, t);
         break;
       case "DINT":
-        theItem.writeBuffer.writeInt32BE(theItem.writeValue, thePointer);
+        e.writeBuffer.writeInt32BE(e.writeValue, t);
         break;
       case "INT":
-        theItem.writeBuffer.writeInt16BE(theItem.writeValue, thePointer);
+        e.writeBuffer.writeInt16BE(e.writeValue, t);
         break;
       case "WORD":
-        theItem.writeBuffer.writeUInt16BE(theItem.writeValue, thePointer);
+        e.writeBuffer.writeUInt16BE(e.writeValue, t);
         break;
       case "X":
-        theItem.writeBuffer.writeUInt8(theItem.writeValue === true ? 1 : 0, thePointer);
+        e.writeBuffer.writeUInt8(e.writeValue === !0 ? 1 : 0, t);
         break;
       case "B":
       case "BYTE":
-        theItem.writeBuffer.writeUInt8(theItem.writeValue, thePointer);
+        e.writeBuffer.writeUInt8(e.writeValue, t);
         break;
       case "C":
       case "CHAR":
-        theItem.writeBuffer.writeUInt8(theItem.writeValue.charCodeAt(0), thePointer);
+        e.writeBuffer.writeUInt8(e.writeValue.charCodeAt(0), t);
         break;
       case "S":
       case "STRING":
-        theItem.writeBuffer.writeUInt8(theItem.dtypelen - 2, thePointer);
-        theItem.writeBuffer.writeUInt8(Math.min(theItem.dtypelen - 2, theItem.writeValue.length), thePointer + 1);
-        for (var charOffset = 2; charOffset < theItem.dtypelen; charOffset++) {
-          if (charOffset < theItem.writeValue.length + 2) {
-            theItem.writeBuffer.writeUInt8(theItem.writeValue.charCodeAt(charOffset - 2), thePointer + charOffset);
-          } else {
-            theItem.writeBuffer.writeUInt8(32, thePointer + charOffset);
-          }
-        }
+        e.writeBuffer.writeUInt8(e.dtypelen - 2, t), e.writeBuffer.writeUInt8(Math.min(e.dtypelen - 2, e.writeValue.length), t + 1);
+        for (var o = 2; o < e.dtypelen; o++)
+          o < e.writeValue.length + 2 ? e.writeBuffer.writeUInt8(e.writeValue.charCodeAt(o - 2), t + o) : e.writeBuffer.writeUInt8(32, t + o);
         break;
       case "TIMER":
       case "COUNTER":
-        theItem.writeBuffer.writeInt16BE(theItem.writeValue, thePointer);
+        e.writeBuffer.writeInt16BE(e.writeValue, t);
         break;
       default:
-        outputLog("Unknown data type in write prepare - should never happen.  Should have been caught earlier.  " + theItem.datatype);
-        return 0;
+        return i("Unknown data type in write prepare - should never happen.  Should have been caught earlier.  " + e.datatype), 0;
     }
-    thePointer += theItem.dtypelen;
+    t += e.dtypelen;
   }
-  return void 0;
 }
-function stringToS7Addr(addr, useraddr, cParam) {
-  var theItem, splitString, splitString2;
-  if (useraddr === "_COMMERR") {
-    return void 0;
-  }
-  theItem = new S7Item();
-  splitString = addr.split(",");
-  if (splitString.length === 0 || splitString.length > 2) {
-    outputLog("Error - String Couldn't Split Properly.");
-    return void 0;
-  }
-  if (splitString.length > 1) {
-    theItem.addrtype = "DB";
-    splitString2 = splitString[1].split(".");
-    theItem.datatype = splitString2[0].replace(/[0-9]/gi, "").toUpperCase();
-    if (theItem.datatype === "X" && splitString2.length === 3) {
-      theItem.arrayLength = parseInt(splitString2[2], 10);
-    } else if ((theItem.datatype === "S" || theItem.datatype === "STRING") && splitString2.length === 3) {
-      theItem.dtypelen = parseInt(splitString2[1], 10) + 2;
-      theItem.arrayLength = parseInt(splitString2[2], 10);
-    } else if ((theItem.datatype === "S" || theItem.datatype === "STRING") && splitString2.length === 2) {
-      theItem.dtypelen = parseInt(splitString2[1], 10) + 2;
-      theItem.arrayLength = 1;
-    } else if (theItem.datatype !== "X" && splitString2.length === 2) {
-      theItem.arrayLength = parseInt(splitString2[1], 10);
-    } else {
-      theItem.arrayLength = 1;
+function U(e, t, r) {
+  var n, a, o;
+  if (t !== "_COMMERR") {
+    if (n = new H(), a = e.split(","), a.length === 0 || a.length > 2) {
+      i("Error - String Couldn't Split Properly.");
+      return;
     }
-    if (theItem.arrayLength <= 0) {
-      outputLog("Zero length arrays not allowed, returning undefined");
-      return void 0;
-    }
-    theItem.dbNumber = parseInt(splitString[0].replace(/[A-z]/gi, ""), 10);
-    theItem.offset = parseInt(splitString2[0].replace(/[A-z]/gi, ""), 10);
-    if (splitString2.length > 1 && theItem.datatype === "X") {
-      theItem.bitOffset = parseInt(splitString2[1], 10);
-      if (theItem.bitOffset > 7) {
-        outputLog("Invalid bit offset specified for address " + addr);
-        return void 0;
+    if (a.length > 1) {
+      if (n.addrtype = "DB", o = a[1].split("."), n.datatype = o[0].replace(/[0-9]/gi, "").toUpperCase(), n.datatype === "X" && o.length === 3 ? n.arrayLength = parseInt(o[2], 10) : (n.datatype === "S" || n.datatype === "STRING") && o.length === 3 ? (n.dtypelen = parseInt(o[1], 10) + 2, n.arrayLength = parseInt(o[2], 10)) : (n.datatype === "S" || n.datatype === "STRING") && o.length === 2 ? (n.dtypelen = parseInt(o[1], 10) + 2, n.arrayLength = 1) : n.datatype !== "X" && o.length === 2 ? n.arrayLength = parseInt(o[1], 10) : n.arrayLength = 1, n.arrayLength <= 0) {
+        i("Zero length arrays not allowed, returning undefined");
+        return;
       }
+      if (n.dbNumber = parseInt(a[0].replace(/[A-z]/gi, ""), 10), n.offset = parseInt(o[0].replace(/[A-z]/gi, ""), 10), o.length > 1 && n.datatype === "X" && (n.bitOffset = parseInt(o[1], 10), n.bitOffset > 7)) {
+        i("Invalid bit offset specified for address " + e);
+        return;
+      }
+    } else {
+      switch (o = e.split("."), o[0].replace(/[0-9]/gi, "")) {
+        case "PIB":
+        case "PEB":
+        case "PQB":
+        case "PAB":
+          n.addrtype = "P", n.datatype = "BYTE";
+          break;
+        case "PIC":
+        case "PEC":
+        case "PQC":
+        case "PAC":
+          n.addrtype = "P", n.datatype = "CHAR";
+          break;
+        case "PIW":
+        case "PEW":
+        case "PQW":
+        case "PAW":
+          n.addrtype = "P", n.datatype = "WORD";
+          break;
+        case "PII":
+        case "PEI":
+        case "PQI":
+        case "PAI":
+          n.addrtype = "P", n.datatype = "INT";
+          break;
+        case "PID":
+        case "PED":
+        case "PQD":
+        case "PAD":
+          n.addrtype = "P", n.datatype = "DWORD";
+          break;
+        case "PIDI":
+        case "PEDI":
+        case "PQDI":
+        case "PADI":
+          n.addrtype = "P", n.datatype = "DINT";
+          break;
+        case "PIR":
+        case "PER":
+        case "PQR":
+        case "PAR":
+          n.addrtype = "P", n.datatype = "REAL";
+          break;
+        case "I":
+        case "E":
+          n.addrtype = "I", n.datatype = "X";
+          break;
+        case "IB":
+        case "EB":
+          n.addrtype = "I", n.datatype = "BYTE";
+          break;
+        case "IC":
+        case "EC":
+          n.addrtype = "I", n.datatype = "CHAR";
+          break;
+        case "IW":
+        case "EW":
+          n.addrtype = "I", n.datatype = "WORD";
+          break;
+        case "II":
+        case "EI":
+          n.addrtype = "I", n.datatype = "INT";
+          break;
+        case "ID":
+        case "ED":
+          n.addrtype = "I", n.datatype = "DWORD";
+          break;
+        case "IDI":
+        case "EDI":
+          n.addrtype = "I", n.datatype = "DINT";
+          break;
+        case "IR":
+        case "ER":
+          n.addrtype = "I", n.datatype = "REAL";
+          break;
+        case "ILR":
+        case "ELR":
+          n.addrtype = "I", n.datatype = "LREAL";
+          break;
+        case "ILI":
+        case "ELI":
+          n.addrtype = "I", n.datatype = "LINT";
+          break;
+        case "Q":
+        case "A":
+          n.addrtype = "Q", n.datatype = "X";
+          break;
+        case "QB":
+        case "AB":
+          n.addrtype = "Q", n.datatype = "BYTE";
+          break;
+        case "QC":
+        case "AC":
+          n.addrtype = "Q", n.datatype = "CHAR";
+          break;
+        case "QW":
+        case "AW":
+          n.addrtype = "Q", n.datatype = "WORD";
+          break;
+        case "QI":
+        case "AI":
+          n.addrtype = "Q", n.datatype = "INT";
+          break;
+        case "QD":
+        case "AD":
+          n.addrtype = "Q", n.datatype = "DWORD";
+          break;
+        case "QDI":
+        case "ADI":
+          n.addrtype = "Q", n.datatype = "DINT";
+          break;
+        case "QR":
+        case "AR":
+          n.addrtype = "Q", n.datatype = "REAL";
+          break;
+        case "QLR":
+        case "ALR":
+          n.addrtype = "Q", n.datatype = "LREAL";
+          break;
+        case "QLI":
+        case "ALI":
+          n.addrtype = "Q", n.datatype = "LINT";
+          break;
+        case "M":
+          n.addrtype = "M", n.datatype = "X";
+          break;
+        case "MB":
+          n.addrtype = "M", n.datatype = "BYTE";
+          break;
+        case "MC":
+          n.addrtype = "M", n.datatype = "CHAR";
+          break;
+        case "MW":
+          n.addrtype = "M", n.datatype = "WORD";
+          break;
+        case "MI":
+          n.addrtype = "M", n.datatype = "INT";
+          break;
+        case "MD":
+          n.addrtype = "M", n.datatype = "DWORD";
+          break;
+        case "MDI":
+          n.addrtype = "M", n.datatype = "DINT";
+          break;
+        case "MR":
+          n.addrtype = "M", n.datatype = "REAL";
+          break;
+        case "MLR":
+          n.addrtype = "M", n.datatype = "LREAL";
+          break;
+        case "MLI":
+          n.addrtype = "M", n.datatype = "LINT";
+          break;
+        case "T":
+          n.addrtype = "T", n.datatype = "TIMER";
+          break;
+        case "C":
+          n.addrtype = "C", n.datatype = "COUNTER";
+          break;
+        default:
+          i("Failed to find a match for " + o[0]);
+          return;
+      }
+      n.bitOffset = 0, o.length > 1 && n.datatype === "X" ? (n.bitOffset = parseInt(o[1].replace(/[A-z]/gi, ""), 10), o.length > 2 ? n.arrayLength = parseInt(o[2].replace(/[A-z]/gi, ""), 10) : n.arrayLength = 1) : o.length > 1 && n.datatype !== "X" ? n.arrayLength = parseInt(o[1].replace(/[A-z]/gi, ""), 10) : n.arrayLength = 1, n.dbNumber = 0, n.offset = parseInt(o[0].replace(/[A-z]/gi, ""), 10);
     }
-  } else {
-    splitString2 = addr.split(".");
-    switch (splitString2[0].replace(/[0-9]/gi, "")) {
-      case "PIB":
-      case "PEB":
-      case "PQB":
-      case "PAB":
-        theItem.addrtype = "P";
-        theItem.datatype = "BYTE";
+    switch (n.datatype === "DI" && (n.datatype = "DINT"), n.datatype === "I" && (n.datatype = "INT"), (n.datatype === "DW" || n.datatype === "DWT") && (n.datatype = "DWORD"), n.datatype === "WDT" && (r.wdtAsUTC ? n.datatype = "DTZ" : n.datatype = "DT"), n.datatype === "W" && (n.datatype = "WORD"), n.datatype === "R" && (n.datatype = "REAL"), n.datatype === "LR" && (n.datatype = "LREAL"), n.datatype === "LI" && (n.datatype = "LINT"), n.datatype) {
+      case "DTL":
+      case "DTLZ":
+        n.dtypelen = 12;
         break;
-      case "PIC":
-      case "PEC":
-      case "PQC":
-      case "PAC":
-        theItem.addrtype = "P";
-        theItem.datatype = "CHAR";
+      case "LREAL":
+      case "LINT":
+      case "DT":
+      case "DTZ":
+        n.dtypelen = 8;
         break;
-      case "PIW":
-      case "PEW":
-      case "PQW":
-      case "PAW":
-        theItem.addrtype = "P";
-        theItem.datatype = "WORD";
+      case "REAL":
+      case "DWORD":
+      case "DINT":
+        n.dtypelen = 4;
         break;
-      case "PII":
-      case "PEI":
-      case "PQI":
-      case "PAI":
-        theItem.addrtype = "P";
-        theItem.datatype = "INT";
+      case "INT":
+      case "WORD":
+      case "TIMER":
+      case "COUNTER":
+        n.dtypelen = 2;
         break;
-      case "PID":
-      case "PED":
-      case "PQD":
-      case "PAD":
-        theItem.addrtype = "P";
-        theItem.datatype = "DWORD";
+      case "X":
+      case "B":
+      case "C":
+      case "BYTE":
+      case "CHAR":
+        n.dtypelen = 1;
         break;
-      case "PIDI":
-      case "PEDI":
-      case "PQDI":
-      case "PADI":
-        theItem.addrtype = "P";
-        theItem.datatype = "DINT";
+      case "S":
+      case "STRING":
         break;
-      case "PIR":
-      case "PER":
-      case "PQR":
-      case "PAR":
-        theItem.addrtype = "P";
-        theItem.datatype = "REAL";
+      default:
+        i("Unknown data type " + n.datatype);
+        return;
+    }
+    switch (n.readTransportCode = 4, n.addrtype) {
+      case "DB":
+      case "DI":
+        n.areaS7Code = 132;
         break;
       case "I":
       case "E":
-        theItem.addrtype = "I";
-        theItem.datatype = "X";
-        break;
-      case "IB":
-      case "EB":
-        theItem.addrtype = "I";
-        theItem.datatype = "BYTE";
-        break;
-      case "IC":
-      case "EC":
-        theItem.addrtype = "I";
-        theItem.datatype = "CHAR";
-        break;
-      case "IW":
-      case "EW":
-        theItem.addrtype = "I";
-        theItem.datatype = "WORD";
-        break;
-      case "II":
-      case "EI":
-        theItem.addrtype = "I";
-        theItem.datatype = "INT";
-        break;
-      case "ID":
-      case "ED":
-        theItem.addrtype = "I";
-        theItem.datatype = "DWORD";
-        break;
-      case "IDI":
-      case "EDI":
-        theItem.addrtype = "I";
-        theItem.datatype = "DINT";
-        break;
-      case "IR":
-      case "ER":
-        theItem.addrtype = "I";
-        theItem.datatype = "REAL";
-        break;
-      case "ILR":
-      case "ELR":
-        theItem.addrtype = "I";
-        theItem.datatype = "LREAL";
-        break;
-      case "ILI":
-      case "ELI":
-        theItem.addrtype = "I";
-        theItem.datatype = "LINT";
+        n.areaS7Code = 129;
         break;
       case "Q":
       case "A":
-        theItem.addrtype = "Q";
-        theItem.datatype = "X";
-        break;
-      case "QB":
-      case "AB":
-        theItem.addrtype = "Q";
-        theItem.datatype = "BYTE";
-        break;
-      case "QC":
-      case "AC":
-        theItem.addrtype = "Q";
-        theItem.datatype = "CHAR";
-        break;
-      case "QW":
-      case "AW":
-        theItem.addrtype = "Q";
-        theItem.datatype = "WORD";
-        break;
-      case "QI":
-      case "AI":
-        theItem.addrtype = "Q";
-        theItem.datatype = "INT";
-        break;
-      case "QD":
-      case "AD":
-        theItem.addrtype = "Q";
-        theItem.datatype = "DWORD";
-        break;
-      case "QDI":
-      case "ADI":
-        theItem.addrtype = "Q";
-        theItem.datatype = "DINT";
-        break;
-      case "QR":
-      case "AR":
-        theItem.addrtype = "Q";
-        theItem.datatype = "REAL";
-        break;
-      case "QLR":
-      case "ALR":
-        theItem.addrtype = "Q";
-        theItem.datatype = "LREAL";
-        break;
-      case "QLI":
-      case "ALI":
-        theItem.addrtype = "Q";
-        theItem.datatype = "LINT";
+        n.areaS7Code = 130;
         break;
       case "M":
-        theItem.addrtype = "M";
-        theItem.datatype = "X";
+        n.areaS7Code = 131;
         break;
-      case "MB":
-        theItem.addrtype = "M";
-        theItem.datatype = "BYTE";
-        break;
-      case "MC":
-        theItem.addrtype = "M";
-        theItem.datatype = "CHAR";
-        break;
-      case "MW":
-        theItem.addrtype = "M";
-        theItem.datatype = "WORD";
-        break;
-      case "MI":
-        theItem.addrtype = "M";
-        theItem.datatype = "INT";
-        break;
-      case "MD":
-        theItem.addrtype = "M";
-        theItem.datatype = "DWORD";
-        break;
-      case "MDI":
-        theItem.addrtype = "M";
-        theItem.datatype = "DINT";
-        break;
-      case "MR":
-        theItem.addrtype = "M";
-        theItem.datatype = "REAL";
-        break;
-      case "MLR":
-        theItem.addrtype = "M";
-        theItem.datatype = "LREAL";
-        break;
-      case "MLI":
-        theItem.addrtype = "M";
-        theItem.datatype = "LINT";
-        break;
-      case "T":
-        theItem.addrtype = "T";
-        theItem.datatype = "TIMER";
+      case "P":
+        n.areaS7Code = 128;
         break;
       case "C":
-        theItem.addrtype = "C";
-        theItem.datatype = "COUNTER";
+        n.areaS7Code = 28, n.readTransportCode = 9;
+        break;
+      case "T":
+        n.areaS7Code = 29, n.readTransportCode = 9;
         break;
       default:
-        outputLog("Failed to find a match for " + splitString2[0]);
-        return void 0;
+        i("Unknown memory area entered - " + n.addrtype);
+        return;
     }
-    theItem.bitOffset = 0;
-    if (splitString2.length > 1 && theItem.datatype === "X") {
-      theItem.bitOffset = parseInt(splitString2[1].replace(/[A-z]/gi, ""), 10);
-      if (splitString2.length > 2) {
-        theItem.arrayLength = parseInt(splitString2[2].replace(/[A-z]/gi, ""), 10);
-      } else {
-        theItem.arrayLength = 1;
-      }
-    } else if (splitString2.length > 1 && theItem.datatype !== "X") {
-      theItem.arrayLength = parseInt(splitString2[1].replace(/[A-z]/gi, ""), 10);
-    } else {
-      theItem.arrayLength = 1;
-    }
-    theItem.dbNumber = 0;
-    theItem.offset = parseInt(splitString2[0].replace(/[A-z]/gi, ""), 10);
+    return n.datatype === "X" && n.arrayLength === 1 ? n.writeTransportCode = 3 : n.writeTransportCode = n.readTransportCode, n.addr = e, t === void 0 ? n.useraddr = e : n.useraddr = t, n.datatype === "X" ? n.byteLength = Math.ceil((n.bitOffset + n.arrayLength) / 8) : n.byteLength = n.arrayLength * n.dtypelen, n.byteLengthWithFill = n.byteLength, n.byteLengthWithFill % 2 && (n.byteLengthWithFill += 1), n;
   }
-  if (theItem.datatype === "DI") {
-    theItem.datatype = "DINT";
-  }
-  if (theItem.datatype === "I") {
-    theItem.datatype = "INT";
-  }
-  if (theItem.datatype === "DW" || theItem.datatype === "DWT") {
-    theItem.datatype = "DWORD";
-  }
-  if (theItem.datatype === "WDT") {
-    if (cParam.wdtAsUTC) {
-      theItem.datatype = "DTZ";
-    } else {
-      theItem.datatype = "DT";
-    }
-  }
-  if (theItem.datatype === "W") {
-    theItem.datatype = "WORD";
-  }
-  if (theItem.datatype === "R") {
-    theItem.datatype = "REAL";
-  }
-  if (theItem.datatype === "LR") {
-    theItem.datatype = "LREAL";
-  }
-  if (theItem.datatype === "LI") {
-    theItem.datatype = "LINT";
-  }
-  switch (theItem.datatype) {
-    case "DTL":
-    case "DTLZ":
-      theItem.dtypelen = 12;
-      break;
-    case "LREAL":
-    case "LINT":
-    case "DT":
-    case "DTZ":
-      theItem.dtypelen = 8;
-      break;
-    case "REAL":
-    case "DWORD":
-    case "DINT":
-      theItem.dtypelen = 4;
-      break;
-    case "INT":
-    case "WORD":
-    case "TIMER":
-    case "COUNTER":
-      theItem.dtypelen = 2;
-      break;
-    case "X":
-    case "B":
-    case "C":
-    case "BYTE":
-    case "CHAR":
-      theItem.dtypelen = 1;
-      break;
-    case "S":
-    case "STRING":
-      break;
-    default:
-      outputLog("Unknown data type " + theItem.datatype);
-      return void 0;
-  }
-  theItem.readTransportCode = 4;
-  switch (theItem.addrtype) {
-    case "DB":
-    case "DI":
-      theItem.areaS7Code = 132;
-      break;
-    case "I":
-    case "E":
-      theItem.areaS7Code = 129;
-      break;
-    case "Q":
-    case "A":
-      theItem.areaS7Code = 130;
-      break;
-    case "M":
-      theItem.areaS7Code = 131;
-      break;
-    case "P":
-      theItem.areaS7Code = 128;
-      break;
-    case "C":
-      theItem.areaS7Code = 28;
-      theItem.readTransportCode = 9;
-      break;
-    case "T":
-      theItem.areaS7Code = 29;
-      theItem.readTransportCode = 9;
-      break;
-    default:
-      outputLog("Unknown memory area entered - " + theItem.addrtype);
-      return void 0;
-  }
-  if (theItem.datatype === "X" && theItem.arrayLength === 1) {
-    theItem.writeTransportCode = 3;
-  } else {
-    theItem.writeTransportCode = theItem.readTransportCode;
-  }
-  theItem.addr = addr;
-  if (useraddr === void 0) {
-    theItem.useraddr = addr;
-  } else {
-    theItem.useraddr = useraddr;
-  }
-  if (theItem.datatype === "X") {
-    theItem.byteLength = Math.ceil((theItem.bitOffset + theItem.arrayLength) / 8);
-  } else {
-    theItem.byteLength = theItem.arrayLength * theItem.dtypelen;
-  }
-  theItem.byteLengthWithFill = theItem.byteLength;
-  if (theItem.byteLengthWithFill % 2) {
-    theItem.byteLengthWithFill += 1;
-  }
-  return theItem;
 }
-function S7Packet() {
-  this.seqNum = void 0;
-  this.itemList = void 0;
-  this.reqTime = void 0;
-  this.sent = false;
-  this.rcvd = false;
-  this.timeoutError = void 0;
-  this.timeout = void 0;
+function z() {
+  this.seqNum = void 0, this.itemList = void 0, this.reqTime = void 0, this.sent = !1, this.rcvd = !1, this.timeoutError = void 0, this.timeout = void 0;
 }
-function S7Item() {
-  this.addr = void 0;
-  this.useraddr = void 0;
-  this.addrtype = void 0;
-  this.datatype = void 0;
-  this.dbNumber = void 0;
-  this.bitOffset = void 0;
-  this.offset = void 0;
-  this.arrayLength = void 0;
-  this.dtypelen = void 0;
-  this.areaS7Code = void 0;
-  this.byteLength = void 0;
-  this.byteLengthWithFill = void 0;
-  this.readTransportCode = void 0;
-  this.writeTransportCode = void 0;
-  this.byteBuffer = Buffer.alloc(8192);
-  this.writeBuffer = Buffer.alloc(8192);
-  this.qualityBuffer = Buffer.alloc(8192);
-  this.writeQualityBuffer = Buffer.alloc(8192);
-  this.value = void 0;
-  this.writeValue = void 0;
-  this.valid = false;
-  this.errCode = void 0;
-  this.part = void 0;
-  this.maxPart = void 0;
-  this.isOptimized = false;
-  this.resultReference = void 0;
-  this.itemReference = void 0;
-  this.clone = function() {
-    var newObj = new S7Item();
-    for (var i in this) {
-      if (i == "clone") continue;
-      newObj[i] = this[i];
-    }
-    return newObj;
-  };
-  this.badValue = function() {
+function H() {
+  this.addr = void 0, this.useraddr = void 0, this.addrtype = void 0, this.datatype = void 0, this.dbNumber = void 0, this.bitOffset = void 0, this.offset = void 0, this.arrayLength = void 0, this.dtypelen = void 0, this.areaS7Code = void 0, this.byteLength = void 0, this.byteLengthWithFill = void 0, this.readTransportCode = void 0, this.writeTransportCode = void 0, this.byteBuffer = Buffer.alloc(8192), this.writeBuffer = Buffer.alloc(8192), this.qualityBuffer = Buffer.alloc(8192), this.writeQualityBuffer = Buffer.alloc(8192), this.value = void 0, this.writeValue = void 0, this.valid = !1, this.errCode = void 0, this.part = void 0, this.maxPart = void 0, this.isOptimized = !1, this.resultReference = void 0, this.itemReference = void 0, this.clone = function() {
+    var e = new H();
+    for (var t in this)
+      t != "clone" && (e[t] = this[t]);
+    return e;
+  }, this.badValue = function() {
     switch (this.datatype) {
       case "DT":
       case "DTZ":
@@ -2186,115 +1101,85 @@ function S7Item() {
       case "COUNTER":
         return 0;
       case "X":
-        return false;
+        return !1;
       case "C":
       case "CHAR":
       case "S":
       case "STRING":
         return "";
       default:
-        outputLog("Unknown data type when figuring out bad value - should never happen.  Should have been caught earlier.  " + this.datatype);
-        return 0;
+        return i("Unknown data type when figuring out bad value - should never happen.  Should have been caught earlier.  " + this.datatype), 0;
     }
   };
 }
-function itemListSorter(a, b) {
-  if (a.areaS7Code < b.areaS7Code) {
+function X(e, t) {
+  if (e.areaS7Code < t.areaS7Code)
     return -1;
-  }
-  if (a.areaS7Code > b.areaS7Code) {
+  if (e.areaS7Code > t.areaS7Code)
     return 1;
-  }
-  if (a.addrtype === "DB") {
-    if (a.dbNumber < b.dbNumber) {
+  if (e.addrtype === "DB") {
+    if (e.dbNumber < t.dbNumber)
       return -1;
-    }
-    if (a.dbNumber > b.dbNumber) {
+    if (e.dbNumber > t.dbNumber)
       return 1;
-    }
   }
-  if (a.offset < b.offset) {
+  if (e.offset < t.offset)
     return -1;
-  }
-  if (a.offset > b.offset) {
+  if (e.offset > t.offset)
     return 1;
-  }
-  if (a.bitOffset < b.bitOffset) {
+  if (e.bitOffset < t.bitOffset)
     return -1;
-  }
-  if (a.bitOffset > b.bitOffset) {
+  if (e.bitOffset > t.bitOffset)
     return 1;
-  }
-  if (a.byteLength > b.byteLength) {
+  if (e.byteLength > t.byteLength)
     return -1;
-  }
-  if (a.byteLength < b.byteLength) {
+  if (e.byteLength < t.byteLength)
     return 1;
+}
+function N(e) {
+  return e;
+}
+function S(e) {
+  if (typeof e == "string") {
+    if (e !== "OK")
+      return !1;
+  } else if (Array.isArray(e)) {
+    for (var t = 0; t < e.length; t++)
+      if (typeof e[t] != "string" || e[t] !== "OK")
+        return !1;
+  }
+  return !0;
+}
+function i(e, t, r) {
+  if (!V) {
+    var n;
+    typeof r > "u" ? n = "" : n = " " + r, (typeof t > "u" || M >= t) && console.log("[" + process.hrtime() + n + "] " + O.format(e));
   }
 }
-function doNothing(arg) {
-  return arg;
-}
-function isQualityOK(obj) {
-  if (typeof obj === "string") {
-    if (obj !== "OK") {
-      return false;
-    }
-  } else if (Array.isArray(obj)) {
-    for (var i = 0; i < obj.length; i++) {
-      if (typeof obj[i] !== "string" || obj[i] !== "OK") {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-function outputLog(txt, debugLevel, id) {
-  if (silentMode) return;
-  var idtext;
-  if (typeof id === "undefined") {
-    idtext = "";
-  } else {
-    idtext = " " + id;
-  }
-  if (typeof debugLevel === "undefined" || effectiveDebugLevel >= debugLevel) {
-    console.log("[" + process.hrtime() + idtext + "] " + util.format(txt));
-  }
-}
-const S7Client = /* @__PURE__ */ getDefaultExportFromCjs(nodeS7);
-const _PLCConnector = class _PLCConnector {
-  constructor(ip = "192.168.2.10", port = 102) {
-    __publicField(this, "client");
-    __publicField(this, "isConnected", false);
-    this.ip = ip;
-    this.port = port;
-    this.client = new S7Client();
+const ue = /* @__PURE__ */ re(ae), L = class L {
+  constructor(t = "192.168.2.10", r = 102) {
+    v(this, "client");
+    v(this, "isConnected", !1);
+    this.ip = t, this.port = r, this.client = new ue();
   }
   // 单例访问入口
   static getInstance() {
-    if (!_PLCConnector.instance) {
-      _PLCConnector.instance = new _PLCConnector();
-    }
-    return _PLCConnector.instance;
+    return L.instance || (L.instance = new L()), L.instance;
   }
   async connectIfNeeded() {
-    if (this.isConnected) {
-      return;
-    }
-    return new Promise((resolve, reject) => {
-      this.client.initiateConnection(
-        { host: this.ip, port: this.port, rack: 0, slot: 1 },
-        (err) => {
-          if (err) return reject(new Error("PLC 连接失败: " + err.message));
-          this.isConnected = true;
-          resolve();
-        }
-      );
-    });
+    if (!this.isConnected)
+      return new Promise((t, r) => {
+        this.client.initiateConnection(
+          { host: this.ip, port: this.port, rack: 0, slot: 1 },
+          (n) => {
+            if (n) return r(new Error("PLC 连接失败: " + n.message));
+            this.isConnected = !0, t();
+          }
+        );
+      });
   }
-  defineItems(defs) {
-    this.client.setTranslationCB((tag) => tag);
-    this.client.addItems(Object.keys(defs));
+  defineItems(t) {
+    this.client.setTranslationCB((r) => r), this.client.addItems(Object.keys(t));
   }
   // async readAll(): Promise<Record<string, any>> {
   //   await this.connectIfNeeded();
@@ -2305,156 +1190,102 @@ const _PLCConnector = class _PLCConnector {
   //     });
   //   });
   // }
-  async writeItems(address, value) {
-    await this.connectIfNeeded();
-    return new Promise((resolve, reject) => {
-      this.client.writeItems(address, value, (err) => {
-        if (err) return reject(new Error("PLC 写入失败"));
-        resolve();
+  async writeItems(t, r) {
+    return await this.connectIfNeeded(), new Promise((n, a) => {
+      this.client.writeItems(t, r, (o) => {
+        if (o) return a(new Error("PLC 写入失败"));
+        n();
       });
     });
   }
   disconnect() {
-    if (this.isConnected) {
-      this.client.dropConnection(() => {
-        console.log("[PLC] Disconnected");
-      });
-      this.isConnected = false;
-    }
+    this.isConnected && (this.client.dropConnection(() => {
+      console.log("[PLC] Disconnected");
+    }), this.isConnected = !1);
   }
 };
-__publicField(_PLCConnector, "instance");
-let PLCConnector = _PLCConnector;
-function setupRendererCommunicator(win2) {
-  win2.webContents.on("did-finish-load", () => {
-    win2.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
-  });
-  ipcMain.on("win-minimize", () => {
-    win2.minimize();
-  });
-  ipcMain.on("win-maximize", () => {
-    const windowIsMax = win2.isMaximized();
-    if (windowIsMax) {
-      win2.restore();
-    } else {
-      win2.maximize();
-    }
-  });
-  ipcMain.on("win-close", () => {
-    app.quit();
-  });
-  ipcMain.on("win-toggle-fullscreen", () => {
-    if (win2) {
-      win2.setFullScreen(!win2.isFullScreen());
-    }
-  });
-  ipcMain.handle("win-get-logo", (e, message, params) => {
-    if (win2) {
+v(L, "instance");
+let T = L;
+function fe(e) {
+  e.webContents.on("did-finish-load", () => {
+    e.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
+  }), R.on("win-minimize", () => {
+    e.minimize();
+  }), R.on("win-maximize", () => {
+    e.isMaximized() ? e.restore() : e.maximize();
+  }), R.on("win-close", () => {
+    k.quit();
+  }), R.on("win-toggle-fullscreen", () => {
+    e && e.setFullScreen(!e.isFullScreen());
+  }), R.handle("win-get-logo", (t, r, n) => {
+    if (e)
       try {
-        const imageBuffer = fs.readFileSync("D:/logo/logo.png");
-        if (!imageBuffer) return;
-        const base64Image = Buffer.from(imageBuffer).toString("base64");
-        const imgSrc = `data:image/png;base64,${base64Image}`;
-        return imgSrc;
-      } catch (error) {
+        const a = x.readFileSync("D:/logo/logo.png");
+        return a ? `data:image/png;base64,${Buffer.from(a).toString("base64")}` : void 0;
+      } catch {
       }
-    }
-  });
-  ipcMain.on("win-check-autoMode", async (e, value) => {
-    const plc = PLCConnector.getInstance();
+  }), R.on("win-check-autoMode", async (t, r) => {
+    const n = T.getInstance();
     try {
-      await plc.writeItems("DB7,X4.2", value);
-    } catch (error) {
-      dialog.showErrorBox("PLC Write Error", "Write Address: DBX4.2");
+      await n.writeItems("DB7,X4.2", r);
+    } catch {
+      I.showErrorBox("PLC Write Error", "Write Address: DBX4.2");
     }
-  });
-  ipcMain.on("win-alarm-trigger", async (e, value) => {
-    const plc = PLCConnector.getInstance();
+  }), R.on("win-alarm-trigger", async (t, r) => {
+    const n = T.getInstance();
     try {
-      await plc.writeItems("DB7,X4.3", value);
-    } catch (error) {
-      dialog.showErrorBox("PLC Write Error", "Write Address: DBX4.3");
+      await n.writeItems("DB7,X4.3", r);
+    } catch {
+      I.showErrorBox("PLC Write Error", "Write Address: DBX4.3");
     }
   });
 }
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-process.env.APP_ROOT = path.join(__dirname, "..");
-const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
-const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
-const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
-let win;
-let intervalId = null;
-function createWindow() {
-  win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
-    autoHideMenuBar: true,
+const K = b.dirname(j(import.meta.url));
+process.env.APP_ROOT = b.join(K, "..");
+const W = process.env.VITE_DEV_SERVER_URL, Le = b.join(process.env.APP_ROOT, "dist-electron"), G = b.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = W ? b.join(process.env.APP_ROOT, "public") : G;
+let y, P = null;
+function Y() {
+  y = new q({
+    icon: b.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+    autoHideMenuBar: !0,
     width: 1280,
     height: 1024,
-    frame: false,
+    frame: !1,
     webPreferences: {
-      preload: path.join(__dirname, "preload.mjs"),
-      webSecurity: false
+      preload: b.join(K, "preload.mjs"),
+      webSecurity: !1
       // 禁用安全策略
     }
-  });
-  if (win) {
-    setupRendererCommunicator(win);
-  }
-  if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL);
-  } else {
-    win.loadFile(path.join(RENDERER_DIST, "index.html"));
-  }
-  const plc = PLCConnector.getInstance();
-  plc.connectIfNeeded().then(() => {
-    intervalId = setInterval(() => {
-      plc.writeItems("DB7,X4.0", true);
+  }), y && fe(y), W ? y.loadURL(W) : y.loadFile(b.join(G, "index.html"));
+  const e = T.getInstance();
+  e.connectIfNeeded().then(() => {
+    P = setInterval(() => {
+      e.writeItems("DB7,X4.0", !0);
     }, 5e3);
-  }).catch((err) => {
-    dialog.showErrorBox("PLC Initialization failed.", "连接PLC失败请联系管理员");
+  }).catch((t) => {
+    I.showErrorBox("PLC Initialization failed.", "连接PLC失败请联系管理员");
   });
 }
-const getLock = app.requestSingleInstanceLock();
-if (!getLock) {
-  app.quit();
-} else {
-  app.on("second-instance", (event) => {
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.focus();
-    }
-  });
-}
-app.on("will-finish-launching", () => {
-  if (!fs.existsSync("D:/JJSK_Data")) {
-    fs.mkdirSync("D:/JJSK_Data");
-  }
-  app.setPath("appData", "D:/JJSK_Data");
+const pe = k.requestSingleInstanceLock();
+pe ? k.on("second-instance", (e) => {
+  y && (y.isMinimized() && y.restore(), y.focus());
+}) : k.quit();
+k.on("will-finish-launching", () => {
+  x.existsSync("D:/JJSK_Data") || x.mkdirSync("D:/JJSK_Data"), k.setPath("appData", "D:/JJSK_Data");
 });
-app.on("before-quit", () => {
-  if (intervalId) clearInterval(intervalId);
-  PLCConnector.getInstance().disconnect();
-  win == null ? void 0 : win.removeAllListeners("close");
-  globalShortcut.unregisterAll();
-  win == null ? void 0 : win.close();
+k.on("before-quit", () => {
+  P && clearInterval(P), T.getInstance().disconnect(), y == null || y.removeAllListeners("close"), $.unregisterAll(), y == null || y.close();
 });
-app.on("window-all-closed", () => {
-  if (intervalId) clearInterval(intervalId);
-  PLCConnector.getInstance().disconnect();
-  if (process.platform !== "darwin") {
-    app.quit();
-    win = null;
-  }
+k.on("window-all-closed", () => {
+  P && clearInterval(P), T.getInstance().disconnect(), process.platform !== "darwin" && (k.quit(), y = null);
 });
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
+k.on("activate", () => {
+  q.getAllWindows().length === 0 && Y();
 });
-app.whenReady().then(createWindow);
+k.whenReady().then(Y);
 export {
-  MAIN_DIST,
-  RENDERER_DIST,
-  VITE_DEV_SERVER_URL
+  Le as MAIN_DIST,
+  G as RENDERER_DIST,
+  W as VITE_DEV_SERVER_URL
 };
