@@ -76,7 +76,7 @@ const changeState = async (options: string) => {
 
 <style scoped lang="less">
 .controls_container {
-    width: 300px;
+    width: 350px;
     border: 1px solid #c1c1c1;
     border-radius: 5px;
 }

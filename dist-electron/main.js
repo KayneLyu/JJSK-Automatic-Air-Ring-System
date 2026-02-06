@@ -2,7 +2,7 @@ import { ipcMain, app, dialog, globalShortcut, BrowserWindow } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "fs";
-import { spawn, execSync } from "child_process";
+import { execSync, spawn } from "child_process";
 function runAppInBackground(exePath) {
   const options = {
     detached: true,

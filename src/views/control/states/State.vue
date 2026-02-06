@@ -1,10 +1,9 @@
 <script setup lang='ts'>
 import { ref, watch } from 'vue'
 import { useApiDataStore } from '@/store/polling-data';
-import SurveyingIcon from '@/components/icons/Surveying.vue';
 import RotationIcon from '@/components/icons/Rotate.vue';
 import Segmented from "./Segmented.vue";
-import PositionIcon from '@/components/icons/Position.vue';
+import ChartsCircle from './charts.vue';
 
 const store = useApiDataStore()
 const posDetector = ref<number>(0)
@@ -23,91 +22,62 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
 
 <template>
     <el-card class="state_card">
-        <div class="content">
-            <el-row>
-                <el-col :span="1">
-                    <div class="icon_box">
-                        <el-icon :size="40">
-                            <SurveyingIcon />
-                        </el-icon>
-                    </div>
-                </el-col>
-                <el-col :span="3" class="move_right">
-                    <el-statistic :title="$t('control.position')" :value="store.apiThickData.PosMm">
-                        <template #suffix>
-                            <span class="unit">mm</span>
-                        </template>
-                    </el-statistic>
-                </el-col>
-                <el-col :span="3">
-                    <el-statistic :title="$t('control.thickness')" :precision="1" :value="store.apiThickData.Thk">
-                        <template #suffix>
-                            <span class="unit">μm</span>
-                        </template>
-                    </el-statistic>
-                </el-col>
-                <el-col :span="3">
-                    <el-statistic :precision="1" :title="$t('control.move')" :value="store.apiThickData.Velocity">
-                        <template #suffix>
-                            <span class="unit">m/min</span>
-                        </template>
-                    </el-statistic>
-                </el-col>
-
-                <el-col :span="2">
-                    <el-statistic group-separator="" title="AD" :value="store.apiThickData.AD" />
-                </el-col>
-                <el-col :span="2">
-                    <el-statistic group-separator="" :title="$t('control.airAD')" :value="store.apiThickData.SampleAD" />
-                </el-col>
-                <el-col :span="1">
-                    <div class="icon_box icon_rotation">
-                        <el-icon :size="40" style="margin-top: 5px;">
-                            <RotationIcon />
-                        </el-icon>
-                        <p class="isCW">{{ store.apiThickData.AngleOfRotation }}°</p>
-                        <div class="deg">
-                            <p>{{ store.apiThickData.IsRotationCW ? $t('horizon.forward') : $t('horizon.reverse')  }}</p>
-                        </div>
-                    </div>
-                </el-col>
-                <el-col :span="3" class="move_right">
-                    <el-statistic :precision="1" :title="$t('control.rotate')" :value="store.apiThickData.ARoundTimeOfRotation">
-                        <template #suffix>
-                            <span class="unit">min/R</span>
-                        </template>
-                    </el-statistic>
-                </el-col>
-                <el-col :span="3">
-                    <el-statistic :precision="1" :title="$t('horizon.speed')" :value="store.apiThickData.FilmVelocity">
-                        <template #suffix>
-                            <span class="unit">m/min</span>
-                        </template>
-                    </el-statistic>
-                </el-col>
-                <el-col :span="3">
-                    <el-statistic :title="$t('horizon.filmWidth')" :value="store.apiThickData.Width">
-                        <template #suffix>
-                            <span class="unit">mm</span>
-                        </template>
-                    </el-statistic>
-                </el-col>
-
-            </el-row>
-        </div>
-        <div class="control">
-            <div class="progress">
-                <el-progress :text-inside="true" :show-text="false" :duration="20" striped-flow
-                    :percentage="posDetector" :stroke-width="20"
-                    :striped="store.apiThickData.ControllerState !== 'FIX'">
-                    <span>
-                        <el-icon>
-                            <PositionIcon />
-                        </el-icon> {{ store.apiThickData.PosMm }} mm
-                    </span>
-                </el-progress>
+        <div class="state_content">
+            <div class="charts_state">
+                <ChartsCircle />
             </div>
-            <Segmented />
+            <div class="state_info">
+                <div class="content">
+                    <el-row>
+                        <el-col :span="2">
+                            <div class="icon_box icon_rotation">
+                                <el-icon :size="40" style="margin-top: 5px;">
+                                    <RotationIcon />
+                                </el-icon>
+                                <p class="isCW">{{ store.apiThickData.AngleOfRotation }}°</p>
+                                <div class="deg">
+                                    <p>{{ store.apiThickData.IsRotationCW ? $t('horizon.forward') :
+                                        $t('horizon.reverse') }}
+                                    </p>
+                                </div>
+                            </div>
+                        </el-col>
+                        <el-col :span="5" class="move_right">
+                            <el-statistic :precision="1" :title="$t('control.rotate')"
+                                :value="store.apiThickData.ARoundTimeOfRotation">
+                                <template #suffix>
+                                    <span class="unit">min/R</span>
+                                </template>
+                            </el-statistic>
+                        </el-col>
+                        <el-col :span="4 ">
+                            <el-statistic :precision="1" :title="$t('horizon.speed')"
+                                :value="store.apiThickData.FilmVelocity">
+                                <template #suffix>
+                                    <span class="unit">m/min</span>
+                                </template>
+                            </el-statistic>
+                        </el-col>
+                        <el-col :span="4">
+                            <el-statistic :title="$t('horizon.filmWidth')" :value="store.apiThickData.Width">
+                                <template #suffix>
+                                    <span class="unit">mm</span>
+                                </template>
+                            </el-statistic>
+                        </el-col>
+                        <el-col :span="3">
+                            <el-statistic :title="$t('horizon.filmWidth')" :value="store.apiThickData.Width">
+                                <template #suffix>
+                                    <span class="unit">mm</span>
+                                </template>
+                            </el-statistic>
+                        </el-col>
+                    </el-row>
+                </div>
+                <div class="control">
+                    <Segmented />
+                </div>
+            </div>
         </div>
     </el-card>
 </template>
@@ -117,21 +87,37 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
     padding: 10px;
 }
 
+:deep(.el-row) {
+    margin-top: 10px;
+    justify-content: end;
+}
+.state_content {
+    display: flex;
+    height: 150px;
+    .charts_state {
+        width: 300px;
+        height: 100%;
+    }
+    .state_info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    .content {
+        width: 100%;
+    }
+    .control {
+        display: flex;
+        justify-content: end;
+        margin-right: 20px;
+    }
+}
+
 .icon_box {
     height: 100%;
     display: flex;
     align-items: center;
-}
-
-.control {
-    display: flex;
-    margin-top: 15px;
-    align-items: center;
-
-    .progress {
-        flex: 1;
-        margin-right: 30px;
-    }
 }
 
 .move_right {
@@ -141,26 +127,32 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
 .unit {
     font-size: 13px;
 }
+
 .icon_rotation {
     position: relative;
-    .deg, .isCW {
+
+    .deg,
+    .isCW {
         position: absolute;
         border-radius: 3px;
         text-align: center;
     }
+
     .deg {
-        top: -10px;
+        top: -13px;
         color: #fff;
         font-size: 12px;
         text-align: center;
         width: 100%;
-        left: -5px;
+        left: -12px;
+
         p {
             display: inline-block;
             background-color: #409EFF;
             padding: 1px 4px;
         }
     }
+
     .isCW {
         bottom: -15px;
         padding: 1px 0;
