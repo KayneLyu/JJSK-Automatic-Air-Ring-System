@@ -441,9 +441,10 @@ const changeAllChannel = async (isAirControl: boolean, isAdd?: boolean) => {
     if (!heatsList.value?.length) return;
     const { IsAirDoorMode } = configStore.apiAirRingData;
     const step = configStore.apiAirRingConfig.Step
+    const baseHeat = configStore.apiAirRingConfig.BaseHeat
     if (isAirControl) {
         try {
-            heatsList.value = heatsList.value.map(item => [item[0], IsAirDoorMode ? 50 : 30])
+            heatsList.value = heatsList.value.map(item => [item[0], IsAirDoorMode ? 50 : baseHeat])
         } catch (error) {
             showNotification('error', t("notification.failed"), 'error')
         }
