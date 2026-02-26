@@ -1,7 +1,6 @@
-
 <script lang="ts" setup>
-import { useApiDataStore  } from '@/store/polling-data';
-import { startMeasuring, stopMeasuring, forwardsThick, toTheEdge } from '@/api';
+import { useApiDataStore } from '@/store/polling-data';
+import { startMeasuring, stopMeasuring, backThick } from '@/api';
 
 const store = useApiDataStore()
 type Option = {
@@ -10,21 +9,18 @@ type Option = {
 }
 const options: Option[] = [
     {
-        label: "control.scan",
-        value: 'SCAN',
-    },
-    {
         label: "control.stop",
         value: "FIX"
     },
     {
-        label: "control.reverse",
-        value: "ORG"
+        label: "control.scan",
+        value: 'SCAN',
     },
     {
-        label: "control.forward",
-        value: "RUNNING"
+        label: "control.retract",
+        value: "RETRACT"
     },
+
     // {
     //     label:  "归边",
     //     value: "ORG"
@@ -42,18 +38,18 @@ const changeState = async (options: string) => {
                 await stopMeasuring()
                 break;
             // 正行
-            case 'RUNNING':
-                await forwardsThick()
-                break;
-            // 反行
-            case 'ORG':
-                await toTheEdge()
-                break;
-
-
+            // case 'RUNNING':
+            //     await forwardsThick()
+            //     break;
+            // // 反行
             // case 'ORG':
             //     await toTheEdge()
             //     break;
+
+
+            case 'RETRACT':
+                await backThick()
+                break;
             default:
                 break;
         }
@@ -64,7 +60,8 @@ const changeState = async (options: string) => {
 
 <template>
     <div class="controls_container">
-        <el-segmented @change="changeState" style="height: 45px;" v-model="store.apiThickData.ControllerState" :options="options" block size="large">
+        <el-segmented @change="changeState" style="height: 45px;" v-model="store.apiThickData.ControllerState"
+            :options="options" block size="large">
             <template #default="{ item }">
                 <div>
                     <div>{{ $t(`${(item as Option).label}`) }}</div>
@@ -76,7 +73,7 @@ const changeState = async (options: string) => {
 
 <style scoped lang="less">
 .controls_container {
-    width: 350px;
+    width: 300px;
     border: 1px solid #c1c1c1;
     border-radius: 5px;
 }

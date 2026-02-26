@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount } from 'vue';
-import { useIntervalFn, useTimeoutFn } from '@vueuse/core'
-import { getThickInfo, getAirRingInfo, getFrame, getAirRingConfig } from "@/api";
+import { useTimeoutFn } from '@vueuse/core'
+import { getThickInfo, getAirRingInfo, getAirRingConfig } from "@/api";
 import Layouts from "@/layout/index.vue";
 import { useApiDataStore } from '@/store/polling-data';
 

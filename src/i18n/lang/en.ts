@@ -36,7 +36,8 @@ export default {
       channelNum: "Number of Channels",
       channelBase: "Base Channel Value",
       effectTime: "Effective Thickness Time",
-      beforeAuto: "comparison graph"
+      beforeAuto: "comparison graph",
+      biasDeg: "Bubble Bias Deg"
     },
     control: {
       position: "Position",
@@ -65,6 +66,7 @@ export default {
       saveDuct: "Save Duct Values",
       history: "Duct Value History",
       input: "Please enter the name of the channel to be saved",
+      retract: "Retract"
     },
     product: {
       delete: "Delete",

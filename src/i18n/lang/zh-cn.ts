@@ -36,7 +36,8 @@ export default {
         channelNum: "通道数量",
         channelBase: "基础通道值",
         effectTime: "厚度起效时间",
-        beforeAuto: "对比图"
+        beforeAuto: "对比图",
+        biasDeg: "偏心角度"
     },
     control: {
         position: "测量位置",
@@ -65,6 +66,7 @@ export default {
         saveDuct: "保存通道",
         history: "历史通道",
         input: "请输入要保存的通道名称",
+        retract: "缩回"
     },
     product: {
         delete: "删除",

@@ -38,32 +38,70 @@ interface IThickInfoData {
     ControllerState: string; // 动作状态 FIX,STOP,RETRACT,SCAN ,
     LastScanDataId: number; // 数据库中 扫描数据表 最新的ID ,
     ErrCode: number;  // 异常代码 0为无异常，按位触发
-  }
-  
-  
-
-// 旧数据 获取一幅图数据
-interface IFrameData {
-    ID: number, //每幅图标识ID
-    Time: string  //测量数据开始时间,
-    EndTime: string //测量数据结束时间,
-    IsBackw: boolean //旋转方向 是反向,
-    RPeriod: string //旋转1周的时间,
-    RCnt: number //旋转次数,
-    RAngle: number  //旋转角度 ° ,
-    FilmLength: number //膜距离 m,
-    FilmVelocity: number//线速度,
-    FilmWidth: number //膜宽度 mm,
-    K: number //斜率补偿,
-    Thicks: number[] //1幅数据
+    K: number;
 }
+
+
+
+// // 旧数据 获取一幅图数据
+// interface IFrameData {
+//     ID: number, //每幅图标识ID
+//     Time: string  //测量数据开始时间,
+//     EndTime: string //测量数据结束时间,
+//     IsBackw: boolean //旋转方向 是反向,
+//     RPeriod: string //旋转1周的时间,
+//     RCnt: number //旋转次数,
+//     RAngle: number  //旋转角度 ° ,
+//     FilmLength: number //膜距离 m,
+//     FilmVelocity: number//线速度,
+//     FilmWidth: number //膜宽度 mm,
+//     K: number //斜率补偿,
+//     Thicks: number[] //1幅数据
+// }
+
+//  获取一幅图数据
+interface IFrameData {
+    Request: Request;
+    scanData: ScanData;
+    profile: any;
+}
+
+interface ScanData {
+    ID: number;
+    Time: string;
+    EndTime: string;
+    FilmWidth: number;
+    BubbleBiasMm: number;
+    BubbleBiasDeg: number;
+    IsScanBackw: boolean;
+    IsBackw: boolean;
+    RPeriod: number;
+    PastTime: number;
+    RCnt: number;
+    K: number;
+    B: number;
+    AirAd: number;
+    AirOrgThk: number;
+    Temperature: number;
+    OrgThkAvg: number;
+    Target: number;
+    BoltCnt: number;
+    Thicks: number[];
+}
+
+interface Request {
+    Id: number;
+    Mix: number;
+}
+
+
+
 
 // 一幅图数据
 interface IFrameThickData {
     frameId: number,
     startTime: string,
     endTime: string,
-    speed: number,
     width: number,
     rotateSpeed: number,
     sigmaVal: number,
@@ -74,7 +112,7 @@ interface IFrameThickData {
     maxVal: number,
     maxPercent: number,
     IsBackw: boolean,
-    datalist: [number,number][] | number[],
+    datalist: [number, number][] | number[],
 }
 
 

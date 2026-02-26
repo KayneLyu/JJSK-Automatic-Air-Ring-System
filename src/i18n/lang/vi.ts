@@ -36,7 +36,8 @@ export default {
         channelNum: "Số kênh",
         channelBase: "Giá trị kênh",
         effectTime: "Thời gian hiệu ứng",
-        beforeAuto: "So sánh đồ thị"
+        beforeAuto: "So sánh đồ thị",
+        biasDeg: "Bubble Bias Deg"
     },
     control: {
         position: "Vị trí đo",
@@ -64,7 +65,8 @@ export default {
         frame: "Đồ thị",
         saveDuct: "Lưu kênh",
         history: "Kênh lịch sử",
-        input: "Nhập tên kênh cần lưu"
+        input: "Nhập tên kênh cần lưu",
+        retract: "Thu lại"
     },
     product: {
         delete: "Xóa",

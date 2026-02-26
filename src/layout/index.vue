@@ -54,7 +54,7 @@ const getTempFrameData = async () => {
 
 const { start, stop } = useTimeoutFn(() => {
     getTempFrameData()
-    start()
+    // start()
 }, 2000)
 
 watch(() => store.apiThickData.ControllerState, (newValue) => {
@@ -62,7 +62,7 @@ watch(() => store.apiThickData.ControllerState, (newValue) => {
         stop()
         return
     } else {
-        start()
+        // start()
     }
 },
     {

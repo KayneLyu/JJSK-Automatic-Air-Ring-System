@@ -1,23 +1,12 @@
 <script setup lang='ts'>
-import { ref, watch } from 'vue'
 import { useApiDataStore } from '@/store/polling-data';
 import RotationIcon from '@/components/icons/Rotate.vue';
 import Segmented from "./Segmented.vue";
 import ChartsCircle from './charts.vue';
+import GaugeState from "./gauge.vue";
 
 const store = useApiDataStore()
-const posDetector = ref<number>(0)
 
-
-watch(() => store.apiThickData.PosMm, (newVal) => {
-    if (newVal) {
-        posDetector.value = Number((newVal / store.apiThickData.PosLenMm * 100).toFixed(0))
-    }
-},
-    {
-        immediate: true
-    }
-)
 </script>
 
 <template>
@@ -25,6 +14,9 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
         <div class="state_content">
             <div class="charts_state">
                 <ChartsCircle />
+            </div>
+            <div>
+                <GaugeState />
             </div>
             <div class="state_info">
                 <div class="content">
@@ -34,41 +26,39 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
                                 <el-icon :size="40" style="margin-top: 5px;">
                                     <RotationIcon />
                                 </el-icon>
-                                <p class="isCW">{{ store.apiThickData.AngleOfRotation }}°</p>
+                                <!-- <p class="isCW">{{ store.apiThickData.AngleOfRotation }}°</p> -->
                                 <div class="deg">
-                                    <p>{{ store.apiThickData.IsRotationCW ? $t('horizon.forward') :
+                                    <p>{{ store.apiThickData.IsCW ? $t('horizon.forward') :
                                         $t('horizon.reverse') }}
                                     </p>
                                 </div>
                             </div>
                         </el-col>
                         <el-col :span="5" class="move_right">
-                            <el-statistic :precision="1" :title="$t('control.rotate')"
-                                :value="store.apiThickData.ARoundTimeOfRotation">
+                            <el-statistic v-if="store.apiThickData.IsRotaryOn" :precision="1" :title="$t('control.rotate')"
+                                :value="store.apiThickData.MinuteOfR ">
+                                <template #suffix>
+                                    <span class="unit">min/R</span>
+                                </template>
+                            </el-statistic>
+                            <el-statistic v-else title="旋转停止" >
                                 <template #suffix>
                                     <span class="unit">min/R</span>
                                 </template>
                             </el-statistic>
                         </el-col>
-                        <el-col :span="4 ">
-                            <el-statistic :precision="1" :title="$t('horizon.speed')"
-                                :value="store.apiThickData.FilmVelocity">
-                                <template #suffix>
-                                    <span class="unit">m/min</span>
-                                </template>
-                            </el-statistic>
-                        </el-col>
-                        <el-col :span="4">
-                            <el-statistic :title="$t('horizon.filmWidth')" :value="store.apiThickData.Width">
+
+                        <el-col :span="5">
+                            <el-statistic :precision="0" :title="$t('horizon.filmWidth')" :value="store.apiThickData.FilmWidth">
                                 <template #suffix>
                                     <span class="unit">mm</span>
                                 </template>
                             </el-statistic>
                         </el-col>
-                        <el-col :span="3">
-                            <el-statistic :title="$t('horizon.filmWidth')" :value="store.apiThickData.Width">
+                        <el-col :span="5">
+                            <el-statistic :title="$t('horizon.biasDeg')" :value="store.apiThickData.BubbleBiasDeg ">
                                 <template #suffix>
-                                    <span class="unit">mm</span>
+                                    <span class="unit">°</span>
                                 </template>
                             </el-statistic>
                         </el-col>
@@ -95,7 +85,6 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
     display: flex;
     height: 150px;
     .charts_state {
-        width: 300px;
         height: 100%;
     }
     .state_info {
@@ -144,8 +133,7 @@ watch(() => store.apiThickData.PosMm, (newVal) => {
         font-size: 12px;
         text-align: center;
         width: 100%;
-        left: -12px;
-
+        left: -5px;
         p {
             display: inline-block;
             background-color: #409EFF;

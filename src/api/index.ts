@@ -4,7 +4,7 @@ import { postRequest } from '@/utils/axios';
  * 获取当前1幅数据
  * id <= 0 当前数据 / null
 */
-export const getFrame = (params: { id: Number } | null) => {
+export const getFrame = (params: { Id: Number, Mix: number } | null) => {
     return postRequest<IFrameData>("/api/thk/getFrame", params)
 }
 
@@ -23,24 +23,10 @@ export const stopMeasuring = () => {
 }
 
 /**
- * 归边
- */
-export const toTheEdge = () => {
-    return postRequest("/api/thk/org")
-}
-
-/**
- * 前进
- */
-export const forwardsThick = () => {
-    return postRequest("/api/thk/forw")
-}
-
-/**
- * 后退
+ * 缩回
  */
 export const backThick = () => {
-    return postRequest("/api/thk/backw")
+    return postRequest("/api/thk/retract")
 }
 
 /**
@@ -49,6 +35,15 @@ export const backThick = () => {
 export const getThickInfo = () => {
     return postRequest<IThickInfoData>("/api/thk/getInfo")
 }
+
+/**
+ * 设置放大倍数
+ */
+export const magnification = (params: number) => {
+    return postRequest("/api/thk/setK", params)
+}
+
+//  ----- 风环部分 -----  
 
 /**
  * 设置热量
@@ -91,14 +86,6 @@ export const setCheckEnable = (params: string) => {
     return postRequest("/api/airRing/setCheckEnable", params)
 }
 
-
-/**
- * 设置放大倍数
- */
-export const magnification = (params: number) => {
-    return postRequest("/api/thk/setK", params)
-}
-
 /**
  * 获取测厚仪报警列表
  */
@@ -117,14 +104,14 @@ export const getAirRingWarningList = () => {
  *  清空测厚仪报警列表
  */
 export const clearThickWarningList = () => {
-    return (postRequest("/api/thk/resetErrCode"))
+    return postRequest("/api/thk/resetErrCode")
 }
 
 /**
  * 清空风环PLC报警列表
  */
 export const clearAirRingWarningList = () => {
-    return (postRequest("/api/airRing/resetErrCode"))
+    return postRequest("/api/airRing/resetErrCode")
 }
 
 /**

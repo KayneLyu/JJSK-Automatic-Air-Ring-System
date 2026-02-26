@@ -1,8 +1,4 @@
 <script setup lang='ts'>
-import { useConfigStore } from '@/store/config';
-
-const store = useConfigStore()
-
 defineProps<{
     thickInfo: IFrameThickData | null,
     isColumn?: boolean
@@ -32,8 +28,8 @@ defineProps<{
             </p>
 
             <p>
-                {{$t("horizon.speed")}}:
-                <span>{{ thickInfo?.speed }} <i>m/min</i></span>
+                {{$t("control.rotate")}}:
+                <span>{{ thickInfo?.rotateSpeed.toFixed(1) }} <i>min/R</i></span>
             </p>
 
             <p>
@@ -64,7 +60,7 @@ defineProps<{
 
     p {
         flex: 1;
-        font-size: 13px;
+        font-size: 12px;
         display: flexbox;
         padding-left: 5px;
 

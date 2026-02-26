@@ -26,22 +26,22 @@ function fixedNumber(value: number, digist: number) {
 }
 
 // 计算旋转速度
-function timeToSecondsRotate(time: string) {
-    const [hours, minutes, seconds] = time.split(':');
-    const timeInSeconds = (+hours * 3600) + (+minutes * 60) + (+seconds);
-    const rotateSpeed = timeInSeconds / 60
-    return Number(rotateSpeed.toFixed(1))
-}
+// function timeToSecondsRotate(time: number) {
+//     const [hours, minutes, seconds] = time.split(':');
+//     const timeInSeconds = (+hours * 3600) + (+minutes * 60) + (+seconds);
+//     const rotateSpeed = timeInSeconds / 60
+//     return Number(rotateSpeed.toFixed(1))
+// }
 
 export const formatFrameData = (data: IFrameData) => {
     // 提取公共的时间格式化逻辑
-    const startTime = dayjs(data.Time).format("YYYY-MM-DD HH:mm:ss");
-    const endTime = dayjs(data.EndTime).format("YYYY-MM-DD HH:mm:ss");
+    const startTime = dayjs(data.scanData.Time).format("YYYY-MM-DD HH:mm:ss");
+    const endTime = dayjs(data.scanData.EndTime).format("YYYY-MM-DD HH:mm:ss");
     // 检查 data.Thicks 是否为空或包含非数字值
-    if (!Array.isArray(data.Thicks) || data.Thicks.length === 0) {
+    if (!Array.isArray(data.scanData.Thicks) || data.scanData.Thicks.length === 0) {
         throw new Error("Invalid or empty Thicks array");
     }
-    const thicks = data.Thicks;
+    const thicks = data.scanData.Thicks;
     const sigma = calculateStandardDeviation(thicks);
     const max = Math.max(...thicks);
     const min = Math.min(...thicks);
@@ -50,12 +50,11 @@ export const formatFrameData = (data: IFrameData) => {
     const minPercent = (min - mean) / mean * 100;
     const maxPercent = (max - mean) / mean * 100;
     return {
-        frameId: data.ID,
+        frameId: data.scanData.ID,
         startTime: startTime,
         endTime: endTime,
-        speed: fixedNumber(data.FilmVelocity, 1),
-        width: data.FilmWidth,
-        rotateSpeed: timeToSecondsRotate(data.RPeriod),
+        width: data.scanData.FilmWidth,
+        rotateSpeed: data.scanData.RPeriod,
         sigmaVal: fixedNumber(sigma, 1),
         sigmaPercent: fixedNumber(sigmaPercent, 1),
         mean: fixedNumber(mean, 1),
@@ -63,7 +62,7 @@ export const formatFrameData = (data: IFrameData) => {
         minPercent: fixedNumber(minPercent, 1),
         maxVal: fixedNumber(max, 1),
         maxPercent: fixedNumber(maxPercent, 1),
-        IsBackw: data.IsBackw,
+        IsBackw: data.scanData.IsBackw,
         datalist: thicks
     };
 }
