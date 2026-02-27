@@ -1,10 +1,8 @@
 /**
  * 上旋相关算法 最优搜索
  * */
-import { RingData } from '../connections/airRing/opcua'
 import { goldenSectionSearch } from '../utils'
-import { WithRequired } from '@jjsk/core'
-import { BaseTripSegment, ThetaMaxEstimateResult, TripSegment } from '../types'
+import { ThetaMaxEstimateResult, TripSegment } from '../types'
 
 /**
  * 从正向+反向行程联合估计人字架最大旋转角度

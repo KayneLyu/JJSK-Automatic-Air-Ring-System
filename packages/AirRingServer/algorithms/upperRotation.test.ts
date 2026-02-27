@@ -9,6 +9,9 @@ import { inferMaxAngle } from './upperRotation.a'
 import { TripSegment } from '../types'
 import { estimateThetaMaxWithPhaseCorrection } from './upperRotation.c'
 import { buildTripSegment } from './buildTripSegment'
+import thicknessData from './data/03/thickness.json'
+import upper from './data/03/upper.json'
+import info from './data/03/info.json'
 
 test('测试估算最大旋转角度1', () => {
   vi.useFakeTimers()
@@ -135,12 +138,32 @@ test('测试估算最大旋转角度3', () => {
 
   // 快进 20分钟 生成数据
   vi.advanceTimersByTime(20 * 60 * 1000)
-  if (tripSegment.length < 2) {
-    return
+  const maxAngle = estimateThetaMaxWithPhaseCorrection(tripSegment)
+  expect(maxAngle).toBe(330)
+})
+
+test('测试估算最大旋转角度,真实数据', () => {
+  const { next: rollerNext } = mockRoller({
+    speed: (20 * 1000) / 60, // 20米/分钟
+    RADIUS: 15 * 10, // 15厘米
+  })
+  const { next: buildTripSegmentNext } = buildTripSegment()
+  let tripSegment: TripSegment[] = []
+  for (let i = 0; i < upper.length; i++) {
+    const upperRotationValue = upper[i]
+
+    const thicknessGaugeValue = thicknessData[i]
+    if (upperRotationValue && thicknessGaugeValue) {
+      const rollerValue = rollerNext()
+      tripSegment = buildTripSegmentNext({
+        airRing: upperRotationValue,
+        thickness: { ...rollerValue, ...thicknessGaugeValue },
+      })
+    }
   }
-  const maxAngle = estimateThetaMaxWithPhaseCorrection(
-    tripSegment[0],
-    tripSegment[1]
-  )
-  expect(maxAngle?.thetaMaxDeg).toBe(330)
+
+  const maxAngle = estimateThetaMaxWithPhaseCorrection(tripSegment) || 0
+  console.log(Math.abs(info.angle - maxAngle))
+
+  expect(maxAngle).toBe(info.angle)
 })

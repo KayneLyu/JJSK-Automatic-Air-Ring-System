@@ -2,9 +2,6 @@ import { mockUpperRotation } from '../mocks/upperRotation.mock'
 import { mockThickness } from '../mocks/thickness.mock'
 import { mockRoller } from '../mocks/roller.mock'
 import { test, vi } from 'vitest'
-import { createWriteStream } from 'node:fs'
-import { format } from '@fast-csv/format'
-import { finished } from 'node:stream/promises'
 import { UpperRotationDevice, ThicknessDevice } from '@jjsk/core'
 
 test('生成模拟数据', async () => {

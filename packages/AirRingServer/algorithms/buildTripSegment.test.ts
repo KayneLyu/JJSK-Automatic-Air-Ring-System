@@ -17,8 +17,7 @@ test('验证生成旋转单程片段数据', async () => {
     const upperRotationValues = upperRotationNext()
 
     tripSegment = buildTripSegmentNext({
-      ...upperRotationValues,
-      timestamp,
+      airRing: { ...upperRotationValues, timestamp },
     })
   }, 10)
 

@@ -1,3 +1,4 @@
+import { WithRequired } from '@jjsk/core'
 import { ThicknessData } from '../connections/thickness/opcua'
 
 /**
@@ -7,7 +8,9 @@ import { ThicknessData } from '../connections/thickness/opcua'
 export const findMutation = (deviation: number = 0.05) => {
   let windowSize: number | null
   const queue: number[] = []
-  const next = (data: ThicknessData): ThicknessData | null => {
+  const next = (
+    data: ThicknessData
+  ): WithRequired<ThicknessData, 'timestamp'> | null => {
     if (!data.timestamp || !data.ProbeValue) return null
 
     const value = data.ProbeValue
@@ -26,7 +29,7 @@ export const findMutation = (deviation: number = 0.05) => {
     }
     const avg = queue.reduce((a, c) => a + c, 0) / windowSize
     if (value < avg * (1 - deviation) || value > avg * (1 + deviation)) {
-      return data
+      return data as WithRequired<ThicknessData, 'timestamp'>
     }
     return null
   }

@@ -13,9 +13,8 @@ const estimateSamplingInterval = () => {
     if (!prev) return 100 // default 10 Hz
     // 记录所有相邻时间差（单位：秒）
     const dt = timestamp - prev
+    if (dt > 0 && dt < 2) intervals.push(dt)
     prev = timestamp
-    if (dt > 0 && dt < 2) intervals.push(timestamp - prev)
-
     if (intervals.length === 0) return 100
 
     // 取中位数（抗异常值）
@@ -29,7 +28,6 @@ const estimateSamplingInterval = () => {
 }
 const extractSegment = (
   data: WithRequired<ThicknessData, 'timestamp'>[],
-  baseInterval: number,
   startTime: number,
   duration: number,
   minPoints: number = 100
@@ -44,32 +42,29 @@ const extractSegment = (
         y: d.ProbeValue!,
       }
     })
+
   if (valid.length < minPoints) return []
-  const maxGapSec = Math.min(1000, Math.max(100, baseInterval * 3))
-  // Step 3: 提取最长连续段
-  let current: ValidThicknessData[] = [valid[0]]
-  let bestSegment: ValidThicknessData[] = [valid[0]]
-  for (let i = 1; i < valid.length; i++) {
-    if (valid[i].t - valid[i - 1].t < maxGapSec) {
-      current.push(valid[i])
-    } else {
-      if (current.length > bestSegment.length) bestSegment = [...current]
-      current = [valid[i]]
+  const min = valid.reduce((acc, cur) => {
+    if (cur.y < acc) {
+      return cur.y
     }
-  }
-  if (current.length > bestSegment.length) bestSegment = current
-  if (bestSegment.length < minPoints) return []
-  return bestSegment
+    return acc
+  }, Infinity)
+  const max = Math.trunc(min / 1000 + 2) * 1000
+  return valid.filter((d) => {
+    return d.y <= max
+  })
 }
 /**
  * 生成旋转单程片段数据
  * */
 export const buildTripSegment = () => {
-  const { next: estimateSamplingIntervalNext } = estimateSamplingInterval()
   const segments: TripSegment[] = []
 
-  let validThickness: WithRequired<ThicknessData, 'timestamp'>[] = []
-  let baseInterval = 100
+  let validThickness: WithRequired<
+    ThicknessData,
+    'timestamp' | 'ProbeValue'
+  >[] = []
   const next = ({
     thickness,
     airRing,
@@ -85,13 +80,13 @@ export const buildTripSegment = () => {
       if (segments.length > 0) {
         const prevSegment = segments[segments.length - 1]
         prevSegment.duration = airRing.timestamp - prevSegment.startTime
-        prevSegment.measurements = extractSegment(
-          validThickness,
-          baseInterval,
-          prevSegment.startTime,
-          prevSegment.duration
-        )
+
         if (currentSignal !== prevSegment.isForward) {
+          prevSegment.measurements = extractSegment(
+            validThickness,
+            prevSegment.startTime,
+            prevSegment.duration
+          )
           validThickness = []
           segments.push({
             startTime: airRing.timestamp,
@@ -100,21 +95,20 @@ export const buildTripSegment = () => {
             measurements: [],
           })
         }
-        return segments
+      } else {
+        segments.push({
+          startTime: airRing.timestamp,
+          duration: 0,
+          isForward: currentSignal,
+          measurements: [],
+        })
       }
-      segments.push({
-        startTime: airRing.timestamp,
-        duration: 0,
-        isForward: currentSignal,
-        measurements: [],
-      })
     }
     if (thickness) {
       if (thickness.timestamp) {
-        baseInterval = estimateSamplingIntervalNext(thickness.timestamp)
         if ((thickness.ProbeValue || 0) > 0) {
           validThickness.push(
-            thickness as WithRequired<ThicknessData, 'timestamp'>
+            thickness as WithRequired<ThicknessData, 'timestamp' | 'ProbeValue'>
           )
         }
       }
@@ -122,4 +116,95 @@ export const buildTripSegment = () => {
     return segments
   }
   return { next }
+}
+
+export type ScanGroup = {
+  data: number[]
+  /**
+   * 特征值
+   * */
+  features: number
+  /**
+   * 中点时间
+   * */
+  t: number
+}
+export const groupScans = (data: ThicknessData[]): ScanGroup[] => {
+  const groups: ThicknessData[][] = []
+  const min = data.reduce((acc, cur) => {
+    if (cur.ProbeValue! < acc) {
+      return cur.ProbeValue!
+    }
+    return acc
+  }, Infinity)
+  const max = min + 2000
+  let current: ThicknessData[] = []
+  let preSignal: boolean | null = null
+  for (let i = 0; i < data.length; i++) {
+    const d = data[i]
+    if (d.timestamp && d.ProbeValue) {
+      const currentSignal = d.ProbeValue! <= max
+      if (currentSignal !== preSignal && currentSignal) {
+        groups.push(current)
+        current = []
+      }
+      if (currentSignal) {
+        current.push(d)
+      }
+      preSignal = currentSignal
+    }
+  }
+  console.log(
+    groups
+      .filter((d) => d.length > 10)
+      .map((d) => {
+        return d.map((d) => {
+          return {
+            t: d.timestamp!,
+            y: d.ProbeValue!,
+          }
+        })
+      })
+  )
+  return groups
+    .filter((d) => d.length > 10)
+    .map((d) => {
+      const mean = d.reduce((a, b) => a + b.ProbeValue!, 0) / d.length
+      const variance =
+        d.reduce((a, b) => a + (b.ProbeValue! - mean) ** 2, 0) / d.length
+
+      return {
+        data: d.map((d) => d.ProbeValue!),
+        features: Math.sqrt(variance), // 标准差
+        t: d[Math.floor(d.length / 2)].timestamp!,
+      }
+    })
+}
+
+export const filterScans = (data: ThicknessData[]): ValidThicknessData[] => {
+  const min = data.reduce((acc, cur) => {
+    if (cur.ProbeValue! < acc) {
+      return cur.ProbeValue!
+    }
+    return acc
+  }, Infinity)
+  const max = min + 2000
+  const list: ValidThicknessData[] = []
+  for (let i = 0; i < data.length; i++) {
+    const d = data[i]
+    if (d.timestamp && d.ProbeValue) {
+      if (d.ProbeValue! <= max) {
+        list.push({
+          t: d.timestamp!,
+          y: d.ProbeValue!,
+        })
+      } else {
+        list.push({
+          t: d.timestamp!,
+          y: NaN,
+        })
+      }
+    }
+  }
+  return list
 }

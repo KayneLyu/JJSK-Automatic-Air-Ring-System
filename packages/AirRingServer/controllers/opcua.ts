@@ -2,7 +2,7 @@ import { AirRingConnection } from '../connections/airRing'
 import { ThicknessConnection } from '../connections/thickness'
 import { calibrate } from './calibration'
 import { CalibrationConfig, Scalar } from '../types'
-import { findMutation } from '../algorithms/findMutation'
+import { adjustments } from './adjustments'
 
 export interface OPCUAControllerOptions {
   airRingUrl: string
@@ -81,17 +81,26 @@ export const OPCUAController = (options: OPCUAControllerOptions) => {
   /**
    * 自动调节风环
    * */
-  const autoAdjustment = async (windowSize: number) => {
-    const { next: FindMutationNext, setWindowSize } = findMutation()
-    setWindowSize(windowSize)
+  const autoAdjustment = async (
+    windowSize: number,
+    thetaMaxDeg: number,
+    T_half: number
+  ) => {
+    const { next } = adjustments(
+      {
+        windowSize,
+        thetaMaxDeg,
+        T_half,
+      },
+      standardized
+    )
     const unsub1 = await ThicknessClient.subscribe((data) => {
-      const mutation = FindMutationNext(data)
-      if (mutation) {
-        /* 发生突变 */
-      }
+      const res = next({ thickness: data })
     })
 
-    const unsub2 = await AirRingClient.subscribe((data) => {})
+    const unsub2 = await AirRingClient.subscribe((data) => {
+      const res = next({ airRing: data })
+    })
     return () => {
       unsub1()
       unsub2()
