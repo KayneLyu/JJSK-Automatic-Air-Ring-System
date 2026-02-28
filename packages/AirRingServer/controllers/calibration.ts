@@ -121,11 +121,10 @@ export const calibrate = ({
         distance,
       }
     }
-    const maxAngle = estimateThetaMaxWithPhaseCorrection(
-      tripSegment[0],
-      tripSegment[1],
-      { deltaRange, segments: CHANNEL_COUNT }
-    )
+    const maxAngle = estimateThetaMaxWithPhaseCorrection(tripSegment, {
+      deltaRange,
+      segments: CHANNEL_COUNT,
+    })
     if (!maxAngle) {
       /* 无法上旋计算最大旋转角度 */
       return {
@@ -138,7 +137,7 @@ export const calibrate = ({
     return {
       tractionSpeed: v,
       mutationWindowSize: windowSize,
-      maxAngle: maxAngle.thetaMaxDeg,
+      maxAngle: maxAngle,
       distance,
     }
   }
