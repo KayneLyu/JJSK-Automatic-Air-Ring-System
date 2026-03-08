@@ -1,10 +1,9 @@
-// 风道配置
 import { Scalar } from '../types'
 import { findMutation } from '../algorithms/findMutation'
 import { ThicknessData } from '../connections/thickness/opcua'
 import { RingData } from '../connections/airRing/opcua'
 import { buildTimeToAngle } from '../algorithms/timeToAngle'
-
+// 风道配置
 interface WindRingConfig {
   numFans: number // 风道数量 N
   phaseOffsetRad: number // 风道0相对于人字架零点的安装偏移（弧度）

@@ -79,7 +79,7 @@ export const calibrate = ({
     const v = thickness ? TractionSpeedSmoothNext(thickness) : null
 
     // ---------- Step 2: 标定突变检测窗口大小 ----------
-    const windowSize = MutationWindowSizeNext({ thickness, airRing })
+    const { fastSize, size } = MutationWindowSizeNext({ thickness, airRing })
 
     // ---------- Step 3: 检测厚度突变 ----------
     const mutation = thickness ? FindMutationNext(thickness) : null
@@ -94,18 +94,17 @@ export const calibrate = ({
       /* 无法计算牵引速度 */
       return null
     }
-    if (!windowSize) {
+    if (!fastSize) {
       /* 突变窗口未完成标定 */
       return {
         tractionSpeed: v,
       }
     }
-    setWindowSize(windowSize)
+    setWindowSize(fastSize)
     if (!mutation) {
       /* 未检测到有效扰动响应 */
       return {
         tractionSpeed: v,
-        mutationWindowSize: windowSize,
       }
     }
     // ---------- Step 5: 计算上旋人字架到测厚仪的距离 ----------
@@ -117,7 +116,6 @@ export const calibrate = ({
     if (tripSegment.length < 2) {
       return {
         tractionSpeed: v,
-        mutationWindowSize: windowSize,
         distance,
       }
     }
@@ -129,14 +127,13 @@ export const calibrate = ({
       /* 无法上旋计算最大旋转角度 */
       return {
         tractionSpeed: v,
-        mutationWindowSize: windowSize,
         distance,
       }
     }
 
     return {
       tractionSpeed: v,
-      mutationWindowSize: windowSize,
+      mutationWindowSize: size,
       maxAngle: maxAngle,
       distance,
     }

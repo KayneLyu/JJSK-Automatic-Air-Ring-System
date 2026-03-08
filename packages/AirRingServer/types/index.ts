@@ -43,6 +43,28 @@ export type CalibrationConfig = {
      * 上旋最大旋转角度评估范围
      * */
     deltaRange?: UpperRotationDeltaRange
+    /**
+     * 理论单程时间（秒），用于计算理论窗口大小
+     * 例如：420 表示 7 分钟
+     * */
+    theoreticalTripDuration?: number
+  }
+  /**
+   * 突变检测配置参数
+   * */
+  mutation?: {
+    /**
+     * 理论采样频率（Hz），用于计算理论窗口大小
+     * 例如：100 表示每秒 100 个采样点
+     * */
+    theoreticalSamplingRate?: number
+    /**
+     * 使用测厚仪单程数据标定窗口大小（推荐）
+     * 如果为 true，将使用测厚仪的换向信号来检测单程
+     * 优势：约30秒即可完成标定，远快于上旋的6-8分钟
+     * 默认：false（使用上旋换向信号）
+     * */
+    useThicknessTripCalibration?: boolean
   }
 }
 /**

@@ -9,3 +9,4 @@ export { startAirRingServer }
 export { startThicknessServer }
 export { calibrateCase }
 export { mockRoller }
+export { createBlowFilmSimulator } from './mocks/blowFilm.mock'
