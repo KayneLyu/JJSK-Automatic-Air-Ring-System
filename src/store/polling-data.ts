@@ -45,7 +45,7 @@ export const useApiDataStore = defineStore('apiThickData', {
                 IsRotaryOn: false, // 旋转中 ,
                 RotaryFreq: 0, // 旋转频率 ,
                 RotaryProgess: 0, // 旋转进度 0~100% ,
-                ControllerState: '', // 动作状态 FIX,STOP,RETRACT,SCAN ,
+                ControllerState: 'FIX', // 动作状态 FIX,STOP,RETRACT,SCAN ,
                 LastScanDataId: 0, // 数据库中 扫描数据表 最新的ID ,
                 ErrCode: 0,  // 异常代码 0为无异常，按位触发
                 K: 1

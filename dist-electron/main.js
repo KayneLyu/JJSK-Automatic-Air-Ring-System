@@ -70,7 +70,7 @@ function setupRendererCommunicator(win2) {
   });
   ipcMain.handle("win-open-client", () => {
     try {
-      const result = ensureServerRunning("JinJiu.Scan.Client2", "D:/server/JinJiu.Scan.Client2.exe", dialog);
+      const result = ensureServerRunning("JinJiu.RScan.Client", "D:/server/JinJiu.RScan.Client.exe", dialog);
       return result;
     } catch (error) {
     }
@@ -115,7 +115,7 @@ if (!getLock) {
   });
 }
 app.on("ready", () => {
-  ensureServerRunning("JinJiu.Scan.Server2", "D:/server/JinJiu.Scan.Server2.exe", dialog);
+  ensureServerRunning("JinJiu.RScan.Server", "D:/server/JinJiu.RScan.Server.exe", dialog);
   app.setLoginItemSettings({
     openAtLogin: true
   });

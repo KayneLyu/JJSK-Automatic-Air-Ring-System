@@ -1,7 +1,37 @@
 <script setup lang='ts'>
 import { useApiDataStore } from '@/store/polling-data';
+import { setHeat, setCool } from '@/api/index';
 const store = useApiDataStore()
+type Option = {
+    label: string;
+    value: string;
+}
+const options: Option[] = [
+    {
+        label: "加热",
+        value: "FIX"
+    },
+    {
+        label: "降温",
+        value: 'SCAN',
+    },
+    // {
+    //     label:  "归边",
+    //     value: "ORG"
+    // }
+]
 
+const changeState = async (state: string) => {
+    try {
+        if (state == "heat") {
+            await setHeat()
+        } else {
+            await setCool()
+        }
+
+    } catch (error) {
+    }
+}
 </script>
 
 <template>
@@ -16,7 +46,8 @@ const store = useApiDataStore()
                     <span>前伸</span><strong>{{ store.apiThickData.CurrStretchPosition }} </strong> <i>mm</i>
                 </div>
                 <div>
-                    <span>超声</span><strong>{{ store.apiThickData.CurrUs.toFixed(1) }} </strong> <i>mm</i>
+                    <span>超声</span><strong>{{ store.apiThickData.CurrUs as string | number == "NaN" ? 0 :
+                        store.apiThickData.CurrUs.toFixed(1) }} </strong> <i>mm</i>
                 </div>
 
             </div>
@@ -34,17 +65,31 @@ const store = useApiDataStore()
                 </div>
             </div>
         </div>
-        <div style="margin-top: 20px;">
-            <div>
-                <span>气压</span><strong>{{ store.apiThickData.CurrAp.toFixed(1) }} </strong> <i>kPa</i>
+        <div class="state_bottom">
+            <div class="state">
+                <div>
+                    <span>气压</span><strong>{{ store.apiThickData.CurrAp.toFixed(1) }} </strong> <i>kPa</i>
+                </div>
+                <div>
+                    <span>电容</span><strong>{{ store.apiThickData.CurrThkAd }} </strong> | <span>{{
+                        store.apiThickData.OrgThk }}</span>
+                </div>
+                <div>
+                    <span>空气</span><strong>{{ store.apiThickData.SampleAd }} </strong> | <span>{{
+                        store.apiThickData.SampleThk }}</span>
+                </div>
             </div>
-            <div>
-                <span>电容</span><strong>{{ store.apiThickData.CurrThkAd }} </strong> | <span>{{
-                    store.apiThickData.OrgThk }}</span>
-            </div>
-            <div>
-                <span>空气</span><strong>{{ store.apiThickData.SampleAd }} </strong> | <span>{{
-                    store.apiThickData.SampleThk }}</span>
+            <div class="set_hot">
+                <div>
+                    <el-segmented @change="changeState" style="height: 45px;"
+                        v-model="store.apiThickData.ControllerState" :options="options" block size="small">
+                        <template #default="{ item }">
+                            <div>
+                                <div>{{ (item as Option).label }}</div>
+                            </div>
+                        </template>
+                    </el-segmented>
+                </div>
             </div>
         </div>
 
@@ -80,5 +125,18 @@ strong {
         min-width: 130px;
     }
 
+}
+
+.state_bottom {
+    display: flex;
+    margin-top: 20px;
+
+    .state {
+        min-width: 130px;
+    }
+
+    .set_hot {
+        margin-left: 20px;
+    }
 }
 </style>

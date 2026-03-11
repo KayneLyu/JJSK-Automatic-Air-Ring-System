@@ -43,6 +43,20 @@ export const magnification = (params: number) => {
     return postRequest("/api/thk/setK", params)
 }
 
+/**
+ * 加热
+ */
+export const setHeat = () => {
+    return postRequest("/api/thk/startPwmAuto")
+}
+
+/**
+ * 冷却
+ */
+export const setCool = () => {
+    return postRequest("/api/thk/stopPwmAuto")
+}
+
 //  ----- 风环部分 -----  
 
 /**

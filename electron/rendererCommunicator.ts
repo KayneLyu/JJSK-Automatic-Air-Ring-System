@@ -53,7 +53,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   // 打开服务的界面软件
   ipcMain.handle("win-open-client", () => {
     try {
-      const result = ensureServerRunning('JinJiu.Scan.Client2', 'D:/server/JinJiu.Scan.Client2.exe', dialog);
+      const result = ensureServerRunning('JinJiu.RScan.Client', 'D:/server/JinJiu.RScan.Client.exe', dialog);
       return result
     } catch (error) {}
   })

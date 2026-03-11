@@ -58,7 +58,7 @@ if (!getLock) {
 }
 
 app.on("ready", () => {
-  ensureServerRunning('JinJiu.Scan.Server2', 'D:/server/JinJiu.Scan.Server2.exe', dialog)
+  ensureServerRunning('JinJiu.RScan.Server', 'D:/server/JinJiu.RScan.Server.exe', dialog)
   // 开机自动启动应用
   app.setLoginItemSettings({
     openAtLogin: true,

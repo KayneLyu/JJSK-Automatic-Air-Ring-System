@@ -34,7 +34,7 @@ const trackRadius = 70
 
 // 探头参数
 const probeBaseLen = 0
-let extendDir = 1
+// let extendDir = 1
 
 let angle = 0
 let probeExtend = 10
@@ -131,9 +131,9 @@ function update() {
   // 探头伸缩（可启用）
   // probeExtend += extendDir * 1
   probeExtend = storePollingData.apiThickData.CurrStretchPosition * scale
-  if (probeExtend > 50 || probeExtend < 20) {
-    extendDir *= -1
-  }
+  // if (probeExtend > 50 || probeExtend < 20) {
+  //   extendDir *= -1
+  // }
 
   animationId = requestAnimationFrame(update)
 }
@@ -186,7 +186,7 @@ canvas {}
 
 .time_left {
   font-size: 12px;
-  width: 40px;
+  width: 42px;
   margin: 0 auto;
   margin-top: 5px;
   background-color: #ffb11590;
