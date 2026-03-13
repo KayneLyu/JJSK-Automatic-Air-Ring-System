@@ -475,8 +475,6 @@ const changeSomeChannel = (counterpoint: boolean, isAdd?: boolean) => {
             counterC - 1, counterC, counterC + 1,
         ];
     }
- 
-    console.log('sss', needChangeChannel);
     
     // 使用 Set 提升查找性能
     const changeSet = new Set(needChangeChannel);
