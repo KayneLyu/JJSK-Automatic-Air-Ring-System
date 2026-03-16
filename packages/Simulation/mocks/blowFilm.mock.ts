@@ -303,22 +303,27 @@ const trapezoidalVelocityProfile = (
   accelRatio: number,
   decelRatio: number
 ): number => {
+  // 归一化系数：确保 progress=1 时输出恰好为 1
+  const normFactor = 1 / (1 - 0.5 * accelRatio - 0.5 * decelRatio)
+
+  let raw: number
   if (progress < accelRatio) {
-    // 加速段：二次曲线
-    return 0.5 * (progress / accelRatio) ** 2 * accelRatio
+    // 加速段：二次曲线（速度从 0 线性增加到 v_max）
+    raw = 0.5 * (progress / accelRatio) ** 2 * accelRatio
   } else if (progress > 1 - decelRatio) {
-    // 减速段
+    // 减速段（速度从 v_max 线性降到 0）
     const decelStart = 1 - decelRatio
     const localProgress = (progress - decelStart) / decelRatio
-    return (
+    raw =
       0.5 * accelRatio +
       (1 - accelRatio - decelRatio) +
       (localProgress - 0.5 * localProgress ** 2) * decelRatio
-    )
   } else {
     // 匀速段
-    return 0.5 * accelRatio + (progress - accelRatio)
+    raw = 0.5 * accelRatio + (progress - accelRatio)
   }
+
+  return raw * normFactor
 }
 
 /**
@@ -624,19 +629,18 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       decelRatio
     )
 
-    upperAngle = isForward
-      ? normalizedPosition * maxAngle
-      : maxAngle - normalizedPosition * maxAngle
+    upperAngle = normalizedPosition * maxAngle
 
-    // 计算角速度
+    // 计算角速度（考虑归一化系数）
+    const normFactor = 1 / (1 - 0.5 * accelRatio - 0.5 * decelRatio)
+    const peakAngularVelocity = (maxAngle / tripDuration) * normFactor
     let angularVelocity = 0
     if (progress < accelRatio) {
-      angularVelocity = (maxAngle / tripDuration) * (progress / accelRatio)
+      angularVelocity = peakAngularVelocity * (progress / accelRatio)
     } else if (progress > 1 - decelRatio) {
-      angularVelocity =
-        (maxAngle / tripDuration) * ((1 - progress) / decelRatio)
+      angularVelocity = peakAngularVelocity * ((1 - progress) / decelRatio)
     } else {
-      angularVelocity = maxAngle / tripDuration
+      angularVelocity = peakAngularVelocity
     }
 
     // 如果不反向，保持正向角速度
@@ -645,8 +649,9 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
     }
 
     // 换向信号
+    // 正向行程结束时 tInTrip 接近 tripDuration；反向行程结束时 tInTrip 接近 0
     const atForwardLimit = isForward && tInTrip > tripDuration - accelDecelTime
-    const atReverseLimit = !isForward && tInTrip > tripDuration - accelDecelTime
+    const atReverseLimit = !isForward && tInTrip < accelDecelTime
 
     // 复位信号
     const nearReset = Math.abs(upperAngle - resetAngle) < 1 // 1 度容差
@@ -654,8 +659,7 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
     // 电机频率估算
     const maxMotorFrequency = 30 // Hz (假设)
     const motorFrequency =
-      (Math.abs(angularVelocity) / (maxAngle / tripDuration)) *
-      maxMotorFrequency
+      (Math.abs(angularVelocity) / peakAngularVelocity) * maxMotorFrequency
 
     const upperRotationState: UpperRotationState = {
       angle: upperAngle,
@@ -789,12 +793,19 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
 
       // 考虑上旋角度，计算实际测量的膜泡位置
       const bubblePositionAngle = (upperAngle + scannerAngleOffset + 180) % 360
+      const oppositeAngle = (bubblePositionAngle + 180) % 360
 
       // 从延迟后的膜泡厚度分布中插值得到原始厚度
-      originalThickness = interpolateAirFlow(
+      // 测厚仪测量的是双层薄膜（压平后上下两层），对应膜泡上相隔 180° 的两个位置
+      const thickness1 = interpolateAirFlow(
         bubblePositionAngle,
         delayedThicknessProfile
       )
+      const thickness2 = interpolateAirFlow(
+        oppositeAngle,
+        delayedThicknessProfile
+      )
+      originalThickness = thickness1 + thickness2
     }
     // 如果 delayedTime <= 0，说明仿真刚开始，物料还没有到达测厚仪
     // originalThickness 保持为 null
@@ -819,8 +830,8 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
           ? thicknessBuffer[0].value
           : originalThickness
 
-      // 转换为双层厚度 (简化模型：直接乘以 2，添加 2% 工艺变形)
-      const doubleThickness = delayedThickness * 2 * 1.02
+      // 双层厚度已在 originalThickness 中计算（两个 180° 位置之和），添加 2% 工艺变形
+      const doubleThickness = delayedThickness * 1.02
 
       // 添加测量噪声
       const noise = (Math.random() - 0.5) * 2 * measurementNoise

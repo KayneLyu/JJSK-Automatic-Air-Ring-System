@@ -9,7 +9,7 @@ import { calibrateTractionSpeedSmooth } from '../algorithms/tractionSpeedSmooth'
 import { calibrateMutationWindowSize } from '../algorithms/mutationWindowSize'
 import { findMutation } from '../algorithms/findMutation'
 import { buildTripSegment } from '../algorithms/buildTripSegment'
-import { estimateThetaMaxWithPhaseCorrection } from '../algorithms/upperRotation.c'
+import { estimateThetaMaxWithPhaseCorrection } from '../algorithms/upperRotation'
 
 export type CalibrateOptions = {
   standardized: Scalar

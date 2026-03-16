@@ -97,6 +97,11 @@ export type ValidThicknessData = {
    * 厚度 单位：微米，出界归一到NaN
    * */
   y: number
+  /**
+   * 测厚仪横向脉冲计数（可选），来自 HorizontalPulse。
+   * 可用于精确计算扫描仪偏移角度，自动处理正反向扫描方向。
+   * */
+  pulse?: number
 }
 /**
  * 有效测厚仪数据(携带上旋旋转方向信息)
