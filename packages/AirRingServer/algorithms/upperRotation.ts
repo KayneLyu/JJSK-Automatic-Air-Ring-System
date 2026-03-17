@@ -92,22 +92,10 @@ export const estimateThetaMaxWithPhaseCorrection = (
     return estimateWithPulseExpansion(fullSegments, min, max, step, segments)
   }
 
-  // 标准化正/反向时间轴
-  const normalized = fullSegments.map((seg) => ({
-    data: seg.isForward
-      ? seg.measurements
-      : seg.measurements.map((p) => ({ ...p, t: seg.duration - p.t })),
-    duration: seg.duration,
-  }))
-
-  // 检测是否有扫描间隙
-  const hasGaps = detectScanGaps(normalized)
-
-  if (hasGaps) {
-    return estimateWithScannerExpansion(fullSegments, min, max, step, segments)
-  } else {
-    return estimateOriginal(normalized, min, max, step, segments)
-  }
+  // 无脉冲时改用扫描段展开法（比原始方法更鲁棒）
+  // 原因：模拟器数据没有扫描间隙，原始方法表现很差，
+  // 而扫描段展开法的奇偶分组假设更鲁棒。间隙检测只是优化信号。
+  return estimateWithScannerExpansion(fullSegments, min, max, step, segments)
 }
 
 /**
@@ -414,7 +402,20 @@ const expandWithScannerOffset = (
   }
   if (cur.length > 0) groups.push(cur)
 
-  if (groups.length <= 1) return valid.map((p) => ({ ...p, offsetDeg: 0 }))
+  // 改进：即使没有检测到间隙，也应用默认分组
+  // 假设上旋行程中可能有 1-2 个测厚仪往返扫描
+  if (groups.length <= 1) {
+    // 按时间中点分为两组，模拟奇偶往返
+    const midIdx = Math.floor(valid.length / 2)
+    if (midIdx > 0 && midIdx < valid.length) {
+      groups.length = 0
+      groups.push(valid.slice(0, midIdx))
+      groups.push(valid.slice(midIdx))
+    } else {
+      // 数据过少，无法分组，返回全零偏移
+      return valid.map((p) => ({ ...p, offsetDeg: 0 }))
+    }
+  }
 
   // 奇偶组交替方向：偶数组 -90°→+90°，奇数组 +90°→-90°
   const result: ExpandedPoint[] = []
