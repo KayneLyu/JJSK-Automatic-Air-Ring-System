@@ -55,17 +55,14 @@ const filterPartialSegments = (segments: TripSegment[]): TripSegment[] => {
 
 /**
  * 检测数据中是否有脉冲数据
+ * 
+ * ⚠️ **已禁用（2026-03-17）**：虽然测厚仪提供脉冲计数，但实验表明在每个片段内
+ * 脉冲信号非单调，存在多次反向，表明测厚仪在上旋行程中完成了多次往返扫描。
+ * 因此无法假设脉冲值直接映射为扫描仪偏移角度 [-90°, +90°]，改用扫描段展开法。
  */
 const hasPulseData = (tripSegments: TripSegment[]): boolean => {
-  let total = 0
-  let withPulse = 0
-  for (const seg of tripSegments.slice(0, 5)) {
-    for (const m of seg.measurements) {
-      total++
-      if (m.pulse !== undefined) withPulse++
-    }
-  }
-  return total > 0 && withPulse / total >= 0.5
+  // 总是返回 false，禁用脉冲路径，使用扫描段展开法或原始方法
+  return false
 }
 
 /**
@@ -308,11 +305,13 @@ const estimateWithPulseExpansion = (
     }
   }
 
-  // 黄金分割精确收敛（谱分析法精化）
-  // 利用偶次谐波的相干功率（k=2,4），无 bin 离散化误差，精度优于 bin 方差法。
-  // 在粗/精搜索已确定 ±1° 邻域后，切换至谱分析法做最终收敛。
+  // 黄金分割精确收敛（bin 方差法）
+  // 虽然 evaluateSpectral 理论上优于 bin 方差法，但在实际样本数据上
+  // 由于光通量的 DC/AC 比很高（5-15），谱分析的 DC 项会主导结果，导致
+  // 收敛点严重偏离（误差 40-111°）。因此保持使用 bin 方差法保证稳定性。
+  // 参见：upperRotation.instructions.md 第 6 节「已知问题」。
   return goldenSectionSearch(
-    (th) => evaluateSpectral(normalized, th),
+    (th) => evaluateExpanded(normalized, th, segments),
     Math.max(min, bestTheta - 1),
     Math.min(max, bestTheta + 1),
     0.01
