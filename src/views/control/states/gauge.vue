@@ -4,26 +4,26 @@ import { setHeat, setCool } from '@/api/index';
 const store = useApiDataStore()
 type Option = {
     label: string;
-    value: string;
+    value: boolean;
 }
 const options: Option[] = [
     {
-        label: "加热",
-        value: "FIX"
+        label: "冷却",
+        value: false
     },
     {
-        label: "降温",
-        value: 'SCAN',
-    },
+        label: "加热",
+        value: true
+    }
     // {
     //     label:  "归边",
     //     value: "ORG"
     // }
 ]
 
-const changeState = async (state: string) => {
+const changeState = async (state: boolean) => {
     try {
-        if (state == "heat") {
+        if (state == true) {
             await setHeat()
         } else {
             await setCool()
@@ -53,11 +53,11 @@ const changeState = async (state: string) => {
             </div>
             <div class="content_right content_group">
                 <div>
-                    <span>霍尔</span> <span class="special_state"><strong>{{ store.apiThickData.CurrHall.toFixed(1) }}
+                    <span>霍尔</span> <span ><strong>{{ store.apiThickData.CurrHall.toFixed(1) }}
                         </strong> <i>mm</i></span>
                 </div>
                 <div>
-                    <span>温度</span> <span class="special_state"><strong>{{ store.apiThickData.CurrTemp.toFixed(1) }}
+                    <span>温度</span> <span :class="  store.apiThickData.IsPwmAuto ? 'special_state' : '' "><strong>{{ store.apiThickData.CurrTemp.toFixed(1) }}
                         </strong> <i>℃</i></span>
                 </div>
                 <div>
@@ -80,9 +80,9 @@ const changeState = async (state: string) => {
                 </div>
             </div>
             <div class="set_hot">
-                <div>
+                <div class="set_hot_group">
                     <el-segmented @change="changeState" style="height: 45px;"
-                        v-model="store.apiThickData.ControllerState" :options="options" block size="small">
+                        v-model="store.apiThickData.IsPwmAuto" :options="options" block size="small">
                         <template #default="{ item }">
                             <div>
                                 <div>{{ (item as Option).label }}</div>
@@ -103,7 +103,6 @@ const changeState = async (state: string) => {
 
 .special_state {
     display: inline-block;
-    margin-top: 2px;
     padding: 0 2px;
     border-radius: 5px;
     color: #fff;
@@ -132,11 +131,15 @@ strong {
     margin-top: 20px;
 
     .state {
-        min-width: 130px;
+        min-width: 150px;
     }
 
-    .set_hot {
-        margin-left: 20px;
-    }
+
+}
+.set_hot_group {
+    margin-top: 15px;
+    width: 110px;
+    border: 1px solid #c1c1c1;
+    border-radius: 5px;
 }
 </style>

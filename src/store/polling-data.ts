@@ -48,7 +48,8 @@ export const useApiDataStore = defineStore('apiThickData', {
                 ControllerState: 'FIX', // 动作状态 FIX,STOP,RETRACT,SCAN ,
                 LastScanDataId: 0, // 数据库中 扫描数据表 最新的ID ,
                 ErrCode: 0,  // 异常代码 0为无异常，按位触发
-                K: 1
+                K: 1,
+                IsPwmAuto: false
             },
             apiAirRingData: {
                 IsAuto: false, // 自控使能 ,

@@ -39,6 +39,7 @@ interface IThickInfoData {
     LastScanDataId: number; // 数据库中 扫描数据表 最新的ID ,
     ErrCode: number;  // 异常代码 0为无异常，按位触发
     K: number;
+    IsPwmAuto: boolean; // 加热中
 }
 
 
