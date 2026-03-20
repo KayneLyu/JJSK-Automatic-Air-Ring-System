@@ -441,9 +441,10 @@ const changeAllChannel = async (isAirControl: boolean, isAdd?: boolean) => {
     if (!heatsList.value?.length) return;
     const { IsAirDoorMode } = configStore.apiAirRingData;
     const step = configStore.apiAirRingConfig.Step
+    const baseHeat = configStore.apiAirRingConfig.BaseHeat
     if (isAirControl) {
         try {
-            heatsList.value = heatsList.value.map(item => [item[0], IsAirDoorMode ? 50 : 30])
+            heatsList.value = heatsList.value.map(item => [item[0], IsAirDoorMode ? 50 : baseHeat])
         } catch (error) {
             showNotification('error', t("notification.failed"), 'error')
         }
@@ -465,18 +466,16 @@ const changeSomeChannel = (counterpoint: boolean, isAdd?: boolean) => {
     let needChangeChannel: number[] = brushList.value;
 
     if (counterpoint) {
-        const counter = configStore.apiAirRingConfig.ChannelCnt / 2
-        const counterA = counter / 2 / 2
-        const counterB = counterA + 2 * counterA
-        const counterC = counter + counter / 2 + counterA
-
+        const counter = Math.round(configStore.apiAirRingConfig.ChannelCnt / 2)
+        const counterB = Math.round(counter / 2 ) + 3
+        const counterC = counter  + counterB
         needChangeChannel = [
-            counterA - 1, counterA, counterA + 1,
+            0,1,2,
             counterB - 1, counterB, counterB + 1,
             counterC - 1, counterC, counterC + 1,
         ];
     }
-
+    
     // 使用 Set 提升查找性能
     const changeSet = new Set(needChangeChannel);
 

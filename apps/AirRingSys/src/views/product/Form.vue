@@ -41,6 +41,12 @@ watch(() => props.process, async (newVal) => {
         immediate: true
     }
 )
+// 同步修改目标厚度
+watch(() => productStore.param.thick, (newVal) => {
+    if (newVal) {
+        form.thick = newVal
+    }
+})
 
 const buttonLoading = ref(false)
 const showCompute = ref(false)
