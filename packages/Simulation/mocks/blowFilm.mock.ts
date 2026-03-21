@@ -596,21 +596,6 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       radiusProfile: [], // 已移除半径分布计算
     }
 
-    // 保存当前时刻的膜泡厚度分布到历史缓存
-    thicknessProfileHistory.push({
-      time: simulationTime,
-      profile: [...thicknessProfile], // 复制数组，避免引用问题
-    })
-
-    // 清理过期的历史数据（保留比延迟时间多一些的数据）
-    const maxHistoryTime = materialTransportDelay + 10 // 秒
-    while (
-      thicknessProfileHistory.length > 1 &&
-      thicknessProfileHistory[0].time < simulationTime - maxHistoryTime
-    ) {
-      thicknessProfileHistory.shift()
-    }
-
     // ========== 2. 上旋系统仿真 ==========
     const cycleDuration = tripDuration * 2 // 往返周期
     const tInCycle = simulationTime % cycleDuration
@@ -671,13 +656,31 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       motorFrequency,
     }
 
+    // 保存当前时刻的膜泡厚度分布与上旋角度到历史缓存
+    thicknessProfileHistory.push({
+      time: simulationTime,
+      profile: [...thicknessProfile], // 复制数组，避免引用问题
+      upperAngle,
+    })
+
+    // 清理过期的历史数据（保留比延迟时间多一些的数据）
+    const maxHistoryTime = materialTransportDelay + 10 // 秒
+    while (
+      thicknessProfileHistory.length > 1 &&
+      thicknessProfileHistory[0].time < simulationTime - maxHistoryTime
+    ) {
+      thicknessProfileHistory.shift()
+    }
+
     // ========== 3. 测厚系统仿真 ==========
     const scannerCycleDuration = scannerTripDuration * 2
     const scannerTInCycle = simulationTime % scannerCycleDuration
     const scannerIsForward = scannerTInCycle < scannerTripDuration
+    // 反向行程也需要 0→tripDuration 的单调时间轴，
+    // 否则会把位移曲线“倒着喂给”分段公式，导致扫描范围被压缩。
     const scannerTInTrip = scannerIsForward
       ? scannerTInCycle
-      : scannerCycleDuration - scannerTInCycle
+      : scannerTInCycle - scannerTripDuration
 
     // 测厚仪横向运动模型
     const scannerMaxSpeed =
@@ -760,6 +763,7 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
 
     // 从历史缓存中查找对应时刻的厚度分布
     let delayedThicknessProfile: number[] | null = null
+    let delayedUpperAngle = upperAngle
     let originalThickness: number | null = null
 
     if (delayedTime > 0 && thicknessProfileHistory.length > 0) {
@@ -779,6 +783,7 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       }
 
       delayedThicknessProfile = thicknessProfileHistory[closestIndex].profile
+      delayedUpperAngle = thicknessProfileHistory[closestIndex].upperAngle
 
       // 将测厚仪位置映射到膜泡圆周位置
       // 物理关系：
@@ -791,8 +796,9 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       // 这与原来的公式一致，但现在我们有了明确的物理依据
       const scannerAngleOffset = (scannerPosition / membraneWidth) * 180 // 线性映射（基于展开近似）
 
-      // 考虑上旋角度，计算实际测量的膜泡位置
-      const bubblePositionAngle = (upperAngle + scannerAngleOffset + 180) % 360
+      // 使用延迟时刻的上旋角度，保持与延迟厚度分布同一物料时刻
+      const bubblePositionAngle =
+        (delayedUpperAngle + scannerAngleOffset + 180) % 360
       const oppositeAngle = (bubblePositionAngle + 180) % 360
 
       // 从延迟后的膜泡厚度分布中插值得到原始厚度
@@ -873,7 +879,7 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       ProbeValue:
         measuredThickness !== null
           ? parseFloat(measuredThickness.toFixed(2))
-          : 0,
+          : outOfBoundsProbeValue,
       LeftLimit: leftLimit,
       RightLimit: rightLimit,
       ResetSignal: resetSignal,
