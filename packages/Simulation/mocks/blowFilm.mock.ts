@@ -327,6 +327,12 @@ const trapezoidalVelocityProfile = (
 }
 
 /**
+ * 当测厚仪超出测量范围时的哨兵值
+ * 根据 AirRingServer 的规范，出界应该归一到 NaN
+ * */
+const outOfBoundsProbeValue = Number.NaN
+
+/**
  * 创建吹膜机物理仿真系统
  *
  * 这是一个**基于物理因果关系的耦合系统**：
@@ -453,10 +459,11 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
   const thicknessBuffer: Array<{ time: number; value: number }> = []
 
   // 缓存膜泡厚度分布历史 (用于物料传输延迟模拟)
-  // 存储格式：{ time: 仿真时间, profile: 厚度分布数组 }
+  // 存储格式：{ time: 仿真时间, profile: 厚度分布数组, upperAngle: 上旋角度 }
   const thicknessProfileHistory: Array<{
     time: number
     profile: number[]
+    upperAngle: number
   }> = []
 
   /**

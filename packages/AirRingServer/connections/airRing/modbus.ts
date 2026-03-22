@@ -1,5 +1,9 @@
 import { UpperRotationDevice } from '@jjsk/core'
-import { Client as ModbusClient, ModbusData, RegisterPoint } from '../base/modbus'
+import {
+  Client as ModbusClient,
+  ModbusData,
+  RegisterPoint,
+} from '../base/modbus'
 
 export type RingData = ModbusData &
   UpperRotationDevice & {

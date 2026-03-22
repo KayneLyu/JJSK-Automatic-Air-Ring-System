@@ -3,6 +3,11 @@ import { ThicknessConnection } from '../connections/thickness'
 import { calibrate } from './calibration'
 import { CalibrationConfig, Scalar } from '../types'
 import { adjustments } from './adjustments'
+import {
+  thicknessReversal,
+  ThicknessReversalOptions,
+  ThicknessReversalResult,
+} from './thicknessReversal'
 
 export interface ModbusControllerOptions {
   airRingUrl: string
@@ -44,40 +49,42 @@ export const ModbusController = (options: ModbusControllerOptions) => {
     const disturbanceTs = Date.now()
     // if (!res) return
 
-    return new Promise(async (resolve, reject) => {
-      const { next } = calibrate({
-        disturbanceTs,
-        config,
-        standardized,
-      })
+    return new Promise((resolve, reject) => {
+      void (async () => {
+        const { next } = calibrate({
+          disturbanceTs,
+          config,
+          standardized,
+        })
 
-      const unsub1 = await ThicknessClient.subscribe((data) => {
-        const res = next({ thickness: data })
-        if (res) {
-          resolve(res)
-          unsub1()
-          unsub2()
-        }
-      })
+        const unsub1 = await ThicknessClient.subscribe((data) => {
+          const result = next({ thickness: data })
+          if (result) {
+            resolve(result)
+            unsub1()
+            unsub2()
+          }
+        })
 
-      const unsub2 = await AirRingClient.subscribe((data) => {
-        const res = next({ airRing: data })
-        if (res) {
-          resolve(res)
-          unsub1()
-          unsub2()
-        }
-      })
+        const unsub2 = await AirRingClient.subscribe((data) => {
+          const result = next({ airRing: data })
+          if (result) {
+            resolve(result)
+            unsub1()
+            unsub2()
+          }
+        })
 
-      const timer = setTimeout(
-        () => {
-          reject()
-          unsub1()
-          unsub2()
-          clearTimeout(timer)
-        },
-        30 * 60 * 1000
-      )
+        const timer = setTimeout(
+          () => {
+            reject()
+            unsub1()
+            unsub2()
+            clearTimeout(timer)
+          },
+          30 * 60 * 1000
+        )
+      })().catch(reject)
     })
   }
 
@@ -112,10 +119,45 @@ export const ModbusController = (options: ModbusControllerOptions) => {
     }
   }
 
+  /**
+   * 自动反推原始膜泡厚度
+   * */
+  const autoThicknessReversal = async (
+    options: ThicknessReversalOptions,
+    onResult?: (result: ThicknessReversalResult) => void
+  ) => {
+    const controller = thicknessReversal(options)
+
+    const unsub1 = await ThicknessClient.subscribe((data) => {
+      const result = controller.next({ thickness: data })
+      if (result) {
+        onResult?.(result)
+      }
+    })
+
+    const unsub2 = await AirRingClient.subscribe((data) => {
+      const result = controller.next({ airRing: data })
+      if (result) {
+        onResult?.(result)
+      }
+    })
+
+    return {
+      stop: () => {
+        unsub1()
+        unsub2()
+      },
+      getStatistics: controller.getStatistics,
+      getState: controller.getState,
+      getHistory: controller.getHistory,
+      reset: controller.reset,
+    }
+  }
+
   return {
     testConnect,
     sysCalibrate,
     autoAdjustment,
+    autoThicknessReversal,
   }
 }
-
