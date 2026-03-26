@@ -164,7 +164,8 @@ let option: ECOption = {
     ],
 };
 
-const chartContainer = ref<HTMLElement | null>(null)
+// const chartContainer = ref<HTMLElement | null>(null)
+
 const { updateCharts } = useChartsInit('chartContainer', option, props)
 
 watch(() => props.frameData, (frameData) => {

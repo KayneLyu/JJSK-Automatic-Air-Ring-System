@@ -4,6 +4,7 @@ type IConfig = {
   isDark: boolean,
   queryHours: number
   beforeAutoID: number | null
+  fold: boolean
 }
 
 export const useConfigStore = defineStore('config', {
@@ -12,7 +13,8 @@ export const useConfigStore = defineStore('config', {
       language: 'zhCn',
       isDark: false,
       queryHours: 2,
-      beforeAutoID: null
+      beforeAutoID: null,
+      fold: true
     }
   },
   actions: {
