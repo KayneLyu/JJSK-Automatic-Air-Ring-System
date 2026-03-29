@@ -82,7 +82,8 @@ JJSK-Automatic-Air-Ring-System/
 - 遵循 ESLint 配置
 - 使用 pnpm 作为包管理器
 - 采用 monorepo 架构
-- **重要**: 不要尝试修复代码格式问题，包括ESLint问题，除非我特别指出需要修复，一般编辑器会在代码输出后自动使用 Prettier 进行格式化
+- **重要**: 不要尝试修复代码格式问题，包括ESLint问题，除非我特别指出需要修复，一般编辑器会在代码输出后自动使用 Prettier
+  进行格式化
 
 ### 命名约定
 
@@ -148,6 +149,12 @@ JJSK-Automatic-Air-Ring-System/
 - 测试文件命名: `*.test.ts`
 - 使用仿真系统进行集成测试
 - **重要**: 除非用户明确要求使用单元测试验证结果，否则不要自动执行单元测试。如果用户取消了单元测试的执行，不要再次尝试执行，而是继续后续流程
+- 使用`vitest`作为测试框架，例如：
+
+```bash
+cd packages/AirRingServer
+pnpm exec vitest --run algorithms/upperRotation.test.ts -t=^模拟器A/B诊断测试
+```
 
 ## 重要注意事项
 

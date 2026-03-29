@@ -2,12 +2,164 @@
  * 上旋相关算法
  * */
 
-import { goldenSectionSearch } from '../utils'
+import { goldenSectionSearch } from '../../utils'
 import {
   TripSegment,
   UpperRotationDeltaRange,
   ValidThicknessData,
-} from '../types'
+} from '../../types'
+
+export type UpperRotationObjectiveMode = 'auto' | 'direct' | 'expanded'
+export type UpperRotationOffsetMode =
+  | 'auto'
+  | 'globalPulse'
+  | 'groupPulse'
+  | 'time'
+
+export type UpperRotationDebugOptions = {
+  objectiveMode?: UpperRotationObjectiveMode
+  offsetMode?: UpperRotationOffsetMode
+}
+
+const HIGH_ANGLE_DIVERGENCE_BASE_DEG = 330
+const HIGH_ANGLE_DIVERGENCE_MARGIN_DEG = 3
+const SOLUTION_GAP_THRESHOLD_DEG = 15 // 提高门槛：高角度分歧判定更严格
+const DIRECT_ACCEPT_LOSS_RATIO = 1.0 // 收紧容差：direct 损失值不能更高
+const DIRECT_BOUNDARY_GUARD_DEG = 10
+const CHALLENGER_MAX_POINTS = 40000
+
+type LossSample = {
+  theta: number
+  loss: number
+}
+
+type LossLandscapeFeature = {
+  boundaryPlateau: boolean
+  bimodalDivergence: boolean
+  localMinimaCount: number
+  secondaryMinTheta: number | null
+}
+
+type HighAngleGateDecision = {
+  divergenceDeg: number
+  shouldTrigger: boolean
+  reason: string
+}
+
+const dedupeAndSortSamples = (samples: readonly LossSample[]): LossSample[] => {
+  const byTheta = new Map<number, number>()
+  for (const s of samples) {
+    if (!isFinite(s.theta) || !isFinite(s.loss)) continue
+    const key = Number(s.theta.toFixed(3))
+    const prev = byTheta.get(key)
+    if (prev === undefined || s.loss < prev) byTheta.set(key, s.loss)
+  }
+  return [...byTheta.entries()]
+    .map(([theta, loss]) => ({ theta, loss }))
+    .sort((a, b) => a.theta - b.theta)
+}
+
+const analyzeLossLandscape = (
+  samples: readonly LossSample[],
+  min: number,
+  max: number
+): LossLandscapeFeature => {
+  const normalized = dedupeAndSortSamples(samples)
+  if (normalized.length < 9) {
+    return {
+      boundaryPlateau: false,
+      bimodalDivergence: false,
+      localMinimaCount: 0,
+      secondaryMinTheta: null,
+    }
+  }
+
+  const span = max - min
+  const globalBestLoss = Math.min(...normalized.map((s) => s.loss))
+  const safeBest = Math.max(globalBestLoss, 1e-9)
+  const boundaryStart = Math.max(min, max - Math.min(14, span * 0.16))
+  const boundaryBand = normalized.filter((s) => s.theta >= boundaryStart)
+
+  let boundaryPlateau = false
+  if (boundaryBand.length >= 3) {
+    const losses = boundaryBand.map((s) => s.loss).sort((a, b) => a - b)
+    const boundaryBest = losses[0]
+    const boundaryMedian = losses[Math.floor(losses.length / 2)]
+    const nearGlobalBest = boundaryBest <= safeBest * 1.03
+    const isFlat = (boundaryMedian - boundaryBest) / safeBest <= 0.015
+    boundaryPlateau = nearGlobalBest && isFlat
+  }
+
+  const localMinima: LossSample[] = []
+  for (let i = 1; i < normalized.length - 1; i++) {
+    const prev = normalized[i - 1]
+    const cur = normalized[i]
+    const next = normalized[i + 1]
+    if (cur.loss <= prev.loss && cur.loss <= next.loss) {
+      localMinima.push(cur)
+    }
+  }
+
+  const minimaByLoss = [...localMinima].sort((a, b) => a.loss - b.loss)
+  const primary = minimaByLoss[0]
+  const secondary = minimaByLoss[1]
+  const highBandStart = min + span * 0.8
+  const bimodalDivergence =
+    primary !== undefined &&
+    secondary !== undefined &&
+    Math.abs(primary.theta - secondary.theta) >= SOLUTION_GAP_THRESHOLD_DEG &&
+    secondary.loss <= Math.max(primary.loss, 1e-9) * 1.025 &&
+    (primary.theta >= highBandStart || secondary.theta >= highBandStart)
+
+  return {
+    boundaryPlateau,
+    bimodalDivergence,
+    localMinimaCount: localMinima.length,
+    secondaryMinTheta: secondary?.theta ?? null,
+  }
+}
+
+// 基于 loss 地形动态调整高角度门控：边界平台化/双峰分歧出现时更早触发比较。
+const resolveHighAngleDivergenceDeg = (
+  min: number,
+  max: number,
+  feature?: LossLandscapeFeature
+): HighAngleGateDecision => {
+  const span = max - min
+  const adaptive = min + span * 0.8 // 关注搜索区间上 20%
+  const baseline = Math.min(
+    max - 12,
+    Math.max(320, Math.max(HIGH_ANGLE_DIVERGENCE_BASE_DEG - 6, adaptive))
+  )
+
+  if (!feature) {
+    return {
+      divergenceDeg: baseline,
+      shouldTrigger: false,
+      reason: 'no-feature',
+    }
+  }
+
+  let divergenceDeg = baseline
+  let reason = 'stable'
+  const shouldTrigger = feature.boundaryPlateau || feature.bimodalDivergence
+
+  if (feature.boundaryPlateau) {
+    divergenceDeg = Math.max(min + span * 0.72, divergenceDeg - 8)
+    reason = 'boundary-plateau'
+  }
+  if (feature.bimodalDivergence) {
+    divergenceDeg = Math.max(min + span * 0.68, divergenceDeg - 6)
+    reason =
+      reason === 'boundary-plateau' ? 'boundary-plateau+bimodal' : 'bimodal'
+  }
+
+  return {
+    divergenceDeg: Math.min(max - 8, divergenceDeg),
+    shouldTrigger,
+    reason,
+  }
+}
 
 /**
  * 性能监测和日志工具
@@ -162,11 +314,13 @@ export const estimateThetaMaxWithPhaseCorrection = (
   tripSegments: TripSegment[],
   {
     segments = 36,
-    deltaRange: { min = 180, max = 359, step = 1 } = {},
+    deltaRange: { min = 180, max = 360, step = 1 } = {},
+    debug = {},
   }: {
     harmonics?: number
     segments?: number
     deltaRange?: UpperRotationDeltaRange
+    debug?: UpperRotationDebugOptions
   } = {}
 ): number | null => {
   const logger = createLogger()
@@ -192,7 +346,9 @@ export const estimateThetaMaxWithPhaseCorrection = (
   logger.endTimer('filterIncompleteSegments', 10)
 
   if (completeSegments.length === 0) {
-    console.error('[UpperRotation] 无有效的已完成行程片段（所有片段 duration <= 0）')
+    console.error(
+      '[UpperRotation] 无有效的已完成行程片段（所有片段 duration <= 0）'
+    )
     return null
   }
 
@@ -206,7 +362,6 @@ export const estimateThetaMaxWithPhaseCorrection = (
     return null
   }
 
-
   // 无脉冲时改用扫描段展开法（比原始方法更鲁棒）
   logger.startTimer('estimateWithScannerExpansion')
   const result = estimateWithScannerExpansion(
@@ -214,7 +369,9 @@ export const estimateThetaMaxWithPhaseCorrection = (
     min,
     max,
     step,
-    segments
+    segments,
+    undefined,
+    debug
   )
   logger.endTimer('estimateWithScannerExpansion')
   if (result !== null) return result
@@ -350,9 +507,12 @@ const estimateWithScannerExpansion = (
   max: number,
   step: number,
   segments: number,
-  accelDecelMs?: number
+  accelDecelMs?: number,
+  debugOptions: UpperRotationDebugOptions = {}
 ): number | null => {
   try {
+    const objectiveMode = debugOptions.objectiveMode ?? 'auto'
+    const offsetMode = debugOptions.offsetMode ?? 'auto'
     const normalized: {
       data: ExpandedPoint[]
       duration: number
@@ -363,7 +523,7 @@ const estimateWithScannerExpansion = (
       const flipped = seg.isForward
         ? seg.measurements
         : seg.measurements.map((p) => ({ ...p, t: seg.duration - p.t }))
-      const expanded = expandWithScannerOffset(flipped)
+      const expanded = expandWithScannerOffset(flipped, offsetMode)
       if (expanded.length > 0) {
         const accelMs = accelDecelMs ?? Math.min(20000, seg.duration * 0.45)
         const accelRatio = Math.max(0, Math.min(1, accelMs / seg.duration))
@@ -377,7 +537,7 @@ const estimateWithScannerExpansion = (
 
     // 改进搜索策略：多起点搜索避免陷入最小值
     // 在 [min, max) 中均匀分布多个起点，从每个起点进行局部搜索
-    const NUM_STARTS = 8
+    const NUM_STARTS = 12
     const startPoints: number[] = []
     for (let i = 0; i < NUM_STARTS; i++) {
       startPoints.push(min + ((max - min) / NUM_STARTS) * i)
@@ -386,20 +546,41 @@ const estimateWithScannerExpansion = (
     // 决定使用哪个目标函数：
     // - 如果 offsetDeg 都是 0（无有效扫描位置信息），使用 evaluateDirect
     // - 否则使用 evaluateExpanded
-    const hasValidOffset = normalized.some(seg =>
-      seg.data.some(p => Math.abs(p.offsetDeg) > 0.1)
+    const hasValidOffset = normalized.some((seg) =>
+      seg.data.some((p) => Math.abs(p.offsetDeg) > 0.1)
     )
-    const evaluateFn = hasValidOffset ? evaluateExpanded : evaluateDirect
+    const evaluateFn =
+      objectiveMode === 'direct'
+        ? evaluateDirect
+        : objectiveMode === 'expanded'
+          ? evaluateExpanded
+          : hasValidOffset
+            ? evaluateExpanded
+            : evaluateDirect
 
     console.debug(
-      `[UpperRotation] 选择目标函数: ${hasValidOffset ? 'evaluateExpanded (有偏移信息)' : 'evaluateDirect (无偏移信息)'}`
+      `[UpperRotation] 选择目标函数: ${
+        objectiveMode === 'auto'
+          ? hasValidOffset
+            ? 'evaluateExpanded (有偏移信息)'
+            : 'evaluateDirect (无偏移信息)'
+          : objectiveMode === 'expanded'
+            ? 'evaluateExpanded (调试强制)'
+            : 'evaluateDirect (调试强制)'
+      }, offsetMode=${offsetMode}`
     )
 
     const searchBest = (
-      fn: typeof evaluateExpanded
-    ): { theta: number; loss: number } | null => {
+      fn: typeof evaluateExpanded,
+      segsData: {
+        data: ExpandedPoint[]
+        duration: number
+        accelRatio: number
+      }[] = normalized
+    ): { theta: number; loss: number; samples: LossSample[] } | null => {
       let bestTheta: number | null = null
       let bestLoss = Infinity
+      const lossSamples: LossSample[] = []
 
       for (const start of startPoints) {
         // 从每个起点进行范围为 (max-min)/NUM_STARTS 的局部搜索
@@ -407,7 +588,8 @@ const estimateWithScannerExpansion = (
         const searchEnd = Math.min(max, start + rangeSize + 10) // +10 为了有重叠
 
         for (let theta = start; theta < searchEnd; theta += 0.5) {
-          const loss = fn(normalized, theta, segments)
+          const loss = fn(segsData, theta, segments)
+          lossSamples.push({ theta, loss })
           if (loss < bestLoss) {
             bestLoss = loss
             bestTheta = theta
@@ -421,14 +603,14 @@ const estimateWithScannerExpansion = (
       const fineMin = Math.max(min, bestTheta - 5)
       const fineMax = Math.min(max, bestTheta + 5)
       for (let theta = fineMin; theta <= fineMax; theta += 0.1) {
-        const loss = fn(normalized, theta, segments)
+        const loss = fn(segsData, theta, segments)
         if (loss < bestLoss) {
           bestLoss = loss
           bestTheta = theta
         }
       }
 
-      return { theta: bestTheta, loss: bestLoss }
+      return { theta: bestTheta, loss: bestLoss, samples: lossSamples }
     }
 
     const expandedResult = searchBest(evaluateFn)
@@ -440,19 +622,186 @@ const estimateWithScannerExpansion = (
     let bestTheta = expandedResult.theta
     let bestLoss = expandedResult.loss
     let finalEvaluateFn: typeof evaluateExpanded = evaluateFn
+    let finalNormalized = normalized
+    const landscapeFeature =
+      objectiveMode === 'auto' &&
+      offsetMode === 'auto' &&
+      evaluateFn === evaluateExpanded
+        ? analyzeLossLandscape(expandedResult.samples, min, max)
+        : undefined
+    const highAngleGate = resolveHighAngleDivergenceDeg(
+      min,
+      max,
+      landscapeFeature
+    )
+    const highAngleDivergenceDeg = highAngleGate.divergenceDeg
 
-    // 偏移模型若收敛到搜索边界，说明 offsetDeg 质量可疑；
-    // 此时回退比较无偏移目标函数，避免“黏住 180°”的退化情况。
-    const isNearBoundary = bestTheta <= min + 1 || bestTheta >= max - 1
-    if (hasValidOffset && isNearBoundary) {
-      const directResult = searchBest(evaluateDirect)
-      if (directResult && directResult.theta > min + 1 && directResult.theta < max - 1) {
+    const shouldCompareDirect =
+      objectiveMode === 'auto' &&
+      hasValidOffset &&
+      evaluateFn === evaluateExpanded
+    const directResult = shouldCompareDirect ? searchBest(evaluateDirect) : null
+
+    if (directResult) {
+      const thetaGap = Math.abs(bestTheta - directResult.theta)
+      const expandedLeansBoundary =
+        bestTheta >= highAngleDivergenceDeg &&
+        (highAngleGate.shouldTrigger ||
+          bestTheta >=
+            highAngleDivergenceDeg + HIGH_ANGLE_DIVERGENCE_MARGIN_DEG)
+      const directIsCompetitive =
+        directResult.loss <= bestLoss * DIRECT_ACCEPT_LOSS_RATIO
+      // 新增约束：direct 必须明显更优（至少好 1%）
+      const directMustBeSignificantlyBetter =
+        directResult.loss < bestLoss * 0.99
+      // 防止 direct 在低边界附近（如 180°）的退化解覆盖高角度 expanded 解
+      const directAwayFromLowerBoundary =
+        directResult.theta >= min + DIRECT_BOUNDARY_GUARD_DEG
+
+      if (
+        expandedLeansBoundary &&
+        thetaGap >= SOLUTION_GAP_THRESHOLD_DEG &&
+        directIsCompetitive &&
+        directMustBeSignificantlyBetter &&
+        directAwayFromLowerBoundary
+      ) {
         console.warn(
-          `[UpperRotation] evaluateExpanded 在边界收敛 θ=${bestTheta.toFixed(2)}°，回退 evaluateDirect θ=${directResult.theta.toFixed(2)}°`
+          `[UpperRotation] auto 模式高角度分歧，采用 evaluateDirect: gate=${highAngleDivergenceDeg.toFixed(1)}°(${highAngleGate.reason}), expanded θ=${bestTheta.toFixed(2)}°, direct θ=${directResult.theta.toFixed(2)}°, expandedLoss=${bestLoss.toFixed(6)}, directLoss=${directResult.loss.toFixed(6)}`
         )
         bestTheta = directResult.theta
         bestLoss = directResult.loss
         finalEvaluateFn = evaluateDirect
+      } else if (
+        expandedLeansBoundary &&
+        thetaGap >= SOLUTION_GAP_THRESHOLD_DEG &&
+        !directAwayFromLowerBoundary
+      ) {
+        console.debug(
+          `[UpperRotation] 跳过 evaluateDirect 回退：direct θ=${directResult.theta.toFixed(2)}° 过近下边界 (guard=${DIRECT_BOUNDARY_GUARD_DEG}°)`
+        )
+      }
+    }
+
+    // 在 auto 模式的高角度可疑场景下，尝试 groupPulse 作为保守 challenger。
+    // 仅当 loss 明显更优且解不贴边时切换，避免引入大范围回归。
+    const totalPoints = normalized.reduce(
+      (acc, seg) => acc + seg.data.length,
+      0
+    )
+    const highAngleSuspicious =
+      bestTheta >= highAngleDivergenceDeg + HIGH_ANGLE_DIVERGENCE_MARGIN_DEG &&
+      (highAngleGate.shouldTrigger ||
+        bestTheta >=
+          highAngleDivergenceDeg + HIGH_ANGLE_DIVERGENCE_MARGIN_DEG + 2)
+    const shouldTryGroupPulseChallenger =
+      objectiveMode === 'auto' &&
+      offsetMode === 'auto' &&
+      hasValidOffset &&
+      highAngleSuspicious &&
+      finalEvaluateFn === evaluateExpanded &&
+      totalPoints <= CHALLENGER_MAX_POINTS
+
+    if (
+      objectiveMode === 'auto' &&
+      offsetMode === 'auto' &&
+      hasValidOffset &&
+      highAngleSuspicious &&
+      totalPoints > CHALLENGER_MAX_POINTS
+    ) {
+      console.debug(
+        `[UpperRotation] 跳过 challenger: 数据量过大 points=${totalPoints} > ${CHALLENGER_MAX_POINTS}`
+      )
+    }
+
+    if (shouldTryGroupPulseChallenger) {
+      const normalizedGroupPulse: {
+        data: ExpandedPoint[]
+        duration: number
+        accelRatio: number
+      }[] = []
+
+      for (const seg of tripSegments) {
+        if (seg.measurements.length === 0 || seg.duration <= 0) continue
+        const flipped = seg.isForward
+          ? seg.measurements
+          : seg.measurements.map((p) => ({ ...p, t: seg.duration - p.t }))
+        const expandedByGroup = expandWithScannerOffset(flipped, 'groupPulse')
+        if (expandedByGroup.length > 0) {
+          const accelMs = accelDecelMs ?? Math.min(20000, seg.duration * 0.45)
+          const accelRatio = Math.max(0, Math.min(1, accelMs / seg.duration))
+          normalizedGroupPulse.push({
+            data: expandedByGroup,
+            duration: seg.duration,
+            accelRatio,
+          })
+        }
+      }
+
+      if (normalizedGroupPulse.length >= 2) {
+        const groupPulseResult = searchBest(
+          evaluateExpanded,
+          normalizedGroupPulse
+        )
+        if (groupPulseResult) {
+          const groupPulseAwayFromBoundary =
+            groupPulseResult.theta > min + 1 && groupPulseResult.theta < max - 1
+          const lossGain =
+            (bestLoss - groupPulseResult.loss) / Math.max(bestLoss, 1e-9)
+          const minGainForSwitch = 0.005
+
+          if (groupPulseAwayFromBoundary && lossGain > minGainForSwitch) {
+            console.warn(
+              `[UpperRotation] auto 高角度 challenger 采用 groupPulse: prev θ=${bestTheta.toFixed(2)}°, groupPulse θ=${groupPulseResult.theta.toFixed(2)}°, prevLoss=${bestLoss.toFixed(6)}, groupPulseLoss=${groupPulseResult.loss.toFixed(6)}, gain=${(lossGain * 100).toFixed(2)}%`
+            )
+            bestTheta = groupPulseResult.theta
+            bestLoss = groupPulseResult.loss
+            finalEvaluateFn = evaluateExpanded
+            finalNormalized = normalizedGroupPulse
+          }
+        }
+      }
+
+      // 第二 challenger：expanded+time。
+      // 仅在 loss 严格更优且不贴边时切换，用于纠正 pulse 映射可能带来的高角度偏差。
+      const normalizedTime: {
+        data: ExpandedPoint[]
+        duration: number
+        accelRatio: number
+      }[] = []
+
+      for (const seg of tripSegments) {
+        if (seg.measurements.length === 0 || seg.duration <= 0) continue
+        const flipped = seg.isForward
+          ? seg.measurements
+          : seg.measurements.map((p) => ({ ...p, t: seg.duration - p.t }))
+        const expandedByTime = expandWithScannerOffset(flipped, 'time')
+        if (expandedByTime.length > 0) {
+          const accelMs = accelDecelMs ?? Math.min(20000, seg.duration * 0.45)
+          const accelRatio = Math.max(0, Math.min(1, accelMs / seg.duration))
+          normalizedTime.push({
+            data: expandedByTime,
+            duration: seg.duration,
+            accelRatio,
+          })
+        }
+      }
+
+      if (normalizedTime.length >= 2) {
+        const timeResult = searchBest(evaluateExpanded, normalizedTime)
+        if (timeResult) {
+          const timeAwayFromBoundary =
+            timeResult.theta > min + 1 && timeResult.theta < max - 1
+          const strictLossBetter = timeResult.loss < bestLoss
+          if (timeAwayFromBoundary && strictLossBetter) {
+            console.warn(
+              `[UpperRotation] auto 高角度 challenger 采用 expanded+time: prev θ=${bestTheta.toFixed(2)}°, time θ=${timeResult.theta.toFixed(2)}°, prevLoss=${bestLoss.toFixed(6)}, timeLoss=${timeResult.loss.toFixed(6)}`
+            )
+            bestTheta = timeResult.theta
+            bestLoss = timeResult.loss
+            finalEvaluateFn = evaluateExpanded
+            finalNormalized = normalizedTime
+          }
+        }
       }
     }
 
@@ -466,7 +815,7 @@ const estimateWithScannerExpansion = (
 
     // 黄金分割最终收敛
     return goldenSectionSearch(
-      (th) => finalEvaluateFn(normalized, th, segments),
+      (th) => finalEvaluateFn(finalNormalized, th, segments),
       Math.max(min, bestTheta - 1),
       Math.min(max, bestTheta + 1),
       0.01
@@ -481,7 +830,7 @@ type ExpandedPoint = { t: number; y: number; offsetDeg: number }
 
 /**
  * 直接评估方法（不依赖 offsetDeg）
- * 
+ *
  * 用于当扫描仪位置信息不可靠时的回退方案。
  * 直接使用多片段的厚度分布，在纯厚度空间中最小化方差。
  */
@@ -521,7 +870,8 @@ const evaluateDirect = (
         if (isNaN(p.y)) continue
 
         // 仅使用梯形速度曲线映射时间→角度，不加入 offsetDeg
-        const phi = trapezoidalPosition(p.t / duration, accelRatio) * thetaMaxRad
+        const phi =
+          trapezoidalPosition(p.t / duration, accelRatio) * thetaMaxRad
         const np = ((phi % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
         add(Math.floor(np / bw) % NUM_BINS, p.y)
         tY += p.y
@@ -564,7 +914,8 @@ const evaluateDirect = (
  *    无 pulse 时使用时序位置 + 奇偶标志；首组方向未知，可能引入 180° 相位误差。
  */
 const expandWithScannerOffset = (
-  measurements: readonly ValidThicknessData[]
+  measurements: readonly ValidThicknessData[],
+  offsetMode: UpperRotationOffsetMode = 'auto'
 ): ExpandedPoint[] => {
   if (measurements.length === 0) return []
   const valid = measurements
@@ -594,7 +945,8 @@ const expandWithScannerOffset = (
   const globalPulseMin = pulseValues.length > 0 ? Math.min(...pulseValues) : NaN
   const globalPulseMax = pulseValues.length > 0 ? Math.max(...pulseValues) : NaN
   const globalPulseRange = globalPulseMax - globalPulseMin
-  const hasGlobalPulseRange = isFinite(globalPulseRange) && globalPulseRange > 100
+  const hasGlobalPulseRange =
+    isFinite(globalPulseRange) && globalPulseRange > 100
 
   const groups: ValidThicknessData[][] = []
   let cur: ValidThicknessData[] = [valid[0]]
@@ -618,7 +970,9 @@ const expandWithScannerOffset = (
       // 改进：不再使用分组 + 奇偶假设
       // 改为直接使用相对时间位置映射到 [-90°, +90°]
       // 这样模拟器数据也能得到合理的 offsetDeg
-      console.debug(`[UpperRotation] 未检测到间隙，直接使用时间位置映射 offsetDeg`)
+      console.debug(
+        `[UpperRotation] 未检测到间隙，直接使用时间位置映射 offsetDeg`
+      )
       return valid.map((p, i) => {
         const pos = valid.length > 1 ? i / (valid.length - 1) : 0.5
         return {
@@ -642,13 +996,35 @@ const expandWithScannerOffset = (
       continue
     }
 
-    // 策略一：优先使用全局 pulse 映射，避免每组局部范围缩放带来的系统偏差
+    // 策略一：全局 pulse 映射（默认 auto 使用）
     const withPulse = group.filter(
       (p) => p.pulse !== undefined && isFinite(p.pulse)
     )
-    if (withPulse.length >= group.length * 0.5 && hasGlobalPulseRange) {
+    const canUsePulse = withPulse.length >= group.length * 0.5
+    const groupPulseMin =
+      withPulse.length > 0
+        ? Math.min(...withPulse.map((p) => p.pulse as number))
+        : NaN
+    const groupPulseMax =
+      withPulse.length > 0
+        ? Math.max(...withPulse.map((p) => p.pulse as number))
+        : NaN
+    const groupPulseRange = groupPulseMax - groupPulseMin
+    const hasGroupPulseRange = isFinite(groupPulseRange) && groupPulseRange > 10
+
+    const useGlobalPulse =
+      canUsePulse &&
+      hasGlobalPulseRange &&
+      (offsetMode === 'auto' || offsetMode === 'globalPulse')
+    const useGroupPulse =
+      canUsePulse && hasGroupPulseRange && offsetMode === 'groupPulse'
+
+    if (useGlobalPulse) {
       for (const m of group) {
-        const pulse = m.pulse !== undefined ? m.pulse : (globalPulseMin + globalPulseMax) / 2
+        const pulse =
+          m.pulse !== undefined
+            ? m.pulse
+            : (globalPulseMin + globalPulseMax) / 2
         result.push({
           t: m.t,
           y: m.y,
@@ -661,19 +1037,68 @@ const expandWithScannerOffset = (
       continue
     }
 
+    if (useGroupPulse) {
+      const groupPulseTooNarrow =
+        hasGlobalPulseRange && groupPulseRange < globalPulseRange * 0.75
+
+      if (groupPulseTooNarrow) {
+        // 组内 pulse 跨度显著偏窄时，通常是局部/截断扫描，
+        // 此时回退时间位置映射以避免 groupPulse 过拟合到异常段。
+        for (let i = 0; i < group.length; i++) {
+          const pos = group.length > 1 ? i / (group.length - 1) : 0.5
+          result.push({
+            t: group[i].t,
+            y: group[i].y,
+            offsetDeg: (pos - 0.5) * 180,
+          })
+        }
+        console.debug(
+          `[UpperRotation] 组 ${gi} groupPulse 跨度偏窄(${groupPulseRange.toFixed(1)} < ${(globalPulseRange * 0.75).toFixed(1)})，回退时间位置映射`
+        )
+        continue
+      }
+
+      for (const m of group) {
+        const pulse =
+          m.pulse !== undefined ? m.pulse : (groupPulseMin + groupPulseMax) / 2
+        result.push({
+          t: m.t,
+          y: m.y,
+          offsetDeg: ((pulse - groupPulseMin) / groupPulseRange - 0.5) * 180,
+        })
+      }
+      console.debug(
+        `[UpperRotation] 组 ${gi} 使用组内 pulse 映射 (组范围: [${groupPulseMin.toFixed(1)}, ${groupPulseMax.toFixed(1)}], 跨度=${groupPulseRange.toFixed(1)})`
+      )
+      continue
+    }
+
+    if (offsetMode === 'time') {
+      for (let i = 0; i < group.length; i++) {
+        const pos = group.length > 1 ? i / (group.length - 1) : 0.5
+        result.push({
+          t: group[i].t,
+          y: group[i].y,
+          offsetDeg: (pos - 0.5) * 180,
+        })
+      }
+      console.debug(`[UpperRotation] 组 ${gi} 使用时间位置映射 (调试强制)`)
+      continue
+    }
+
     // 策略二：无 pulse，退回奇偶方向假设（首组方向可能错误）
-    // 改进：使用信号变化趋势推断扫描方向，而不是单纯的奇偶索引
+    // 改进：使用信号变化趋势推断扫描方向，而不是单純的奇偶索引
     const firstHalf = group.slice(0, Math.floor(group.length * 0.3))
     const lastHalf = group.slice(Math.floor(group.length * 0.7))
-    
+
     // 计算前后部分的平均值
     const firstMean = firstHalf.reduce((a, p) => a + p.y, 0) / firstHalf.length
     const lastMean = lastHalf.reduce((a, p) => a + p.y, 0) / lastHalf.length
-    
+
     // 如果后部分的平均值更大，说明是正向扫描（y 增大 → 膜越来越厚 → 扫描从薄处到厚处）
     // 反之亦然
     const isForwardScan = lastMean > firstMean
-    
+
     for (let i = 0; i < group.length; i++) {
       const pos = group.length > 1 ? i / (group.length - 1) : 0.5
       const effectivePos = isForwardScan ? pos : 1 - pos

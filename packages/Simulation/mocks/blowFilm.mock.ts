@@ -626,7 +626,7 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
     // 计算角速度（考虑归一化系数）
     const normFactor = 1 / (1 - 0.5 * accelRatio - 0.5 * decelRatio)
     const peakAngularVelocity = (maxAngle / tripDuration) * normFactor
-    let angularVelocity = 0
+    let angularVelocity: number
     if (progress < accelRatio) {
       angularVelocity = peakAngularVelocity * (progress / accelRatio)
     } else if (progress > 1 - decelRatio) {
@@ -689,60 +689,29 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       ? scannerTInCycle
       : scannerTInCycle - scannerTripDuration
 
-    // 测厚仪横向运动模型
-    const scannerMaxSpeed =
-      membraneWidth / (scannerTripDuration - scannerAccelDecelTime) // mm/s
-    const scannerAccelDistance = 0.5 * scannerMaxSpeed * scannerAccelDecelTime
+    // 关键修复点 1：统一梯形位移覆盖完整行程（膜宽 + 双侧 buffer），避免分段公式在换向附近引入轨迹失真。
+    const scannerTripDistance = membraneWidth + bufferDistance * 2
+    const scannerProgress = scannerTInTrip / scannerTripDuration
+    const scannerAccelRatio = Math.min(
+      0.49,
+      Math.max(0, scannerAccelDecelTime / scannerTripDuration)
+    )
+    const scannerNormalizedPosition = trapezoidalVelocityProfile(
+      scannerProgress,
+      scannerAccelRatio,
+      scannerAccelRatio
+    )
 
-    let scannerPosition = 0 // 相对于中心的偏移
-    let scannerDirection = true // true=向右
+    let scannerPosition: number // 相对于中心的偏移
+    let scannerDirection: boolean // true=向右
 
     if (scannerIsForward) {
-      // 从左到右
-      if (scannerTInTrip < scannerAccelDecelTime) {
-        // 加速段
-        scannerPosition =
-          -membraneWidth / 2 -
-          bufferDistance +
-          0.5 * (scannerMaxSpeed / scannerAccelDecelTime) * scannerTInTrip ** 2
-      } else if (scannerTInTrip < scannerTripDuration - scannerAccelDecelTime) {
-        // 匀速段
-        scannerPosition =
-          -membraneWidth / 2 -
-          bufferDistance +
-          scannerAccelDistance +
-          scannerMaxSpeed * (scannerTInTrip - scannerAccelDecelTime)
-      } else {
-        // 减速段
-        const decelTime =
-          scannerTInTrip - (scannerTripDuration - scannerAccelDecelTime)
-        scannerPosition =
-          membraneWidth / 2 +
-          bufferDistance -
-          0.5 * (scannerMaxSpeed / scannerAccelDecelTime) * decelTime ** 2
-      }
+      scannerPosition =
+        -scannerTripDistance / 2 + scannerNormalizedPosition * scannerTripDistance
       scannerDirection = true
     } else {
-      // 从右到左
-      if (scannerTInTrip < scannerAccelDecelTime) {
-        scannerPosition =
-          membraneWidth / 2 +
-          bufferDistance -
-          0.5 * (scannerMaxSpeed / scannerAccelDecelTime) * scannerTInTrip ** 2
-      } else if (scannerTInTrip < scannerTripDuration - scannerAccelDecelTime) {
-        scannerPosition =
-          membraneWidth / 2 +
-          bufferDistance -
-          scannerAccelDistance -
-          scannerMaxSpeed * (scannerTInTrip - scannerAccelDecelTime)
-      } else {
-        const decelTime =
-          scannerTInTrip - (scannerTripDuration - scannerAccelDecelTime)
-        scannerPosition =
-          -membraneWidth / 2 -
-          bufferDistance +
-          0.5 * (scannerMaxSpeed / scannerAccelDecelTime) * decelTime ** 2
-      }
+      scannerPosition =
+        scannerTripDistance / 2 - scannerNormalizedPosition * scannerTripDistance
       scannerDirection = false
     }
 
@@ -770,7 +739,6 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
 
     // 从历史缓存中查找对应时刻的厚度分布
     let delayedThicknessProfile: number[] | null = null
-    let delayedUpperAngle = upperAngle
     let originalThickness: number | null = null
 
     if (delayedTime > 0 && thicknessProfileHistory.length > 0) {
@@ -790,7 +758,6 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       }
 
       delayedThicknessProfile = thicknessProfileHistory[closestIndex].profile
-      delayedUpperAngle = thicknessProfileHistory[closestIndex].upperAngle
 
       // 将测厚仪位置映射到膜泡圆周位置
       // 物理关系：
@@ -803,9 +770,8 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       // 这与原来的公式一致，但现在我们有了明确的物理依据
       const scannerAngleOffset = (scannerPosition / membraneWidth) * 180 // 线性映射（基于展开近似）
 
-      // 使用延迟时刻的上旋角度，保持与延迟厚度分布同一物料时刻
-      const bubblePositionAngle =
-        (delayedUpperAngle + scannerAngleOffset + 180) % 360
+      // 关键修复点 2：仅厚度分布使用传输延迟；上旋角度必须用当前值，避免额外相位滞后。
+      const bubblePositionAngle = (upperAngle + scannerAngleOffset + 180) % 360
       const oppositeAngle = (bubblePositionAngle + 180) % 360
 
       // 从延迟后的膜泡厚度分布中插值得到原始厚度
@@ -928,4 +894,3 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
   }
 }
 
-export default createBlowFilmSimulator
