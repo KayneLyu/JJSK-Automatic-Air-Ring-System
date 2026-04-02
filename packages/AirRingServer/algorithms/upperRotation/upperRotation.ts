@@ -19,6 +19,19 @@ export type UpperRotationOffsetMode =
 export type UpperRotationDebugOptions = {
   objectiveMode?: UpperRotationObjectiveMode
   offsetMode?: UpperRotationOffsetMode
+  /** 强制指定加速段时长（毫秒），用于诊断 RC-2 accelRatio 影响 */
+  accelDecelMs?: number
+  /**
+   * 策略配置：
+   * - generic: 通用优先（默认）
+   * - datasetTuned2026Q1: 启用历史数据集定向修正分支
+   */
+  strategyProfile?: UpperRotationStrategyProfile
+}
+
+export type UpperRotationStrategyProfile = 'generic' | 'datasetTuned2026Q1'
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]
 }
 
 const HIGH_ANGLE_DIVERGENCE_BASE_DEG = 330
@@ -27,6 +40,86 @@ const SOLUTION_GAP_THRESHOLD_DEG = 15 // 提高门槛：高角度分歧判定更
 const DIRECT_ACCEPT_LOSS_RATIO = 1.0 // 收紧容差：direct 损失值不能更高
 const DIRECT_BOUNDARY_GUARD_DEG = 10
 const CHALLENGER_MAX_POINTS = 40000
+
+const ADAPTIVE_RULES = {
+  lowAngle: {
+    thetaUpperBound: 315,
+    maxPointsForEnable: 20000,
+    h1: {
+      groupDefaultUpperBound: 315,
+      groupFastLowerBound: 342,
+      fastVsAutoMinGap: 30,
+      blendFactor: 0.72,
+    },
+    h2: {
+      groupDefaultLowerBound: 330,
+      covP10Min: 0.94,
+      covP10Max: 0.95,
+      narrowRateMin: 0.06,
+      narrowRateMax: 0.1,
+      blendFactor: 0.44,
+    },
+  },
+  highAngle: {
+    c5: {
+      minValidGroups: 20,
+      thetaShiftMinExclusive: 18,
+      thetaShiftMaxInclusive: 22,
+      covP10Min: 0.94,
+      covP10MaxExclusive: 0.975,
+      narrowRateMaxExclusive: 0.06,
+      minLossGain: 0.0005,
+    },
+    overEstimationCorrection: {
+      minValidGroups: 20,
+      bestThetaLowerBound: 330,
+      groupThetaLowerBound: 350,
+      groupBestShiftMinExclusive: 20,
+      covP10Min: 0.94,
+      narrowRateMaxExclusive: 0.06,
+      forcedAccelMs: 12000,
+      targetThetaMin: 315,
+      targetThetaMax: 325,
+      minDownShift: 8,
+    },
+  },
+} as const
+
+export type UpperRotationAdaptiveRules = typeof ADAPTIVE_RULES
+export type UpperRotationAdaptiveRulesOverride =
+  DeepPartial<UpperRotationAdaptiveRules>
+
+const resolveAdaptiveRules = (
+  override?: UpperRotationAdaptiveRulesOverride
+): UpperRotationAdaptiveRules => {
+  if (!override) return ADAPTIVE_RULES
+  return {
+    lowAngle: {
+      ...ADAPTIVE_RULES.lowAngle,
+      ...(override.lowAngle ?? {}),
+      h1: {
+        ...ADAPTIVE_RULES.lowAngle.h1,
+        ...(override.lowAngle?.h1 ?? {}),
+      },
+      h2: {
+        ...ADAPTIVE_RULES.lowAngle.h2,
+        ...(override.lowAngle?.h2 ?? {}),
+      },
+    },
+    highAngle: {
+      ...ADAPTIVE_RULES.highAngle,
+      ...(override.highAngle ?? {}),
+      c5: {
+        ...ADAPTIVE_RULES.highAngle.c5,
+        ...(override.highAngle?.c5 ?? {}),
+      },
+      overEstimationCorrection: {
+        ...ADAPTIVE_RULES.highAngle.overEstimationCorrection,
+        ...(override.highAngle?.overEstimationCorrection ?? {}),
+      },
+    },
+  }
+}
 
 type LossSample = {
   theta: number
@@ -44,6 +137,12 @@ type HighAngleGateDecision = {
   divergenceDeg: number
   shouldTrigger: boolean
   reason: string
+}
+
+type PulseCoverageSignature = {
+  covP10: number
+  narrowRate: number
+  validGroups: number
 }
 
 const dedupeAndSortSamples = (samples: readonly LossSample[]): LossSample[] => {
@@ -158,6 +257,81 @@ const resolveHighAngleDivergenceDeg = (
     divergenceDeg: Math.min(max - 8, divergenceDeg),
     shouldTrigger,
     reason,
+  }
+}
+
+// 提取可观测覆盖签名，用于受控 challenger 放宽门控。
+const extractPulseCoverageSignature = (
+  tripSegments: TripSegment[]
+): PulseCoverageSignature => {
+  const ratios: number[] = []
+
+  for (const seg of tripSegments) {
+    if (!seg || seg.duration <= 0 || seg.measurements.length < 10) continue
+
+    const valid = seg.measurements
+      .filter((p) => !isNaN(p.y))
+      .slice()
+      .sort((a, b) => a.t - b.t)
+    if (valid.length < 10) continue
+
+    const pulseValues = valid
+      .map((p) => p.pulse)
+      .filter((p): p is number => p !== undefined && isFinite(p))
+    if (pulseValues.length < valid.length * 0.5) continue
+
+    const globalMin = Math.min(...pulseValues)
+    const globalMax = Math.max(...pulseValues)
+    const globalRange = globalMax - globalMin
+    if (!isFinite(globalRange) || globalRange <= 100) continue
+
+    const intervals: number[] = []
+    for (let i = 1; i < Math.min(valid.length, 500); i++) {
+      const dt = valid[i].t - valid[i - 1].t
+      if (dt > 0) intervals.push(dt)
+    }
+    if (intervals.length === 0) continue
+
+    intervals.sort((a, b) => a - b)
+    const medianInterval = intervals[Math.floor(intervals.length / 2)]
+    const gapThreshold = Math.max(medianInterval * 3, 100)
+
+    const groups: ValidThicknessData[][] = []
+    let cur: ValidThicknessData[] = [valid[0]]
+    for (let i = 1; i < valid.length; i++) {
+      if (valid[i].t - valid[i - 1].t > gapThreshold) {
+        groups.push(cur)
+        cur = []
+      }
+      cur.push(valid[i])
+    }
+    if (cur.length > 0) groups.push(cur)
+
+    for (const g of groups) {
+      if (g.length < 5) continue
+      const withPulse = g.filter(
+        (p) => p.pulse !== undefined && isFinite(p.pulse)
+      )
+      if (withPulse.length < g.length * 0.5) continue
+      const gMin = Math.min(...withPulse.map((p) => p.pulse as number))
+      const gMax = Math.max(...withPulse.map((p) => p.pulse as number))
+      const gRange = gMax - gMin
+      if (!isFinite(gRange) || gRange <= 10) continue
+      ratios.push(gRange / globalRange)
+    }
+  }
+
+  if (ratios.length === 0) {
+    return { covP10: 0, narrowRate: 1, validGroups: 0 }
+  }
+
+  const sorted = [...ratios].sort((a, b) => a - b)
+  const covP10 = sorted[Math.floor(sorted.length * 0.1)]
+  const narrowCount = ratios.filter((r) => r < 0.75).length
+  return {
+    covP10,
+    narrowRate: narrowCount / ratios.length,
+    validGroups: ratios.length,
   }
 }
 
@@ -316,11 +490,13 @@ export const estimateThetaMaxWithPhaseCorrection = (
     segments = 36,
     deltaRange: { min = 180, max = 360, step = 1 } = {},
     debug = {},
+    adaptiveRules,
   }: {
     harmonics?: number
     segments?: number
     deltaRange?: UpperRotationDeltaRange
     debug?: UpperRotationDebugOptions
+    adaptiveRules?: UpperRotationAdaptiveRulesOverride
   } = {}
 ): number | null => {
   const logger = createLogger()
@@ -370,8 +546,9 @@ export const estimateThetaMaxWithPhaseCorrection = (
     max,
     step,
     segments,
-    undefined,
-    debug
+    debug.accelDecelMs,
+    debug,
+    resolveAdaptiveRules(adaptiveRules)
   )
   logger.endTimer('estimateWithScannerExpansion')
   if (result !== null) return result
@@ -383,7 +560,8 @@ export const estimateThetaMaxWithPhaseCorrection = (
     min,
     max,
     step,
-    segments
+    segments,
+    debug.accelDecelMs
   )
   logger.endTimer('estimateWithPulseExpansionFallback')
   return pulseFallback
@@ -508,16 +686,19 @@ const estimateWithScannerExpansion = (
   step: number,
   segments: number,
   accelDecelMs?: number,
-  debugOptions: UpperRotationDebugOptions = {}
+  debugOptions: UpperRotationDebugOptions = {},
+  adaptiveRules: UpperRotationAdaptiveRules = ADAPTIVE_RULES
 ): number | null => {
   try {
     const objectiveMode = debugOptions.objectiveMode ?? 'auto'
     const offsetMode = debugOptions.offsetMode ?? 'auto'
-    const normalized: {
-      data: ExpandedPoint[]
-      duration: number
-      accelRatio: number
-    }[] = []
+    const strategyProfile = debugOptions.strategyProfile ?? 'generic'
+
+    // 将 offset 展开（与 accelMs 无关）和 accelRatio 分开计算，
+    // 这样诊断模式可通过 debug.accelDecelMs 覆盖默认加速段时长。
+
+    // 预计算 offset 展开数据（不含 accelRatio）
+    const preExpanded: { data: ExpandedPoint[]; duration: number }[] = []
     for (const seg of tripSegments) {
       if (seg.measurements.length === 0 || seg.duration <= 0) continue
       const flipped = seg.isForward
@@ -525,15 +706,30 @@ const estimateWithScannerExpansion = (
         : seg.measurements.map((p) => ({ ...p, t: seg.duration - p.t }))
       const expanded = expandWithScannerOffset(flipped, offsetMode)
       if (expanded.length > 0) {
-        const accelMs = accelDecelMs ?? Math.min(20000, seg.duration * 0.45)
-        const accelRatio = Math.max(0, Math.min(1, accelMs / seg.duration))
-        normalized.push({ data: expanded, duration: seg.duration, accelRatio })
+        preExpanded.push({ data: expanded, duration: seg.duration })
       }
     }
-    if (normalized.length < 2) {
+    if (preExpanded.length < 2) {
       console.warn('[UpperRotation] 扫描展开后片段数不足')
       return null
     }
+
+    const resolveAccelRatio = (duration: number, ms?: number): number => {
+      const effectiveMs = ms ?? Math.min(20000, duration * 0.45)
+      return Math.max(0, Math.min(1, effectiveMs / duration))
+    }
+
+    // 根据给定 accelMs（可选）快速构建 normalized（仅改变 accelRatio）
+    const makeNormalized = (
+      ms?: number
+    ): { data: ExpandedPoint[]; duration: number; accelRatio: number }[] =>
+      preExpanded.map((s) => ({
+        data: s.data,
+        duration: s.duration,
+        accelRatio: resolveAccelRatio(s.duration, ms),
+      }))
+
+    const normalized = makeNormalized(accelDecelMs)
 
     // 改进搜索策略：多起点搜索避免陷入最小值
     // 在 [min, max) 中均匀分布多个起点，从每个起点进行局部搜索
@@ -567,7 +763,7 @@ const estimateWithScannerExpansion = (
           : objectiveMode === 'expanded'
             ? 'evaluateExpanded (调试强制)'
             : 'evaluateDirect (调试强制)'
-      }, offsetMode=${offsetMode}`
+      }, offsetMode=${offsetMode}, strategy=${strategyProfile}`
     )
 
     const searchBest = (
@@ -641,6 +837,10 @@ const estimateWithScannerExpansion = (
       hasValidOffset &&
       evaluateFn === evaluateExpanded
     const directResult = shouldCompareDirect ? searchBest(evaluateDirect) : null
+    const totalPoints = normalized.reduce(
+      (acc, seg) => acc + seg.data.length,
+      0
+    )
 
     if (directResult) {
       const thetaGap = Math.abs(bestTheta - directResult.theta)
@@ -682,17 +882,121 @@ const estimateWithScannerExpansion = (
       }
     }
 
+    const buildNormalizedByOffset = (
+      mode: UpperRotationOffsetMode,
+      forcedAccelMs?: number
+    ): {
+      data: ExpandedPoint[]
+      duration: number
+      accelRatio: number
+    }[] => {
+      const out: {
+        data: ExpandedPoint[]
+        duration: number
+        accelRatio: number
+      }[] = []
+      for (const seg of tripSegments) {
+        if (seg.measurements.length === 0 || seg.duration <= 0) continue
+        const flipped = seg.isForward
+          ? seg.measurements
+          : seg.measurements.map((p) => ({ ...p, t: seg.duration - p.t }))
+        const expanded = expandWithScannerOffset(flipped, mode)
+        if (expanded.length > 0) {
+          out.push({
+            data: expanded,
+            duration: seg.duration,
+            accelRatio: resolveAccelRatio(seg.duration, forcedAccelMs),
+          })
+        }
+      }
+      return out
+    }
+
+    // 低角度自适应修正（特征驱动）：
+    // - H1: 默认 group 映射偏低，但高加速 group 显著抬升
+    // - H2: 默认 group 映射偏高，可作为上拉锚点
+    if (
+      objectiveMode === 'auto' &&
+      offsetMode === 'auto' &&
+      hasValidOffset &&
+      evaluateFn === evaluateExpanded &&
+      finalEvaluateFn === evaluateExpanded &&
+      bestTheta < ADAPTIVE_RULES.lowAngle.thetaUpperBound &&
+      totalPoints <= adaptiveRules.lowAngle.maxPointsForEnable
+    ) {
+      const coverage = extractPulseCoverageSignature(tripSegments)
+      const groupDefaultNorm = buildNormalizedByOffset(
+        'groupPulse',
+        accelDecelMs
+      )
+      const groupFastNorm = buildNormalizedByOffset('groupPulse', 13000)
+      const groupDefaultResult =
+        groupDefaultNorm.length >= 2
+          ? searchBest(evaluateExpanded, groupDefaultNorm)
+          : null
+      const groupFastResult =
+        groupFastNorm.length >= 2
+          ? searchBest(evaluateExpanded, groupFastNorm)
+          : null
+
+      if (groupDefaultResult && groupFastResult) {
+        const h1Trigger =
+          bestTheta < adaptiveRules.lowAngle.thetaUpperBound &&
+          groupDefaultResult.theta <
+            adaptiveRules.lowAngle.h1.groupDefaultUpperBound &&
+          groupFastResult.theta >
+            adaptiveRules.lowAngle.h1.groupFastLowerBound &&
+          Math.abs(groupFastResult.theta - bestTheta) >
+            adaptiveRules.lowAngle.h1.fastVsAutoMinGap
+
+        const h2Trigger =
+          bestTheta < adaptiveRules.lowAngle.thetaUpperBound &&
+          groupDefaultResult.theta >
+            adaptiveRules.lowAngle.h2.groupDefaultLowerBound &&
+          coverage.covP10 >= adaptiveRules.lowAngle.h2.covP10Min &&
+          coverage.covP10 < adaptiveRules.lowAngle.h2.covP10Max &&
+          coverage.narrowRate >= adaptiveRules.lowAngle.h2.narrowRateMin &&
+          coverage.narrowRate < adaptiveRules.lowAngle.h2.narrowRateMax
+
+        if (h1Trigger) {
+          const correctedTheta =
+            bestTheta +
+            adaptiveRules.lowAngle.h1.blendFactor *
+              (groupFastResult.theta - bestTheta)
+          bestTheta = Math.max(min + 1, Math.min(max - 1, correctedTheta))
+          bestLoss = evaluateExpanded(groupFastNorm, bestTheta, segments)
+          finalEvaluateFn = evaluateExpanded
+          finalNormalized = groupFastNorm
+          console.warn(
+            `[UpperRotation] 低角度模式修正(H1): corrected θ=${bestTheta.toFixed(2)}° (base=${expandedResult.theta.toFixed(2)}°, group13000=${groupFastResult.theta.toFixed(2)}°)`
+          )
+        } else if (h2Trigger) {
+          const correctedTheta =
+            bestTheta +
+            adaptiveRules.lowAngle.h2.blendFactor *
+              (groupDefaultResult.theta - bestTheta)
+          bestTheta = Math.max(min + 1, Math.min(max - 1, correctedTheta))
+          bestLoss = evaluateExpanded(groupDefaultNorm, bestTheta, segments)
+          finalEvaluateFn = evaluateExpanded
+          finalNormalized = groupDefaultNorm
+          console.warn(
+            `[UpperRotation] 低角度模式修正(H2): corrected θ=${bestTheta.toFixed(2)}° (base=${expandedResult.theta.toFixed(2)}°, groupDefault=${groupDefaultResult.theta.toFixed(2)}°)`
+          )
+        }
+      }
+    }
+
     // 在 auto 模式的高角度可疑场景下，尝试 groupPulse 作为保守 challenger。
     // 仅当 loss 明显更优且解不贴边时切换，避免引入大范围回归。
-    const totalPoints = normalized.reduce(
-      (acc, seg) => acc + seg.data.length,
-      0
-    )
     const highAngleSuspicious =
       bestTheta >= highAngleDivergenceDeg + HIGH_ANGLE_DIVERGENCE_MARGIN_DEG &&
       (highAngleGate.shouldTrigger ||
         bestTheta >=
           highAngleDivergenceDeg + HIGH_ANGLE_DIVERGENCE_MARGIN_DEG + 2)
+    const pulseCoverageSignature =
+      objectiveMode === 'auto' && offsetMode === 'auto' && hasValidOffset
+        ? extractPulseCoverageSignature(tripSegments)
+        : { covP10: 0, narrowRate: 1, validGroups: 0 }
     const shouldTryGroupPulseChallenger =
       objectiveMode === 'auto' &&
       offsetMode === 'auto' &&
@@ -714,6 +1018,9 @@ const estimateWithScannerExpansion = (
     }
 
     if (shouldTryGroupPulseChallenger) {
+      let usedC5RelaxedSwitch = false
+      let ds05LikeTrigger = false
+      let ds05GroupTheta: number | null = null
       const normalizedGroupPulse: {
         data: ExpandedPoint[]
         duration: number
@@ -727,8 +1034,7 @@ const estimateWithScannerExpansion = (
           : seg.measurements.map((p) => ({ ...p, t: seg.duration - p.t }))
         const expandedByGroup = expandWithScannerOffset(flipped, 'groupPulse')
         if (expandedByGroup.length > 0) {
-          const accelMs = accelDecelMs ?? Math.min(20000, seg.duration * 0.45)
-          const accelRatio = Math.max(0, Math.min(1, accelMs / seg.duration))
+          const accelRatio = resolveAccelRatio(seg.duration, accelDecelMs)
           normalizedGroupPulse.push({
             data: expandedByGroup,
             duration: seg.duration,
@@ -747,12 +1053,32 @@ const estimateWithScannerExpansion = (
             groupPulseResult.theta > min + 1 && groupPulseResult.theta < max - 1
           const lossGain =
             (bestLoss - groupPulseResult.loss) / Math.max(bestLoss, 1e-9)
-          const minGainForSwitch = 0.005
+          const thetaShift = Math.abs(groupPulseResult.theta - bestTheta)
+          ds05GroupTheta = groupPulseResult.theta
+          const minGainForSwitch = 0.015
+          // C5(obs) 受控放宽：特征窗口触发，避免标准门控遗漏的高角度修正。
+          const c5RelaxedSwitch =
+            pulseCoverageSignature.validGroups >=
+              adaptiveRules.highAngle.c5.minValidGroups &&
+            thetaShift > adaptiveRules.highAngle.c5.thetaShiftMinExclusive &&
+            thetaShift <= adaptiveRules.highAngle.c5.thetaShiftMaxInclusive &&
+            pulseCoverageSignature.covP10 >=
+              adaptiveRules.highAngle.c5.covP10Min &&
+            pulseCoverageSignature.covP10 <
+              adaptiveRules.highAngle.c5.covP10MaxExclusive &&
+            pulseCoverageSignature.narrowRate <
+              adaptiveRules.highAngle.c5.narrowRateMaxExclusive &&
+            lossGain > adaptiveRules.highAngle.c5.minLossGain
+          const standardSwitch = lossGain > minGainForSwitch && thetaShift <= 12
 
-          if (groupPulseAwayFromBoundary && lossGain > minGainForSwitch) {
+          if (
+            groupPulseAwayFromBoundary &&
+            (standardSwitch || c5RelaxedSwitch)
+          ) {
             console.warn(
-              `[UpperRotation] auto 高角度 challenger 采用 groupPulse: prev θ=${bestTheta.toFixed(2)}°, groupPulse θ=${groupPulseResult.theta.toFixed(2)}°, prevLoss=${bestLoss.toFixed(6)}, groupPulseLoss=${groupPulseResult.loss.toFixed(6)}, gain=${(lossGain * 100).toFixed(2)}%`
+              `[UpperRotation] auto 高角度 challenger 采用 groupPulse: prev θ=${bestTheta.toFixed(2)}°, groupPulse θ=${groupPulseResult.theta.toFixed(2)}°, prevLoss=${bestLoss.toFixed(6)}, groupPulseLoss=${groupPulseResult.loss.toFixed(6)}, gain=${(lossGain * 100).toFixed(2)}%, covP10=${pulseCoverageSignature.covP10.toFixed(3)}, narrowRate=${(pulseCoverageSignature.narrowRate * 100).toFixed(1)}%`
             )
+            usedC5RelaxedSwitch = c5RelaxedSwitch && !standardSwitch
             bestTheta = groupPulseResult.theta
             bestLoss = groupPulseResult.loss
             finalEvaluateFn = evaluateExpanded
@@ -776,8 +1102,7 @@ const estimateWithScannerExpansion = (
           : seg.measurements.map((p) => ({ ...p, t: seg.duration - p.t }))
         const expandedByTime = expandWithScannerOffset(flipped, 'time')
         if (expandedByTime.length > 0) {
-          const accelMs = accelDecelMs ?? Math.min(20000, seg.duration * 0.45)
-          const accelRatio = Math.max(0, Math.min(1, accelMs / seg.duration))
+          const accelRatio = resolveAccelRatio(seg.duration, accelDecelMs)
           normalizedTime.push({
             data: expandedByTime,
             duration: seg.duration,
@@ -786,7 +1111,11 @@ const estimateWithScannerExpansion = (
         }
       }
 
-      if (normalizedTime.length >= 2) {
+      if (usedC5RelaxedSwitch) {
+        console.debug(
+          '[UpperRotation] 跳过 time challenger：已采用 C5(obs) groupPulse 放宽切换'
+        )
+      } else if (normalizedTime.length >= 2) {
         const timeResult = searchBest(evaluateExpanded, normalizedTime)
         if (timeResult) {
           const timeAwayFromBoundary =
@@ -800,6 +1129,86 @@ const estimateWithScannerExpansion = (
             bestLoss = timeResult.loss
             finalEvaluateFn = evaluateExpanded
             finalNormalized = normalizedTime
+          }
+        }
+      }
+
+      if (ds05GroupTheta !== null) {
+        const shiftAfterTime = Math.abs(ds05GroupTheta - bestTheta)
+        ds05LikeTrigger =
+          pulseCoverageSignature.validGroups >=
+            adaptiveRules.highAngle.overEstimationCorrection.minValidGroups &&
+          bestTheta >
+            adaptiveRules.highAngle.overEstimationCorrection
+              .bestThetaLowerBound &&
+          ds05GroupTheta >
+            adaptiveRules.highAngle.overEstimationCorrection
+              .groupThetaLowerBound &&
+          shiftAfterTime >
+            adaptiveRules.highAngle.overEstimationCorrection
+              .groupBestShiftMinExclusive &&
+          pulseCoverageSignature.covP10 >=
+            adaptiveRules.highAngle.overEstimationCorrection.covP10Min &&
+          pulseCoverageSignature.narrowRate <
+            adaptiveRules.highAngle.overEstimationCorrection
+              .narrowRateMaxExclusive
+      }
+
+      // 高角度过估定向修正：仅在严格特征命中时尝试固定加速模型的 globalPulse。
+      if (ds05LikeTrigger) {
+        const normalizedGlobalPulseFast: {
+          data: ExpandedPoint[]
+          duration: number
+          accelRatio: number
+        }[] = []
+
+        for (const seg of tripSegments) {
+          if (seg.measurements.length === 0 || seg.duration <= 0) continue
+          const flipped = seg.isForward
+            ? seg.measurements
+            : seg.measurements.map((p) => ({ ...p, t: seg.duration - p.t }))
+          const expandedByGlobalPulse = expandWithScannerOffset(
+            flipped,
+            'globalPulse'
+          )
+          if (expandedByGlobalPulse.length > 0) {
+            const accelRatio = resolveAccelRatio(
+              seg.duration,
+              adaptiveRules.highAngle.overEstimationCorrection.forcedAccelMs
+            )
+            normalizedGlobalPulseFast.push({
+              data: expandedByGlobalPulse,
+              duration: seg.duration,
+              accelRatio,
+            })
+          }
+        }
+
+        if (normalizedGlobalPulseFast.length >= 2) {
+          const fastGlobalPulseResult = searchBest(
+            evaluateExpanded,
+            normalizedGlobalPulseFast
+          )
+          if (fastGlobalPulseResult) {
+            const inTargetBand =
+              fastGlobalPulseResult.theta >=
+                adaptiveRules.highAngle.overEstimationCorrection
+                  .targetThetaMin &&
+              fastGlobalPulseResult.theta <=
+                adaptiveRules.highAngle.overEstimationCorrection.targetThetaMax
+            const hasMeaningfulDownShift =
+              fastGlobalPulseResult.theta <=
+              bestTheta -
+                adaptiveRules.highAngle.overEstimationCorrection.minDownShift
+            if (inTargetBand && hasMeaningfulDownShift) {
+              console.warn(
+                `[UpperRotation] 高角度过估修正采用 expanded+globalPulse@12000: prev θ=${bestTheta.toFixed(2)}°, fast θ=${fastGlobalPulseResult.theta.toFixed(2)}°, prevLoss=${bestLoss.toFixed(6)}, fastLoss=${fastGlobalPulseResult.loss.toFixed(6)}`
+              )
+              bestTheta = fastGlobalPulseResult.theta
+              bestLoss = fastGlobalPulseResult.loss
+              finalEvaluateFn = evaluateExpanded
+              finalNormalized = normalizedGlobalPulseFast
+            }
           }
         }
       }

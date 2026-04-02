@@ -8,7 +8,7 @@ describe.concurrent('真实数据集测试', () => {
   for (const dsName of ['01', '02', '03', '04', '05'] as const) {
     test(`测试估算最大旋转角度,样本数据 ${dsName}`, async () => {
       const thicknessData = (
-        await import(`./data/${dsName}/thickness.json`, {
+        await import(`../data/${dsName}/thickness.json`, {
           assert: { type: 'json' },
         })
       ).default as Array<{
@@ -17,7 +17,7 @@ describe.concurrent('真实数据集测试', () => {
         timestamp: number
       } | null>
       const upper = (
-        await import(`./data/${dsName}/upper.json`, {
+        await import(`../data/${dsName}/upper.json`, {
           assert: { type: 'json' },
         })
       ).default as Array<{
@@ -26,7 +26,7 @@ describe.concurrent('真实数据集测试', () => {
         timestamp: number
       } | null>
       const info = (
-        await import(`./data/${dsName}/info.json`, { assert: { type: 'json' } })
+        await import(`../data/${dsName}/info.json`, { assert: { type: 'json' } })
       ).default as { angle: number }
 
       const { next: rollerNext } = mockRoller({
