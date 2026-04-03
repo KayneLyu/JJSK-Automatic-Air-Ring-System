@@ -1,5 +1,9 @@
 import { atom } from 'nanostores'
 import ModbusRTU from 'modbus-serial'
+import {
+  ConnectionLoggerOptions,
+  createConnectionLogger,
+} from './connectionLogger'
 
 export interface ModbusData extends Record<string, unknown> {
   timestamp?: number
@@ -32,6 +36,10 @@ export interface ClientOptions<T extends ModbusData> {
    * 订阅轮询间隔（毫秒）
    * */
   readIntervalMs?: number
+  /**
+   * 本地日志配置
+   * */
+  logger?: ConnectionLoggerOptions
 }
 
 export type ClientState =
@@ -52,7 +60,9 @@ const parseUrl = (url: string) => {
     const parsed = new URL(url)
     const protocol = parsed.protocol
     const isTcpProtocol =
-      protocol === 'tcp:' || protocol === 'modbus-tcp:' || protocol === 'modbus:'
+      protocol === 'tcp:' ||
+      protocol === 'modbus-tcp:' ||
+      protocol === 'modbus:'
 
     if (!isTcpProtocol) {
       throw new Error(`Unsupported Modbus protocol: ${protocol}`)
@@ -82,7 +92,18 @@ const shallowEqualData = <T extends ModbusData>(a?: T, b?: T) => {
 
 // ==================== 主逻辑 ====================
 export const Client = <T extends ModbusData>(options: ClientOptions<T>) => {
-  const { url, pointValueMap, unitId = 1, readIntervalMs = 100 } = options
+  const {
+    url,
+    pointValueMap,
+    unitId = 1,
+    readIntervalMs = 100,
+    logger,
+  } = options
+
+  const connectionLogger = createConnectionLogger({
+    source: logger?.source || `modbus:${url}`,
+    ...logger,
+  })
 
   const client = new ModbusRTU()
 
@@ -113,9 +134,20 @@ export const Client = <T extends ModbusData>(options: ClientOptions<T>) => {
       await client.connectTCP(host, { port })
       client.setID(unitId)
       $clientState.set({ status: 'connected', client })
+      connectionLogger.log({
+        protocol: 'modbus',
+        event: 'connect',
+        meta: { url, unitId, host, port },
+      })
       return client
     } catch (err) {
       $clientState.set({ status: 'error', error: err as Error })
+      connectionLogger.log({
+        protocol: 'modbus',
+        event: 'connect_error',
+        meta: { url, unitId },
+        error: err,
+      })
     }
   }
 
@@ -159,6 +191,12 @@ export const Client = <T extends ModbusData>(options: ClientOptions<T>) => {
       res[key as keyof T] = value as T[keyof T]
     }
     res.timestamp = Date.now()
+    connectionLogger.log({
+      protocol: 'modbus',
+      event: 'read',
+      meta: { url, unitId },
+      data: res,
+    })
     return res
   }
 
@@ -171,10 +209,22 @@ export const Client = <T extends ModbusData>(options: ClientOptions<T>) => {
         const newValue = await read()
         if (!newValue) return
         if (shallowEqualData(newValue, oldValue)) return
+        connectionLogger.log({
+          protocol: 'modbus',
+          event: 'subscribe',
+          meta: { url, unitId },
+          data: newValue,
+        })
         listener(newValue, oldValue)
         oldValue = newValue
       } catch (error) {
         $clientState.set({ status: 'error', error: error as Error })
+        connectionLogger.log({
+          protocol: 'modbus',
+          event: 'subscribe_error',
+          meta: { url, unitId },
+          error,
+        })
       }
     }
 
@@ -194,8 +244,19 @@ export const Client = <T extends ModbusData>(options: ClientOptions<T>) => {
       const { host, port } = parseUrl(url)
       await tester.connectTCP(host, { port })
       tester.setID(unitId)
+      connectionLogger.log({
+        protocol: 'modbus',
+        event: 'test_connect',
+        meta: { url, unitId, host, port },
+      })
       return true
-    } catch {
+    } catch (error) {
+      connectionLogger.log({
+        protocol: 'modbus',
+        event: 'test_connect_error',
+        meta: { url, unitId },
+        error,
+      })
       return false
     } finally {
       if (tester.isOpen) {

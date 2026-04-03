@@ -29,6 +29,16 @@
 - 第三步目标达成：算法阈值与系数已可由调用侧注入（设备/配方级）；
 - 默认行为保持稳定，便于后续按机台做配置化标定而不改源码。
 
+### 参数收敛补充
+
+- 本轮进一步将“机器适配入口”收敛为少量高层参数：
+  - `lowAngleBlendH1`
+  - `lowAngleBlendH2`
+  - `qualityTightness`
+  - `highAngleShiftBiasDeg`
+  - `maxAdaptivePoints`
+- 细粒度 `adaptiveRules` 仍保留为专家通道（可选），但常规适配推荐仅使用 `adaptiveTuning`。
+
 ## 2026-04-02 迭代 #16（继续第二步：generic 路径泛化优化完成）
 
 ### 本轮改动

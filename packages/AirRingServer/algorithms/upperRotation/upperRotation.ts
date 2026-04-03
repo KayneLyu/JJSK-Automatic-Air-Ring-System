@@ -34,6 +34,22 @@ type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]
 }
 
+export type UpperRotationAdaptiveTuning = {
+  /** 低角度 H1 融合权重 */
+  lowAngleBlendH1: number
+  /** 低角度 H2 融合权重 */
+  lowAngleBlendH2: number
+  /** 质量严格度（>1 更严格，<1 更宽松） */
+  qualityTightness: number
+  /** 高角度 shift 窗口偏移（度） */
+  highAngleShiftBiasDeg: number
+  /** 允许启用低角度修正的数据量上限 */
+  maxAdaptivePoints: number
+}
+
+export type UpperRotationAdaptiveTuningOverride =
+  Partial<UpperRotationAdaptiveTuning>
+
 const HIGH_ANGLE_DIVERGENCE_BASE_DEG = 330
 const HIGH_ANGLE_DIVERGENCE_MARGIN_DEG = 3
 const SOLUTION_GAP_THRESHOLD_DEG = 15 // 提高门槛：高角度分歧判定更严格
@@ -41,7 +57,7 @@ const DIRECT_ACCEPT_LOSS_RATIO = 1.0 // 收紧容差：direct 损失值不能更
 const DIRECT_BOUNDARY_GUARD_DEG = 10
 const CHALLENGER_MAX_POINTS = 40000
 
-const ADAPTIVE_RULES = {
+const ADAPTIVE_RULES_BASE = {
   lowAngle: {
     thetaUpperBound: 315,
     maxPointsForEnable: 20000,
@@ -83,38 +99,108 @@ const ADAPTIVE_RULES = {
       minDownShift: 8,
     },
   },
-} as const
+}
 
-export type UpperRotationAdaptiveRules = typeof ADAPTIVE_RULES
+const ADAPTIVE_TUNING_DEFAULT: UpperRotationAdaptiveTuning = {
+  lowAngleBlendH1: 0.72,
+  lowAngleBlendH2: 0.44,
+  qualityTightness: 1,
+  highAngleShiftBiasDeg: 0,
+  maxAdaptivePoints: 20000,
+}
+
+export type UpperRotationAdaptiveRules = typeof ADAPTIVE_RULES_BASE
 export type UpperRotationAdaptiveRulesOverride =
   DeepPartial<UpperRotationAdaptiveRules>
 
-const resolveAdaptiveRules = (
-  override?: UpperRotationAdaptiveRulesOverride
+const clamp = (v: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, v))
+
+const deriveAdaptiveRulesFromTuning = (
+  tuning: UpperRotationAdaptiveTuning
 ): UpperRotationAdaptiveRules => {
-  if (!override) return ADAPTIVE_RULES
+  const quality = clamp(tuning.qualityTightness, 0.8, 1.2)
+  const shiftBias = clamp(tuning.highAngleShiftBiasDeg, -2, 2)
   return {
     lowAngle: {
-      ...ADAPTIVE_RULES.lowAngle,
+      ...ADAPTIVE_RULES_BASE.lowAngle,
+      maxPointsForEnable: Math.round(
+        clamp(tuning.maxAdaptivePoints, 5000, 100000)
+      ),
+      h1: {
+        ...ADAPTIVE_RULES_BASE.lowAngle.h1,
+        blendFactor: clamp(tuning.lowAngleBlendH1, 0.5, 0.9),
+      },
+      h2: {
+        ...ADAPTIVE_RULES_BASE.lowAngle.h2,
+        blendFactor: clamp(tuning.lowAngleBlendH2, 0.3, 0.7),
+        covP10Min: ADAPTIVE_RULES_BASE.lowAngle.h2.covP10Min * quality,
+        covP10Max:
+          ADAPTIVE_RULES_BASE.lowAngle.h2.covP10Max + (quality - 1) * 0.005,
+        narrowRateMin:
+          ADAPTIVE_RULES_BASE.lowAngle.h2.narrowRateMin * (2 - quality),
+        narrowRateMax:
+          ADAPTIVE_RULES_BASE.lowAngle.h2.narrowRateMax * (2 - quality),
+      },
+    },
+    highAngle: {
+      c5: {
+        ...ADAPTIVE_RULES_BASE.highAngle.c5,
+        thetaShiftMinExclusive:
+          ADAPTIVE_RULES_BASE.highAngle.c5.thetaShiftMinExclusive + shiftBias,
+        thetaShiftMaxInclusive:
+          ADAPTIVE_RULES_BASE.highAngle.c5.thetaShiftMaxInclusive + shiftBias,
+        covP10Min: ADAPTIVE_RULES_BASE.highAngle.c5.covP10Min * quality,
+        narrowRateMaxExclusive:
+          ADAPTIVE_RULES_BASE.highAngle.c5.narrowRateMaxExclusive /
+          Math.max(quality, 0.1),
+        minLossGain: ADAPTIVE_RULES_BASE.highAngle.c5.minLossGain * quality,
+      },
+      overEstimationCorrection: {
+        ...ADAPTIVE_RULES_BASE.highAngle.overEstimationCorrection,
+        covP10Min:
+          ADAPTIVE_RULES_BASE.highAngle.overEstimationCorrection.covP10Min *
+          quality,
+        narrowRateMaxExclusive:
+          ADAPTIVE_RULES_BASE.highAngle.overEstimationCorrection
+            .narrowRateMaxExclusive / Math.max(quality, 0.1),
+      },
+    },
+  }
+}
+
+const resolveAdaptiveRules = (
+  override?: UpperRotationAdaptiveRulesOverride,
+  tuningOverride?: UpperRotationAdaptiveTuningOverride
+): UpperRotationAdaptiveRules => {
+  const tuning: UpperRotationAdaptiveTuning = {
+    ...ADAPTIVE_TUNING_DEFAULT,
+    ...(tuningOverride ?? {}),
+  }
+  const derived = deriveAdaptiveRulesFromTuning(tuning)
+  if (!override) return derived
+  return {
+    lowAngle: {
+      ...derived.lowAngle,
       ...(override.lowAngle ?? {}),
       h1: {
-        ...ADAPTIVE_RULES.lowAngle.h1,
+        ...derived.lowAngle.h1,
         ...(override.lowAngle?.h1 ?? {}),
       },
       h2: {
-        ...ADAPTIVE_RULES.lowAngle.h2,
+        ...derived.lowAngle.h2,
         ...(override.lowAngle?.h2 ?? {}),
       },
     },
     highAngle: {
-      ...ADAPTIVE_RULES.highAngle,
+      ...derived.highAngle,
       ...(override.highAngle ?? {}),
       c5: {
-        ...ADAPTIVE_RULES.highAngle.c5,
+        ...derived.highAngle.c5,
         ...(override.highAngle?.c5 ?? {}),
       },
       overEstimationCorrection: {
-        ...ADAPTIVE_RULES.highAngle.overEstimationCorrection,
+        ...derived.highAngle.overEstimationCorrection,
         ...(override.highAngle?.overEstimationCorrection ?? {}),
       },
     },
@@ -491,12 +577,14 @@ export const estimateThetaMaxWithPhaseCorrection = (
     deltaRange: { min = 180, max = 360, step = 1 } = {},
     debug = {},
     adaptiveRules,
+    adaptiveTuning,
   }: {
     harmonics?: number
     segments?: number
     deltaRange?: UpperRotationDeltaRange
     debug?: UpperRotationDebugOptions
     adaptiveRules?: UpperRotationAdaptiveRulesOverride
+    adaptiveTuning?: UpperRotationAdaptiveTuningOverride
   } = {}
 ): number | null => {
   const logger = createLogger()
@@ -548,7 +636,7 @@ export const estimateThetaMaxWithPhaseCorrection = (
     segments,
     debug.accelDecelMs,
     debug,
-    resolveAdaptiveRules(adaptiveRules)
+    resolveAdaptiveRules(adaptiveRules, adaptiveTuning)
   )
   logger.endTimer('estimateWithScannerExpansion')
   if (result !== null) return result
@@ -687,7 +775,7 @@ const estimateWithScannerExpansion = (
   segments: number,
   accelDecelMs?: number,
   debugOptions: UpperRotationDebugOptions = {},
-  adaptiveRules: UpperRotationAdaptiveRules = ADAPTIVE_RULES
+  adaptiveRules: UpperRotationAdaptiveRules = ADAPTIVE_RULES_BASE
 ): number | null => {
   try {
     const objectiveMode = debugOptions.objectiveMode ?? 'auto'
@@ -921,7 +1009,7 @@ const estimateWithScannerExpansion = (
       hasValidOffset &&
       evaluateFn === evaluateExpanded &&
       finalEvaluateFn === evaluateExpanded &&
-      bestTheta < ADAPTIVE_RULES.lowAngle.thetaUpperBound &&
+      bestTheta < adaptiveRules.lowAngle.thetaUpperBound &&
       totalPoints <= adaptiveRules.lowAngle.maxPointsForEnable
     ) {
       const coverage = extractPulseCoverageSignature(tripSegments)

@@ -19,6 +19,8 @@
     "modbus-serial": "^8.0.25",
     "nanostores": "^1.0.1",
     "neverthrow": "^8.2.0",
-    "node-opcua": "^2.157.0"
+    "node-opcua": "^2.157.0",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0"
   }
 }

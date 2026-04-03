@@ -10,6 +10,10 @@ import {
   TimestampsToReturn,
 } from 'node-opcua'
 import { atom } from 'nanostores'
+import {
+  ConnectionLoggerOptions,
+  createConnectionLogger,
+} from './connectionLogger'
 
 export interface OPCUAData extends Record<string, unknown> {
   timestamp?: number
@@ -24,6 +28,10 @@ export interface ClientOptions<T extends OPCUAData> {
    * nodeId与数据映射表
    * */
   nodeIdValueMap: Record<string, keyof T>
+  /**
+   * 本地日志配置
+   * */
+  logger?: ConnectionLoggerOptions
 }
 
 // 定义可订阅的状态
@@ -48,6 +56,10 @@ export const Client = <T extends OPCUAData>(options: ClientOptions<T>) => {
   })
 
   const { url, nodeIdValueMap } = options
+  const connectionLogger = createConnectionLogger({
+    source: options.logger?.source || `opcua:${url}`,
+    ...options.logger,
+  })
 
   const $clientState = atom<ClientState>({
     status: 'idle',
@@ -82,21 +94,53 @@ export const Client = <T extends OPCUAData>(options: ClientOptions<T>) => {
       const session = await client.createSession()
       console.log('🔐 会话创建成功')
       $clientState.set({ status: 'connected', session })
+      connectionLogger.log({
+        protocol: 'opcua',
+        event: 'connect',
+        meta: { url },
+      })
       return session
     } catch (err) {
       console.error('❌ 连接失败:', (err as Error).message || err)
       $clientState.set({ status: 'error', error: err as Error })
+      connectionLogger.log({
+        protocol: 'opcua',
+        event: 'connect_error',
+        meta: { url },
+        error: err,
+      })
     }
   }
+
   /**
    * 订阅数据
    * */
   const subscribe = async (listener: (value: T, oldValue?: T) => void) => {
-    // 创建订阅
-    const session = await connect()
-    if (session) {
-      const subscription = await createSubscription(session)
-      return await monitorItems<T>(subscription, nodeIdValueMap, listener)
+    try {
+      // 创建订阅
+      const session = await connect()
+      if (session) {
+        const subscription = await createSubscription(session)
+        return await monitorItems<T>(
+          subscription,
+          nodeIdValueMap,
+          listener,
+          (payload) =>
+            connectionLogger.log({
+              protocol: 'opcua',
+              event: 'subscribe',
+              meta: { url },
+              data: payload,
+            })
+        )
+      }
+    } catch (error) {
+      connectionLogger.log({
+        protocol: 'opcua',
+        event: 'subscribe_error',
+        meta: { url },
+        error,
+      })
     }
     return () => {}
   }
@@ -123,6 +167,12 @@ export const Client = <T extends OPCUAData>(options: ClientOptions<T>) => {
         res[nodeIdValueMap[nodeId]] = dataValue.value?.value
         res['timestamp'] = dataValue.serverTimestamp?.getTime()
       }
+      connectionLogger.log({
+        protocol: 'opcua',
+        event: 'read',
+        meta: { url },
+        data: res,
+      })
       return res
     }
   }
@@ -134,9 +184,20 @@ export const Client = <T extends OPCUAData>(options: ClientOptions<T>) => {
     try {
       await client.connect(url)
       console.log('✅ 连接成功！')
+      connectionLogger.log({
+        protocol: 'opcua',
+        event: 'test_connect',
+        meta: { url },
+      })
       return true
     } catch (err) {
       console.error('❌ 连接失败:', (err as Error).message || err)
+      connectionLogger.log({
+        protocol: 'opcua',
+        event: 'test_connect_error',
+        meta: { url },
+        error: err,
+      })
       return false
     } finally {
       await client.disconnect()
@@ -183,7 +244,8 @@ const createSubscription = async (session: ClientSession) => {
 const monitorItems = async <T extends OPCUAData>(
   subscription: ClientSubscription,
   nodeIdValueMap: Record<string, keyof T>,
-  listener: (value: T, oldValue?: T) => void
+  listener: (value: T, oldValue?: T) => void,
+  onData?: (value: T) => void
 ) => {
   const nodeIds = Object.keys(nodeIdValueMap)
   const itemsToMonitor: ReadValueIdOptions[] = nodeIds.map((nodeId) => ({
@@ -217,6 +279,7 @@ const monitorItems = async <T extends OPCUAData>(
       [nodeIdValueMap[nodeId]]: value,
       timestamp: dataValue.serverTimestamp?.getTime(),
     } as T
+    onData?.(newValue)
     listener(newValue, oldValue)
     oldValue = newValue
 

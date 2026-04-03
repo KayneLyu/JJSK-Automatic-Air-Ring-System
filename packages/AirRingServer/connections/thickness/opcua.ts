@@ -18,5 +18,8 @@ export const Client = (url: string) => {
   return OPCUAClient<ThicknessData>({
     url,
     nodeIdValueMap: NODE_VALUE_MAP,
+    logger: {
+      source: 'thickness/opcua',
+    },
   })
 }

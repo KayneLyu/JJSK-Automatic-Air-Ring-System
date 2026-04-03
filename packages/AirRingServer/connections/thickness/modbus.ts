@@ -1,5 +1,9 @@
 import { RollerDevice, ThicknessDevice } from '@jjsk/core'
-import { Client as ModbusClient, ModbusData, RegisterPoint } from '../base/modbus'
+import {
+  Client as ModbusClient,
+  ModbusData,
+  RegisterPoint,
+} from '../base/modbus'
 
 export type ThicknessData = ModbusData & RollerDevice & ThicknessDevice
 
@@ -52,6 +56,8 @@ export const Client = (url: string) => {
   return ModbusClient<ThicknessData>({
     url,
     pointValueMap: POINT_VALUE_MAP,
+    logger: {
+      source: 'thickness/modbus',
+    },
   })
 }
-

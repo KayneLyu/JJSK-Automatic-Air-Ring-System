@@ -25,6 +25,9 @@ export const Client = (url: string) => {
   const { state, subscribe, testConnect, connect } = OPCUAClient<RingData>({
     url,
     nodeIdValueMap: NODE_VALUE_MAP,
+    logger: {
+      source: 'airRing/opcua',
+    },
   })
   /**
    * 设置热量

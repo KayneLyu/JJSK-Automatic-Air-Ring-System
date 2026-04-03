@@ -57,6 +57,9 @@ export const Client = (url: string) => {
   const { state, subscribe, testConnect, connect } = ModbusClient<RingData>({
     url,
     pointValueMap: POINT_VALUE_MAP,
+    logger: {
+      source: 'airRing/modbus',
+    },
   })
 
   /**
