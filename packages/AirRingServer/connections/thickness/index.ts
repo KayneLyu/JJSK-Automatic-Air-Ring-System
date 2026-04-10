@@ -1,10 +1,11 @@
-import { Client } from './opcua'
+import { Client as OPCUAClient } from './opcua'
+import { Client as ModbusClient } from './modbus'
 
 export interface ThicknessConnectionOptions {
   /**
    * 连接类型
    * */
-  type: 'opcua'
+  type: 'opcua' | 'modbus'
   /**
    * 连接地址
    * */
@@ -17,7 +18,10 @@ export interface ThicknessConnectionOptions {
 export const ThicknessConnection = (options: ThicknessConnectionOptions) => {
   const { type, url } = options
   if (type === 'opcua') {
-    return Client(url)
+    return OPCUAClient(url)
+  }
+  if (type === 'modbus') {
+    return ModbusClient(url)
   }
   throw new Error('Thickness connection type not supported')
 }

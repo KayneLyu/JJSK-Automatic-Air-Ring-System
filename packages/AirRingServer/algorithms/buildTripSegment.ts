@@ -77,7 +77,12 @@ const detectBimodalThreshold = (ys: number[]): number | null => {
   let rightPeak = 0
   for (let i = valleyBin + 1; i < NUM_BINS; i++)
     if (hist[i] > rightPeak) rightPeak = hist[i]
-  if (leftPeak < maxCount * 0.2 || rightPeak < maxCount * 0.2) return null
+  // 左侧峰（在界区）须为主峰；
+  // 右侧峰（出界区）在真实采集数据中仅占约 10–15%，无法达到旧的 20% 要求。
+  // 改为：右侧峰须高于谷底的 2 倍（是真正的局部峰，而非噪声）
+  // 且绝对值不低于最大值的 2%（排除极端噪声）
+  if (leftPeak < maxCount * 0.1) return null
+  if (rightPeak < Math.max(minCount * 2 + 2, maxCount * 0.02)) return null
 
   return minY + (valleyBin + 0.5) * binSize
 }

@@ -327,6 +327,12 @@ const trapezoidalVelocityProfile = (
 }
 
 /**
+ * 当测厚仪超出测量范围时的哨兵值
+ * 根据 AirRingServer 的规范，出界应该归一到 NaN
+ * */
+const outOfBoundsProbeValue = Number.NaN
+
+/**
  * 创建吹膜机物理仿真系统
  *
  * 这是一个**基于物理因果关系的耦合系统**：
@@ -453,10 +459,11 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
   const thicknessBuffer: Array<{ time: number; value: number }> = []
 
   // 缓存膜泡厚度分布历史 (用于物料传输延迟模拟)
-  // 存储格式：{ time: 仿真时间, profile: 厚度分布数组 }
+  // 存储格式：{ time: 仿真时间, profile: 厚度分布数组, upperAngle: 上旋角度 }
   const thicknessProfileHistory: Array<{
     time: number
     profile: number[]
+    upperAngle: number
   }> = []
 
   /**
@@ -596,21 +603,6 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       radiusProfile: [], // 已移除半径分布计算
     }
 
-    // 保存当前时刻的膜泡厚度分布到历史缓存
-    thicknessProfileHistory.push({
-      time: simulationTime,
-      profile: [...thicknessProfile], // 复制数组，避免引用问题
-    })
-
-    // 清理过期的历史数据（保留比延迟时间多一些的数据）
-    const maxHistoryTime = materialTransportDelay + 10 // 秒
-    while (
-      thicknessProfileHistory.length > 1 &&
-      thicknessProfileHistory[0].time < simulationTime - maxHistoryTime
-    ) {
-      thicknessProfileHistory.shift()
-    }
-
     // ========== 2. 上旋系统仿真 ==========
     const cycleDuration = tripDuration * 2 // 往返周期
     const tInCycle = simulationTime % cycleDuration
@@ -634,7 +626,7 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
     // 计算角速度（考虑归一化系数）
     const normFactor = 1 / (1 - 0.5 * accelRatio - 0.5 * decelRatio)
     const peakAngularVelocity = (maxAngle / tripDuration) * normFactor
-    let angularVelocity = 0
+    let angularVelocity: number
     if (progress < accelRatio) {
       angularVelocity = peakAngularVelocity * (progress / accelRatio)
     } else if (progress > 1 - decelRatio) {
@@ -671,68 +663,55 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       motorFrequency,
     }
 
+    // 保存当前时刻的膜泡厚度分布与上旋角度到历史缓存
+    thicknessProfileHistory.push({
+      time: simulationTime,
+      profile: [...thicknessProfile], // 复制数组，避免引用问题
+      upperAngle,
+    })
+
+    // 清理过期的历史数据（保留比延迟时间多一些的数据）
+    const maxHistoryTime = materialTransportDelay + 10 // 秒
+    while (
+      thicknessProfileHistory.length > 1 &&
+      thicknessProfileHistory[0].time < simulationTime - maxHistoryTime
+    ) {
+      thicknessProfileHistory.shift()
+    }
+
     // ========== 3. 测厚系统仿真 ==========
     const scannerCycleDuration = scannerTripDuration * 2
     const scannerTInCycle = simulationTime % scannerCycleDuration
     const scannerIsForward = scannerTInCycle < scannerTripDuration
+    // 反向行程也需要 0→tripDuration 的单调时间轴，
+    // 否则会把位移曲线“倒着喂给”分段公式，导致扫描范围被压缩。
     const scannerTInTrip = scannerIsForward
       ? scannerTInCycle
-      : scannerCycleDuration - scannerTInCycle
+      : scannerTInCycle - scannerTripDuration
 
-    // 测厚仪横向运动模型
-    const scannerMaxSpeed =
-      membraneWidth / (scannerTripDuration - scannerAccelDecelTime) // mm/s
-    const scannerAccelDistance = 0.5 * scannerMaxSpeed * scannerAccelDecelTime
+    // 关键修复点 1：统一梯形位移覆盖完整行程（膜宽 + 双侧 buffer），避免分段公式在换向附近引入轨迹失真。
+    const scannerTripDistance = membraneWidth + bufferDistance * 2
+    const scannerProgress = scannerTInTrip / scannerTripDuration
+    const scannerAccelRatio = Math.min(
+      0.49,
+      Math.max(0, scannerAccelDecelTime / scannerTripDuration)
+    )
+    const scannerNormalizedPosition = trapezoidalVelocityProfile(
+      scannerProgress,
+      scannerAccelRatio,
+      scannerAccelRatio
+    )
 
-    let scannerPosition = 0 // 相对于中心的偏移
-    let scannerDirection = true // true=向右
+    let scannerPosition: number // 相对于中心的偏移
+    let scannerDirection: boolean // true=向右
 
     if (scannerIsForward) {
-      // 从左到右
-      if (scannerTInTrip < scannerAccelDecelTime) {
-        // 加速段
-        scannerPosition =
-          -membraneWidth / 2 -
-          bufferDistance +
-          0.5 * (scannerMaxSpeed / scannerAccelDecelTime) * scannerTInTrip ** 2
-      } else if (scannerTInTrip < scannerTripDuration - scannerAccelDecelTime) {
-        // 匀速段
-        scannerPosition =
-          -membraneWidth / 2 -
-          bufferDistance +
-          scannerAccelDistance +
-          scannerMaxSpeed * (scannerTInTrip - scannerAccelDecelTime)
-      } else {
-        // 减速段
-        const decelTime =
-          scannerTInTrip - (scannerTripDuration - scannerAccelDecelTime)
-        scannerPosition =
-          membraneWidth / 2 +
-          bufferDistance -
-          0.5 * (scannerMaxSpeed / scannerAccelDecelTime) * decelTime ** 2
-      }
+      scannerPosition =
+        -scannerTripDistance / 2 + scannerNormalizedPosition * scannerTripDistance
       scannerDirection = true
     } else {
-      // 从右到左
-      if (scannerTInTrip < scannerAccelDecelTime) {
-        scannerPosition =
-          membraneWidth / 2 +
-          bufferDistance -
-          0.5 * (scannerMaxSpeed / scannerAccelDecelTime) * scannerTInTrip ** 2
-      } else if (scannerTInTrip < scannerTripDuration - scannerAccelDecelTime) {
-        scannerPosition =
-          membraneWidth / 2 +
-          bufferDistance -
-          scannerAccelDistance -
-          scannerMaxSpeed * (scannerTInTrip - scannerAccelDecelTime)
-      } else {
-        const decelTime =
-          scannerTInTrip - (scannerTripDuration - scannerAccelDecelTime)
-        scannerPosition =
-          -membraneWidth / 2 -
-          bufferDistance +
-          0.5 * (scannerMaxSpeed / scannerAccelDecelTime) * decelTime ** 2
-      }
+      scannerPosition =
+        scannerTripDistance / 2 - scannerNormalizedPosition * scannerTripDistance
       scannerDirection = false
     }
 
@@ -791,7 +770,7 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       // 这与原来的公式一致，但现在我们有了明确的物理依据
       const scannerAngleOffset = (scannerPosition / membraneWidth) * 180 // 线性映射（基于展开近似）
 
-      // 考虑上旋角度，计算实际测量的膜泡位置
+      // 关键修复点 2：仅厚度分布使用传输延迟；上旋角度必须用当前值，避免额外相位滞后。
       const bubblePositionAngle = (upperAngle + scannerAngleOffset + 180) % 360
       const oppositeAngle = (bubblePositionAngle + 180) % 360
 
@@ -873,7 +852,7 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       ProbeValue:
         measuredThickness !== null
           ? parseFloat(measuredThickness.toFixed(2))
-          : 0,
+          : outOfBoundsProbeValue,
       LeftLimit: leftLimit,
       RightLimit: rightLimit,
       ResetSignal: resetSignal,
@@ -915,4 +894,3 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
   }
 }
 
-export default createBlowFilmSimulator

@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "vitest --run algorithms/upperRotation.test.ts"
+    "test": "vitest run algorithms/upperRotation/tests/simulator/*.test.ts"
   },
   "keywords": [],
   "author": "",
@@ -16,8 +16,11 @@
     "vitest": "^4.0.0"
   },
   "dependencies": {
+    "modbus-serial": "^8.0.25",
     "nanostores": "^1.0.1",
     "neverthrow": "^8.2.0",
-    "node-opcua": "^2.157.0"
+    "node-opcua": "^2.157.0",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0"
   }
 }
