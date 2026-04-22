@@ -18,7 +18,7 @@ function calculateStandardDeviation(data: number[]) {
 // 保留小数
 function fixedNumber(value: number, digist: number) {
     if (typeof value !== "number") {
-        console.log('fixedNumber =>传入数据类型非number')
+        // console.log('fixedNumber =>传入数据类型非number')
         return 0
     }
     const n = 10 ** digist

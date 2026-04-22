@@ -8,7 +8,7 @@ import VerticalIcon from '@/components/icons/Vertical.vue';
 import AlarmIcon from '@/components/icons/Alarm.vue';
 import ProductIcon from '@/components/icons/Product.vue';
 import UnfoldIcon from '@/components/icons/Unfold.vue';
-import logo from '../../../public/logo.png';
+import logo from '/logo.png';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -50,6 +50,12 @@ const menuItemList = [
         location: "/alarm",
         icon: AlarmIcon,
     },
+    {
+        name: "menu.settings",
+        color: "#00fff2",
+        location: "/setting",
+        icon: AlarmIcon,
+    }
 ]
 
 const route = useRoute();

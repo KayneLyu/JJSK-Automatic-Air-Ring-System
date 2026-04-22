@@ -1,0 +1,298 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+
+// 顶部状态数据
+const currentAD = ref(12345)
+const measurePosition = ref(0)
+const productionSpeed = ref('0.0m/min')
+const thickness = ref('100.2um')
+const bubbleChange = ref('0mm')
+
+// 操作栏数据
+const targetPulse = ref('1000')
+
+// 标签页
+const activeTab = ref('param')
+
+// 表单数据
+
+const hardwareForm = ref({
+   frameLength: '13900',
+   rollerCircumference: '314',
+   encoderRatio: '0.14',
+   motorPulse: '4',
+   codePulse: '1',
+   zeroOffset: '0',
+   adDelay: '0'
+})
+
+const speedForm = ref({
+   scanSpeed: '3000',
+   sampleSpeed: '2000',
+   debugSpeed: '2000',
+   startSpeed: '300',
+   resetSpeed1: '2000',
+   resetSpeed2: '600',
+   accelTime: '400',
+   decelTime: '500'
+})
+
+const sampleForm = ref({
+   sampleInterval: '10',
+   samplePosition: '200',
+   sampleRadius: '100'
+})
+
+const alarmForm = ref({
+   alarmActive: false,
+   autoTarget: true,
+   toleranceZone: '10'
+})
+</script>
+<template>
+   <el-card class="control-container">
+      <div class="thickness-measure-container">
+         <!-- 顶部状态栏 -->
+         <el-card class="status-card" shadow="never">
+            <div class="status-row">
+               <div class="status-item">
+                  <span class="label">当前AD:</span>
+                  <span class="value">{{ currentAD }}</span>
+               </div>
+               <div class="status-item">
+                  <span class="label">测量位置:</span>
+                  <span class="value">{{ measurePosition }}</span>
+               </div>
+               <div class="status-item">
+                  <span class="label">生产速度:</span>
+                  <span class="value">{{ productionSpeed }}</span>
+               </div>
+               <div class="status-item">
+                  <span class="label">厚度:</span>
+                  <span class="value">{{ thickness }}</span>
+               </div>
+               <div class="status-item">
+                  <span class="label">膜泡折变:</span>
+                  <span class="value">{{ bubbleChange }}</span>
+               </div>
+
+            </div>
+         </el-card>
+
+         <!-- 操作按钮区 -->
+         <div class="action-bar">
+            <el-button type="primary" plain>反行</el-button>
+            <el-button type="primary" plain>正行</el-button>
+            <el-button type="danger">停止</el-button>
+            <el-button type="primary" plain>归零</el-button>
+            <el-button type="primary" plain>测量</el-button>
+            <el-input v-model="targetPulse" class="pulse-input" placeholder="目标脉冲" />
+            <el-button type="success">到达(脉冲)</el-button>
+
+         </div>
+
+         <!-- 标签页 -->
+         <el-tabs v-model="activeTab" class="tab-container">
+            <el-tab-pane label="参数" name="param">
+               <!-- 硬件/速度/采样/报警 四列布局 -->
+               <el-row :gutter="20" class="form-row">
+                  <!-- 硬件 -->
+                  <el-col :span="6">
+                     <el-card shadow="hover" header="硬件">
+                        <el-form :model="hardwareForm" label-width="100px" label-position="top">
+                           <el-form-item label="机架长度(脉冲)">
+                              <el-input v-model="hardwareForm.frameLength" suffix="mm/脉冲" />
+                           </el-form-item>
+                           <el-form-item label="测速辊周长">
+                              <el-input v-model="hardwareForm.rollerCircumference" suffix="mm/脉冲" />
+                           </el-form-item>
+                           <el-form-item label="编码器1比例">
+                              <el-input v-model="hardwareForm.encoderRatio" suffix="mm/脉冲" />
+                           </el-form-item>
+                           <el-form-item label="电机脉冲">
+                              <el-input v-model="hardwareForm.motorPulse" />
+                           </el-form-item>
+                           <el-form-item label="编码脉冲">
+                              <el-input v-model="hardwareForm.codePulse" />
+                           </el-form-item>
+                           <el-form-item label="零位偏移">
+                              <el-input v-model="hardwareForm.zeroOffset" suffix="脉冲" />
+                           </el-form-item>
+                           <el-form-item label="AD滞后">
+                              <el-input v-model="hardwareForm.adDelay" suffix="ms" />
+                           </el-form-item>
+                        </el-form>
+                     </el-card>
+                  </el-col>
+
+                  <!-- 速度 -->
+                  <el-col :span="6">
+                     <el-card shadow="hover" header="速度">
+                        <el-form :model="speedForm" label-width="100px" label-position="top">
+                           <el-form-item label="扫描速度">
+                              <el-input v-model="speedForm.scanSpeed" suffix="脉冲/s | 6.3m/min" />
+                           </el-form-item>
+                           <el-form-item label="采样速度">
+                              <el-input v-model="speedForm.sampleSpeed" suffix="脉冲/s | 4.2m/min" />
+                           </el-form-item>
+                           <el-form-item label="调试速度">
+                              <el-input v-model="speedForm.debugSpeed" suffix="脉冲/s | 4.2m/min" />
+                           </el-form-item>
+                           <el-form-item label="开始速度">
+                              <el-input v-model="speedForm.startSpeed" suffix="脉冲/s | 0.6m/min" />
+                           </el-form-item>
+                           <el-form-item label="归零速度1">
+                              <el-input v-model="speedForm.resetSpeed1" suffix="脉冲/s | 4.2m/min" />
+                           </el-form-item>
+                           <el-form-item label="归零速度2">
+                              <el-input v-model="speedForm.resetSpeed2" suffix="脉冲/s | 1.3m/min" />
+                           </el-form-item>
+                           <el-row :gutter="10">
+                              <el-col :span="12">
+                                 <el-form-item label="加速时间">
+                                    <el-input v-model="speedForm.accelTime" suffix="ms" />
+                                 </el-form-item>
+                              </el-col>
+                              <el-col :span="12">
+                                 <el-form-item label="减速时间">
+                                    <el-input v-model="speedForm.decelTime" suffix="ms" />
+                                 </el-form-item>
+                              </el-col>
+                           </el-row>
+                        </el-form>
+                     </el-card>
+                  </el-col>
+
+                  <!-- 采样 -->
+                  <el-col :span="6">
+                     <el-card shadow="hover" header="采样">
+                        <el-form :model="sampleForm" label-width="100px" label-position="top">
+                           <el-form-item label="采样间隔">
+                              <el-input v-model="sampleForm.sampleInterval" suffix="min" />
+                           </el-form-item>
+                           <el-form-item label="采样位置">
+                              <el-input v-model="sampleForm.samplePosition" suffix="脉冲 | 28mm" />
+                           </el-form-item>
+                           <el-form-item label="采样半径">
+                              <el-input v-model="sampleForm.sampleRadius" suffix="脉冲 | 14mm" />
+                           </el-form-item>
+                        </el-form>
+                     </el-card>
+                  </el-col>
+
+                  <!-- 厚度报警 -->
+                  <el-col :span="6">
+                     <div class="alarm-form">
+                        <el-card shadow="hover" header="厚度报警">
+                           <el-form :model="alarmForm" label-width="100px" label-position="top">
+                              <el-form-item>
+                                 <el-checkbox v-model="alarmForm.alarmActive">报警激活</el-checkbox>
+                              </el-form-item>
+                              <el-form-item>
+                                 <el-checkbox v-model="alarmForm.autoTarget">自动目标值</el-checkbox>
+                              </el-form-item>
+                              <el-form-item label="公差报警(分区)">
+                                 <el-input v-model="alarmForm.toleranceZone" />
+                              </el-form-item>
+                              <div class="alarm-tip">连续N个分区超出公差范围触发报警!!</div>
+                           </el-form>
+                        </el-card>
+                        <!-- 底部按钮 -->
+                        <div class="bottom-action">
+                           <el-button type="primary" size="large">应用</el-button>
+                        </div>
+                     </div>
+                  </el-col>
+               </el-row>
+
+
+            </el-tab-pane>
+
+            <el-tab-pane label="纵向" name="longitudinal">
+               <!-- 纵向参数可在此扩展 -->
+            </el-tab-pane>
+
+            <el-tab-pane label="横向" name="lateral">
+               <!-- 横向参数可在此扩展 -->
+            </el-tab-pane>
+
+            <el-tab-pane label="寻边" name="edge">
+               <!-- 寻边参数可在此扩展 -->
+            </el-tab-pane>
+         </el-tabs>
+      </div>
+   </el-card>
+</template>
+
+
+
+<style scoped lang="less">
+.control-container {
+   width: 100%;
+   height: 100%;
+
+   :deep(.el-card__body) {
+      height: 100%;
+      background-color: #f5f7fa;
+   }
+}
+
+.status-row {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   flex-wrap: wrap;
+   gap: 15px;
+}
+
+.status-item {
+   display: flex;
+   align-items: center;
+   gap: 8px;
+}
+
+.status-item .label {
+   color: #606266;
+   font-size: 14px;
+}
+
+.status-item .value {
+   color: #303133;
+   font-weight: 600;
+   font-size: 15px;
+}
+
+
+
+.action-bar {
+   display: flex;
+   align-items: center;
+   gap: 8px;
+   margin: 20px 0;
+}
+
+.pulse-input {
+   width: 150px;
+}
+
+.alarm-tip {
+   color: #909399;
+   font-size: 12px;
+   margin-top: 10px;
+}
+
+.alarm-form {
+   display: flex;
+   flex-direction: column;
+   justify-content: space-between;
+   height: 100%;
+
+}
+
+.bottom-action {
+   display: flex;
+   justify-content: flex-end;
+   margin-top: 20px;
+   padding-right: 20px;
+}
+</style>
