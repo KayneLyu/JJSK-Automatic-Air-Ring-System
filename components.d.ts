@@ -62,6 +62,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     Save: typeof import('./src/components/icons/Save.vue')['default']
+    Setting: typeof import('./src/components/icons/Setting.vue')['default']
     Sun: typeof import('./src/components/icons/Sun.vue')['default']
     Surveying: typeof import('./src/components/icons/Surveying.vue')['default']
     Unfold: typeof import('./src/components/icons/Unfold.vue')['default']

@@ -205,7 +205,6 @@ const alarmForm = ref({
                   </el-col>
                </el-row>
 
-
             </el-tab-pane>
 
             <el-tab-pane label="纵向" name="longitudinal">

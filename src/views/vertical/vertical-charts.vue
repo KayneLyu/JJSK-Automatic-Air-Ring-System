@@ -42,7 +42,7 @@ const props = defineProps<{
     sigmaData: [string, number][],
     frameID: number
     frameIndex: number,
-    startDate: string | undefined ,
+    startDate: string | undefined,
     endDate: string | undefined,
     handleCurrent: (index: number) => void
 }>()
@@ -84,6 +84,7 @@ let option: EChartsOption = {
         },
         // alwaysShowContent: true
     },
+
     axisPointer: {
         link: [
             {
@@ -174,15 +175,12 @@ let option: EChartsOption = {
                     }
                 },
             },
-            // nameTextStyle: {
-            //     color: "black",
-            //     fontSize: 13,
-            // },
         },
         {
             id: 1,
             gridIndex: 1,
             type: "value",
+            splitNumber: 10, // 设置刻度数量, 
             nameTextStyle: {
                 color: "black",
                 fontSize: 13,
@@ -244,7 +242,7 @@ let option: EChartsOption = {
             type: "line",
             xAxisIndex: 1,
             yAxisIndex: 1,
-            showSymbol: true,
+            showSymbol: false,
             symbolSize: 4,
             areaStyle: {
                 color: "#65cada80",
@@ -298,7 +296,7 @@ watch(() => props.sigmaData, (newValue) => {
             backSigmaList.push([newValue[index][0], -newValue[index][1]]);
         }
     });
-    
+
     // 计算平均值
     const sigmaMeanValue = sigmaCount === 0
         ? 0
@@ -316,7 +314,6 @@ watch(() => props.sigmaData, (newValue) => {
             id: 1,
             min: Number((thickMin - 2).toFixed(0)),
             max: Number((thickMax + 2).toFixed(0)),
-            interval: 1,
         }],
         xAxis: {
             data: newValue.map(item => item[0])

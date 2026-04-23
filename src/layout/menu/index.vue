@@ -8,9 +8,9 @@ import VerticalIcon from '@/components/icons/Vertical.vue';
 import AlarmIcon from '@/components/icons/Alarm.vue';
 import ProductIcon from '@/components/icons/Product.vue';
 import UnfoldIcon from '@/components/icons/Unfold.vue';
+import SettingIcon from '@/components/icons/Setting.vue';
 import logo from '/logo.png';
 import { useI18n } from 'vue-i18n';
-
 const { t } = useI18n();
 
 const menuItemList = [
@@ -28,7 +28,7 @@ const menuItemList = [
     },
     {
         name: "menu.annular",
-        color: "#ffa117",
+        color: "#1cb9b1",
         location: "/annular",
         icon: AnnularIcon,
     },
@@ -52,9 +52,9 @@ const menuItemList = [
     },
     {
         name: "menu.settings",
-        color: "#00fff2",
+        color: "#ffa117",
         location: "/setting",
-        icon: AlarmIcon,
+        icon: SettingIcon,
     }
 ]
 
