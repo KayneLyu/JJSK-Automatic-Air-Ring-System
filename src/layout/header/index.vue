@@ -6,7 +6,7 @@ import FullScreen from '@/components/icons/Full.vue';
 
 
 const toggleFullscreen = () => {
-  window.ipcRenderer.send("win-toggle-fullscreen")
+  window.ipcApi.send("win-toggle-fullscreen")
 }
 </script>
 

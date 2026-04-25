@@ -74,7 +74,7 @@ const preventDefault = (e: MouseEvent) => {
 // 打开客户端
 const openClient = async () => {
     try {
-        const result = await window.ipcRenderer.invoke("win-open-client")
+        const result = await window.ipcApi.invoke("win-open-client")
         isOpening.value = !result
         ElNotification({
             title: t("notification.info"),
@@ -89,7 +89,7 @@ const openClient = async () => {
 
 // 获取logo
 const getLogoPng = async () => {
-    const result = await window.ipcRenderer.invoke("win-get-logo")
+    const result = await window.ipcApi.invoke("win-get-logo")
     if (imageDom.value) {
         imageDom.value.src = result || logo
     }

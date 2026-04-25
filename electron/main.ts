@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, globalShortcut } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { setupRendererCommunicator } from './rendererCommunicator';
+import { setupRendererCommunicator, startPlcPolling, stopPlcPolling } from './rendererCommunicator';
 import { ensureServerRunning } from './utils';
 import fs from "fs";
 
@@ -31,9 +31,10 @@ function createWindow() {
     },
   })
 
-  // push message to Renderer-process.
+  // 与渲染进程通信.
   if (win) {
     setupRendererCommunicator(win)
+    startPlcPolling(win)
   }
 
   if (VITE_DEV_SERVER_URL) {
@@ -42,7 +43,6 @@ function createWindow() {
     // win.loadFile('dist/index.html')
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
-
 }
 // 防止重复点击软件
 const getLock = app.requestSingleInstanceLock()
@@ -63,6 +63,8 @@ app.on("ready", () => {
   app.setLoginItemSettings({
     openAtLogin: true,
   })
+
+
 });
 
 app.on('will-finish-launching', () => {
@@ -75,6 +77,7 @@ app.on('will-finish-launching', () => {
 })
 
 app.on('before-quit', () => {
+  stopPlcPolling()
   win?.removeAllListeners('close')
   globalShortcut.unregisterAll()
   win?.close()

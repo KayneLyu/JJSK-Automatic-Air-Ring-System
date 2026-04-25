@@ -1,5 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import type { IPlcControlResult } from '@/types/ipc';
+
+type Option = {
+   label: string;
+   value: IState;
+}
+
+type IState = 'FWD' | 'REV' | 'STOP' | 'HOME' | 'MEASURE'
 
 // 顶部状态数据
 const currentAD = ref(12345)
@@ -48,6 +56,57 @@ const alarmForm = ref({
    autoTarget: true,
    toleranceZone: '10'
 })
+
+// 运行状态
+const runningState = ref<IState>('STOP')
+
+const options: Option[] = [
+   {
+      label: "正行",
+      value: 'FWD',
+   },
+   {
+      label: "反行",
+      value: "REV"
+   },
+   {
+      label: "停止",
+      value: "STOP"
+   },
+   {
+      label: "归边",
+      value: "HOME"
+   },
+   {
+      label: "扫描",
+      value: "MEASURE"
+   },
+]
+const stateAddressMap: Record<IState, string> = {
+   FWD: 'DB4,X0.0',
+   REV: 'DB4,X0.1',
+   STOP: 'DB4,X0.2',
+   HOME: 'DB4,X0.3',
+   MEASURE: 'DB4,X0.4'
+}
+
+// 运行状态切换
+const inputChangeState = async (options: IState) => {
+   try {
+      window.ipcApi.send('change-State', {
+         address: stateAddressMap[options],
+         value: true
+      })
+   } catch (error) {
+      console.log('PLC写入失败');
+   }
+}
+
+window.ipcApi.on("plc-controlData", (_, data) => {
+   const key = Object.keys(data).find(key => data[(key) as IState] === true)
+   runningState.value = key as IState ?? 'STOP';
+})
+
 </script>
 <template>
    <el-card class="control-container">
@@ -81,11 +140,16 @@ const alarmForm = ref({
 
          <!-- 操作按钮区 -->
          <div class="action-bar">
-            <el-button type="primary" plain>反行</el-button>
-            <el-button type="primary" plain>正行</el-button>
-            <el-button type="danger">停止</el-button>
-            <el-button type="primary" plain>归零</el-button>
-            <el-button type="primary" plain>测量</el-button>
+            <div class="controls_container">
+               <el-segmented @change="inputChangeState" style="height: 45px;" v-model="runningState" :options="options"
+                  block size="large">
+                  <template #default="{ item }">
+                     <div>
+                        <div>{{ (item as Option).label }}</div>
+                     </div>
+                  </template>
+               </el-segmented>
+            </div>
             <el-input v-model="targetPulse" class="pulse-input" placeholder="目标脉冲" />
             <el-button type="success">到达(脉冲)</el-button>
 
@@ -234,6 +298,13 @@ const alarmForm = ref({
       height: 100%;
       background-color: #f5f7fa;
    }
+}
+
+.controls_container {
+   width: 400px;
+   border: 1px solid #c1c1c1;
+   border-radius: 5px;
+   margin-right: 100px;
 }
 
 .status-row {
