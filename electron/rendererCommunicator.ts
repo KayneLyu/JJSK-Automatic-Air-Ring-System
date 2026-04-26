@@ -1,8 +1,29 @@
 import { BrowserWindow, app, ipcMain, dialog } from 'electron';
 import fs from "fs";
 import { ensureServerRunning } from './utils';
-import { PLCConnector } from './PLC-S7';
-import type { IpcChannelName, IpcChannelArgs, IpcChannelOutput, IPlcControlData } from '@/types/ipc';
+import { PLCConnector } from './nodeS7/PLC-S7';
+import type { IpcChannelName, IpcChannelArgs, IpcChannelOutput, IPlcControlResult, IPlcParamData, IPollingModBusData } from '@/types/ipc';
+
+import ModbusTCPService from "./modbus/modbus";
+import { readAllData } from "./modbus/reader";
+
+export async function modbusRead(win: BrowserWindow) {
+  const modbus = ModbusTCPService.getInstance();
+
+  // 连接PLC
+  await modbus.connect("192.168.2.20", 502, 1);
+
+  // 轮询读取
+  setInterval(async () => {
+    try {
+      const data = await readAllData();
+      useIpcSend(win, "ModBus-read", data)
+    } catch (err) {
+    }
+  }, 400);
+}
+
+
 
 export function useIpcOn<T extends IpcChannelName>(
   channel: T,
@@ -49,7 +70,7 @@ export function startPlcPolling(win: BrowserWindow) {
     HOME: "DB4,X0.3",
     MEASURE: "DB4,X0.4",
   });
-  
+
   plc.connectIfNeeded()
     .then(() => {
       console.log('✅ PLC 连接成功，开始轮询');
@@ -57,7 +78,7 @@ export function startPlcPolling(win: BrowserWindow) {
       plcPollInterval = setInterval(async () => {
         try {
           const values = await plc.readAll();
-          useIpcSend(win, 'plc-controlData', values as IPlcControlData);
+          useIpcSend(win, 'plc-controlData', values as IPlcControlResult);
         } catch (err) {
           console.error('PLC 读取失败:', err);
         }
@@ -77,6 +98,13 @@ export function stopPlcPolling() {
     plcPollInterval = null;
   }
 }
+
+
+/**
+ * modbus 读取
+ */
+
+
 
 /**
  * 进程通信交互
@@ -124,7 +152,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   })
 
   // 打开服务的界面软件
-  ipcMain.handle("win-open-client", () => {
+  useIpcHandle("win-open-client", () => {
     try {
       const result = ensureServerRunning('JinJiu.Scan.Client2', 'D:/server/JinJiu.Scan.Client2.exe', dialog);
       return result
@@ -140,6 +168,22 @@ export function setupRendererCommunicator(win: BrowserWindow) {
       dialog.showErrorBox('PLC通信故障', '写入PLC数据失败');
     }
   })
+
+  // 修复后的 plc-paramData 处理
+  ipcMain.handle("plc-paramData", async (_, data: IPlcParamData) => {
+    const plc = new PLCConnector();
+    plc.defineItems(data);
+
+    try {
+      await plc.connectIfNeeded();
+      const values = await plc.readAll();
+      return values; // 正确返回数据
+    } catch (err) {
+      console.error('PLC 读取失败:', err);
+      // 抛出错误以便渲染进程捕获，或者返回特定的错误对象
+      throw new Error('PLC 读取或连接失败');
+    }
+  });
 
 
   // 发送消息到渲染进程

@@ -2433,7 +2433,7 @@ function setupRendererCommunicator(win2) {
       }
     }
   });
-  ipcMain.handle("win-open-client", () => {
+  useIpcHandle("win-open-client", () => {
     try {
       const result = ensureServerRunning("JinJiu.Scan.Client2", "D:/server/JinJiu.Scan.Client2.exe", dialog);
       return result;
@@ -2446,6 +2446,18 @@ function setupRendererCommunicator(win2) {
       plc.writeItems(message.address, message.value);
     } catch (error) {
       dialog.showErrorBox("PLC通信故障", "写入PLC数据失败");
+    }
+  });
+  ipcMain.handle("plc-paramData", async (_, data) => {
+    const plc = new PLCConnector();
+    plc.defineItems(data);
+    try {
+      await plc.connectIfNeeded();
+      const values = await plc.readAll();
+      return values;
+    } catch (err) {
+      console.error("PLC 读取失败:", err);
+      throw new Error("PLC 读取或连接失败");
     }
   });
 }

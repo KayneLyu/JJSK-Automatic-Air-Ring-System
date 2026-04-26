@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import type { IPlcControlResult } from '@/types/ipc';
 
 type Option = {
@@ -55,6 +55,35 @@ const alarmForm = ref({
    alarmActive: false,
    autoTarget: true,
    toleranceZone: '10'
+})
+
+const addressItems = {
+   // 硬件
+   frameLength: 'DB4,DINT2', // 机架长度
+   rollerCircumference: 'DB4,REAL6', // 测速棍周长
+   encoderRatio:  'DB4,REAL10', // 编码器1比例
+   motorPulse: 'DB4,DINT14', // 电机脉冲
+   codePulse: 'DB4,DINT18', // 编码脉冲
+   zeroOffset: 'DB4,DINT22', // 零位偏移
+   // adDelay: 'DB4,X0.6'
+   // 速度
+   scanSpeed: 'DB4,REAL30', // 扫描速度
+   sampleSpeed: 'DB4,REAL34', // 采样速度
+   debugSpeed: 'DB4,REAL38', // 调试速度
+   startSpeed: 'DB4,REAL42', // 开始速度
+   resetSpeed1: 'DB4,REAL46', // 归零速度1
+   resetSpeed2: 'DB4,REAL50', // 归零速度2
+   accelTime: 'DB4,REAL54', // 加速时间
+   decelTime: 'DB4,REAL58', // 减速时间
+   // 采样
+   sampleInterval: 'DB4,DINT62', // 采样间隔
+   samplePosition: 'DB4,DINT66', // 采样位置
+   sampleRadius: 'DB4,DINT70' // 采样半径
+}
+
+onMounted( async() => {
+   const data = await window.ipcApi.invoke('plc-paramData', addressItems)
+   console.log('data', data);
 })
 
 // 运行状态
@@ -182,9 +211,9 @@ window.ipcApi.on("plc-controlData", (_, data) => {
                            <el-form-item label="零位偏移">
                               <el-input v-model="hardwareForm.zeroOffset" suffix="脉冲" />
                            </el-form-item>
-                           <el-form-item label="AD滞后">
+                           <!-- <el-form-item label="AD滞后">
                               <el-input v-model="hardwareForm.adDelay" suffix="ms" />
-                           </el-form-item>
+                           </el-form-item> -->
                         </el-form>
                      </el-card>
                   </el-col>
