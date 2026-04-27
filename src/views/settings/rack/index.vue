@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import type { IPlcControlResult } from '@/types/ipc';
+import DynamicCharts from "./dynamic.vue";
+import SideCharts from './side.vue';
 
 type Option = {
    label: string;
@@ -116,7 +118,11 @@ const stateAddressMap: Record<IState, string> = {
    REV: 'DB4,X0.1',
    STOP: 'DB4,X0.2',
    HOME: 'DB4,X0.3',
-   MEASURE: 'DB4,X0.4'
+   MEASURE: 'DB4,X0.4',
+   Rectfy: 'DB4,X0.5', // 校正
+   reversal: 'DB4,X0.6', // 反向
+   jogFwd: 'DB4,X0.7', // 正换向
+   jogRev: 'DB4,X1.0' // 反换向
 }
 
 // 运行状态切换
@@ -134,6 +140,11 @@ const inputChangeState = async (options: IState) => {
 window.ipcApi.on("plc-controlData", (_, data) => {
    const key = Object.keys(data).find(key => data[(key) as IState] === true)
    runningState.value = key as IState ?? 'STOP';
+})
+
+window.ipcApi.on("ModBus-read", (_, data) => {
+   currentAD.value = data.adValues[0]
+   measurePosition.value = data.pulses[0]
 })
 
 </script>
@@ -301,15 +312,21 @@ window.ipcApi.on("plc-controlData", (_, data) => {
             </el-tab-pane>
 
             <el-tab-pane label="纵向" name="longitudinal">
-               <!-- 纵向参数可在此扩展 -->
+               <!-- 纵向 -->
+                <div class="chart-container">
+                  <DynamicCharts />
+                </div>
             </el-tab-pane>
 
             <el-tab-pane label="横向" name="lateral">
-               <!-- 横向参数可在此扩展 -->
+               <!-- 横向 -->
             </el-tab-pane>
 
             <el-tab-pane label="寻边" name="edge">
-               <!-- 寻边参数可在此扩展 -->
+               <!-- 寻边 -->
+               <div class="chart-container">
+                  <SideCharts />
+                </div>
             </el-tab-pane>
          </el-tabs>
       </div>
@@ -327,6 +344,9 @@ window.ipcApi.on("plc-controlData", (_, data) => {
       height: 100%;
       background-color: #f5f7fa;
    }
+}
+.chart-container {
+   height: 600px;
 }
 
 .controls_container {

@@ -58,7 +58,7 @@ export interface IpcChannelMap {
   "change-State": { args: [message: IMessage], output: void }; // 改变测厚仪状态
   "plc-controlData": { args: [data: IPlcControlResult], output: [data: IPlcControlResult] }; // 轮询运行状态
   "plc-paramData": { args: [data: IPlcParamData], output: [] }; // 获取S7控制参数
-  "ModBus-read": {args: [data: IPollingModBusData], output: [] } ; // 获取modbus轮询数据
+  "ModBus-read": {args: [data: IPollingModBusData], output: [data: IPollingModBusData] } ; // 获取modbus轮询数据
 }
 
 // IPC 通道名

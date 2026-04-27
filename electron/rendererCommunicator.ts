@@ -69,6 +69,10 @@ export function startPlcPolling(win: BrowserWindow) {
     STOP: "DB4,X0.2",
     HOME: "DB4,X0.3",
     MEASURE: "DB4,X0.4",
+    // Rectfy: 'DB4,X0.5', // 校正
+    // reversal: 'DB4,X0.6', // 反向
+    // jogFwd: 'DB4,X0.7', // 正换向
+    // jogRev: 'DB4,X1.0' // 反换向
   });
 
   plc.connectIfNeeded()
