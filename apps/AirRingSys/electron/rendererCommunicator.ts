@@ -1,6 +1,7 @@
 import { BrowserWindow, app, dialog, ipcMain } from 'electron'
 import fs from 'node:fs'
 import type {
+  ICalibrationResult,
   IpcChannelArgs,
   IpcChannelName,
   IpcChannelOutput,
@@ -20,9 +21,20 @@ import { createModbusCalibrationBridge } from './calibrationBridge.ts'
 
 let plcPollInterval: NodeJS.Timeout | null = null
 let modbusPollInterval: NodeJS.Timeout | null = null
+let currentWindow: BrowserWindow | null = null
+
+const emitCalibrationResult = (result: ICalibrationResult) => {
+  if (!currentWindow) {
+    return
+  }
+
+  useIpcSend(currentWindow, 'calibration-result', result)
+}
+
 const calibrationBridge = createModbusCalibrationBridge({
   onResult: (result) => {
     console.log('标定算法已收到完整结果:', result)
+    emitCalibrationResult(result)
   },
 })
 
@@ -135,11 +147,17 @@ export function stopPlcPolling() {
 }
 
 export function setupRendererCommunicator(win: BrowserWindow) {
+  currentWindow = win
   startPlcPolling(win)
   void modbusRead(win)
 
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('main-process-message', new Date().toLocaleString())
+
+    const calibrationResult = calibrationBridge.getResult()
+    if (calibrationResult) {
+      useIpcSend(win, 'calibration-result', calibrationResult)
+    }
   })
 
   useIpcOn('win-minimize', () => {

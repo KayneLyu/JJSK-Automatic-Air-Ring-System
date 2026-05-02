@@ -50,6 +50,14 @@ export type IPollingModBusData = {
   pulses: number[]
 }
 
+export type ICalibrationResult = {
+  tractionSpeed?: number
+  distance?: number
+  maxAngle?: number
+  membraneWidth?: number
+  mutationWindowSize?: number
+}
+
 // 定义所有 IPC 通道、参数、返回值类型
 export interface IpcChannelMap {
   // 格式：[通道名]: [发送参数类型, 回调/接收参数类型]
@@ -69,6 +77,10 @@ export interface IpcChannelMap {
     args: [message: IPlcWriteMessage]
     output: IPlcWriteResult
   } // 写入PLC值
+  'calibration-result': {
+    args: [data: ICalibrationResult]
+    output: [data: ICalibrationResult]
+  } // 标定结果推送
   'ModBus-read': {
     args: [data: IPollingModBusData]
     output: [data: IPollingModBusData]

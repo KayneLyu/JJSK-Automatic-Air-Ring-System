@@ -1,10 +1,10 @@
 /**
  * 数据标定
  * */
-import { ThicknessData } from '../connections/thickness/opcua'
-import { RingData } from '../connections/airRing/opcua'
 import { getCircumference } from '@jjsk/core'
-import { CalibrationConfig, Scalar } from '../types'
+import type { ThicknessData } from '../connections/thickness/opcua'
+import type { RingData } from '../connections/airRing/opcua'
+import type { CalibrationConfig, Scalar } from '../types'
 import { calibrateTractionSpeedSmooth } from '../algorithms/tractionSpeedSmooth'
 import { calibrateMutationWindowSize } from '../algorithms/mutationWindowSize'
 import { findMutation } from '../algorithms/findMutation'

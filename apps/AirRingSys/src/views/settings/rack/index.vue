@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import type { IPlcParamData, IPlcParamResult } from '@/types/ipc';
+import { ref, onMounted, onUnmounted } from 'vue'
+import type {
+   ICalibrationResult,
+   IPlcParamData,
+   IPlcParamResult
+} from '@/types/ipc';
 import DynamicCharts from "./dynamic.vue";
 import SideCharts from './side.vue';
 
@@ -22,6 +26,7 @@ const measurePosition = ref(0)
 const productionSpeed = ref('0.0m/min')
 const thickness = ref('100.2um')
 const bubbleChange = ref('0mm')
+const calibrationResult = ref<ICalibrationResult>({})
 
 // 操作栏数据
 const targetPulse = ref('1000')
@@ -296,8 +301,54 @@ const loadPlcParams = async () => {
    }
 }
 
+const formatCalibrationValue = (
+   value: number | undefined,
+   digits: number = 2,
+   unit: string = ''
+) => {
+   if (value === undefined || value === null || Number.isNaN(value)) {
+      return '--'
+   }
+
+   return `${value.toFixed(digits)}${unit}`
+}
+
+const getCalibrationDisplayValue = (key: keyof ICalibrationResult) => {
+   const value = calibrationResult.value[key]
+
+   if (key === 'mutationWindowSize') {
+      return value === undefined ? '--' : String(Math.round(value))
+   }
+
+   if (key === 'tractionSpeed') {
+      return formatCalibrationValue(value, 2, ' mm/s')
+   }
+
+   if (key === 'distance') {
+      return formatCalibrationValue(value, 2, ' mm')
+   }
+
+   if (key === 'maxAngle') {
+      return formatCalibrationValue(value, 1, '°')
+   }
+
+   return formatCalibrationValue(value)
+}
+
+const handleCalibrationResult = (_: unknown, data: ICalibrationResult) => {
+   calibrationResult.value = {
+      ...calibrationResult.value,
+      ...data
+   }
+}
+
 onMounted(() => {
    void loadPlcParams()
+   window.ipcApi.on('calibration-result', handleCalibrationResult)
+})
+
+onUnmounted(() => {
+   window.ipcApi.off('calibration-result', handleCalibrationResult)
 })
 
 // 运行状态
@@ -403,6 +454,27 @@ window.ipcApi.on("ModBus-read", (_, data) => {
          <!-- 标签页 -->
          <el-tabs v-model="activeTab" class="tab-container">
             <el-tab-pane label="参数" name="param">
+               <el-card shadow="hover" header="标定结果" class="calibration-result-card">
+                  <div class="calibration-result-grid">
+                     <div class="calibration-result-item">
+                        <span class="label">牵引速度</span>
+                        <span class="value">{{ getCalibrationDisplayValue('tractionSpeed') }}</span>
+                     </div>
+                     <div class="calibration-result-item">
+                        <span class="label">扰动距离</span>
+                        <span class="value">{{ getCalibrationDisplayValue('distance') }}</span>
+                     </div>
+                     <div class="calibration-result-item">
+                        <span class="label">上旋最大角度</span>
+                        <span class="value">{{ getCalibrationDisplayValue('maxAngle') }}</span>
+                     </div>
+                     <div class="calibration-result-item">
+                        <span class="label">突变窗口</span>
+                        <span class="value">{{ getCalibrationDisplayValue('mutationWindowSize') }}</span>
+                     </div>
+                  </div>
+               </el-card>
+
                <!-- 硬件/速度/采样/报警 四列布局 -->
                <el-row :gutter="20" class="form-row">
                   <!-- 硬件 -->
@@ -552,6 +624,37 @@ window.ipcApi.on("ModBus-read", (_, data) => {
 }
 .chart-container {
    height: 600px;
+}
+
+.calibration-result-card {
+   margin-bottom: 20px;
+}
+
+.calibration-result-grid {
+   display: grid;
+   grid-template-columns: repeat(4, minmax(0, 1fr));
+   gap: 16px;
+}
+
+.calibration-result-item {
+   display: flex;
+   flex-direction: column;
+   gap: 8px;
+   padding: 12px 16px;
+   background: #f8fafc;
+   border: 1px solid #e4e7ed;
+   border-radius: 8px;
+}
+
+.calibration-result-item .label {
+   color: #909399;
+   font-size: 13px;
+}
+
+.calibration-result-item .value {
+   color: #303133;
+   font-size: 20px;
+   font-weight: 600;
 }
 
 .controls_container {
