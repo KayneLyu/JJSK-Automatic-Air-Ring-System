@@ -8,6 +8,7 @@ import type {
   IPlcControlResult,
   IPlcParamData,
   IPlcWriteMessage,
+  IUpperRotationDebugData,
 } from '@/types/ipc'
 import ModbusTCPService from './modbus/modbus.ts'
 import { readAllData } from './modbus/reader.ts'
@@ -29,6 +30,14 @@ const emitCalibrationResult = (result: ICalibrationResult) => {
   }
 
   useIpcSend(currentWindow, 'calibration-result', result)
+}
+
+const emitUpperRotationData = (data: IUpperRotationDebugData) => {
+  if (!currentWindow) {
+    return
+  }
+
+  useIpcSend(currentWindow, 'upperRotation-read', data)
 }
 
 const calibrationBridge = createModbusCalibrationBridge({
@@ -91,6 +100,7 @@ async function modbusRead(win: BrowserWindow) {
       const upperRotationData = await readUpperRotationData()
       if (upperRotationData) {
         calibrationBridge.feedUpperRotationData(upperRotationData)
+        emitUpperRotationData(upperRotationData)
       }
     } catch (err) {
       console.error('上旋 S7 读取失败:', err)

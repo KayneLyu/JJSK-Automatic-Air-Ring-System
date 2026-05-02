@@ -58,6 +58,17 @@ export type ICalibrationResult = {
   mutationWindowSize?: number
 }
 
+export type IUpperRotationDebugData = {
+  timestamp?: number
+  ForwardRotation?: boolean
+  ReverseRotation?: boolean
+  ForwardDirectionChange?: boolean
+  ReverseDirectionChange?: boolean
+  Reset?: boolean
+  MotorFrequency?: number
+  Heats?: number[]
+}
+
 // 定义所有 IPC 通道、参数、返回值类型
 export interface IpcChannelMap {
   // 格式：[通道名]: [发送参数类型, 回调/接收参数类型]
@@ -81,6 +92,10 @@ export interface IpcChannelMap {
     args: [data: ICalibrationResult]
     output: [data: ICalibrationResult]
   } // 标定结果推送
+  'upperRotation-read': {
+    args: [data: IUpperRotationDebugData]
+    output: [data: IUpperRotationDebugData]
+  } // 上旋调试数据推送
   'ModBus-read': {
     args: [data: IPollingModBusData]
     output: [data: IPollingModBusData]

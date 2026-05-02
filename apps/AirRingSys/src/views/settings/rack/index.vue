@@ -3,7 +3,8 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import type {
    ICalibrationResult,
    IPlcParamData,
-   IPlcParamResult
+   IPlcParamResult,
+   IUpperRotationDebugData
 } from '@/types/ipc';
 import DynamicCharts from "./dynamic.vue";
 import SideCharts from './side.vue';
@@ -27,6 +28,7 @@ const productionSpeed = ref('0.0m/min')
 const thickness = ref('100.2um')
 const bubbleChange = ref('0mm')
 const calibrationResult = ref<ICalibrationResult>({})
+const upperRotationDebug = ref<IUpperRotationDebugData>({})
 
 // 操作栏数据
 const targetPulse = ref('1000')
@@ -342,13 +344,46 @@ const handleCalibrationResult = (_: unknown, data: ICalibrationResult) => {
    }
 }
 
+const formatUpperRotationBoolean = (value: boolean | undefined) => {
+   if (value === undefined) {
+      return '--'
+   }
+
+   return value ? 'ON' : 'OFF'
+}
+
+const formatUpperRotationMotorFrequency = (value: number | undefined) => {
+   if (value === undefined || Number.isNaN(value)) {
+      return '--'
+   }
+
+   return `${value.toFixed(2)} Hz`
+}
+
+const formatUpperRotationHeats = (value: number[] | undefined) => {
+   if (!value || value.length === 0) {
+      return '--'
+   }
+
+   return value.join(', ')
+}
+
+const handleUpperRotationData = (_: unknown, data: IUpperRotationDebugData) => {
+   upperRotationDebug.value = {
+      ...upperRotationDebug.value,
+      ...data
+   }
+}
+
 onMounted(() => {
    void loadPlcParams()
    window.ipcApi.on('calibration-result', handleCalibrationResult)
+   window.ipcApi.on('upperRotation-read', handleUpperRotationData)
 })
 
 onUnmounted(() => {
    window.ipcApi.off('calibration-result', handleCalibrationResult)
+   window.ipcApi.off('upperRotation-read', handleUpperRotationData)
 })
 
 // 运行状态
@@ -454,6 +489,7 @@ window.ipcApi.on("ModBus-read", (_, data) => {
          <!-- 标签页 -->
          <el-tabs v-model="activeTab" class="tab-container">
             <el-tab-pane label="参数" name="param">
+               <div class="tab-pane-body">
                <el-card shadow="hover" header="标定结果" class="calibration-result-card">
                   <div class="calibration-result-grid">
                      <div class="calibration-result-item">
@@ -471,6 +507,39 @@ window.ipcApi.on("ModBus-read", (_, data) => {
                      <div class="calibration-result-item">
                         <span class="label">突变窗口</span>
                         <span class="value">{{ getCalibrationDisplayValue('mutationWindowSize') }}</span>
+                     </div>
+                  </div>
+               </el-card>
+
+               <el-card shadow="hover" header="上旋调试信号" class="calibration-result-card">
+                  <div class="calibration-result-grid upper-rotation-debug-grid">
+                     <div class="calibration-result-item">
+                        <span class="label">正转</span>
+                        <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ForwardRotation) }}</span>
+                     </div>
+                     <div class="calibration-result-item">
+                        <span class="label">反转</span>
+                        <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ReverseRotation) }}</span>
+                     </div>
+                     <div class="calibration-result-item">
+                        <span class="label">正换向</span>
+                        <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ForwardDirectionChange) }}</span>
+                     </div>
+                     <div class="calibration-result-item">
+                        <span class="label">反换向</span>
+                        <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ReverseDirectionChange) }}</span>
+                     </div>
+                     <div class="calibration-result-item">
+                        <span class="label">复位</span>
+                        <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.Reset) }}</span>
+                     </div>
+                     <div class="calibration-result-item">
+                        <span class="label">电机频率</span>
+                        <span class="value">{{ formatUpperRotationMotorFrequency(upperRotationDebug.MotorFrequency) }}</span>
+                     </div>
+                     <div class="calibration-result-item upper-rotation-heats-item">
+                        <span class="label">热量</span>
+                        <span class="value">{{ formatUpperRotationHeats(upperRotationDebug.Heats) }}</span>
                      </div>
                   </div>
                </el-card>
@@ -585,25 +654,32 @@ window.ipcApi.on("ModBus-read", (_, data) => {
                      </div>
                   </el-col>
                </el-row>
+               </div>
 
             </el-tab-pane>
 
             <el-tab-pane label="纵向" name="longitudinal">
-               <!-- 纵向 -->
-                <div class="chart-container">
-                  <DynamicCharts />
-                </div>
+               <div class="tab-pane-body">
+                  <!-- 纵向 -->
+                  <div class="chart-container">
+                    <DynamicCharts />
+                  </div>
+               </div>
             </el-tab-pane>
 
             <el-tab-pane label="横向" name="lateral">
-               <!-- 横向 -->
+               <div class="tab-pane-body">
+                  <!-- 横向 -->
+               </div>
             </el-tab-pane>
 
             <el-tab-pane label="寻边" name="edge">
-               <!-- 寻边 -->
-               <div class="chart-container">
-                  <SideCharts />
-                </div>
+               <div class="tab-pane-body">
+                  <!-- 寻边 -->
+                  <div class="chart-container">
+                     <SideCharts />
+                  </div>
+               </div>
             </el-tab-pane>
          </el-tabs>
       </div>
@@ -616,11 +692,56 @@ window.ipcApi.on("ModBus-read", (_, data) => {
 .control-container {
    width: 100%;
    height: 100%;
+    min-height: 0;
 
    :deep(.el-card__body) {
+       display: flex;
+       flex-direction: column;
       height: 100%;
+       min-height: 0;
       background-color: #f5f7fa;
    }
+}
+
+.thickness-measure-container {
+   display: flex;
+   flex: 1;
+   flex-direction: column;
+   min-height: 0;
+}
+
+.tab-container {
+   flex: 1;
+   display: flex;
+   flex-direction: column;
+   min-height: 0;
+
+   :deep(.el-tabs__header) {
+      flex-shrink: 0;
+   }
+
+   :deep(.el-tabs__content) {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+   }
+
+   :deep(.el-tab-pane) {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+   }
+}
+
+.tab-pane-body {
+   flex: 1;
+   min-height: 0;
+   overflow-y: auto;
+   box-sizing: border-box;
+   padding-right: 4px;
+   padding-bottom: 28px;
 }
 .chart-container {
    height: 600px;
@@ -634,6 +755,10 @@ window.ipcApi.on("ModBus-read", (_, data) => {
    display: grid;
    grid-template-columns: repeat(4, minmax(0, 1fr));
    gap: 16px;
+}
+
+.upper-rotation-debug-grid {
+   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .calibration-result-item {
@@ -655,6 +780,10 @@ window.ipcApi.on("ModBus-read", (_, data) => {
    color: #303133;
    font-size: 20px;
    font-weight: 600;
+}
+
+.upper-rotation-heats-item {
+   grid-column: span 2;
 }
 
 .controls_container {
