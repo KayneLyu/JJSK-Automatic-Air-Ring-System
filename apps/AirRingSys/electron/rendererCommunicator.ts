@@ -1,5 +1,6 @@
 import { BrowserWindow, app, dialog, ipcMain } from 'electron'
 import fs from 'node:fs'
+import { join } from 'node:path'
 import type {
   ICalibrationResult,
   ICalibrationControlData,
@@ -22,10 +23,26 @@ import {
 } from './nodeS7/upperRotationReader.ts'
 import { ensureServerRunning } from './utils.ts'
 import { createModbusCalibrationBridge } from './calibrationBridge.ts'
+import { createConnectionLogger } from '../../../packages/AirRingServer/connections/base/connectionLogger.ts'
 
 let plcPollInterval: NodeJS.Timeout | null = null
 let modbusPollInterval: NodeJS.Timeout | null = null
 let currentWindow: BrowserWindow | null = null
+let thicknessLogSequence = 0
+let thicknessDataLogger: ReturnType<typeof createConnectionLogger> | null = null
+
+const getThicknessDataLogger = () => {
+  if (!thicknessDataLogger) {
+    thicknessDataLogger = createConnectionLogger({
+      dirPath: join(app.getPath('userData'), 'logs', 'thickness'),
+      source: 'thickness/app-modbus',
+      maxSize: '100m',
+      maxFiles: '7d',
+    })
+  }
+
+  return thicknessDataLogger
+}
 
 const emitCalibrationResult = (result: ICalibrationResult) => {
   if (!currentWindow) {
@@ -88,15 +105,53 @@ async function modbusRead(win: BrowserWindow) {
   }
 
   const thicknessModbus = ModbusTCPService.getInstance('thickness')
+  const logger = getThicknessDataLogger()
   await thicknessModbus.connect('192.168.2.20', 502, 1)
 
   modbusPollInterval = setInterval(async () => {
     try {
+      const startedAt = Date.now()
       const thicknessData = await readAllData()
+      const durationMs = Date.now() - startedAt
+      thicknessLogSequence += 1
+
+      const lengthMismatch =
+        thicknessData.adValues.length !== thicknessData.pulses.length ||
+        thicknessData.adValues.length !== thicknessData.timestamps.length
+
+      logger.log({
+        protocol: 'modbus',
+        event: 'read',
+        data: thicknessData,
+        meta: {
+          ip: '192.168.2.20',
+          pollSeq: thicknessLogSequence,
+          readLatencyMs: durationMs,
+          adCount: thicknessData.adValues.length,
+          pulseCount: thicknessData.pulses.length,
+          timestampCount: thicknessData.timestamps.length,
+          firstTimestamp: thicknessData.timestamps[0],
+          lastTimestamp:
+            thicknessData.timestamps[thicknessData.timestamps.length - 1],
+          firstPulse: thicknessData.pulses[0],
+          lastPulse: thicknessData.pulses[thicknessData.pulses.length - 1],
+          lengthMismatch,
+        },
+      })
+
       calibrationBridge.feedModbusData(thicknessData)
       useIpcSend(win, 'ModBus-read', thicknessData)
     } catch (err) {
       console.error('厚度 Modbus 读取失败:', err)
+      logger.log({
+        protocol: 'modbus',
+        event: 'subscribe_error',
+        error: err,
+        meta: {
+          ip: '192.168.2.20',
+          pollSeq: thicknessLogSequence + 1,
+        },
+      })
     }
 
     try {

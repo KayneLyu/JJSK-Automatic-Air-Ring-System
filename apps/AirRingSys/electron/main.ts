@@ -2,7 +2,11 @@ import { app, BrowserWindow, globalShortcut } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { setupRendererCommunicator, stopPlcPolling } from './rendererCommunicator.ts'
+import {
+  setupRendererCommunicator,
+  stopPlcPolling,
+} from './rendererCommunicator.ts'
+import { setupConsoleFileLogger } from './consoleFileLogger.ts'
 
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -18,6 +22,7 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST
 
 let win: BrowserWindow | null
+let restoreConsoleFileLogger: (() => void) | null = null
 
 function createWindow() {
   win = new BrowserWindow({
@@ -79,6 +84,8 @@ app.on('before-quit', () => {
   win?.removeAllListeners('close')
   globalShortcut.unregisterAll()
   win?.close()
+  restoreConsoleFileLogger?.()
+  restoreConsoleFileLogger = null
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -99,4 +106,9 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  const { dirPath, restore } = setupConsoleFileLogger(app)
+  restoreConsoleFileLogger = restore
+  console.log('主进程控制台日志已写入:', dirPath)
+  createWindow()
+})
