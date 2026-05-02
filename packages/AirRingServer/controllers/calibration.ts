@@ -18,6 +18,11 @@ export type CalibrateOptions = {
    * 开始扰动时间戳
    * */
   disturbanceTs: number
+  /**
+   * 手动设置的牵引速度，单位：mm/s
+   * 当无辊速信号时优先使用该值
+   * */
+  manualTractionSpeed?: number
 }
 
 export type CalibrateResult = {
@@ -52,12 +57,34 @@ export type CreateCalibrationSessionOptions = CalibrateOptions & {
   onResult?: (result: CalibrateResult) => void
 }
 
+const hasCalibrationResultChanged = (
+  previous: CalibrateResult | null,
+  next: CalibrateResult
+) => {
+  if (!previous) {
+    return true
+  }
+
+  const keys = new Set([...Object.keys(previous), ...Object.keys(next)]) as Set<
+    keyof CalibrateResult
+  >
+
+  for (const key of keys) {
+    if (previous[key] !== next[key]) {
+      return true
+    }
+  }
+
+  return false
+}
+
 /**
  * 标定，用于设备特征标定
  * */
 export const calibrate = ({
   config,
   disturbanceTs,
+  manualTractionSpeed,
   standardized,
 }: CalibrateOptions) => {
   const { CHANNEL_COUNT, ROLLER } = standardized
@@ -85,7 +112,10 @@ export const calibrate = ({
     airRing?: RingData
   }): CalibrateResult | null => {
     // ---------- Step 1: 计算牵引速度 ----------
-    const v = thickness ? TractionSpeedSmoothNext(thickness) : null
+    const calculatedTractionSpeed = thickness
+      ? TractionSpeedSmoothNext(thickness)
+      : null
+    const v = manualTractionSpeed ?? calculatedTractionSpeed
 
     // ---------- Step 2: 标定突变检测窗口大小 ----------
     const { fastSize, size } = MutationWindowSizeNext({ thickness, airRing })
@@ -153,30 +183,47 @@ export const calibrate = ({
 export const createCalibrationSession = ({
   config,
   disturbanceTs,
+  manualTractionSpeed,
   standardized,
   onResult,
 }: CreateCalibrationSessionOptions) => {
   let currentDisturbanceTs = disturbanceTs
-  let currentCalibrator = calibrate({
-    config,
-    disturbanceTs: currentDisturbanceTs,
-    standardized,
-  })
+  let currentManualTractionSpeed = manualTractionSpeed
+  const buildCalibrator = (
+    nextDisturbanceTs: number,
+    nextManualTractionSpeed: number | undefined
+  ) => {
+    return calibrate({
+      config,
+      disturbanceTs: nextDisturbanceTs,
+      manualTractionSpeed: nextManualTractionSpeed,
+      standardized,
+    })
+  }
+  let currentCalibrator = buildCalibrator(
+    currentDisturbanceTs,
+    currentManualTractionSpeed
+  )
   let currentResult: CalibrateResult | null = null
 
   const feed = (input: CalibrationStreamInput) => {
-    if (currentResult) {
-      return currentResult
-    }
-
     const result = currentCalibrator.next(input)
 
     if (result) {
-      currentResult = result
-      onResult?.(result)
+      const nextResult = {
+        ...currentResult,
+        ...result,
+      }
+
+      if (hasCalibrationResultChanged(currentResult, nextResult)) {
+        currentResult = nextResult
+        onResult?.(nextResult)
+      } else {
+        currentResult = nextResult
+      }
     }
 
-    return result
+    return currentResult
   }
 
   return {
@@ -206,14 +253,31 @@ export const createCalibrationSession = ({
       return currentResult
     },
     getResult: () => currentResult,
-    reset: (nextDisturbanceTs: number = Date.now()) => {
+    getManualTractionSpeed: () => currentManualTractionSpeed,
+    getDisturbanceTs: () => currentDisturbanceTs,
+    setManualTractionSpeed: (
+      nextManualTractionSpeed: number | undefined,
+      nextDisturbanceTs: number = Date.now()
+    ) => {
+      currentManualTractionSpeed = nextManualTractionSpeed
       currentDisturbanceTs = nextDisturbanceTs
       currentResult = null
-      currentCalibrator = calibrate({
-        config,
-        disturbanceTs: currentDisturbanceTs,
-        standardized,
-      })
+      currentCalibrator = buildCalibrator(
+        currentDisturbanceTs,
+        currentManualTractionSpeed
+      )
+    },
+    reset: (
+      nextDisturbanceTs: number = Date.now(),
+      nextManualTractionSpeed: number | undefined = currentManualTractionSpeed
+    ) => {
+      currentManualTractionSpeed = nextManualTractionSpeed
+      currentDisturbanceTs = nextDisturbanceTs
+      currentResult = null
+      currentCalibrator = buildCalibrator(
+        currentDisturbanceTs,
+        currentManualTractionSpeed
+      )
     },
   }
 }

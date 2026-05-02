@@ -69,6 +69,23 @@ export type IUpperRotationDebugData = {
   Heats?: number[]
 }
 
+export type ICalibrationControlData = {
+  manualTractionSpeed: number
+}
+
+export type ICalibrationControlResult = {
+  success: boolean
+  manualTractionSpeed?: number
+  disturbanceTs: number
+  error?: string
+}
+
+export type ICalibrationBridgeState = {
+  manualTractionSpeed?: number
+  disturbanceTs: number
+  result: ICalibrationResult | null
+}
+
 // 定义所有 IPC 通道、参数、返回值类型
 export interface IpcChannelMap {
   // 格式：[通道名]: [发送参数类型, 回调/接收参数类型]
@@ -96,6 +113,18 @@ export interface IpcChannelMap {
     args: [data: IUpperRotationDebugData]
     output: [data: IUpperRotationDebugData]
   } // 上旋调试数据推送
+  'calibration-set-manual-traction-speed': {
+    args: [data: ICalibrationControlData]
+    output: ICalibrationControlResult
+  } // 设置手动牵引速度并重置标定会话
+  'calibration-get-state': {
+    args: []
+    output: ICalibrationBridgeState
+  } // 获取当前标定桥状态
+  'calibration-reset': {
+    args: []
+    output: ICalibrationControlResult
+  } // 沿用当前速度重新开始本次标定
   'ModBus-read': {
     args: [data: IPollingModBusData]
     output: [data: IPollingModBusData]

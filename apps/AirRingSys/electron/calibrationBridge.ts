@@ -2,13 +2,13 @@ import type { IPollingModBusData } from '@/types/ipc'
 import {
   createCalibrationSession,
   type CalibrateResult,
-} from '../../../packages/AirRingServer/controllers/calibration.ts'
-import type { RingData } from '../../../packages/AirRingServer/connections/airRing/opcua.ts'
-import type { ThicknessData } from '../../../packages/AirRingServer/connections/thickness/opcua.ts'
+} from '../../../packages/AirRingServer/controllers/calibration'
+import type { RingData } from '../../../packages/AirRingServer/connections/airRing/opcua'
+import type { ThicknessData } from '../../../packages/AirRingServer/connections/thickness/opcua'
 import type {
   CalibrationConfig,
   Scalar,
-} from '../../../packages/AirRingServer/types/index.ts'
+} from '../../../packages/AirRingServer/types'
 
 const DEFAULT_CALIBRATION_CONFIG: CalibrationConfig = {
   roller: {
@@ -30,6 +30,7 @@ export type CreateModbusCalibrationBridgeOptions = {
   config?: CalibrationConfig
   standardized?: Scalar
   disturbanceTs?: number
+  manualTractionSpeed?: number
   onResult?: (result: CalibrateResult) => void
 }
 
@@ -40,6 +41,7 @@ export const createModbusCalibrationBridge = (
     config: options.config ?? DEFAULT_CALIBRATION_CONFIG,
     standardized: options.standardized ?? DEFAULT_STANDARDIZED,
     disturbanceTs: options.disturbanceTs ?? Date.now(),
+    manualTractionSpeed: options.manualTractionSpeed,
     onResult: options.onResult,
   })
 
@@ -119,10 +121,23 @@ export const createModbusCalibrationBridge = (
     session.reset(disturbanceTs)
   }
 
+  const setManualTractionSpeed = (
+    manualTractionSpeed: number,
+    disturbanceTs: number = Date.now()
+  ) => {
+    previousPulse = undefined
+    previousMotionDirection = true
+    latestThicknessTimestamp = undefined
+    session.setManualTractionSpeed(manualTractionSpeed, disturbanceTs)
+  }
+
   return {
     feedModbusData,
     feedUpperRotationData,
+    setManualTractionSpeed,
     reset,
+    getManualTractionSpeed: session.getManualTractionSpeed,
+    getDisturbanceTs: session.getDisturbanceTs,
     getResult: session.getResult,
   }
 }

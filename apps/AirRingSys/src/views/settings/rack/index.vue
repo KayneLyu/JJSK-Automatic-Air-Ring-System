@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import type {
+   ICalibrationBridgeState,
+   ICalibrationControlResult,
    ICalibrationResult,
    IPlcParamData,
    IPlcParamResult,
@@ -29,6 +31,9 @@ const thickness = ref('100.2um')
 const bubbleChange = ref('0mm')
 const calibrationResult = ref<ICalibrationResult>({})
 const upperRotationDebug = ref<IUpperRotationDebugData>({})
+const manualTractionSpeed = ref('')
+const isApplyingManualTractionSpeed = ref(false)
+const isResettingCalibration = ref(false)
 
 // 操作栏数据
 const targetPulse = ref('1000')
@@ -303,6 +308,107 @@ const loadPlcParams = async () => {
    }
 }
 
+const formatProductionSpeedValue = (value: number | undefined) => {
+   if (value === undefined || value === null || Number.isNaN(value)) {
+      productionSpeed.value = '0.0mm/s'
+      return
+   }
+
+   productionSpeed.value = `${value.toFixed(2)}mm/s`
+}
+
+const loadCalibrationState = async () => {
+   try {
+      const state = await window.ipcApi.invoke('calibration-get-state') as ICalibrationBridgeState
+
+      manualTractionSpeed.value =
+         state.manualTractionSpeed === undefined
+            ? ''
+            : String(state.manualTractionSpeed)
+
+      calibrationResult.value = state.result ?? {}
+
+      if (state.manualTractionSpeed !== undefined) {
+         formatProductionSpeedValue(state.manualTractionSpeed)
+      } else if (state.result?.tractionSpeed !== undefined) {
+         formatProductionSpeedValue(state.result.tractionSpeed)
+      }
+   } catch (error) {
+      ElMessage.error(error instanceof Error ? error.message : '标定状态读取失败')
+   }
+}
+
+const applyManualTractionSpeed = async () => {
+   if (isApplyingManualTractionSpeed.value) {
+      return
+   }
+
+   const speed = Number(manualTractionSpeed.value)
+
+   if (!Number.isFinite(speed) || speed <= 0) {
+      ElMessage.error('请输入大于 0 的有效牵引速度')
+      return
+   }
+
+   isApplyingManualTractionSpeed.value = true
+
+   try {
+      const result = await window.ipcApi.invoke(
+         'calibration-set-manual-traction-speed',
+         {
+            manualTractionSpeed: speed
+         }
+      ) as ICalibrationControlResult
+
+      if (!result.success) {
+         ElMessage.error(result.error ?? '手动牵引速度设置失败')
+         return
+      }
+
+      manualTractionSpeed.value = String(result.manualTractionSpeed ?? speed)
+      calibrationResult.value = {
+         tractionSpeed: result.manualTractionSpeed ?? speed
+      }
+      formatProductionSpeedValue(result.manualTractionSpeed ?? speed)
+      ElMessage.success('牵引速度已设置，标定已按新速度重新开始')
+   } catch (error) {
+      ElMessage.error(error instanceof Error ? error.message : '手动牵引速度设置失败')
+   } finally {
+      isApplyingManualTractionSpeed.value = false
+   }
+}
+
+const resetCalibration = async () => {
+   if (isResettingCalibration.value) {
+      return
+   }
+
+   isResettingCalibration.value = true
+
+   try {
+      const result = await window.ipcApi.invoke('calibration-reset') as ICalibrationControlResult
+
+      if (!result.success) {
+         ElMessage.error(result.error ?? '本次标定重置失败')
+         return
+      }
+
+      calibrationResult.value = result.manualTractionSpeed === undefined
+         ? {}
+         : { tractionSpeed: result.manualTractionSpeed }
+
+      if (result.manualTractionSpeed !== undefined) {
+         formatProductionSpeedValue(result.manualTractionSpeed)
+      }
+
+      ElMessage.success('本次标定已重新开始')
+   } catch (error) {
+      ElMessage.error(error instanceof Error ? error.message : '本次标定重置失败')
+   } finally {
+      isResettingCalibration.value = false
+   }
+}
+
 const formatCalibrationValue = (
    value: number | undefined,
    digits: number = 2,
@@ -338,9 +444,10 @@ const getCalibrationDisplayValue = (key: keyof ICalibrationResult) => {
 }
 
 const handleCalibrationResult = (_: unknown, data: ICalibrationResult) => {
-   calibrationResult.value = {
-      ...calibrationResult.value,
-      ...data
+   calibrationResult.value = data
+
+   if (data.tractionSpeed !== undefined) {
+      formatProductionSpeedValue(data.tractionSpeed)
    }
 }
 
@@ -377,6 +484,7 @@ const handleUpperRotationData = (_: unknown, data: IUpperRotationDebugData) => {
 
 onMounted(() => {
    void loadPlcParams()
+   void loadCalibrationState()
    window.ipcApi.on('calibration-result', handleCalibrationResult)
    window.ipcApi.on('upperRotation-read', handleUpperRotationData)
 })
@@ -491,6 +599,32 @@ window.ipcApi.on("ModBus-read", (_, data) => {
             <el-tab-pane label="参数" name="param">
                <div class="tab-pane-body">
                <el-card shadow="hover" header="标定结果" class="calibration-result-card">
+                  <div class="calibration-control-bar">
+                     <el-input
+                        v-model="manualTractionSpeed"
+                        class="manual-traction-speed-input"
+                        placeholder="手动牵引速度"
+                     >
+                        <template #append>mm/s</template>
+                     </el-input>
+                     <el-button
+                        type="primary"
+                        :loading="isApplyingManualTractionSpeed"
+                        @click="applyManualTractionSpeed"
+                     >
+                        应用牵引速度
+                     </el-button>
+                     <el-button
+                        :loading="isResettingCalibration"
+                        @click="resetCalibration"
+                     >
+                        开始/重置本次标定
+                     </el-button>
+                     <span class="calibration-control-tip">
+                        应用牵引速度会更新速度并重新开始；开始/重置本次标定会沿用当前速度，仅重置本次扰动起点
+                     </span>
+                  </div>
+
                   <div class="calibration-result-grid">
                      <div class="calibration-result-item">
                         <span class="label">牵引速度</span>
@@ -749,6 +883,24 @@ window.ipcApi.on("ModBus-read", (_, data) => {
 
 .calibration-result-card {
    margin-bottom: 20px;
+}
+
+.calibration-control-bar {
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   margin-bottom: 16px;
+   flex-wrap: wrap;
+}
+
+.manual-traction-speed-input {
+   width: 220px;
+}
+
+.calibration-control-tip {
+   color: #909399;
+   font-size: 12px;
+   line-height: 1.4;
 }
 
 .calibration-result-grid {

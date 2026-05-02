@@ -2,9 +2,12 @@ import { BrowserWindow, app, dialog, ipcMain } from 'electron'
 import fs from 'node:fs'
 import type {
   ICalibrationResult,
+  ICalibrationControlData,
+  ICalibrationControlResult,
   IpcChannelArgs,
   IpcChannelName,
   IpcChannelOutput,
+  ICalibrationBridgeState,
   IPlcControlResult,
   IPlcParamData,
   IPlcWriteMessage,
@@ -215,6 +218,61 @@ export function setupRendererCommunicator(win: BrowserWindow) {
       )
     } catch (error) {
       console.error('打开客户端失败:', error)
+    }
+  })
+
+  useIpcHandle(
+    'calibration-set-manual-traction-speed',
+    async (
+      data: ICalibrationControlData
+    ): Promise<ICalibrationControlResult> => {
+      const manualTractionSpeed = Number(data.manualTractionSpeed)
+
+      if (!Number.isFinite(manualTractionSpeed) || manualTractionSpeed <= 0) {
+        return {
+          success: false,
+          disturbanceTs: calibrationBridge.getDisturbanceTs(),
+          error: '牵引速度必须是大于 0 的有效数字',
+        }
+      }
+
+      const disturbanceTs = Date.now()
+      calibrationBridge.setManualTractionSpeed(
+        manualTractionSpeed,
+        disturbanceTs
+      )
+      emitCalibrationResult({ tractionSpeed: manualTractionSpeed })
+
+      return {
+        success: true,
+        manualTractionSpeed,
+        disturbanceTs,
+      }
+    }
+  )
+
+  useIpcHandle('calibration-get-state', (): ICalibrationBridgeState => {
+    return {
+      manualTractionSpeed: calibrationBridge.getManualTractionSpeed(),
+      disturbanceTs: calibrationBridge.getDisturbanceTs(),
+      result: calibrationBridge.getResult(),
+    }
+  })
+
+  useIpcHandle('calibration-reset', (): ICalibrationControlResult => {
+    const disturbanceTs = Date.now()
+    const manualTractionSpeed = calibrationBridge.getManualTractionSpeed()
+
+    calibrationBridge.reset(disturbanceTs)
+
+    if (manualTractionSpeed !== undefined) {
+      emitCalibrationResult({ tractionSpeed: manualTractionSpeed })
+    }
+
+    return {
+      success: true,
+      manualTractionSpeed,
+      disturbanceTs,
     }
   })
 
