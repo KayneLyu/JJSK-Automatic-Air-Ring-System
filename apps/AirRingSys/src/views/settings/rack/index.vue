@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import type { IPlcControlResult } from '@/types/ipc';
+import type { IPlcParamData, IPlcParamResult } from '@/types/ipc';
 import DynamicCharts from "./dynamic.vue";
 import SideCharts from './side.vue';
 
@@ -10,6 +10,11 @@ type Option = {
 }
 
 type IState = 'FWD' | 'REV' | 'STOP' | 'HOME' | 'MEASURE'
+type PlcWritableValue = string | number | boolean
+type RackParamKey = keyof IPlcParamData
+type RackParamNormalizedValue = number | boolean
+
+const REAL_COMPARE_EPSILON = 1e-6
 
 // 顶部状态数据
 const currentAD = ref(12345)
@@ -20,6 +25,8 @@ const bubbleChange = ref('0mm')
 
 // 操作栏数据
 const targetPulse = ref('1000')
+const isApplying = ref(false)
+const plcParamBaseline = ref<Partial<IPlcParamResult>>({})
 
 // 标签页
 const activeTab = ref('param')
@@ -59,7 +66,7 @@ const alarmForm = ref({
    toleranceZone: '10'
 })
 
-const addressItems = {
+const addressItems: IPlcParamData = {
    // 硬件
    frameLength: 'DB4,DINT2', // 机架长度
    rollerCircumference: 'DB4,REAL6', // 测速棍周长
@@ -83,9 +90,214 @@ const addressItems = {
    sampleRadius: 'DB4,DINT70' // 采样半径
 }
 
-onMounted( async() => {
-   const data = await window.ipcApi.invoke('plc-paramData', addressItems)
-   console.log('data', data);
+const toFormValue = (value: number | boolean | undefined, fallback: string) =>
+   value === undefined ? fallback : String(value)
+
+const setFormValuesFromPlc = (data: IPlcParamResult) => {
+   hardwareForm.value = {
+      ...hardwareForm.value,
+      frameLength: toFormValue(data.frameLength, hardwareForm.value.frameLength),
+      rollerCircumference: toFormValue(data.rollerCircumference, hardwareForm.value.rollerCircumference),
+      encoderRatio: toFormValue(data.encoderRatio, hardwareForm.value.encoderRatio),
+      motorPulse: toFormValue(data.motorPulse, hardwareForm.value.motorPulse),
+      codePulse: toFormValue(data.codePulse, hardwareForm.value.codePulse),
+      zeroOffset: toFormValue(data.zeroOffset, hardwareForm.value.zeroOffset)
+   }
+
+   speedForm.value = {
+      ...speedForm.value,
+      scanSpeed: toFormValue(data.scanSpeed, speedForm.value.scanSpeed),
+      sampleSpeed: toFormValue(data.sampleSpeed, speedForm.value.sampleSpeed),
+      debugSpeed: toFormValue(data.debugSpeed, speedForm.value.debugSpeed),
+      startSpeed: toFormValue(data.startSpeed, speedForm.value.startSpeed),
+      resetSpeed1: toFormValue(data.resetSpeed1, speedForm.value.resetSpeed1),
+      resetSpeed2: toFormValue(data.resetSpeed2, speedForm.value.resetSpeed2),
+      accelTime: toFormValue(data.accelTime, speedForm.value.accelTime),
+      decelTime: toFormValue(data.decelTime, speedForm.value.decelTime)
+   }
+
+   sampleForm.value = {
+      ...sampleForm.value,
+      sampleInterval: toFormValue(data.sampleInterval, sampleForm.value.sampleInterval),
+      samplePosition: toFormValue(data.samplePosition, sampleForm.value.samplePosition),
+      sampleRadius: toFormValue(data.sampleRadius, sampleForm.value.sampleRadius)
+   }
+}
+
+const normalizeBooleanValue = (value: PlcWritableValue) => {
+   if (typeof value === 'boolean') {
+      return value
+   }
+
+   if (typeof value === 'number') {
+      return value !== 0
+   }
+
+   const normalizedValue = value.trim().toLowerCase()
+
+   if (['true', '1', 'on', 'yes'].includes(normalizedValue)) {
+      return true
+   }
+
+   if (['false', '0', 'off', 'no'].includes(normalizedValue)) {
+      return false
+   }
+
+   throw new Error('布尔类型PLC写入值无效')
+}
+
+const normalizePlcValue = (address: string, value: PlcWritableValue) => {
+   const valueType = address.split(',')[1] ?? ''
+
+   if (valueType.startsWith('X')) {
+      return normalizeBooleanValue(value)
+   }
+
+   if (typeof value === 'string' && value.trim() === '') {
+      throw new Error(`地址 ${address} 的写入值不能为空`)
+   }
+
+   const numericValue = typeof value === 'number' ? value : Number(value)
+
+   if (!Number.isFinite(numericValue)) {
+      throw new Error(`地址 ${address} 的写入值不是有效数字`)
+   }
+
+   if (valueType.startsWith('DINT')) {
+      return Math.trunc(numericValue)
+   }
+
+   return numericValue
+}
+
+const isPlcParamBaselineReady = () =>
+   Object.keys(plcParamBaseline.value).length === Object.keys(addressItems).length
+
+const isSamePlcValue = (
+   address: string,
+   currentValue: RackParamNormalizedValue,
+   baselineValue: number | boolean | undefined
+) => {
+   if (baselineValue === undefined) {
+      return false
+   }
+
+   const valueType = address.split(',')[1] ?? ''
+
+   if (valueType.startsWith('REAL')) {
+      return Math.abs(Number(currentValue) - Number(baselineValue)) <= REAL_COMPARE_EPSILON
+   }
+
+   return currentValue === baselineValue
+}
+
+const writePlcValue = async (address: string, value: PlcWritableValue) => {
+   const result = await window.ipcApi.invoke('plc-writeValue', {
+      address,
+      value: normalizePlcValue(address, value)
+   })
+
+   if (!result.success) {
+      throw new Error(result.error ?? `地址 ${address} 写入失败`)
+   }
+
+   return result
+}
+
+const getRackParamValues = (): Record<RackParamKey, string> => ({
+   ...hardwareForm.value,
+   ...speedForm.value,
+   ...sampleForm.value
+}) as Record<RackParamKey, string>
+
+const getChangedRackParams = () => {
+   const rackParamValues = getRackParamValues()
+   const changedEntries: Array<{
+      key: RackParamKey
+      address: string
+      value: RackParamNormalizedValue
+   }> = []
+
+   for (const [key, address] of Object.entries(addressItems) as [RackParamKey, string][]) {
+      const normalizedValue = normalizePlcValue(address, rackParamValues[key]) as RackParamNormalizedValue
+      const baselineValue = plcParamBaseline.value[key]
+
+      if (!isSamePlcValue(address, normalizedValue, baselineValue)) {
+         changedEntries.push({
+            key,
+            address,
+            value: normalizedValue
+         })
+      }
+   }
+
+   return changedEntries
+}
+
+const applyPlcParams = async () => {
+   if (isApplying.value) {
+      return
+   }
+
+   isApplying.value = true
+
+   try {
+      if (!isPlcParamBaselineReady()) {
+         ElMessage.error('PLC 参数尚未完成初始化，请稍后重试')
+         return
+      }
+
+      const changedParams = getChangedRackParams()
+
+      if (changedParams.length === 0) {
+         ElMessage.success('未检测到参数变化')
+         return
+      }
+
+      const failedKeys: RackParamKey[] = []
+      let successCount = 0
+
+      for (const item of changedParams) {
+         try {
+            await writePlcValue(item.address, item.value)
+            plcParamBaseline.value[item.key] = item.value
+            successCount += 1
+         } catch (error) {
+            console.error(`PLC 参数 ${item.key} 写入失败:`, error)
+            failedKeys.push(item.key)
+         }
+      }
+
+      if (failedKeys.length === 0) {
+         ElMessage.success(`PLC 参数已写入 ${successCount} 项`)
+         return
+      }
+
+      if (successCount > 0) {
+         ElMessage.warning(`已写入 ${successCount} 项，失败 ${failedKeys.length} 项：${failedKeys.join('、')}`)
+         return
+      }
+
+      ElMessage.error(`PLC 参数写入失败：${failedKeys.join('、')}`)
+   } catch (error) {
+      ElMessage.error(error instanceof Error ? error.message : 'PLC 参数写入失败')
+   } finally {
+      isApplying.value = false
+   }
+}
+
+const loadPlcParams = async () => {
+   try {
+      const data = await window.ipcApi.invoke('plc-paramData', addressItems)
+      setFormValuesFromPlc(data)
+      plcParamBaseline.value = { ...data }
+   } catch (error) {
+      ElMessage.error(error instanceof Error ? error.message : 'PLC 参数读取失败')
+   }
+}
+
+onMounted(() => {
+   void loadPlcParams()
 })
 
 // 运行状态
@@ -119,26 +331,19 @@ const stateAddressMap: Record<IState, string> = {
    STOP: 'DB4,X0.2',
    HOME: 'DB4,X0.3',
    MEASURE: 'DB4,X0.4',
-   Rectfy: 'DB4,X0.5', // 校正
-   reversal: 'DB4,X0.6', // 反向
-   jogFwd: 'DB4,X0.7', // 正换向
-   jogRev: 'DB4,X1.0' // 反换向
 }
 
 // 运行状态切换
 const inputChangeState = async (options: IState) => {
    try {
-      window.ipcApi.send('change-State', {
-         address: stateAddressMap[options],
-         value: true
-      })
+      await writePlcValue(stateAddressMap[options], true)
    } catch (error) {
-      console.log('PLC写入失败');
+      ElMessage.error(error instanceof Error ? error.message : 'PLC 写入失败')
    }
 }
 
 window.ipcApi.on("plc-controlData", (_, data) => {
-   const key = Object.keys(data).find(key => data[(key) as IState] === true)
+   const key = Object.keys(data).find(key => data[(key) as IState])
    runningState.value = key as IState ?? 'STOP';
 })
 
@@ -303,7 +508,7 @@ window.ipcApi.on("ModBus-read", (_, data) => {
                         </el-card>
                         <!-- 底部按钮 -->
                         <div class="bottom-action">
-                           <el-button type="primary" size="large">应用</el-button>
+                           <el-button type="primary" size="large" :loading="isApplying" @click="applyPlcParams">应用</el-button>
                         </div>
                      </div>
                   </el-col>

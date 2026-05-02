@@ -6,6 +6,7 @@ import type {
   IpcChannelOutput,
   IPlcControlResult,
   IPlcParamData,
+  IPlcWriteMessage,
 } from '@/types/ipc'
 import ModbusTCPService from './modbus/modbus.ts'
 import { readAllData } from './modbus/reader.ts'
@@ -173,6 +174,30 @@ export function setupRendererCommunicator(win: BrowserWindow) {
       void plc.writeItems(message.address, message.value)
     } catch {
       dialog.showErrorBox('PLC通信故障', '写入PLC数据失败')
+    }
+  })
+
+  useIpcHandle('plc-writeValue', async (message: IPlcWriteMessage) => {
+    const plc = new PLCConnector()
+
+    try {
+      await plc.writeItems(message.address, message.value)
+      return {
+        success: true,
+        address: message.address,
+        value: message.value,
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'PLC 写入失败'
+
+      console.error('PLC 写入失败:', error)
+
+      return {
+        success: false,
+        address: message.address,
+        value: message.value,
+        error: errorMessage,
+      }
     }
   })
 
