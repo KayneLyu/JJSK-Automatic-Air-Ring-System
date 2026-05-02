@@ -44,6 +44,12 @@ importers:
       '@element-plus/icons-vue':
         specifier: ^2.3.2
         version: 2.3.2(vue@3.5.22(typescript@5.9.3))
+      '@jjsk/air-ring-server':
+        specifier: workspace:^
+        version: link:../../packages/AirRingServer
+      '@jjsk/core':
+        specifier: workspace:^
+        version: link:../../packages/core
       '@vueuse/core':
         specifier: ^12.2.0
         version: 12.8.2(typescript@5.9.3)

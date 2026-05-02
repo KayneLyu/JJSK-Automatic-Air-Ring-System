@@ -9,7 +9,7 @@ import { calibrateTractionSpeedSmooth } from '../algorithms/tractionSpeedSmooth'
 import { calibrateMutationWindowSize } from '../algorithms/mutationWindowSize'
 import { findMutation } from '../algorithms/findMutation'
 import { buildTripSegment } from '../algorithms/buildTripSegment'
-import { estimateThetaMaxWithPhaseCorrection } from '../algorithms/upperRotation'
+import { estimateThetaMaxWithPhaseCorrection } from '../algorithms/upperRotation/upperRotation'
 
 export type CalibrateOptions = {
   standardized: Scalar
@@ -41,6 +41,15 @@ export type CalibrateResult = {
    * 突变窗口数
    * */
   mutationWindowSize?: number
+}
+
+export type CalibrationStreamInput = {
+  thickness?: ThicknessData
+  airRing?: RingData
+}
+
+export type CreateCalibrationSessionOptions = CalibrateOptions & {
+  onResult?: (result: CalibrateResult) => void
 }
 
 /**
@@ -139,4 +148,72 @@ export const calibrate = ({
     }
   }
   return { next }
+}
+
+export const createCalibrationSession = ({
+  config,
+  disturbanceTs,
+  standardized,
+  onResult,
+}: CreateCalibrationSessionOptions) => {
+  let currentDisturbanceTs = disturbanceTs
+  let currentCalibrator = calibrate({
+    config,
+    disturbanceTs: currentDisturbanceTs,
+    standardized,
+  })
+  let currentResult: CalibrateResult | null = null
+
+  const feed = (input: CalibrationStreamInput) => {
+    if (currentResult) {
+      return currentResult
+    }
+
+    const result = currentCalibrator.next(input)
+
+    if (result) {
+      currentResult = result
+      onResult?.(result)
+    }
+
+    return result
+  }
+
+  return {
+    next: feed,
+    feedThickness: (thickness: ThicknessData | ThicknessData[]) => {
+      const list = Array.isArray(thickness) ? thickness : [thickness]
+
+      for (const item of list) {
+        const result = feed({ thickness: item })
+        if (result) {
+          return result
+        }
+      }
+
+      return currentResult
+    },
+    feedAirRing: (airRing: RingData | RingData[]) => {
+      const list = Array.isArray(airRing) ? airRing : [airRing]
+
+      for (const item of list) {
+        const result = feed({ airRing: item })
+        if (result) {
+          return result
+        }
+      }
+
+      return currentResult
+    },
+    getResult: () => currentResult,
+    reset: (nextDisturbanceTs: number = Date.now()) => {
+      currentDisturbanceTs = nextDisturbanceTs
+      currentResult = null
+      currentCalibrator = calibrate({
+        config,
+        disturbanceTs: currentDisturbanceTs,
+        standardized,
+      })
+    },
+  }
 }

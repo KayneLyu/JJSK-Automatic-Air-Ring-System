@@ -11,10 +11,20 @@ import type {
 import ModbusTCPService from './modbus/modbus.ts'
 import { readAllData } from './modbus/reader.ts'
 import { PLCConnector } from './nodeS7/PLC-S7.ts'
+import {
+  disconnectUpperRotationReader,
+  readUpperRotationData,
+} from './nodeS7/upperRotationReader.ts'
 import { ensureServerRunning } from './utils.ts'
+import { createModbusCalibrationBridge } from './calibrationBridge.ts'
 
 let plcPollInterval: NodeJS.Timeout | null = null
 let modbusPollInterval: NodeJS.Timeout | null = null
+const calibrationBridge = createModbusCalibrationBridge({
+  onResult: (result) => {
+    console.log('标定算法已收到完整结果:', result)
+  },
+})
 
 export function useIpcOn<T extends IpcChannelName>(
   channel: T,
@@ -53,15 +63,25 @@ async function modbusRead(win: BrowserWindow) {
     return
   }
 
-  const modbus = ModbusTCPService.getInstance()
-  await modbus.connect('192.168.2.20', 502, 1)
+  const thicknessModbus = ModbusTCPService.getInstance('thickness')
+  await thicknessModbus.connect('192.168.2.20', 502, 1)
 
   modbusPollInterval = setInterval(async () => {
     try {
-      const data = await readAllData()
-      useIpcSend(win, 'ModBus-read', data)
+      const thicknessData = await readAllData()
+      calibrationBridge.feedModbusData(thicknessData)
+      useIpcSend(win, 'ModBus-read', thicknessData)
     } catch (err) {
-      console.error('Modbus 读取失败:', err)
+      console.error('厚度 Modbus 读取失败:', err)
+    }
+
+    try {
+      const upperRotationData = await readUpperRotationData()
+      if (upperRotationData) {
+        calibrationBridge.feedUpperRotationData(upperRotationData)
+      }
+    } catch (err) {
+      console.error('上旋 S7 读取失败:', err)
     }
   }, 400)
 }
@@ -71,7 +91,7 @@ function startPlcPolling(win: BrowserWindow) {
     return
   }
 
-  const plc = new PLCConnector()
+  const plc = PLCConnector.getInstance()
 
   plc.defineItems({
     FWD: 'DB4,X0.0',
@@ -110,6 +130,8 @@ export function stopPlcPolling() {
     clearInterval(modbusPollInterval)
     modbusPollInterval = null
   }
+
+  disconnectUpperRotationReader()
 }
 
 export function setupRendererCommunicator(win: BrowserWindow) {
@@ -178,9 +200,8 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   })
 
   useIpcHandle('plc-writeValue', async (message: IPlcWriteMessage) => {
-    const plc = new PLCConnector()
-
     try {
+      const plc = new PLCConnector()
       await plc.writeItems(message.address, message.value)
       return {
         success: true,
@@ -188,7 +209,8 @@ export function setupRendererCommunicator(win: BrowserWindow) {
         value: message.value,
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'PLC 写入失败'
+      const errorMessage =
+        error instanceof Error ? error.message : 'PLC 写入失败'
 
       console.error('PLC 写入失败:', error)
 
