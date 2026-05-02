@@ -22,6 +22,7 @@ export default {
         vertical: "纵向趋势",
         configuration: "配置中心",
         alarm: "告警管理",
+        settings: "系统设置"
     },
     horizon: {
         frame: "横向图",

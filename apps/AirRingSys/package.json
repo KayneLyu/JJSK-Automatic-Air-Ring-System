@@ -1,7 +1,7 @@
 {
   "name": "@jjsk/ari-ring",
   "private": true,
-  "version": "1.2.5",
+  "version": "1.2.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,8 +17,11 @@
     "echarts": "^5.5.1",
     "element-plus": "^2.8.8",
     "lru-cache": "^11.0.2",
+    "modbus-serial": "^8.0.25",
+    "nodes7": "^0.3.18",
     "pinia": "^3.0.0",
     "pinia-plugin-persistedstate": "^4.2.0",
+    "serialport": "^13.0.0",
     "vue": "^3.4.21",
     "vue-i18n": "^10.0.5",
     "vue-router": "^4",
@@ -26,6 +29,7 @@
   },
   "devDependencies": {
     "@types/echarts": "^4.9.22",
+    "@types/nodes7": "^0.3.4",
     "@vitejs/plugin-vue": "^6.0.0",
     "electron": "^30.0.1",
     "electron-builder": "^24.13.3",

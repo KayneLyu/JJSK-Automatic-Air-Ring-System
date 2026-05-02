@@ -65,12 +65,21 @@ importers:
       lru-cache:
         specifier: ^11.0.2
         version: 11.2.2
+      modbus-serial:
+        specifier: ^8.0.25
+        version: 8.0.25
+      nodes7:
+        specifier: ^0.3.18
+        version: 0.3.18
       pinia:
         specifier: ^3.0.0
         version: 3.0.4(typescript@5.9.3)(vue@3.5.22(typescript@5.9.3))
       pinia-plugin-persistedstate:
         specifier: ^4.2.0
         version: 4.5.0(pinia@3.0.4(typescript@5.9.3)(vue@3.5.22(typescript@5.9.3)))
+      serialport:
+        specifier: ^13.0.0
+        version: 13.0.0
       vue:
         specifier: ^3.4.21
         version: 3.5.22(typescript@5.9.3)
@@ -87,6 +96,9 @@ importers:
       '@types/echarts':
         specifier: ^4.9.22
         version: 4.9.22
+      '@types/nodes7':
+        specifier: ^0.3.4
+        version: 0.3.4
       '@vitejs/plugin-vue':
         specifier: ^6.0.0
         version: 6.0.1(vite@7.2.0(@types/node@24.8.0)(less@4.4.2))(vue@3.5.22(typescript@5.9.3))
@@ -887,6 +899,9 @@ packages:
 
   '@types/node@24.8.0':
     resolution: {integrity: sha512-5x08bUtU8hfboMTrJ7mEO4CpepS9yBwAqcL52y86SWNmbPX8LVbNs3EP4cNrIZgdjk2NAlP2ahNihozpoZIxSg==}
+
+  '@types/nodes7@0.3.4':
+    resolution: {integrity: sha512-TTOVxAXhAtmyYWsqKvi3W0ug3v1OH4g6CCGy3zPzqkOqe/JsA5z4WU3JI2RnJ/8L4eYh/mupaaVScRNDGHC3/w==}
 
   '@types/plist@3.0.5':
     resolution: {integrity: sha512-E6OCaRmAe4WDmWNsL/9RMqdkkzDCY1etutkflWk4c+AcjDU07Pcz1fQwTX0TQz+Pxqn9i4L1TU3UFpjnrcDgxA==}
@@ -2618,6 +2633,9 @@ packages:
     resolution: {integrity: sha512-e9yrZuE9evlxqrkrXP+mqGoMachi/d8Xe2CFXnsOwR9P4lloUux4Y7W5wKHQZpNOxeiVA+UDnTDcYvAtO3FStQ==}
     engines: {node: '>=8.10'}
 
+  nodes7@0.3.18:
+    resolution: {integrity: sha512-o5nnekjzX5tisE0oKxhddu4dbhhMVXcmYd0AqA3zDSBJFQ8iZYQAePehe/jL5VLE0lYJb+El8WrpVzgzxSQq7w==}
+
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
@@ -4034,7 +4052,6 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   '@serialport/bindings-cpp@13.0.0':
     dependencies:
@@ -4045,50 +4062,36 @@ snapshots:
       node-gyp-build: 4.8.4
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
-  '@serialport/bindings-interface@1.2.2':
-    optional: true
+  '@serialport/bindings-interface@1.2.2': {}
 
-  '@serialport/parser-byte-length@13.0.0':
-    optional: true
+  '@serialport/parser-byte-length@13.0.0': {}
 
-  '@serialport/parser-cctalk@13.0.0':
-    optional: true
+  '@serialport/parser-cctalk@13.0.0': {}
 
-  '@serialport/parser-delimiter@12.0.0':
-    optional: true
+  '@serialport/parser-delimiter@12.0.0': {}
 
-  '@serialport/parser-delimiter@13.0.0':
-    optional: true
+  '@serialport/parser-delimiter@13.0.0': {}
 
-  '@serialport/parser-inter-byte-timeout@13.0.0':
-    optional: true
+  '@serialport/parser-inter-byte-timeout@13.0.0': {}
 
-  '@serialport/parser-packet-length@13.0.0':
-    optional: true
+  '@serialport/parser-packet-length@13.0.0': {}
 
   '@serialport/parser-readline@12.0.0':
     dependencies:
       '@serialport/parser-delimiter': 12.0.0
-    optional: true
 
   '@serialport/parser-readline@13.0.0':
     dependencies:
       '@serialport/parser-delimiter': 13.0.0
-    optional: true
 
-  '@serialport/parser-ready@13.0.0':
-    optional: true
+  '@serialport/parser-ready@13.0.0': {}
 
-  '@serialport/parser-regex@13.0.0':
-    optional: true
+  '@serialport/parser-regex@13.0.0': {}
 
-  '@serialport/parser-slip-encoder@13.0.0':
-    optional: true
+  '@serialport/parser-slip-encoder@13.0.0': {}
 
-  '@serialport/parser-spacepacket@13.0.0':
-    optional: true
+  '@serialport/parser-spacepacket@13.0.0': {}
 
   '@serialport/stream@13.0.0':
     dependencies:
@@ -4096,7 +4099,6 @@ snapshots:
       debug: 4.4.0
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   '@sindresorhus/is@4.6.0': {}
 
@@ -4197,6 +4199,8 @@ snapshots:
   '@types/node@24.8.0':
     dependencies:
       undici-types: 7.14.0
+
+  '@types/nodes7@0.3.4': {}
 
   '@types/plist@3.0.5':
     dependencies:
@@ -4937,7 +4941,6 @@ snapshots:
   debug@4.4.0:
     dependencies:
       ms: 2.1.3
-    optional: true
 
   debug@4.4.3:
     dependencies:
@@ -5947,11 +5950,9 @@ snapshots:
 
   node-addon-api@7.1.1: {}
 
-  node-addon-api@8.3.0:
-    optional: true
+  node-addon-api@8.3.0: {}
 
-  node-gyp-build@4.8.4:
-    optional: true
+  node-gyp-build@4.8.4: {}
 
   node-opcua-address-space-base@2.157.0:
     dependencies:
@@ -6730,6 +6731,8 @@ snapshots:
       node-opcua-vendor-diagnostic: 2.157.0
       semver: 7.7.3
 
+  nodes7@0.3.18: {}
+
   normalize-path@3.0.0: {}
 
   normalize-url@6.1.0: {}
@@ -7077,7 +7080,6 @@ snapshots:
       debug: 4.4.0
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   set-function-length@1.2.2:
     dependencies:
