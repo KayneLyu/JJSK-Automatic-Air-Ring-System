@@ -3,7 +3,7 @@
  * */
 
 import { WithRequired } from '@jjsk/core'
-import { ThicknessData } from '../connections/thickness/opcua'
+import type { ThicknessData } from '../connections/thickness/types'
 
 export interface ScanSegment {
   startTime: number

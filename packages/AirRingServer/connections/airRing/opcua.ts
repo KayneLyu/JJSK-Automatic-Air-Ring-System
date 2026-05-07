@@ -1,14 +1,7 @@
-import { Client as OPCUAClient, OPCUAData } from '../base/opcua'
+import { Client as OPCUAClient } from '../base/opcua'
 import { StatusCodes } from 'node-opcua'
-import { UpperRotationDevice } from '@jjsk/core'
-
-export type RingData = OPCUAData &
-  UpperRotationDevice & {
-    /**
-     * 风环热量
-     * */
-    Heats?: number[]
-  }
+import type { ConnectionLoggerOptions } from '../base/connectionLogger'
+import type { RingData } from './types'
 
 // ==================== 配置 ====================
 
@@ -21,12 +14,16 @@ const NODE_VALUE_MAP: Record<string, keyof RingData> = {
   'ns=1;i=1007': 'MotorFrequency',
   'ns=1;i=1010': 'Heats',
 }
-export const Client = (url: string) => {
+export const Client = (url: string, logger?: ConnectionLoggerOptions) => {
   const { state, subscribe, testConnect, connect } = OPCUAClient<RingData>({
     url,
     nodeIdValueMap: NODE_VALUE_MAP,
     logger: {
-      source: 'airRing/opcua',
+      deviceType: 'airRing',
+      deviceName: '风环',
+      filePrefix: 'air-ring',
+      ...logger,
+      source: logger?.source || 'airRing/opcua',
     },
   })
   /**

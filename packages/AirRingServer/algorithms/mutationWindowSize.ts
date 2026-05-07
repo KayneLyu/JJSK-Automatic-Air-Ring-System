@@ -1,5 +1,5 @@
-import type { ThicknessData } from '../connections/thickness/opcua'
-import type { RingData } from '../connections/airRing/opcua'
+import type { ThicknessData } from '../connections/thickness/types'
+import type { RingData } from '../connections/airRing/types'
 
 export type CalibrateMutationWindowSizeOptions = {
   /**

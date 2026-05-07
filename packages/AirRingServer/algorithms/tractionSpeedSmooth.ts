@@ -1,4 +1,4 @@
-import type { ThicknessData } from '../connections/thickness/opcua'
+import type { ThicknessData } from '../connections/thickness/types'
 
 /**
  * 标定牵引速度，平滑算法

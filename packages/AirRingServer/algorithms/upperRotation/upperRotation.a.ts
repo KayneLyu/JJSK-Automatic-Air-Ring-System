@@ -1,7 +1,7 @@
 /**
  * 上旋相关算法 基于谐波
  * */
-import { RingData } from '../connections/airRing/opcua'
+import type { RingData } from '../connections/airRing/types'
 import { ScanSegment } from './thickness'
 import { UpperRotationDeltaRange } from '../types'
 

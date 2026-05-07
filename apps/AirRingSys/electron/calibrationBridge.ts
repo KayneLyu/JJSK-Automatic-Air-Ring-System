@@ -2,13 +2,11 @@ import type { IPollingModBusData } from '@/types/ipc'
 import {
   createCalibrationSession,
   type CalibrateResult,
-} from '../../../packages/AirRingServer/controllers/calibration'
-import type { RingData } from '../../../packages/AirRingServer/connections/airRing/opcua'
-import type { ThicknessData } from '../../../packages/AirRingServer/connections/thickness/opcua'
-import type {
-  CalibrationConfig,
-  Scalar,
-} from '../../../packages/AirRingServer/types'
+  type RingData,
+  type ThicknessData,
+  type CalibrationConfig,
+  type Scalar,
+} from '@jjsk/air-ring-server/electron'
 
 const DEFAULT_CALIBRATION_CONFIG: CalibrationConfig = {
   roller: {

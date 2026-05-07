@@ -2,8 +2,8 @@
  * 膜泡厚度反推控制器
  * 自动反推原始膜泡厚度
  * */
-import { ThicknessData } from '../connections/thickness/opcua'
-import { RingData } from '../connections/airRing/opcua'
+import type { ThicknessData } from '../connections/thickness'
+import type { RingData } from '../connections/airRing/types'
 import {
   createBubbleThicknessReconstructor,
   BubbleModelConfig,

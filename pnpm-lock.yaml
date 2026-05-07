@@ -150,6 +150,9 @@ importers:
       node-opcua:
         specifier: ^2.157.0
         version: 2.157.0
+      nodes7:
+        specifier: ^0.3.18
+        version: 0.3.18
       winston:
         specifier: ^3.19.0
         version: 3.19.0
@@ -163,6 +166,9 @@ importers:
       '@jjsk/simulation':
         specifier: workspace:^
         version: link:../Simulation
+      '@types/nodes7':
+        specifier: ^0.3.4
+        version: 0.3.4
       vitest:
         specifier: ^4.0.0
         version: 4.0.7(@types/debug@4.1.12)(@types/node@24.8.0)(less@4.4.2)

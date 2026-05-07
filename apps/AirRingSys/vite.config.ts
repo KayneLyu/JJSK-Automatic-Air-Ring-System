@@ -12,9 +12,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': join(__dirname, '/src'), // 路径别名
-      '@jjsk/air-ring-server': path.resolve(
+      '@jjsk/air-ring-server/electron': path.resolve(
         __dirname,
-        '../../packages/AirRingServer'
+        '../../packages/AirRingServer/electron.ts'
       ),
       '@jjsk/core': path.resolve(__dirname, '../../packages/core'),
     },

@@ -14,34 +14,122 @@ import type {
   IPlcWriteMessage,
   IUpperRotationDebugData,
 } from '@/types/ipc'
-import ModbusTCPService from './modbus/modbus.ts'
-import { readAllData } from './modbus/reader.ts'
-import { PLCConnector } from './nodeS7/PLC-S7.ts'
 import {
-  disconnectUpperRotationReader,
-  readUpperRotationData,
-} from './nodeS7/upperRotationReader.ts'
+  S7Connector,
+  createUpperRotationS7Connection,
+  createThicknessBatchModbusConnection,
+} from '@jjsk/air-ring-server/electron'
 import { ensureServerRunning } from './utils.ts'
 import { createModbusCalibrationBridge } from './calibrationBridge.ts'
-import { createConnectionLogger } from '../../../packages/AirRingServer/connections/base/connectionLogger.ts'
 
 let plcPollInterval: NodeJS.Timeout | null = null
 let modbusPollInterval: NodeJS.Timeout | null = null
 let currentWindow: BrowserWindow | null = null
-let thicknessLogSequence = 0
-let thicknessDataLogger: ReturnType<typeof createConnectionLogger> | null = null
+let plcPollingConnector: S7Connector | null = null
+let thicknessConnection: ReturnType<
+  typeof createThicknessBatchModbusConnection
+> | null = null
+let upperRotationConnection: ReturnType<
+  typeof createUpperRotationS7Connection
+> | null = null
 
-const getThicknessDataLogger = () => {
-  if (!thicknessDataLogger) {
-    thicknessDataLogger = createConnectionLogger({
-      dirPath: join(app.getPath('userData'), 'logs', 'thickness'),
-      source: 'thickness/app-modbus',
-      maxSize: '100m',
-      maxFiles: '7d',
+const LOGO_PATH_CANDIDATES = ['D:/logo/logo.png']
+
+const getLogoPathCandidates = () => {
+  const candidates = [
+    ...LOGO_PATH_CANDIDATES,
+    process.env.VITE_PUBLIC
+      ? join(process.env.VITE_PUBLIC, 'logo.png')
+      : undefined,
+    process.env.APP_ROOT
+      ? join(process.env.APP_ROOT, 'public', 'logo.png')
+      : undefined,
+    process.env.APP_ROOT
+      ? join(process.env.APP_ROOT, 'dist', 'logo.png')
+      : undefined,
+  ]
+
+  return [
+    ...new Set(candidates.filter((item): item is string => Boolean(item))),
+  ]
+}
+
+const readLogoAsDataUrl = () => {
+  for (const filePath of getLogoPathCandidates()) {
+    if (!fs.existsSync(filePath)) {
+      continue
+    }
+
+    try {
+      const imageBuffer = fs.readFileSync(filePath)
+      if (!imageBuffer.length) {
+        continue
+      }
+
+      const base64Image = Buffer.from(imageBuffer).toString('base64')
+      return `data:image/png;base64,${base64Image}`
+    } catch (error) {
+      console.error(`读取 logo 失败: ${filePath}`, error)
+    }
+  }
+
+  return undefined
+}
+
+const getConnectionLogDir = (name: string) => {
+  return join(app.getPath('userData'), 'logs', name)
+}
+
+const getThicknessConnection = () => {
+  if (!thicknessConnection) {
+    thicknessConnection = createThicknessBatchModbusConnection({
+      url: 'tcp://192.168.2.20:502',
+      unitId: 1,
+      logger: {
+        dirPath: getConnectionLogDir('thickness'),
+        source: 'thickness/app-modbus',
+        maxSize: '100m',
+        maxFiles: '7d',
+      },
     })
   }
 
-  return thicknessDataLogger
+  return thicknessConnection
+}
+
+const getUpperRotationConnection = () => {
+  if (!upperRotationConnection) {
+    upperRotationConnection = createUpperRotationS7Connection({
+      host: '192.168.2.10',
+      loggerDirPath: getConnectionLogDir('airRing'),
+    })
+  }
+
+  return upperRotationConnection
+}
+
+const getPlcPollingConnector = () => {
+  if (!plcPollingConnector) {
+    plcPollingConnector = new S7Connector({
+      host: '192.168.2.20',
+      logger: {
+        dirPath: getConnectionLogDir('plc'),
+        source: 'plc/s7-poll',
+      },
+    })
+  }
+
+  return plcPollingConnector
+}
+
+const createPlcConnector = (source: string) => {
+  return new S7Connector({
+    host: '192.168.2.20',
+    logger: {
+      dirPath: getConnectionLogDir('plc'),
+      source,
+    },
+  })
 }
 
 const emitCalibrationResult = (result: ICalibrationResult) => {
@@ -104,58 +192,20 @@ async function modbusRead(win: BrowserWindow) {
     return
   }
 
-  const thicknessModbus = ModbusTCPService.getInstance('thickness')
-  const logger = getThicknessDataLogger()
-  await thicknessModbus.connect('192.168.2.20', 502, 1)
+  const thicknessModbus = getThicknessConnection()
+  await thicknessModbus.connect()
 
   modbusPollInterval = setInterval(async () => {
     try {
-      const startedAt = Date.now()
-      const thicknessData = await readAllData()
-      const durationMs = Date.now() - startedAt
-      thicknessLogSequence += 1
-
-      const lengthMismatch =
-        thicknessData.adValues.length !== thicknessData.pulses.length ||
-        thicknessData.adValues.length !== thicknessData.timestamps.length
-
-      logger.log({
-        protocol: 'modbus',
-        event: 'read',
-        data: thicknessData,
-        meta: {
-          ip: '192.168.2.20',
-          pollSeq: thicknessLogSequence,
-          readLatencyMs: durationMs,
-          adCount: thicknessData.adValues.length,
-          pulseCount: thicknessData.pulses.length,
-          timestampCount: thicknessData.timestamps.length,
-          firstTimestamp: thicknessData.timestamps[0],
-          lastTimestamp:
-            thicknessData.timestamps[thicknessData.timestamps.length - 1],
-          firstPulse: thicknessData.pulses[0],
-          lastPulse: thicknessData.pulses[thicknessData.pulses.length - 1],
-          lengthMismatch,
-        },
-      })
-
+      const thicknessData = await thicknessModbus.read()
       calibrationBridge.feedModbusData(thicknessData)
       useIpcSend(win, 'ModBus-read', thicknessData)
     } catch (err) {
       console.error('厚度 Modbus 读取失败:', err)
-      logger.log({
-        protocol: 'modbus',
-        event: 'subscribe_error',
-        error: err,
-        meta: {
-          ip: '192.168.2.20',
-          pollSeq: thicknessLogSequence + 1,
-        },
-      })
     }
 
     try {
-      const upperRotationData = await readUpperRotationData()
+      const upperRotationData = await getUpperRotationConnection().read()
       if (upperRotationData) {
         calibrationBridge.feedUpperRotationData(upperRotationData)
         emitUpperRotationData(upperRotationData)
@@ -171,7 +221,7 @@ function startPlcPolling(win: BrowserWindow) {
     return
   }
 
-  const plc = PLCConnector.getInstance()
+  const plc = getPlcPollingConnector()
 
   plc.defineItems({
     FWD: 'DB4,X0.0',
@@ -211,7 +261,14 @@ export function stopPlcPolling() {
     modbusPollInterval = null
   }
 
-  disconnectUpperRotationReader()
+  plcPollingConnector?.disconnect()
+  plcPollingConnector = null
+
+  upperRotationConnection?.disconnect()
+  upperRotationConnection = null
+
+  void thicknessConnection?.disconnect()
+  thicknessConnection = null
 }
 
 export function setupRendererCommunicator(win: BrowserWindow) {
@@ -253,14 +310,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
 
   useIpcHandle('win-get-logo', () => {
     if (win) {
-      try {
-        const imageBuffer = fs.readFileSync('D:/logo/logo.png')
-        if (!imageBuffer) return
-        const base64Image = Buffer.from(imageBuffer).toString('base64')
-        return `data:image/png;base64,${base64Image}`
-      } catch (error) {
-        console.error('读取 logo 失败:', error)
-      }
+      return readLogoAsDataUrl()
     }
   })
 
@@ -333,7 +383,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
 
   useIpcOn('change-State', (message) => {
     try {
-      const plc = new PLCConnector()
+      const plc = createPlcConnector('plc/s7-state-change')
       void plc.writeItems(message.address, message.value)
     } catch {
       dialog.showErrorBox('PLC通信故障', '写入PLC数据失败')
@@ -342,7 +392,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
 
   useIpcHandle('plc-writeValue', async (message: IPlcWriteMessage) => {
     try {
-      const plc = new PLCConnector()
+      const plc = createPlcConnector('plc/s7-write')
       await plc.writeItems(message.address, message.value)
       return {
         success: true,
@@ -365,7 +415,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   })
 
   ipcMain.handle('plc-paramData', async (_, data: IPlcParamData) => {
-    const plc = new PLCConnector()
+    const plc = createPlcConnector('plc/s7-param-read')
     plc.defineItems(data)
 
     try {

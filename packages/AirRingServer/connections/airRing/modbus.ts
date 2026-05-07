@@ -1,17 +1,9 @@
-import { UpperRotationDevice } from '@jjsk/core'
 import {
   Client as ModbusClient,
-  ModbusData,
   RegisterPoint,
 } from '../base/modbus'
-
-export type RingData = ModbusData &
-  UpperRotationDevice & {
-    /**
-     * 风环热量
-     * */
-    Heats?: number[]
-  }
+import type { ConnectionLoggerOptions } from '../base/connectionLogger'
+import type { RingData } from './types'
 
 // ==================== 配置 ====================
 
@@ -53,12 +45,16 @@ const POINT_VALUE_MAP: Record<string, RegisterPoint<RingData>> = {
   },
 }
 
-export const Client = (url: string) => {
+export const Client = (url: string, logger?: ConnectionLoggerOptions) => {
   const { state, subscribe, testConnect, connect } = ModbusClient<RingData>({
     url,
     pointValueMap: POINT_VALUE_MAP,
     logger: {
-      source: 'airRing/modbus',
+      deviceType: 'airRing',
+      deviceName: '风环',
+      filePrefix: 'air-ring',
+      ...logger,
+      source: logger?.source || 'airRing/modbus',
     },
   })
 

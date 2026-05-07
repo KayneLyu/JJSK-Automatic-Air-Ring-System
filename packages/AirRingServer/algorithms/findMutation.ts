@@ -1,5 +1,5 @@
 import { WithRequired } from '@jjsk/core'
-import type { ThicknessData } from '../connections/thickness/opcua'
+import type { ThicknessData } from '../connections/thickness/types'
 
 /**
  * 查找厚度突变处

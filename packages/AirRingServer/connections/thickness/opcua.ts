@@ -1,7 +1,6 @@
-import { RollerDevice, ThicknessDevice } from '@jjsk/core'
-import { Client as OPCUAClient, OPCUAData } from '../base/opcua'
-
-export type ThicknessData = OPCUAData & RollerDevice & ThicknessDevice
+import { Client as OPCUAClient } from '../base/opcua'
+import type { ConnectionLoggerOptions } from '../base/connectionLogger'
+import type { ThicknessData } from './types'
 // ==================== 配置 ====================
 
 const NODE_VALUE_MAP: Record<string, keyof ThicknessData> = {
@@ -14,12 +13,16 @@ const NODE_VALUE_MAP: Record<string, keyof ThicknessData> = {
   'ns=1;i=1008': 'ProbeValue',
   'ns=1;i=1011': 'RollSpeedSignal',
 }
-export const Client = (url: string) => {
+export const Client = (url: string, logger?: ConnectionLoggerOptions) => {
   return OPCUAClient<ThicknessData>({
     url,
     nodeIdValueMap: NODE_VALUE_MAP,
     logger: {
-      source: 'thickness/opcua',
+      deviceType: 'thickness',
+      deviceName: '测厚仪',
+      filePrefix: 'thickness',
+      ...logger,
+      source: logger?.source || 'thickness/opcua',
     },
   })
 }
