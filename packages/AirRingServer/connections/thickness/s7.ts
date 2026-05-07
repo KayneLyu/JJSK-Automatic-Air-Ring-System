@@ -31,6 +31,7 @@ const buildThicknessS7LoggerOptions = (
     deviceType: 'thickness',
     deviceName: '测厚仪',
     filePrefix: 'thickness',
+    datePattern: 'YYYY-MM-DD-HH',
     ...logger,
     dirPath: logger?.dirPath || loggerDirPath,
     source: logger?.source || 'thickness/s7',
@@ -110,7 +111,9 @@ export const createThicknessS7Connection = ({
   ) => {
     return enqueueOperation(async () => {
       connector.defineItems(addressMap)
-      return await connector.readAll<Record<keyof T, number | string | boolean>>()
+      return await connector.readAll<
+        Record<keyof T, number | string | boolean>
+      >()
     })
   }
 

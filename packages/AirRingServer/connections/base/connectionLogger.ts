@@ -30,6 +30,10 @@ export interface ConnectionLoggerOptions {
    */
   filePrefix?: string
   /**
+   * 日志轮转时间模式，默认按天 `YYYY-MM-DD`
+   */
+  datePattern?: string
+  /**
    * 单个日志文件大小上限，默认 20m
    */
   maxSize?: string
@@ -81,10 +85,11 @@ const loggerCache = new Map<string, winston.Logger>()
 const getOrCreateWinstonLogger = (
   dirPath: string,
   filePrefix: string,
+  datePattern: string,
   maxSize: string,
   maxFiles: string
 ): winston.Logger => {
-  const cacheKey = `${dirPath}:${filePrefix}`
+  const cacheKey = `${dirPath}:${filePrefix}:${datePattern}:${maxSize}:${maxFiles}`
   if (loggerCache.has(cacheKey)) {
     return loggerCache.get(cacheKey)!
   }
@@ -92,7 +97,7 @@ const getOrCreateWinstonLogger = (
   const transport = new DailyRotateFile({
     dirname: dirPath,
     filename: `${filePrefix}-%DATE%.log`,
-    datePattern: 'YYYY-MM-DD',
+    datePattern,
     zippedArchive: true,
     maxSize,
     maxFiles,
@@ -115,11 +120,18 @@ export const createConnectionLogger = (options?: ConnectionLoggerOptions) => {
   const enabled = options?.enabled ?? true
   const dirPath = options?.dirPath || join(process.cwd(), 'logs')
   const filePrefix = normalizeFilePrefix(options?.filePrefix)
+  const datePattern = options?.datePattern || 'YYYY-MM-DD'
   const maxSize = options?.maxSize || '20m'
   const maxFiles = options?.maxFiles || '30d'
 
   const winstonLogger = enabled
-    ? getOrCreateWinstonLogger(dirPath, filePrefix, maxSize, maxFiles)
+    ? getOrCreateWinstonLogger(
+        dirPath,
+        filePrefix,
+        datePattern,
+        maxSize,
+        maxFiles
+      )
     : null
 
   const log = (payload: ConnectionLogPayload) => {
