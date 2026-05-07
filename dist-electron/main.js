@@ -2,9 +2,9 @@ import { ipcMain as i, app as o, dialog as d, globalShortcut as h, BrowserWindow
 import { fileURLToPath as R } from "node:url";
 import t from "node:path";
 import a from "fs";
-import { execSync as _, spawn as v } from "child_process";
+import { spawn as _, execSync as v } from "child_process";
 function w(e) {
-  v(e, [], {
+  _(e, [], {
     detached: !0,
     windowsHide: !0,
     cwd: "D:/server/"
@@ -12,7 +12,7 @@ function w(e) {
 }
 function E(e) {
   try {
-    return _(`tasklist /FI "IMAGENAME eq ${e}.exe"`).includes(e);
+    return v(`tasklist /FI "IMAGENAME eq ${e}.exe"`).includes(e);
   } catch (r) {
     return console.error(r), !1;
   }
