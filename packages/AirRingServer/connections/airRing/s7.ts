@@ -1,4 +1,4 @@
-import { S7Connector } from '../base/s7'
+import { createS7Connector } from '../base/s7'
 import type { ConnectionLoggerOptions } from '../base/connectionLogger'
 import type { RingData } from './types'
 
@@ -24,6 +24,32 @@ const DEFAULT_UPPER_ROTATION_S7_ADDRESS_MAP = {
 } satisfies Partial<
   Record<keyof Omit<RingData, 'timestamp'>, string | undefined>
 >
+
+const buildUpperRotationLoggerOptions = (
+  loggerDirPath?: string,
+  logger?: ConnectionLoggerOptions
+): ConnectionLoggerOptions => {
+  return {
+    deviceType: 'upperRotation',
+    deviceName: '上旋',
+    filePrefix: 'upper-rotation',
+    ...logger,
+    dirPath: logger?.dirPath || loggerDirPath,
+    source: logger?.source || 'airRing/s7',
+  }
+}
+
+const getDefinedS7Items = (
+  addressMap: Partial<
+    Record<keyof Omit<RingData, 'timestamp'>, string | undefined>
+  >
+) => {
+  return Object.fromEntries(
+    Object.entries(addressMap).filter(([, address]) => {
+      return typeof address === 'string' && address.trim().length > 0
+    })
+  ) as Record<string, string>
+}
 
 const normalizeUpperRotationData = (
   values: Record<string, unknown>,
@@ -70,34 +96,19 @@ export const createUpperRotationS7Connection = ({
   loggerDirPath,
   logger,
 }: UpperRotationS7ConnectionOptions) => {
-  const connector = new S7Connector({
+  const connector = createS7Connector({
     host,
     port,
     rack,
     slot,
-    logger: {
-      deviceType: 'upperRotation',
-      deviceName: '上旋',
-      filePrefix: 'upper-rotation',
-      ...logger,
-      dirPath: logger?.dirPath || loggerDirPath,
-      source: logger?.source || 'airRing/s7',
-    },
+    logger: buildUpperRotationLoggerOptions(loggerDirPath, logger),
   })
 
   let hasDefinedItems = false
   let hasWarnedMissingAddressMap = false
 
-  const getDefinedItems = () => {
-    return Object.fromEntries(
-      Object.entries(addressMap).filter(([, address]) => {
-        return typeof address === 'string' && address.trim().length > 0
-      })
-    ) as Record<string, string>
-  }
-
   const read = async (): Promise<RingData | null> => {
-    const definedItems = getDefinedItems()
+    const definedItems = getDefinedS7Items(addressMap)
 
     if (Object.keys(definedItems).length === 0) {
       if (!hasWarnedMissingAddressMap) {

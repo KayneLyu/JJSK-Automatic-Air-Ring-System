@@ -15,7 +15,7 @@ import type {
   IUpperRotationDebugData,
 } from '@/types/ipc'
 import {
-  S7Connector,
+  createThicknessS7Connection,
   createUpperRotationS7Connection,
   createThicknessBatchModbusConnection,
 } from '@jjsk/air-ring-server/electron'
@@ -25,7 +25,9 @@ import { createModbusCalibrationBridge } from './calibrationBridge.ts'
 let plcPollInterval: NodeJS.Timeout | null = null
 let modbusPollInterval: NodeJS.Timeout | null = null
 let currentWindow: BrowserWindow | null = null
-let plcPollingConnector: S7Connector | null = null
+let thicknessS7ControlConnection: ReturnType<
+  typeof createThicknessS7Connection
+> | null = null
 let thicknessConnection: ReturnType<
   typeof createThicknessBatchModbusConnection
 > | null = null
@@ -80,6 +82,16 @@ const getConnectionLogDir = (name: string) => {
   return join(app.getPath('userData'), 'logs', name)
 }
 
+const createThicknessS7ConnectionOptions = () => {
+  return {
+    host: '192.168.2.20',
+    loggerDirPath: getConnectionLogDir('thickness'),
+    logger: {
+      source: 'thickness/s7',
+    },
+  }
+}
+
 const getThicknessConnection = () => {
   if (!thicknessConnection) {
     thicknessConnection = createThicknessBatchModbusConnection({
@@ -108,28 +120,22 @@ const getUpperRotationConnection = () => {
   return upperRotationConnection
 }
 
-const getPlcPollingConnector = () => {
-  if (!plcPollingConnector) {
-    plcPollingConnector = new S7Connector({
-      host: '192.168.2.20',
-      logger: {
-        dirPath: getConnectionLogDir('plc'),
-        source: 'plc/s7-poll',
-      },
-    })
+const getThicknessS7Connection = () => {
+  if (!thicknessS7ControlConnection) {
+    thicknessS7ControlConnection = createThicknessS7Connection(
+      createThicknessS7ConnectionOptions()
+    )
   }
 
-  return plcPollingConnector
+  return thicknessS7ControlConnection
 }
 
-const createPlcConnector = (source: string) => {
-  return new S7Connector({
-    host: '192.168.2.20',
-    logger: {
-      dirPath: getConnectionLogDir('plc'),
-      source,
-    },
-  })
+const withThicknessS7Connection = async <T>(
+  task: (
+    connection: ReturnType<typeof createThicknessS7Connection>
+  ) => Promise<T>
+) => {
+  return await task(getThicknessS7Connection())
 }
 
 const emitCalibrationResult = (result: ICalibrationResult) => {
@@ -221,23 +227,15 @@ function startPlcPolling(win: BrowserWindow) {
     return
   }
 
-  const plc = getPlcPollingConnector()
-
-  plc.defineItems({
-    FWD: 'DB4,X0.0',
-    REV: 'DB4,X0.1',
-    STOP: 'DB4,X0.2',
-    HOME: 'DB4,X0.3',
-    MEASURE: 'DB4,X0.4',
-  })
+  const plc = getThicknessS7Connection()
 
   plc
-    .connectIfNeeded()
+    .connect()
     .then(() => {
       console.log('✅ PLC 连接成功，开始轮询')
       plcPollInterval = setInterval(async () => {
         try {
-          const values = await plc.readAll()
+          const values = await plc.readControlState()
           useIpcSend(win, 'plc-controlData', values as IPlcControlResult)
         } catch (err) {
           console.error('PLC 读取失败:', err)
@@ -261,8 +259,8 @@ export function stopPlcPolling() {
     modbusPollInterval = null
   }
 
-  plcPollingConnector?.disconnect()
-  plcPollingConnector = null
+  thicknessS7ControlConnection?.disconnect()
+  thicknessS7ControlConnection = null
 
   upperRotationConnection?.disconnect()
   upperRotationConnection = null
@@ -382,18 +380,18 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   })
 
   useIpcOn('change-State', (message) => {
-    try {
-      const plc = createPlcConnector('plc/s7-state-change')
-      void plc.writeItems(message.address, message.value)
-    } catch {
+    void withThicknessS7Connection(async (connection) => {
+      await connection.writeValue(message.address, message.value)
+    }).catch(() => {
       dialog.showErrorBox('PLC通信故障', '写入PLC数据失败')
-    }
+    })
   })
 
   useIpcHandle('plc-writeValue', async (message: IPlcWriteMessage) => {
     try {
-      const plc = createPlcConnector('plc/s7-write')
-      await plc.writeItems(message.address, message.value)
+      await withThicknessS7Connection(async (connection) => {
+        await connection.writeValue(message.address, message.value)
+      })
       return {
         success: true,
         address: message.address,
@@ -415,12 +413,10 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   })
 
   ipcMain.handle('plc-paramData', async (_, data: IPlcParamData) => {
-    const plc = createPlcConnector('plc/s7-param-read')
-    plc.defineItems(data)
-
     try {
-      await plc.connectIfNeeded()
-      return await plc.readAll()
+      return await withThicknessS7Connection(async (connection) => {
+        return await connection.readParams(data)
+      })
     } catch (err) {
       console.error('PLC 读取失败:', err)
       throw new Error('PLC 读取或连接失败')

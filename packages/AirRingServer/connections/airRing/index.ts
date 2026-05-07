@@ -23,7 +23,9 @@ export interface RingConnectionOptions {
 
 export type AirRingOpcuaConnection = ReturnType<typeof OPCUAClient>
 export type AirRingModbusConnection = ReturnType<typeof ModbusClient>
-export type AirRingS7Connection = ReturnType<typeof createUpperRotationS7Connection>
+export type AirRingS7Connection = ReturnType<
+  typeof createUpperRotationS7Connection
+>
 
 export function AirRingConnection(options: {
   type: 'opcua'

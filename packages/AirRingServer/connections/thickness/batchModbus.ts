@@ -1,7 +1,4 @@
-import {
-  createConnectionLogger,
-  type ConnectionLoggerOptions,
-} from '../base/connectionLogger'
+import { createConnectionLogger, type ConnectionLoggerOptions } from '../base'
 import { createQueuedModbusTcpClient } from '../base/modbusTcp'
 import type { ThicknessBatchData } from './types'
 

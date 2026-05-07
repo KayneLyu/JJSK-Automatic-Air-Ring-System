@@ -7,6 +7,15 @@ import {
 type S7ReadValues = Record<string, string | number | boolean>
 type S7WritableValue = string | number | boolean
 
+type NormalizedS7ConnectorOptions = Omit<
+  S7ConnectorOptions,
+  'port' | 'rack' | 'slot'
+> & {
+  port: number
+  rack: number
+  slot: number
+}
+
 export interface S7ConnectorOptions {
   host: string
   port?: number
@@ -15,18 +24,94 @@ export interface S7ConnectorOptions {
   logger?: ConnectionLoggerOptions
 }
 
+export const createS7Connector = (options: S7ConnectorOptions) => {
+  return new S7Connector(options)
+}
+
+const normalizeS7ConnectorOptions = (
+  options: S7ConnectorOptions
+): NormalizedS7ConnectorOptions => {
+  return {
+    ...options,
+    port: options.port || 102,
+    rack: options.rack || 0,
+    slot: options.slot || 1,
+  }
+}
+
+const buildS7LoggerOptions = (
+  options: NormalizedS7ConnectorOptions
+): ConnectionLoggerOptions => {
+  return {
+    source: options.logger?.source || `s7:${options.host}:${options.port}`,
+    ...options.logger,
+  }
+}
+
+const buildS7ConnectionMeta = (options: NormalizedS7ConnectorOptions) => {
+  return {
+    host: options.host,
+    port: options.port,
+    rack: options.rack,
+    slot: options.slot,
+  }
+}
+
+const buildS7ReadMeta = (
+  options: NormalizedS7ConnectorOptions,
+  success: boolean
+) => {
+  return {
+    host: options.host,
+    success,
+  }
+}
+
+const wrapS7Error = (action: '连接' | '读取' | '写入', error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error)
+  return new Error(`S7 ${action}失败: ${message}`)
+}
+
+const createTranslationCallback = (defs: Record<string, string>) => {
+  return (tag: string) => defs[tag]
+}
+
+const getS7ItemNames = (defs: Record<string, string>) => {
+  return Object.keys(defs)
+}
+
+const normalizeWriteRequest = (
+  address: string | string[],
+  value: unknown | unknown[]
+): {
+  address: string | string[]
+  value: S7WritableValue | S7WritableValue[]
+} => {
+  if (Array.isArray(address)) {
+    return {
+      address,
+      value: (Array.isArray(value) ? value : [value]) as S7WritableValue[],
+    }
+  }
+
+  return {
+    address,
+    value: value as S7WritableValue,
+  }
+}
+
 export class S7Connector {
   private client = new S7Client()
   private isConnected = false
   private connectPromise: Promise<void> | null = null
   private readonly connectionLogger
+  private readonly normalizedOptions
 
   constructor(private readonly options: S7ConnectorOptions) {
-    this.connectionLogger = createConnectionLogger({
-      source:
-        options.logger?.source || `s7:${options.host}:${options.port || 102}`,
-      ...options.logger,
-    })
+    this.normalizedOptions = normalizeS7ConnectorOptions(options)
+    this.connectionLogger = createConnectionLogger(
+      buildS7LoggerOptions(this.normalizedOptions)
+    )
   }
 
   async connectIfNeeded(): Promise<void> {
@@ -40,25 +125,15 @@ export class S7Connector {
 
     this.connectPromise = new Promise<void>((resolve, reject) => {
       this.client.initiateConnection(
-        {
-          host: this.options.host,
-          port: this.options.port || 102,
-          rack: this.options.rack || 0,
-          slot: this.options.slot || 1,
-        },
+        buildS7ConnectionMeta(this.normalizedOptions),
         (error?: Error) => {
           if (error) {
             this.isConnected = false
-            const nextError = new Error(`S7 连接失败: ${error.message}`)
+            const nextError = wrapS7Error('连接', error)
             this.connectionLogger.log({
               protocol: 's7',
               event: 'connect_error',
-              meta: {
-                host: this.options.host,
-                port: this.options.port || 102,
-                rack: this.options.rack || 0,
-                slot: this.options.slot || 1,
-              },
+              meta: buildS7ConnectionMeta(this.normalizedOptions),
               error: nextError,
             })
             reject(nextError)
@@ -69,12 +144,7 @@ export class S7Connector {
           this.connectionLogger.log({
             protocol: 's7',
             event: 'connect',
-            meta: {
-              host: this.options.host,
-              port: this.options.port || 102,
-              rack: this.options.rack || 0,
-              slot: this.options.slot || 1,
-            },
+            meta: buildS7ConnectionMeta(this.normalizedOptions),
           })
           resolve()
         }
@@ -87,9 +157,9 @@ export class S7Connector {
   }
 
   defineItems(defs: Record<string, string>) {
-    this.client.setTranslationCB((tag: string) => defs[tag])
+    this.client.setTranslationCB(createTranslationCallback(defs))
     this.client.removeItems()
-    this.client.addItems(Object.keys(defs))
+    this.client.addItems(getS7ItemNames(defs))
   }
 
   async readAll<
@@ -101,14 +171,11 @@ export class S7Connector {
       this.client.readAllItems((error: boolean, values: S7ReadValues) => {
         if (error) {
           this.isConnected = false
-          const nextError = new Error(`S7 读取失败: ${String(error)}`)
+          const nextError = wrapS7Error('读取', error)
           this.connectionLogger.log({
             protocol: 's7',
             event: 'read',
-            meta: {
-              host: this.options.host,
-              success: false,
-            },
+            meta: buildS7ReadMeta(this.normalizedOptions, false),
             error: nextError,
           })
           reject(nextError)
@@ -118,10 +185,7 @@ export class S7Connector {
         this.connectionLogger.log({
           protocol: 's7',
           event: 'read',
-          meta: {
-            host: this.options.host,
-            success: true,
-          },
+          meta: buildS7ReadMeta(this.normalizedOptions, true),
         })
         resolve(values as T)
       })
@@ -130,28 +194,33 @@ export class S7Connector {
 
   async writeItems(address: string | string[], value: unknown | unknown[]) {
     await this.connectIfNeeded()
+    const request = normalizeWriteRequest(address, value)
 
     return new Promise<void>((resolve, reject) => {
       const callback = (error: boolean) => {
         if (error) {
           this.isConnected = false
-          reject(new Error(`S7 写入失败: ${String(error)}`))
+          reject(wrapS7Error('写入', error))
           return
         }
 
         resolve()
       }
 
-      if (Array.isArray(address)) {
+      if (Array.isArray(request.address)) {
         this.client.writeItems(
-          address,
-          (Array.isArray(value) ? value : [value]) as S7WritableValue[],
+          request.address,
+          request.value as S7WritableValue[],
           callback
         )
         return
       }
 
-      this.client.writeItems(address, value as S7WritableValue, callback)
+      this.client.writeItems(
+        request.address,
+        request.value as S7WritableValue,
+        callback
+      )
     })
   }
 

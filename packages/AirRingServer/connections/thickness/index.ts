@@ -1,9 +1,10 @@
 import { Client as OPCUAClient } from './opcua'
 import { Client as ModbusClient } from './modbus'
-import type { ConnectionLoggerOptions } from '../base/connectionLogger'
+import type { ConnectionLoggerOptions } from '../base'
 
 export * from './types'
 export * from './batchModbus'
+export * from './s7'
 
 export interface ThicknessConnectionOptions {
   /**
