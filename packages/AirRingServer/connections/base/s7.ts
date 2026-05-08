@@ -87,15 +87,23 @@ const normalizeWriteRequest = (
   address: string | string[]
   value: S7WritableValue | S7WritableValue[]
 } => {
+  const ensureValidAddress = (input: unknown, index?: number) => {
+    if (typeof input !== 'string' || input.trim().length === 0) {
+      const suffix = index === undefined ? '' : ` at index ${index}`
+      throw new Error(`S7 写入地址无效${suffix}`)
+    }
+    return input
+  }
+
   if (Array.isArray(address)) {
     return {
-      address,
+      address: address.map((item, index) => ensureValidAddress(item, index)),
       value: (Array.isArray(value) ? value : [value]) as S7WritableValue[],
     }
   }
 
   return {
-    address,
+    address: ensureValidAddress(address),
     value: value as S7WritableValue,
   }
 }
@@ -195,6 +203,10 @@ export class S7Connector {
   async writeItems(address: string | string[], value: unknown | unknown[]) {
     await this.connectIfNeeded()
     const request = normalizeWriteRequest(address, value)
+
+    // 写入时优先按原始地址执行，避免沿用上一次 defineItems 的翻译映射
+    // 导致 "DBx,..." 被错误翻译为 undefined。
+    this.client.setTranslationCB((tag: string) => tag)
 
     return new Promise<void>((resolve, reject) => {
       const callback = (error: boolean) => {
