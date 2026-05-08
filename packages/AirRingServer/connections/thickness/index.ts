@@ -1,5 +1,10 @@
 import { Client as OPCUAClient } from './opcua'
 import { Client as ModbusClient } from './modbus'
+import type { ConnectionLoggerOptions } from '../base'
+
+export * from './types'
+export * from './batchModbus'
+export * from './s7'
 
 export interface ThicknessConnectionOptions {
   /**
@@ -10,18 +15,22 @@ export interface ThicknessConnectionOptions {
    * 连接地址
    * */
   url: string
+  /**
+   * 日志配置
+   */
+  logger?: ConnectionLoggerOptions
 }
 
 /**
  * 测厚仪连接
  * */
 export const ThicknessConnection = (options: ThicknessConnectionOptions) => {
-  const { type, url } = options
+  const { type, url, logger } = options
   if (type === 'opcua') {
-    return OPCUAClient(url)
+    return OPCUAClient(url, logger)
   }
   if (type === 'modbus') {
-    return ModbusClient(url)
+    return ModbusClient(url, logger)
   }
   throw new Error('Thickness connection type not supported')
 }

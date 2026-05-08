@@ -30,6 +30,11 @@ const routes: RouteRecordRaw[] = [
         path: '/alarm',
         name: 'Alarm',
         component: () => import('@/views/alarm/index.vue')
+    },
+    {
+        path: '/setting',
+        name: 'setting',
+        component: () => import('@/views/settings/rack/index.vue')
     }
 ]
 

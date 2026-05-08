@@ -104,6 +104,7 @@ onBeforeUnmount(() => {
 .layout_content {
     display: flex;
     flex: 1;
+    min-height: 0;
     overflow: hidden;
 
     .layout_menu {
@@ -112,12 +113,14 @@ onBeforeUnmount(() => {
 
     .layout_main {
         flex: 1;
+        min-height: 0;
         background-color: var(--clr);
         display: flex;
         flex-direction: column;
 
         .layout_views {
             flex: 1;
+            min-height: 0;
         }
 
     }

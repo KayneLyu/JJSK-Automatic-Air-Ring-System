@@ -1,11 +1,9 @@
-import { RollerDevice, ThicknessDevice } from '@jjsk/core'
 import {
   Client as ModbusClient,
-  ModbusData,
   RegisterPoint,
 } from '../base/modbus'
-
-export type ThicknessData = ModbusData & RollerDevice & ThicknessDevice
+import type { ConnectionLoggerOptions } from '../base/connectionLogger'
+import type { ThicknessData } from './types'
 
 // ==================== 配置 ====================
 
@@ -52,12 +50,16 @@ const POINT_VALUE_MAP: Record<string, RegisterPoint<ThicknessData>> = {
   },
 }
 
-export const Client = (url: string) => {
+export const Client = (url: string, logger?: ConnectionLoggerOptions) => {
   return ModbusClient<ThicknessData>({
     url,
     pointValueMap: POINT_VALUE_MAP,
     logger: {
-      source: 'thickness/modbus',
+      deviceType: 'thickness',
+      deviceName: '测厚仪',
+      filePrefix: 'thickness',
+      ...logger,
+      source: logger?.source || 'thickness/modbus',
     },
   })
 }

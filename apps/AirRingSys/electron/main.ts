@@ -1,7 +1,12 @@
 import { app, BrowserWindow, globalShortcut } from 'electron'
-import { fileURLToPath } from 'node:url'
+import fs from 'node:fs'
 import path from 'node:path'
-import { setupRendererCommunicator } from './rendererCommunicator.ts'
+import { fileURLToPath } from 'node:url'
+import {
+  setupRendererCommunicator,
+  stopPlcPolling,
+} from './rendererCommunicator.ts'
+import { setupConsoleFileLogger } from './consoleFileLogger.ts'
 
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -10,7 +15,6 @@ process.env.APP_ROOT = path.join(__dirname, '..')
 
 // 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
 export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
-export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
@@ -18,6 +22,7 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST
 
 let win: BrowserWindow | null
+let restoreConsoleFileLogger: (() => void) | null = null
 
 function createWindow() {
   win = new BrowserWindow({
@@ -31,7 +36,7 @@ function createWindow() {
     },
   })
 
-  // push message to Renderer-process.
+  // 与渲染进程通信.
   if (win) {
     setupRendererCommunicator(win)
   }
@@ -56,17 +61,31 @@ if (!getLock) {
 }
 
 app.on('ready', () => {
-  // ensureServerRunning('JinJiu.Scan.Server2', 'D:/server/JinJiu.Scan.Server2.exe', dialog)
   // 开机自动启动应用
   app.setLoginItemSettings({
     openAtLogin: true,
   })
 })
 
+app.on('will-finish-launching', () => {
+  if (process.platform !== 'win32') {
+    return
+  }
+
+  if (!fs.existsSync('D:/JJSK_Data')) {
+    fs.mkdirSync('D:/JJSK_Data')
+  }
+
+  app.setPath('appData', 'D:/JJSK_Data')
+})
+
 app.on('before-quit', () => {
+  stopPlcPolling()
   win?.removeAllListeners('close')
   globalShortcut.unregisterAll()
   win?.close()
+  restoreConsoleFileLogger?.()
+  restoreConsoleFileLogger = null
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -87,4 +106,9 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  const { dirPath, restore } = setupConsoleFileLogger(app)
+  restoreConsoleFileLogger = restore
+  console.log('主进程控制台日志已写入:', dirPath)
+  createWindow()
+})

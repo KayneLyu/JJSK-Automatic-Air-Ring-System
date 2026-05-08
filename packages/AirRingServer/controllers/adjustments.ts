@@ -1,7 +1,7 @@
 import { Scalar } from '../types'
 import { findMutation } from '../algorithms/findMutation'
-import { ThicknessData } from '../connections/thickness/opcua'
-import { RingData } from '../connections/airRing/opcua'
+import type { ThicknessData } from '../connections/thickness/types'
+import type { RingData } from '../connections/airRing/types'
 import { buildTimeToAngle } from '../algorithms/timeToAngle'
 // 风道配置
 interface WindRingConfig {

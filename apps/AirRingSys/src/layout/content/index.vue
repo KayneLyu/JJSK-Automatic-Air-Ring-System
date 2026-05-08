@@ -27,11 +27,18 @@ import Footer from './footer.vue';
     flex-direction: column;
     width: 100%;
     height: 100%;
+    min-height: 0;
+
+    .layout_footer {
+        flex: 0 0 22px;
+    }
 
     .layout_views {
         flex: 1;
+        min-height: 0;
         box-sizing: border-box;
         padding: 10px;
+        overflow: hidden;
     }
 }
 

@@ -1,12 +1,15 @@
 <script setup lang='ts'>
+import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Minimize from "@/components/icons/Minimize.vue";
 import Maximize from '@/components/icons/Maximize.vue';
 import CloseWindow from '@/components/icons/Close.vue';
 
+type IWindowControl = 'win-minimize' | 'win-maximize' | 'win-close'
+
 const { t } = useI18n()
 
-const windowControlBtnList = [
+const windowControlBtnList: { icon: Component , method: IWindowControl }[] = [
    {
       icon: Minimize,
       method: "win-minimize",
@@ -20,18 +23,18 @@ const windowControlBtnList = [
       method: "win-close",
    },
 ]
-const windowControls = (method: string) => {
+const windowControls = (method: IWindowControl) => {
    if (method === "win-close") {
       ElMessageBox.confirm(t("notification.confirmQuite"), t("notification.info"), {
          confirmButtonText: t("notification.confirm"),
          cancelButtonText: t("notification.cancel"),
          type: "warning",
       }).then(() => {
-         window.ipcRenderer.send("win-close")
+         window.ipcApi.send("win-close")
       }).catch(() => { })
       return
    }
-   window.ipcRenderer.send(method)
+   window.ipcApi.send(method)
 }
 </script>
 

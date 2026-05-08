@@ -7,6 +7,7 @@ import AnnularIcon from '@/components/icons/Annular.vue'
 import VerticalIcon from '@/components/icons/Vertical.vue'
 import AlarmIcon from '@/components/icons/Alarm.vue'
 import ProductIcon from '@/components/icons/Product.vue'
+import SettingIcon from '@/components/icons/Setting.vue'
 import UnfoldIcon from '@/components/icons/Unfold.vue'
 import logo from '../../../public/logo.png'
 import { useI18n } from 'vue-i18n'
@@ -51,6 +52,12 @@ const menuItemList = [
     location: '/alarm',
     icon: AlarmIcon,
   },
+  {
+    name: 'menu.settings',
+    color: '#ffa117',
+    location: '/setting',
+    icon: SettingIcon,
+  },
 ]
 
 const route = useRoute()
@@ -70,7 +77,7 @@ const preventDefault = (e: MouseEvent) => {
 // 打开客户端
 const openClient = async () => {
   try {
-    const result = await window.ipcRenderer.invoke('win-open-client')
+    const result = await window.ipcApi.invoke('win-open-client')
     isOpening.value = !result
     ElNotification({
       title: t('notification.info'),
@@ -89,7 +96,7 @@ const openClient = async () => {
 
 // 获取logo
 const getLogoPng = async () => {
-  const result = await window.ipcRenderer.invoke('win-get-logo')
+  const result = await window.ipcApi.invoke('win-get-logo')
   if (imageDom.value) {
     imageDom.value.src = result || logo
   }
@@ -115,12 +122,12 @@ onMounted(() => {
           :style="{ '--bg': item.color }"
         >
           <RouterLink style="-webkit-user-drag: none" :to="item.location">
-            <div className="icon">
+            <div class="icon">
               <el-icon :size="40">
                 <component :is="item.icon" />
               </el-icon>
             </div>
-            <div className="text">{{ $t(item.name) }}</div>
+            <div class="text">{{ $t(item.name) }}</div>
           </RouterLink>
         </li>
       </div>
