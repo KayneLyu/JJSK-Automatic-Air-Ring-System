@@ -38,7 +38,6 @@ export const createModbusCalibrationBridge = (
   const session = createCalibrationSession({
     config: options.config ?? DEFAULT_CALIBRATION_CONFIG,
     standardized: options.standardized ?? DEFAULT_STANDARDIZED,
-    disturbanceTs: options.disturbanceTs ?? Date.now(),
     manualTractionSpeed: options.manualTractionSpeed,
     onResult: options.onResult,
   })
