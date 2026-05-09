@@ -30,7 +30,7 @@ const buildThicknessS7LoggerOptions = (
   return {
     deviceType: 'thickness',
     deviceName: '测厚仪',
-    filePrefix: 'thickness',
+    filePrefix: 'thickness-s7',
     datePattern: 'YYYY-MM-DD-HH',
     ...logger,
     dirPath: logger?.dirPath || loggerDirPath,

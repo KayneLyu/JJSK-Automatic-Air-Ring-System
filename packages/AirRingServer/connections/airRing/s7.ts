@@ -32,7 +32,7 @@ const buildUpperRotationLoggerOptions = (
   return {
     deviceType: 'upperRotation',
     deviceName: '上旋',
-    filePrefix: 'upper-rotation',
+    filePrefix: 'upper-rotation-s7',
     ...logger,
     dirPath: logger?.dirPath || loggerDirPath,
     source: logger?.source || 'airRing/s7',

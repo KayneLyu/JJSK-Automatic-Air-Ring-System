@@ -52,8 +52,9 @@ export const Client = (url: string, logger?: ConnectionLoggerOptions) => {
     logger: {
       deviceType: 'airRing',
       deviceName: '风环',
-      filePrefix: 'air-ring',
+      filePrefix: 'air-ring-modbus',
       ...logger,
+      dirPath: logger?.dirPath,
       source: logger?.source || 'airRing/modbus',
     },
   })
