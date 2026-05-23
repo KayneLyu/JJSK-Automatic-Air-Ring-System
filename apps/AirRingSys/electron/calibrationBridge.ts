@@ -38,7 +38,6 @@ export const createModbusCalibrationBridge = (
   const session = createCalibrationSession({
     config: options.config ?? DEFAULT_CALIBRATION_CONFIG,
     standardized: options.standardized ?? DEFAULT_STANDARDIZED,
-    disturbanceTs: options.disturbanceTs ?? Date.now(),
     manualTractionSpeed: options.manualTractionSpeed,
     onResult: options.onResult,
   })
@@ -47,21 +46,57 @@ export const createModbusCalibrationBridge = (
   let previousMotionDirection = true
   let latestThicknessTimestamp: number | undefined
 
+  const normalizeThicknessTimestamp = (
+    relativeTimestampMs: number,
+    nowMs: number
+  ) => {
+    const now = new Date(nowMs)
+    const dayStartMs = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      0,
+      0,
+      0,
+      0
+    )
+
+    let candidate = dayStartMs + relativeTimestampMs
+
+    // 以最近一次测厚时间戳为参考，避免跨午夜时产生 24h 跳变。
+    if (latestThicknessTimestamp !== undefined) {
+      const dayMs = 24 * 60 * 60 * 1000
+      const prev = latestThicknessTimestamp
+      const delta = candidate - prev
+
+      if (delta > dayMs / 2) {
+        candidate -= dayMs
+      } else if (delta < -dayMs / 2) {
+        candidate += dayMs
+      }
+    }
+
+    return candidate
+  }
+
   const buildThicknessSample = (
     data: IPollingModBusData,
-    index: number
+    index: number,
+    nowMs: number
   ): ThicknessData | null => {
     const probeValue = data.adValues[index]
     const pulse = data.pulses[index]
-    const timestamp = data.timestamps[index]
+    const rawTimestamp = data.timestamps[index]
 
     if (
       !Number.isFinite(probeValue) ||
       !Number.isFinite(pulse) ||
-      !Number.isFinite(timestamp)
+      !Number.isFinite(rawTimestamp)
     ) {
       return null
     }
+
+    const timestamp = normalizeThicknessTimestamp(rawTimestamp, nowMs)
 
     const motionDirection =
       previousPulse === undefined
@@ -81,6 +116,7 @@ export const createModbusCalibrationBridge = (
   }
 
   const feedModbusData = (data: IPollingModBusData) => {
+    const nowMs = Date.now()
     const sampleCount = Math.min(
       data.adValues.length,
       data.pulses.length,
@@ -88,7 +124,7 @@ export const createModbusCalibrationBridge = (
     )
 
     for (let index = 0; index < sampleCount; index += 1) {
-      const thicknessSample = buildThicknessSample(data, index)
+      const thicknessSample = buildThicknessSample(data, index, nowMs)
 
       if (!thicknessSample) {
         continue

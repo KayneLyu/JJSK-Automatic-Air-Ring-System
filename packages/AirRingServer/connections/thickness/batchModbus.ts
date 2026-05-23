@@ -14,7 +14,8 @@ export interface ThicknessBatchModbusConnectionOptions {
 const DEFAULT_THICKNESS_LOGGER: ConnectionLoggerOptions = {
   deviceType: 'thickness',
   deviceName: '测厚仪',
-  filePrefix: 'thickness',
+  filePrefix: 'thickness-modbus',
+  datePattern: 'YYYY-MM-DD-HH',
 }
 
 const parseInt32 = (reg1: number, reg2: number) => {

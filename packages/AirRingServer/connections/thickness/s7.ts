@@ -30,7 +30,7 @@ const buildThicknessS7LoggerOptions = (
   return {
     deviceType: 'thickness',
     deviceName: '测厚仪',
-    filePrefix: 'thickness',
+    filePrefix: 'thickness-s7',
     datePattern: 'YYYY-MM-DD-HH',
     ...logger,
     dirPath: logger?.dirPath || loggerDirPath,
@@ -63,6 +63,26 @@ const normalizeThicknessS7ControlState = (
     HOME: Boolean(values.HOME),
     MEASURE: Boolean(values.MEASURE),
   }
+}
+
+const resolveThicknessS7WriteAddress = (
+  address: unknown,
+  controlAddressMap?: Partial<Record<ThicknessS7ControlKey, string | undefined>>
+) => {
+  const mergedAddressMap = {
+    ...DEFAULT_THICKNESS_S7_CONTROL_ADDRESS_MAP,
+    ...controlAddressMap,
+  }
+
+  if (typeof address !== 'string' || address.trim().length === 0) {
+    throw new Error('PLC 写入地址为空或无效')
+  }
+
+  const normalizedAddress = address.trim()
+  const mappedAddress =
+    mergedAddressMap[normalizedAddress as ThicknessS7ControlKey]
+
+  return (mappedAddress ?? normalizedAddress).trim()
 }
 
 export const createThicknessS7Connection = ({
@@ -118,11 +138,18 @@ export const createThicknessS7Connection = ({
   }
 
   const writeValue = (address: string, value: unknown) => {
-    return enqueueOperation(() => connector.writeItems(address, value))
+    const resolvedAddress = resolveThicknessS7WriteAddress(
+      address,
+      controlAddressMap
+    )
+    return enqueueOperation(() => connector.writeItems(resolvedAddress, value))
   }
 
   const writeValues = (address: string[], value: unknown[]) => {
-    return enqueueOperation(() => connector.writeItems(address, value))
+    const resolvedAddress = address.map((item) =>
+      resolveThicknessS7WriteAddress(item, controlAddressMap)
+    )
+    return enqueueOperation(() => connector.writeItems(resolvedAddress, value))
   }
 
   return {

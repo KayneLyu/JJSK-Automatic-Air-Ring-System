@@ -6,6 +6,10 @@ import {
 
 type S7ReadValues = Record<string, string | number | boolean>
 type S7WritableValue = string | number | boolean
+type S7WriteRequest = {
+  address: string | string[]
+  value: S7WritableValue | S7WritableValue[]
+}
 
 type NormalizedS7ConnectorOptions = Omit<
   S7ConnectorOptions,
@@ -63,7 +67,19 @@ const buildS7ReadMeta = (
 ) => {
   return {
     host: options.host,
+    port: options.port,
+    rack: options.rack,
+    slot: options.slot,
     success,
+  }
+}
+
+const buildS7WriteMeta = (options: NormalizedS7ConnectorOptions) => {
+  return {
+    host: options.host,
+    port: options.port,
+    rack: options.rack,
+    slot: options.slot,
   }
 }
 
@@ -83,19 +99,24 @@ const getS7ItemNames = (defs: Record<string, string>) => {
 const normalizeWriteRequest = (
   address: string | string[],
   value: unknown | unknown[]
-): {
-  address: string | string[]
-  value: S7WritableValue | S7WritableValue[]
-} => {
+): S7WriteRequest => {
+  const ensureValidAddress = (input: unknown, index?: number) => {
+    if (typeof input !== 'string' || input.trim().length === 0) {
+      const suffix = index === undefined ? '' : ` at index ${index}`
+      throw new Error(`S7 写入地址无效${suffix}`)
+    }
+    return input
+  }
+
   if (Array.isArray(address)) {
     return {
-      address,
+      address: address.map((item, index) => ensureValidAddress(item, index)),
       value: (Array.isArray(value) ? value : [value]) as S7WritableValue[],
     }
   }
 
   return {
-    address,
+    address: ensureValidAddress(address),
     value: value as S7WritableValue,
   }
 }
@@ -174,7 +195,7 @@ export class S7Connector {
           const nextError = wrapS7Error('读取', error)
           this.connectionLogger.log({
             protocol: 's7',
-            event: 'read',
+            event: 'read_error',
             meta: buildS7ReadMeta(this.normalizedOptions, false),
             error: nextError,
           })
@@ -185,6 +206,7 @@ export class S7Connector {
         this.connectionLogger.log({
           protocol: 's7',
           event: 'read',
+          data: values,
           meta: buildS7ReadMeta(this.normalizedOptions, true),
         })
         resolve(values as T)
@@ -196,14 +218,32 @@ export class S7Connector {
     await this.connectIfNeeded()
     const request = normalizeWriteRequest(address, value)
 
+    // 写入时优先按原始地址执行，避免沿用上一次 defineItems 的翻译映射
+    // 导致 "DBx,..." 被错误翻译为 undefined。
+    this.client.setTranslationCB((tag: string) => tag)
+
     return new Promise<void>((resolve, reject) => {
       const callback = (error: boolean) => {
         if (error) {
           this.isConnected = false
-          reject(wrapS7Error('写入', error))
+          const nextError = wrapS7Error('写入', error)
+          this.connectionLogger.log({
+            protocol: 's7',
+            event: 'write_error',
+            data: request,
+            meta: buildS7ConnectionMeta(this.normalizedOptions),
+            error: nextError,
+          })
+          reject(nextError)
           return
         }
 
+        this.connectionLogger.log({
+          protocol: 's7',
+          event: 'write',
+          data: request,
+          meta: buildS7WriteMeta(this.normalizedOptions),
+        })
         resolve()
       }
 

@@ -15,9 +15,10 @@ export type CalibrateOptions = {
   standardized: Scalar
   config: CalibrationConfig
   /**
-   * 开始扰动时间戳
+   * 开始扰动时间戳（可选）
+   * 扰动失败或未执行扰动时可为空
    * */
-  disturbanceTs: number
+  disturbanceTs?: number
   /**
    * 手动设置的牵引速度，单位：mm/s
    * 当无辊速信号时优先使用该值
@@ -56,6 +57,11 @@ export type CalibrationStreamInput = {
 export type CreateCalibrationSessionOptions = CalibrateOptions & {
   onResult?: (result: CalibrateResult) => void
 }
+
+type CreateCalibrationSessionInput = Omit<
+  CreateCalibrationSessionOptions,
+  'disturbanceTs'
+>
 
 const hasCalibrationResultChanged = (
   previous: CalibrateResult | null,
@@ -128,6 +134,10 @@ export const calibrate = ({
   })
   const { next: FindMutationNext, setWindowSize } = findMutation()
   const { next: BuildTripSegmentNext } = buildTripSegment()
+  /**
+   * 缓存首次成功计算的距离值（一次性标定）
+   * */
+  let cachedDistance: number | null = null
   const next = ({
     thickness,
     airRing,
@@ -169,16 +179,29 @@ export const calibrate = ({
       return buildCalibrationResult(baseResult)
     }
     setWindowSize(fastSize)
-    if (!mutation) {
-      /* 未检测到有效扰动响应 */
-      return buildCalibrationResult(baseResult)
+
+    // ---------- Step 5: 计算上旋人字架到测厚仪的距离（一次性标定）----------
+    // 首次检测到突变时记录距离，后续始终使用缓存值
+    // 即使后续检测到突变，也不再更新 distance（保证距离的一次性标定）
+    let distance: number | undefined
+    if (mutation && disturbanceTs !== undefined) {
+      const tau_ms = mutation.timestamp! - disturbanceTs
+      const currentDistance = v * (tau_ms / 1000)
+      // 首次成功时缓存距离值
+      if (cachedDistance === null) {
+        cachedDistance = currentDistance
+        console.debug(
+          `[Calibration] 首次距离标定成功: ${cachedDistance.toFixed(2)} mm`
+        )
+      }
+      distance = cachedDistance
+    } else if (cachedDistance !== null) {
+      // 即使没有检测到突变，也使用已缓存的距离
+      distance = cachedDistance
     }
-    // ---------- Step 5: 计算上旋人字架到测厚仪的距离 ----------
-    const tau_ms = mutation.timestamp! - disturbanceTs
 
-    const distance = v * (tau_ms / 1000)
-
-    // ---------- Step 6: 提取测厚仪有效扫描段 ----------
+    // ---------- Step 6: 提取测厚仪有效扫描段，计算最大旋转角度 ----------
+    // 距离标定失败不影响 maxAngle 等其他值的标定
     if (tripSegment.length < 2) {
       return buildCalibrationResult({
         ...baseResult,
@@ -190,7 +213,7 @@ export const calibrate = ({
       segments: CHANNEL_COUNT,
     })
     if (!maxAngle) {
-      /* 无法上旋计算最大旋转角度 */
+      /* 无法计算最大旋转角度，但不影响其他结果输出 */
       return buildCalibrationResult({
         ...baseResult,
         distance,
@@ -208,15 +231,14 @@ export const calibrate = ({
 
 export const createCalibrationSession = ({
   config,
-  disturbanceTs,
   manualTractionSpeed,
   standardized,
   onResult,
-}: CreateCalibrationSessionOptions) => {
-  let currentDisturbanceTs = disturbanceTs
+}: CreateCalibrationSessionInput) => {
+  let currentDisturbanceTs: number | undefined = undefined
   let currentManualTractionSpeed = manualTractionSpeed
   const buildCalibrator = (
-    nextDisturbanceTs: number,
+    nextDisturbanceTs: number | undefined,
     nextManualTractionSpeed: number | undefined
   ) => {
     return calibrate({
@@ -281,6 +303,27 @@ export const createCalibrationSession = ({
     getResult: () => currentResult,
     getManualTractionSpeed: () => currentManualTractionSpeed,
     getDisturbanceTs: () => currentDisturbanceTs,
+    /**
+     * 触发扰动动作
+     *
+     * @param newDisturbanceTs 扰动时刻（默认当前时间）
+     *
+     * **当前实现**：仅记录日志，暂未接入 PLC 扰动动作。
+     * 待后续实现 PLC 接口后，可通过此函数标记并重置标定会话。
+     * */
+    triggerDisturbance: (newDisturbanceTs: number = Date.now()) => {
+      console.info(
+        `[Calibration] 扰动触发标记: ${new Date(newDisturbanceTs).toISOString()}`
+      )
+      // TODO: 后续接入 PLC 扰动动作调用
+      // 当前暂不更新 disturbanceTs，待 PLC 接口就位后启用以下逻辑：
+      // currentDisturbanceTs = newDisturbanceTs
+      // currentResult = null
+      // currentCalibrator = buildCalibrator(
+      //   currentDisturbanceTs,
+      //   currentManualTractionSpeed
+      // )
+    },
     setManualTractionSpeed: (
       nextManualTractionSpeed: number | undefined,
       nextDisturbanceTs: number = Date.now()

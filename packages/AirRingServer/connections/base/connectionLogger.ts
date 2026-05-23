@@ -51,6 +51,9 @@ export interface ConnectionLogPayload {
     | 'test_connect'
     | 'test_connect_error'
     | 'read'
+    | 'read_error'
+    | 'write'
+    | 'write_error'
     | 'subscribe'
     | 'subscribe_error'
   data?: unknown
