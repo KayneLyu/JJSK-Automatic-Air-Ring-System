@@ -46,6 +46,10 @@ onBeforeUnmount(() => {
   stopThickGauge(),
   stopAirRing()
 })
+
+window.ipcApi.on('adbox:data', (_:unknown, data: any) => { 
+  console.log('adbox data', data);
+})
 </script>
 
 <template>
