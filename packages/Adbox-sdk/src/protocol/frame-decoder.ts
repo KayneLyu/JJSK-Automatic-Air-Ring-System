@@ -1,6 +1,3 @@
-/**
- * 帧解码器
- */
 export class FrameDecoder {
 
     private buffer = Buffer.alloc(0)
@@ -16,26 +13,29 @@ export class FrameDecoder {
   
       while (true) {
   
-        const start = this.buffer.indexOf(0x7e)
+        // 找结束符
+        const end =
+          this.buffer.indexOf(0x7e)
   
-        if (start === -1) {
-  
-          this.buffer = Buffer.alloc(0)
-  
-          break
-        }
-  
-        const end = this.buffer.indexOf(0x7e, start + 1)
-  
+        // 没有完整帧
         if (end === -1) {
           break
         }
   
-        const frame = this.buffer.subarray(start + 1, end)
+        // 提取一帧
+        const frame =
+          this.buffer.subarray(0, end)
+  
+        // 移除当前帧
+        this.buffer =
+          this.buffer.subarray(end + 1)
+  
+        // 空帧跳过
+        if (frame.length === 0) {
+          continue
+        }
   
         frames.push(frame)
-  
-        this.buffer = this.buffer.subarray(end + 1)
       }
   
       return frames

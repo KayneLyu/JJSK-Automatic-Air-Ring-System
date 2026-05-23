@@ -6,7 +6,7 @@ const adbox = new ADBox({
 
     host: '192.168.251.12',
 
-    port: 20020,
+    port: 20021,
 
     reconnect: true
 })
@@ -21,6 +21,5 @@ adbox.on('ad-data', data => {
     if (!win) return
     win.webContents.send('adbox:data', data)
 })
-
 adbox.connect()
 

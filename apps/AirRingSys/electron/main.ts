@@ -7,7 +7,7 @@ import {
   stopPlcPolling,
 } from './rendererCommunicator.ts'
 import { setupConsoleFileLogger } from './consoleFileLogger.ts'
-import './adbox'
+// import './adbox'
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
