@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron'
 
-import { ADBox } from '@jjsk/ad-box'
+import { ADBox } from '../../../packages/adbox-sdk'
 
 const adbox = new ADBox({
 
