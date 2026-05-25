@@ -8,7 +8,7 @@ import type {
   IpcChannelOutput,
 
 } from '@/types/ipc'
-import { ADBox } from '@jjsk/ad-box'
+import { Adb2Sdk } from '@jjsk/ad-box/index'
 
 const LOGO_PATH_CANDIDATES = ['D:/logo/logo.png']
 
@@ -60,25 +60,15 @@ const getConnectionLogDir = (name: string) => {
 /**
  * AD盒IPC通信
  */
-const adbox = new ADBox({
+const adbox = new Adb2Sdk({
 
   host: '192.168.251.12',
 
   port: 20021,
 
-  reconnect: true
 })
 
-adbox.on('connected', () => {
 
-  console.log('ADBOX CONNECTED')
-})
-adbox.on('ad-data', data => {
-
-  const win = BrowserWindow.getAllWindows()[0]
-  if (!win) return
-  win.webContents.send('adbox:data', data)
-})
 adbox.connect()
 
 export function useIpcOn<T extends IpcChannelName>(
@@ -150,7 +140,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
    */
   useIpcOn('ADBOX:FORW', () => {
     try {
-      adbox.runForward()
+      adbox.motion.forward(1)
     } catch (error) {
 
     }
@@ -161,7 +151,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
    */
   useIpcOn('ADBOX:REV', () => {
     try {
-      adbox.runBackward()
+      adbox.motion.backward(1)
     } catch (error) {
 
     }
@@ -172,7 +162,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   */
   useIpcOn('ADBOX:STOP', () => {
     try {
-      adbox.stop()
+      adbox.motion.stopDec()
     } catch (error) {
 
     }
@@ -184,7 +174,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
  */
   useIpcOn('ADBOX:HOME', () => {
     try {
-      adbox.home()
+      adbox.motion.home(1)
     } catch (error) {
 
     }
