@@ -4,8 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   setupRendererCommunicator,
-  stopPlcPolling,
-} from './rendererCommunicator.ts'
+} from './renderer.ts'
 import { setupConsoleFileLogger } from './consoleFileLogger.ts'
 // import './adbox'
 // const require = createRequire(import.meta.url)
@@ -80,7 +79,6 @@ app.on('will-finish-launching', () => {
 })
 
 app.on('before-quit', () => {
-  stopPlcPolling()
   win?.removeAllListeners('close')
   globalShortcut.unregisterAll()
   win?.close()

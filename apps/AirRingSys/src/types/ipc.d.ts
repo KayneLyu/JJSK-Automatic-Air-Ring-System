@@ -96,6 +96,10 @@ export interface IpcChannelMap {
   'win-get-logo': { args: []; output: string | undefined } // 获取logo
   'win-open-client': { args: []; output: boolean | undefined } //打开客户端
   'change-State': { args: [message: IMessage]; output: void } // 改变测厚仪状态
+  'ADBOX:FORW': { args: [message?: number]; output: void }  // AD box前进
+  'ADBOX:REV': { args: [message?: number]; output: void }  // AD box 后退
+  'ADBOX:STOP': { args: []; output: void }  // AD box 停止
+  'ADBOX:HOME': { args: []; output: void }  // AD box 归零
   'plc-controlData': {
     args: [data: IPlcControlResult]
     output: [data: IPlcControlResult]

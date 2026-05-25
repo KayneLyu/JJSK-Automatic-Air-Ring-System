@@ -8,7 +8,23 @@ import type {
   IpcChannelOutput,
 
 } from '@/types/ipc'
-import { Adb2Sdk } from '@jjsk/ad-box/index'
+import { ADBoxClient, ParamIndex } from '../../../packages/adbox-sdk'
+
+/**
+ * AD盒通信
+ */
+const adb = new ADBoxClient('192.168.251.12', 20021);
+adb.on('data', (push) => {
+  console.log(`AD0=${push.ad0}, stick=${push.systick} Pos0=${push.pos0}, In=${push.in?.toString(16)}`);
+});
+
+adb.on('runResult', (res) => {
+  console.log(`Run result: status=${res.status}, serial=${res .serial}`);
+});
+
+await adb.connect();
+
+
 
 const LOGO_PATH_CANDIDATES = ['D:/logo/logo.png']
 
@@ -57,19 +73,7 @@ const getConnectionLogDir = (name: string) => {
   return join(app.getPath('userData'), 'logs', name)
 }
 
-/**
- * AD盒IPC通信
- */
-const adbox = new Adb2Sdk({
 
-  host: '192.168.251.12',
-
-  port: 20021,
-
-})
-
-
-adbox.connect()
 
 export function useIpcOn<T extends IpcChannelName>(
   channel: T,
@@ -106,6 +110,11 @@ export function useIpcSend<T extends IpcChannelName>(
 
 
 export function setupRendererCommunicator(win: BrowserWindow) {
+
+
+
+
+  
   useIpcOn('win-minimize', () => {
     win.minimize()
   })
@@ -138,9 +147,9 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   /**
    * 前进
    */
-  useIpcOn('ADBOX:FORW', () => {
+  useIpcOn('ADBOX:FORW', async() => {
     try {
-      adbox.motion.forward(1)
+      await adb.moveForward(1)
     } catch (error) {
 
     }
@@ -149,9 +158,9 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   /**
    * 后退
    */
-  useIpcOn('ADBOX:REV', () => {
+  useIpcOn('ADBOX:REV', async() => {
     try {
-      adbox.motion.backward(1)
+      await adb.moveBackward(1)
     } catch (error) {
 
     }
@@ -160,9 +169,9 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   /**
   * 停止
   */
-  useIpcOn('ADBOX:STOP', () => {
+  useIpcOn('ADBOX:STOP', async() => {
     try {
-      adbox.motion.stopDec()
+      await adb.stopDecel()
     } catch (error) {
 
     }
@@ -172,9 +181,9 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   /**
  * 归零
  */
-  useIpcOn('ADBOX:HOME', () => {
+  useIpcOn('ADBOX:HOME', async() => {
     try {
-      adbox.motion.home(1)
+      await adb.home()
     } catch (error) {
 
     }
