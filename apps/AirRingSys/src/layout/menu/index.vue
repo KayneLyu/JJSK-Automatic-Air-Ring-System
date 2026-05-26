@@ -11,6 +11,7 @@ import SettingIcon from '@/components/icons/Setting.vue'
 import UnfoldIcon from '@/components/icons/Unfold.vue'
 import logo from '../../../public/logo.png'
 import { useI18n } from 'vue-i18n'
+import  { useConfigStore } from '@/store/config';
 
 const { t } = useI18n()
 
@@ -60,10 +61,11 @@ const menuItemList = [
 ]
 
 const route = useRoute()
-const isFold = ref(false)
 const isOpening = ref(false)
 
 const imageDom = useTemplateRef('imageDom')
+
+const configStore = useConfigStore()
 
 // 阻止按住ctrl 跳转默认事件
 const preventDefault = (e: MouseEvent) => {
@@ -107,7 +109,7 @@ onMounted(() => {
 
 <template>
   <div class="sidebar">
-    <ul :style="{ width: isFold ? '190px' : '70px' }">
+    <ul :style="{ width: configStore.fold ? '190px' : '70px' }">
       <li @click="openClient" class="logo">
         <img ref="imageDom" alt="" />
       </li>
@@ -129,10 +131,10 @@ onMounted(() => {
           </RouterLink>
         </li>
       </div>
-      <li @click="() => (isFold = !isFold)" class="unfold">
+      <li @click="() => (configStore.fold  = !configStore.fold )" class="unfold">
         <el-icon
           :size="28"
-          :class="isFold ? 'rotate_animate' : 'rotate_animate_back'"
+          :class="configStore.fold ? 'rotate_animate' : 'rotate_animate_back'"
         >
           <UnfoldIcon />
         </el-icon>

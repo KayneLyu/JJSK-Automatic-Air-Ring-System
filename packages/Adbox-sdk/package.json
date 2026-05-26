@@ -1,0 +1,22 @@
+{
+    "name": "@jjsk/adbox-sdk",
+    "version": "1.0.0",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsup src/index.ts --format esm,cjs --dts"
+    },
+    "dependencies": {
+        "eventemitter3": "^5.0.1"
+    },
+    "devDependencies": {
+        "tsup": "^8.0.2",
+        "typescript": "^5.5.4"
+    }
+}

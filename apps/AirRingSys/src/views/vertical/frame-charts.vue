@@ -16,7 +16,6 @@ import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts.ts';
 import { useProduct } from '@/store/product.ts';
-import { useConfigStore } from '@/store/config.ts';
 import { formateList } from '@/utils/ChartsData.ts';
 import dayjs from "dayjs";
 
@@ -37,7 +36,6 @@ echarts.use([
     MarkLineComponent
 ]);
 const store = useProduct();
-const configStore = useConfigStore();
 
 const props = defineProps({
     frameData: {
@@ -169,7 +167,8 @@ let option: ECOption = {
         },
     ],
 };
-const chartContainer = ref<HTMLElement | null>(null)
+// const chartContainer = ref<HTMLElement | null>(null)
+
 const { updateCharts } = useChartsInit('chartContainer', option)
 
 watch(() => props.frameData, (newValue) => {

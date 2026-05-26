@@ -4,10 +4,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   setupRendererCommunicator,
-  stopPlcPolling,
-} from './rendererCommunicator.ts'
+  initADBox
+} from './renderer.ts'
 import { setupConsoleFileLogger } from './consoleFileLogger.ts'
-
+// import './adbox'
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -39,6 +39,8 @@ function createWindow() {
   // 与渲染进程通信.
   if (win) {
     setupRendererCommunicator(win)
+    // 初始化ADBOX
+    initADBox(win)
   }
 
   if (VITE_DEV_SERVER_URL) {
@@ -80,7 +82,6 @@ app.on('will-finish-launching', () => {
 })
 
 app.on('before-quit', () => {
-  stopPlcPolling()
   win?.removeAllListeners('close')
   globalShortcut.unregisterAll()
   win?.close()

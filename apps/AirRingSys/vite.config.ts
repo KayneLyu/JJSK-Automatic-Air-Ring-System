@@ -9,6 +9,7 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  
   resolve: {
     alias: {
       '@': join(__dirname, '/src'), // 路径别名
@@ -17,6 +18,7 @@ export default defineConfig({
         '../../packages/AirRingServer/electron.ts'
       ),
       '@jjsk/core': path.resolve(__dirname, '../../packages/core'),
+      '@jjsk/ad-box': path.resolve(__dirname, '../../packages/Adbox-sdk')
     },
     extensions: ['.js', '.json', '.ts', '.tsx'],
   },

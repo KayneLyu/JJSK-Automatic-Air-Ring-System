@@ -92,8 +92,6 @@ window.ipcApi.on("ModBus-read", (_, data) => {
             }
         ]
     })
-    console.log('124', dataList);
-
 })
 
 </script>

@@ -1,5 +1,5 @@
 import { type TripSegment } from '../../types'
-import { goldenSectionSearch } from '../thicknessReverseCalculation'
+import { goldenSectionSearch } from '../../utils'
 import {
   type ExpandedPoint,
   evaluateExpanded,

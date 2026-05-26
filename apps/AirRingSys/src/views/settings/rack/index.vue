@@ -82,7 +82,7 @@ const addressItems: IPlcParamData = {
    // 硬件
    frameLength: 'DB4,DINT2', // 机架长度
    rollerCircumference: 'DB4,REAL6', // 测速棍周长
-   encoderRatio:  'DB4,REAL10', // 编码器1比例
+   encoderRatio: 'DB4,REAL10', // 编码器1比例
    motorPulse: 'DB4,DINT14', // 电机脉冲
    codePulse: 'DB4,DINT18', // 编码脉冲
    zeroOffset: 'DB4,DINT22', // 零位偏移
@@ -300,9 +300,9 @@ const applyPlcParams = async () => {
 
 const loadPlcParams = async () => {
    try {
-      const data = await window.ipcApi.invoke('plc-paramData', addressItems)
-      setFormValuesFromPlc(data)
-      plcParamBaseline.value = { ...data }
+      // const data = await window.ipcApi.invoke('plc-paramData', addressItems)
+      // setFormValuesFromPlc(data)
+      // plcParamBaseline.value = { ...data }
    } catch (error) {
       ElMessage.error(error instanceof Error ? error.message : 'PLC 参数读取失败')
    }
@@ -519,32 +519,38 @@ const options: Option[] = [
       value: "MEASURE"
    },
 ]
-const stateAddressMap: Record<IState, string> = {
-   FWD: 'DB4,X0.0',
-   REV: 'DB4,X0.1',
-   STOP: 'DB4,X0.2',
-   HOME: 'DB4,X0.3',
-   MEASURE: 'DB4,X0.4',
-}
+
 
 // 运行状态切换
 const inputChangeState = async (options: IState) => {
-   try {
-      await writePlcValue(stateAddressMap[options], true)
-   } catch (error) {
-      ElMessage.error(error instanceof Error ? error.message : 'PLC 写入失败')
+   switch (options) {
+      case 'FWD':
+         window.ipcApi.send('ADBOX:FORW');
+         break;
+      case 'REV':
+         window.ipcApi.send('ADBOX:REV');
+         break;
+      case 'STOP':
+         window.ipcApi.send('ADBOX:STOP');
+         break;
+      case 'HOME':
+         window.ipcApi.send('ADBOX:HOME');
+         break;
+      // 可选：兜底处理未知状态
+      default:
+         console.warn('未知的状态类型:', options);
    }
-}
+};
 
-window.ipcApi.on("plc-controlData", (_, data) => {
-   const key = Object.keys(data).find(key => data[(key) as IState])
-   runningState.value = key as IState ?? 'STOP';
+window.ipcApi.on("adbox:data", (_, data) => {
+   if (data.pos0Raw &&  data.pos0Raw !== undefined) measurePosition.value = data.pos0Raw;
 })
 
-window.ipcApi.on("ModBus-read", (_, data) => {
-   currentAD.value = data.adValues[0]
-   measurePosition.value = data.pulses[0]
+window.ipcApi.on("adbox:RunResult", (_, data) => {
+   console.log("运动指令反馈",data);
+   
 })
+
 
 </script>
 <template>
@@ -598,196 +604,193 @@ window.ipcApi.on("ModBus-read", (_, data) => {
          <el-tabs v-model="activeTab" class="tab-container">
             <el-tab-pane label="参数" name="param">
                <div class="tab-pane-body">
-               <el-card shadow="hover" header="标定结果" class="calibration-result-card">
-                  <div class="calibration-control-bar">
-                     <el-input
-                        v-model="manualTractionSpeed"
-                        class="manual-traction-speed-input"
-                        placeholder="手动牵引速度"
-                     >
-                        <template #append>mm/s</template>
-                     </el-input>
-                     <el-button
-                        type="primary"
-                        :loading="isApplyingManualTractionSpeed"
-                        @click="applyManualTractionSpeed"
-                     >
-                        应用牵引速度
-                     </el-button>
-                     <el-button
-                        :loading="isResettingCalibration"
-                        @click="resetCalibration"
-                     >
-                        开始/重置本次标定
-                     </el-button>
-                     <span class="calibration-control-tip">
-                        应用牵引速度会更新速度并重新开始；开始/重置本次标定会沿用当前速度，仅重置本次扰动起点
-                     </span>
-                  </div>
+                  <el-card shadow="hover" header="标定结果" class="calibration-result-card">
+                     <div class="calibration-control-bar">
+                        <el-input v-model="manualTractionSpeed" class="manual-traction-speed-input"
+                           placeholder="手动牵引速度">
+                           <template #append>mm/s</template>
+                        </el-input>
+                        <el-button type="primary" :loading="isApplyingManualTractionSpeed"
+                           @click="applyManualTractionSpeed">
+                           应用牵引速度
+                        </el-button>
+                        <el-button :loading="isResettingCalibration" @click="resetCalibration">
+                           开始/重置本次标定
+                        </el-button>
+                        <span class="calibration-control-tip">
+                           应用牵引速度会更新速度并重新开始；开始/重置本次标定会沿用当前速度，仅重置本次扰动起点
+                        </span>
+                     </div>
 
-                  <div class="calibration-result-grid">
-                     <div class="calibration-result-item">
-                        <span class="label">牵引速度</span>
-                        <span class="value">{{ getCalibrationDisplayValue('tractionSpeed') }}</span>
-                     </div>
-                     <div class="calibration-result-item">
-                        <span class="label">扰动距离</span>
-                        <span class="value">{{ getCalibrationDisplayValue('distance') }}</span>
-                     </div>
-                     <div class="calibration-result-item">
-                        <span class="label">上旋最大角度</span>
-                        <span class="value">{{ getCalibrationDisplayValue('maxAngle') }}</span>
-                     </div>
-                     <div class="calibration-result-item">
-                        <span class="label">突变窗口</span>
-                        <span class="value">{{ getCalibrationDisplayValue('mutationWindowSize') }}</span>
-                     </div>
-                  </div>
-               </el-card>
-
-               <el-card shadow="hover" header="上旋调试信号" class="calibration-result-card">
-                  <div class="calibration-result-grid upper-rotation-debug-grid">
-                     <div class="calibration-result-item">
-                        <span class="label">正转</span>
-                        <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ForwardRotation) }}</span>
-                     </div>
-                     <div class="calibration-result-item">
-                        <span class="label">反转</span>
-                        <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ReverseRotation) }}</span>
-                     </div>
-                     <div class="calibration-result-item">
-                        <span class="label">正换向</span>
-                        <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ForwardDirectionChange) }}</span>
-                     </div>
-                     <div class="calibration-result-item">
-                        <span class="label">反换向</span>
-                        <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ReverseDirectionChange) }}</span>
-                     </div>
-                     <div class="calibration-result-item">
-                        <span class="label">复位</span>
-                        <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.Reset) }}</span>
-                     </div>
-                     <div class="calibration-result-item">
-                        <span class="label">电机频率</span>
-                        <span class="value">{{ formatUpperRotationMotorFrequency(upperRotationDebug.MotorFrequency) }}</span>
-                     </div>
-                     <div class="calibration-result-item upper-rotation-heats-item">
-                        <span class="label">热量</span>
-                        <span class="value">{{ formatUpperRotationHeats(upperRotationDebug.Heats) }}</span>
-                     </div>
-                  </div>
-               </el-card>
-
-               <!-- 硬件/速度/采样/报警 四列布局 -->
-               <el-row :gutter="20" class="form-row">
-                  <!-- 硬件 -->
-                  <el-col :span="6">
-                     <el-card shadow="hover" header="硬件">
-                        <el-form :model="hardwareForm" label-width="100px" label-position="top">
-                           <el-form-item label="机架长度(脉冲)">
-                              <el-input v-model="hardwareForm.frameLength" suffix="mm/脉冲" />
-                           </el-form-item>
-                           <el-form-item label="测速辊周长">
-                              <el-input v-model="hardwareForm.rollerCircumference" suffix="mm/脉冲" />
-                           </el-form-item>
-                           <el-form-item label="编码器1比例">
-                              <el-input v-model="hardwareForm.encoderRatio" suffix="mm/脉冲" />
-                           </el-form-item>
-                           <el-form-item label="电机脉冲">
-                              <el-input v-model="hardwareForm.motorPulse" />
-                           </el-form-item>
-                           <el-form-item label="编码脉冲">
-                              <el-input v-model="hardwareForm.codePulse" />
-                           </el-form-item>
-                           <el-form-item label="零位偏移">
-                              <el-input v-model="hardwareForm.zeroOffset" suffix="脉冲" />
-                           </el-form-item>
-                           <!-- <el-form-item label="AD滞后">
-                              <el-input v-model="hardwareForm.adDelay" suffix="ms" />
-                           </el-form-item> -->
-                        </el-form>
-                     </el-card>
-                  </el-col>
-
-                  <!-- 速度 -->
-                  <el-col :span="6">
-                     <el-card shadow="hover" header="速度">
-                        <el-form :model="speedForm" label-width="100px" label-position="top">
-                           <el-form-item label="扫描速度">
-                              <el-input v-model="speedForm.scanSpeed" suffix="脉冲/s | 6.3m/min" />
-                           </el-form-item>
-                           <el-form-item label="采样速度">
-                              <el-input v-model="speedForm.sampleSpeed" suffix="脉冲/s | 4.2m/min" />
-                           </el-form-item>
-                           <el-form-item label="调试速度">
-                              <el-input v-model="speedForm.debugSpeed" suffix="脉冲/s | 4.2m/min" />
-                           </el-form-item>
-                           <el-form-item label="开始速度">
-                              <el-input v-model="speedForm.startSpeed" suffix="脉冲/s | 0.6m/min" />
-                           </el-form-item>
-                           <el-form-item label="归零速度1">
-                              <el-input v-model="speedForm.resetSpeed1" suffix="脉冲/s | 4.2m/min" />
-                           </el-form-item>
-                           <el-form-item label="归零速度2">
-                              <el-input v-model="speedForm.resetSpeed2" suffix="脉冲/s | 1.3m/min" />
-                           </el-form-item>
-                           <el-row :gutter="10">
-                              <el-col :span="12">
-                                 <el-form-item label="加速时间">
-                                    <el-input v-model="speedForm.accelTime" suffix="ms" />
-                                 </el-form-item>
-                              </el-col>
-                              <el-col :span="12">
-                                 <el-form-item label="减速时间">
-                                    <el-input v-model="speedForm.decelTime" suffix="ms" />
-                                 </el-form-item>
-                              </el-col>
-                           </el-row>
-                        </el-form>
-                     </el-card>
-                  </el-col>
-
-                  <!-- 采样 -->
-                  <el-col :span="6">
-                     <el-card shadow="hover" header="采样">
-                        <el-form :model="sampleForm" label-width="100px" label-position="top">
-                           <el-form-item label="采样间隔">
-                              <el-input v-model="sampleForm.sampleInterval" suffix="min" />
-                           </el-form-item>
-                           <el-form-item label="采样位置">
-                              <el-input v-model="sampleForm.samplePosition" suffix="脉冲 | 28mm" />
-                           </el-form-item>
-                           <el-form-item label="采样半径">
-                              <el-input v-model="sampleForm.sampleRadius" suffix="脉冲 | 14mm" />
-                           </el-form-item>
-                        </el-form>
-                     </el-card>
-                  </el-col>
-
-                  <!-- 厚度报警 -->
-                  <el-col :span="6">
-                     <div class="alarm-form">
-                        <el-card shadow="hover" header="厚度报警">
-                           <el-form :model="alarmForm" label-width="100px" label-position="top">
-                              <el-form-item>
-                                 <el-checkbox v-model="alarmForm.alarmActive">报警激活</el-checkbox>
-                              </el-form-item>
-                              <el-form-item>
-                                 <el-checkbox v-model="alarmForm.autoTarget">自动目标值</el-checkbox>
-                              </el-form-item>
-                              <el-form-item label="公差报警(分区)">
-                                 <el-input v-model="alarmForm.toleranceZone" />
-                              </el-form-item>
-                              <div class="alarm-tip">连续N个分区超出公差范围触发报警!!</div>
-                           </el-form>
-                        </el-card>
-                        <!-- 底部按钮 -->
-                        <div class="bottom-action">
-                           <el-button type="primary" size="large" :loading="isApplying" @click="applyPlcParams">应用</el-button>
+                     <div class="calibration-result-grid">
+                        <div class="calibration-result-item">
+                           <span class="label">牵引速度</span>
+                           <span class="value">{{ getCalibrationDisplayValue('tractionSpeed') }}</span>
+                        </div>
+                        <div class="calibration-result-item">
+                           <span class="label">扰动距离</span>
+                           <span class="value">{{ getCalibrationDisplayValue('distance') }}</span>
+                        </div>
+                        <div class="calibration-result-item">
+                           <span class="label">上旋最大角度</span>
+                           <span class="value">{{ getCalibrationDisplayValue('maxAngle') }}</span>
+                        </div>
+                        <div class="calibration-result-item">
+                           <span class="label">突变窗口</span>
+                           <span class="value">{{ getCalibrationDisplayValue('mutationWindowSize') }}</span>
                         </div>
                      </div>
-                  </el-col>
-               </el-row>
+                  </el-card>
+
+                  <el-card shadow="hover" header="上旋调试信号" class="calibration-result-card">
+                     <div class="calibration-result-grid upper-rotation-debug-grid">
+                        <div class="calibration-result-item">
+                           <span class="label">正转</span>
+                           <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ForwardRotation)
+                           }}</span>
+                        </div>
+                        <div class="calibration-result-item">
+                           <span class="label">反转</span>
+                           <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ReverseRotation)
+                           }}</span>
+                        </div>
+                        <div class="calibration-result-item">
+                           <span class="label">正换向</span>
+                           <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ForwardDirectionChange)
+                           }}</span>
+                        </div>
+                        <div class="calibration-result-item">
+                           <span class="label">反换向</span>
+                           <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ReverseDirectionChange)
+                           }}</span>
+                        </div>
+                        <div class="calibration-result-item">
+                           <span class="label">复位</span>
+                           <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.Reset) }}</span>
+                        </div>
+                        <div class="calibration-result-item">
+                           <span class="label">电机频率</span>
+                           <span class="value">{{ formatUpperRotationMotorFrequency(upperRotationDebug.MotorFrequency)
+                           }}</span>
+                        </div>
+                        <div class="calibration-result-item upper-rotation-heats-item">
+                           <span class="label">热量</span>
+                           <span class="value">{{ formatUpperRotationHeats(upperRotationDebug.Heats) }}</span>
+                        </div>
+                     </div>
+                  </el-card>
+
+                  <!-- 硬件/速度/采样/报警 四列布局 -->
+                  <el-row :gutter="20" class="form-row">
+                     <!-- 硬件 -->
+                     <el-col :span="6">
+                        <el-card shadow="hover" header="硬件">
+                           <el-form :model="hardwareForm" label-width="100px" label-position="top">
+                              <el-form-item label="机架长度(脉冲)">
+                                 <el-input v-model="hardwareForm.frameLength" suffix="mm/脉冲" />
+                              </el-form-item>
+                              <el-form-item label="测速辊周长">
+                                 <el-input v-model="hardwareForm.rollerCircumference" suffix="mm/脉冲" />
+                              </el-form-item>
+                              <el-form-item label="编码器1比例">
+                                 <el-input v-model="hardwareForm.encoderRatio" suffix="mm/脉冲" />
+                              </el-form-item>
+                              <el-form-item label="电机脉冲">
+                                 <el-input v-model="hardwareForm.motorPulse" />
+                              </el-form-item>
+                              <el-form-item label="编码脉冲">
+                                 <el-input v-model="hardwareForm.codePulse" />
+                              </el-form-item>
+                              <el-form-item label="零位偏移">
+                                 <el-input v-model="hardwareForm.zeroOffset" suffix="脉冲" />
+                              </el-form-item>
+                              <!-- <el-form-item label="AD滞后">
+                              <el-input v-model="hardwareForm.adDelay" suffix="ms" />
+                           </el-form-item> -->
+                           </el-form>
+                        </el-card>
+                     </el-col>
+
+                     <!-- 速度 -->
+                     <el-col :span="6">
+                        <el-card shadow="hover" header="速度">
+                           <el-form :model="speedForm" label-width="100px" label-position="top">
+                              <el-form-item label="扫描速度">
+                                 <el-input v-model="speedForm.scanSpeed" suffix="脉冲/s | 6.3m/min" />
+                              </el-form-item>
+                              <el-form-item label="采样速度">
+                                 <el-input v-model="speedForm.sampleSpeed" suffix="脉冲/s | 4.2m/min" />
+                              </el-form-item>
+                              <el-form-item label="调试速度">
+                                 <el-input v-model="speedForm.debugSpeed" suffix="脉冲/s | 4.2m/min" />
+                              </el-form-item>
+                              <el-form-item label="开始速度">
+                                 <el-input v-model="speedForm.startSpeed" suffix="脉冲/s | 0.6m/min" />
+                              </el-form-item>
+                              <el-form-item label="归零速度1">
+                                 <el-input v-model="speedForm.resetSpeed1" suffix="脉冲/s | 4.2m/min" />
+                              </el-form-item>
+                              <el-form-item label="归零速度2">
+                                 <el-input v-model="speedForm.resetSpeed2" suffix="脉冲/s | 1.3m/min" />
+                              </el-form-item>
+                              <el-row :gutter="10">
+                                 <el-col :span="12">
+                                    <el-form-item label="加速时间">
+                                       <el-input v-model="speedForm.accelTime" suffix="ms" />
+                                    </el-form-item>
+                                 </el-col>
+                                 <el-col :span="12">
+                                    <el-form-item label="减速时间">
+                                       <el-input v-model="speedForm.decelTime" suffix="ms" />
+                                    </el-form-item>
+                                 </el-col>
+                              </el-row>
+                           </el-form>
+                        </el-card>
+                     </el-col>
+
+                     <!-- 采样 -->
+                     <el-col :span="6">
+                        <el-card shadow="hover" header="采样">
+                           <el-form :model="sampleForm" label-width="100px" label-position="top">
+                              <el-form-item label="采样间隔">
+                                 <el-input v-model="sampleForm.sampleInterval" suffix="min" />
+                              </el-form-item>
+                              <el-form-item label="采样位置">
+                                 <el-input v-model="sampleForm.samplePosition" suffix="脉冲 | 28mm" />
+                              </el-form-item>
+                              <el-form-item label="采样半径">
+                                 <el-input v-model="sampleForm.sampleRadius" suffix="脉冲 | 14mm" />
+                              </el-form-item>
+                           </el-form>
+                        </el-card>
+                     </el-col>
+
+                     <!-- 厚度报警 -->
+                     <el-col :span="6">
+                        <div class="alarm-form">
+                           <el-card shadow="hover" header="厚度报警">
+                              <el-form :model="alarmForm" label-width="100px" label-position="top">
+                                 <el-form-item>
+                                    <el-checkbox v-model="alarmForm.alarmActive">报警激活</el-checkbox>
+                                 </el-form-item>
+                                 <el-form-item>
+                                    <el-checkbox v-model="alarmForm.autoTarget">自动目标值</el-checkbox>
+                                 </el-form-item>
+                                 <el-form-item label="公差报警(分区)">
+                                    <el-input v-model="alarmForm.toleranceZone" />
+                                 </el-form-item>
+                                 <div class="alarm-tip">连续N个分区超出公差范围触发报警!!</div>
+                              </el-form>
+                           </el-card>
+                           <!-- 底部按钮 -->
+                           <div class="bottom-action">
+                              <el-button type="primary" size="large" :loading="isApplying"
+                                 @click="applyPlcParams">应用</el-button>
+                           </div>
+                        </div>
+                     </el-col>
+                  </el-row>
                </div>
 
             </el-tab-pane>
@@ -796,7 +799,7 @@ window.ipcApi.on("ModBus-read", (_, data) => {
                <div class="tab-pane-body">
                   <!-- 纵向 -->
                   <div class="chart-container">
-                    <DynamicCharts />
+                     <DynamicCharts />
                   </div>
                </div>
             </el-tab-pane>
@@ -826,13 +829,13 @@ window.ipcApi.on("ModBus-read", (_, data) => {
 .control-container {
    width: 100%;
    height: 100%;
-    min-height: 0;
+   min-height: 0;
 
    :deep(.el-card__body) {
-       display: flex;
-       flex-direction: column;
+      display: flex;
+      flex-direction: column;
       height: 100%;
-       min-height: 0;
+      min-height: 0;
       background-color: #f5f7fa;
    }
 }
@@ -877,6 +880,7 @@ window.ipcApi.on("ModBus-read", (_, data) => {
    padding-right: 4px;
    padding-bottom: 28px;
 }
+
 .chart-container {
    height: 600px;
 }
