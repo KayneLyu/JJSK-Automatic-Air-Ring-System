@@ -3,6 +3,169 @@ import type { RingData } from '../connections/airRing'
 import type { ThicknessData } from '../connections/thickness'
 import { WithRequired } from '@jjsk/core'
 
+type HistogramInfo = {
+  minY: number
+  maxY: number
+  totalRange: number
+  binSize: number
+  hist: number[]
+}
+
+const NUM_BINS = 50
+
+const buildHistogram = (ys: number[]): HistogramInfo | null => {
+  if (ys.length < 50) return null
+
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const y of ys) {
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+  }
+
+  const totalRange = maxY - minY
+  if (!isFinite(totalRange) || totalRange === 0) return null
+
+  const binSize = totalRange / NUM_BINS
+  if (!isFinite(binSize) || binSize === 0) return null
+
+  const hist = new Array(NUM_BINS).fill(0)
+  for (const y of ys) {
+    const bin = Math.min(Math.floor((y - minY) / binSize), NUM_BINS - 1)
+    hist[bin]++
+  }
+
+  return {
+    minY,
+    maxY,
+    totalRange,
+    binSize,
+    hist,
+  }
+}
+
+const refineThresholdFromSplit = (
+  histogram: HistogramInfo,
+  splitBin: number
+): {
+  threshold: number
+  valleyCount: number
+  leftPeakCount: number
+  rightPeakCount: number
+} | null => {
+  const { minY, binSize, hist } = histogram
+
+  let leftPeakBin = -1
+  let leftPeakCount = 0
+  for (let i = 0; i <= splitBin; i++) {
+    if (hist[i] > leftPeakCount) {
+      leftPeakCount = hist[i]
+      leftPeakBin = i
+    }
+  }
+
+  let rightPeakBin = -1
+  let rightPeakCount = 0
+  for (let i = splitBin + 1; i < hist.length; i++) {
+    if (hist[i] > rightPeakCount) {
+      rightPeakCount = hist[i]
+      rightPeakBin = i
+    }
+  }
+
+  if (leftPeakBin < 0 || rightPeakBin < 0) return null
+
+  let valleyBin = splitBin
+  let valleyCount = hist[splitBin]
+  if (leftPeakBin + 1 <= rightPeakBin - 1) {
+    valleyCount = Infinity
+    for (let i = leftPeakBin + 1; i <= rightPeakBin - 1; i++) {
+      if (hist[i] < valleyCount) {
+        valleyCount = hist[i]
+        valleyBin = i
+      }
+    }
+  }
+
+  return {
+    threshold: minY + (valleyBin + 0.5) * binSize,
+    valleyCount,
+    leftPeakCount,
+    rightPeakCount,
+  }
+}
+
+const detectOtsuThreshold = (
+  histogram: HistogramInfo,
+  sampleCount: number
+): number | null => {
+  const { hist } = histogram
+  if (sampleCount < 50) return null
+
+  let totalMean = 0
+  for (let i = 0; i < hist.length; i++) {
+    totalMean += i * (hist[i] / sampleCount)
+  }
+
+  let totalVariance = 0
+  for (let i = 0; i < hist.length; i++) {
+    const delta = i - totalMean
+    totalVariance += (hist[i] / sampleCount) * delta * delta
+  }
+  if (!isFinite(totalVariance) || totalVariance === 0) return null
+
+  let sum = 0
+  for (let i = 0; i < hist.length; i++) {
+    sum += i * hist[i]
+  }
+
+  let bestScore = -Infinity
+  let bestSplitBin = -1
+  let bestLeftMean = 0
+  let bestRightMean = 0
+  let weightLeft = 0
+  let weightedLeftSum = 0
+
+  for (let i = 0; i < hist.length - 1; i++) {
+    weightLeft += hist[i]
+    weightedLeftSum += i * hist[i]
+
+    if (weightLeft === 0 || weightLeft === sampleCount) continue
+
+    const weightRight = sampleCount - weightLeft
+    const leftRatio = weightLeft / sampleCount
+    const rightRatio = weightRight / sampleCount
+    if (leftRatio < 0.05 || rightRatio < 0.05) continue
+
+    const leftMean = weightedLeftSum / weightLeft
+    const rightMean = (sum - weightedLeftSum) / weightRight
+    const betweenVariance =
+      leftRatio * rightRatio * (leftMean - rightMean) * (leftMean - rightMean)
+
+    if (betweenVariance > bestScore) {
+      bestScore = betweenVariance
+      bestSplitBin = i
+      bestLeftMean = leftMean
+      bestRightMean = rightMean
+    }
+  }
+
+  if (bestSplitBin < 0) return null
+
+  const meanGapBins = bestRightMean - bestLeftMean
+  const separability = bestScore / totalVariance
+  if (meanGapBins < hist.length * 0.15) return null
+  if (separability < 0.55) return null
+
+  const refined = refineThresholdFromSplit(histogram, bestSplitBin)
+  if (!refined) return null
+
+  const valleyLimit = Math.min(refined.leftPeakCount, refined.rightPeakCount) * 0.6
+  if (refined.valleyCount > valleyLimit) return null
+
+  return refined.threshold
+}
+
 /**
  * 基于直方图的双峰分布阈值检测
  *
@@ -13,24 +176,10 @@ import { WithRequired } from '@jjsk/core'
  * @returns 阈值，若无明显双峰分布则返回 null
  */
 const detectBimodalThreshold = (ys: number[]): number | null => {
-  if (ys.length < 50) return null
-  let minY = Infinity,
-    maxY = -Infinity
-  for (const y of ys) {
-    if (y < minY) minY = y
-    if (y > maxY) maxY = y
-  }
-  const totalRange = maxY - minY
-  if (totalRange === 0) return null
+  const histogram = buildHistogram(ys)
+  if (!histogram) return null
 
-  // 用 50 个等宽 bin 构建直方图
-  const NUM_BINS = 50
-  const binSize = totalRange / NUM_BINS
-  const hist = new Array(NUM_BINS).fill(0)
-  for (const y of ys) {
-    const bin = Math.min(Math.floor((y - minY) / binSize), NUM_BINS - 1)
-    hist[bin]++
-  }
+  const { minY, binSize, hist } = histogram
 
   let maxCount = 0
   for (const c of hist) if (c > maxCount) maxCount = c
@@ -58,10 +207,17 @@ const detectBimodalThreshold = (ys: number[]): number | null => {
   // 右侧峰（出界区）在真实采集数据中仅占约 10–15%，无法达到旧的 20% 要求。
   // 改为：右侧峰须高于谷底的 2 倍（是真正的局部峰，而非噪声）
   // 且绝对值不低于最大值的 2%（排除极端噪声）
-  if (leftPeak < maxCount * 0.1) return null
-  if (rightPeak < Math.max(minCount * 2 + 2, maxCount * 0.02)) return null
+  const hasClearBimodalValley =
+    leftPeak >= maxCount * 0.1 &&
+    rightPeak >= Math.max(minCount * 2 + 2, maxCount * 0.02)
 
-  return minY + (valleyBin + 0.5) * binSize
+  if (hasClearBimodalValley) {
+    return minY + (valleyBin + 0.5) * binSize
+  }
+
+  // 当双峰高度极不平衡时，传统“左右峰都明显”的规则会失效。
+  // 退回到 Otsu 二类分割，但仍要求两侧都有足够样本且中间存在明显谷底，避免对单峰噪声误判。
+  return detectOtsuThreshold(histogram, ys.length)
 }
 
 const extractSegment = (
