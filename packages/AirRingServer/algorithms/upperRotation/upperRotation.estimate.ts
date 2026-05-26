@@ -11,6 +11,7 @@ import {
   type UpperRotationAdaptiveRulesOverride,
   type UpperRotationAdaptiveTuningOverride,
   type UpperRotationDebugOptions,
+  type UpperRotationObjectiveMode,
   type UpperRotationOffsetMode,
   upperRotationRuntimeLimits,
 } from './upperRotation.config'
@@ -703,6 +704,7 @@ export const estimateThetaMaxWithPhaseCorrection = (
   {
     segments = 36,
     deltaRange: { min = 180, max = 360, step = 1 } = {},
+    objectiveMode,
     debug = {},
     adaptiveRules,
     adaptiveTuning,
@@ -710,6 +712,7 @@ export const estimateThetaMaxWithPhaseCorrection = (
     harmonics?: number
     segments?: number
     deltaRange?: UpperRotationDeltaRange
+    objectiveMode?: UpperRotationObjectiveMode
     debug?: UpperRotationDebugOptions
     adaptiveRules?: UpperRotationAdaptiveRulesOverride
     adaptiveTuning?: UpperRotationAdaptiveTuningOverride
@@ -717,6 +720,10 @@ export const estimateThetaMaxWithPhaseCorrection = (
 ): number | null => {
   const logger = createLogger()
   const validator = validateParams()
+
+  const runtimeDebug: UpperRotationDebugOptions = objectiveMode
+    ? { ...debug, objectiveMode }
+    : debug
 
   // 参数验证
   logger.startTimer('validation')
@@ -762,8 +769,8 @@ export const estimateThetaMaxWithPhaseCorrection = (
     max,
     step,
     segments,
-    debug.accelDecelMs,
-    debug,
+    runtimeDebug.accelDecelMs,
+    runtimeDebug,
     resolveAdaptiveRules(adaptiveRules, adaptiveTuning)
   )
   logger.endTimer('estimateWithScannerExpansion')
@@ -777,7 +784,7 @@ export const estimateThetaMaxWithPhaseCorrection = (
     max,
     step,
     segments,
-    debug.accelDecelMs
+    runtimeDebug.accelDecelMs
   )
   logger.endTimer('estimateWithPulseExpansionFallback')
   return pulseFallback

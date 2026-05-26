@@ -18,6 +18,8 @@ export type UpperRotationDeltaRange = {
   step?: number
 }
 
+export type UpperRotationObjectiveMode = 'auto' | 'direct' | 'expanded'
+
 /**
  * 标定配置
  * */
@@ -43,6 +45,11 @@ export type CalibrationConfig = {
      * 上旋最大旋转角度评估范围
      * */
     deltaRange?: UpperRotationDeltaRange
+    /**
+     * 上旋目标函数策略。
+     * auto: 根据数据自动选择；direct/expanded: 业务显式指定。
+     * */
+    objectiveMode?: UpperRotationObjectiveMode
     /**
      * 理论单程时间（秒），用于计算理论窗口大小
      * 例如：420 表示 7 分钟

@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "vitest run algorithms/upperRotation/tests/simulator/*.test.ts"
+    "test:simulator": "vitest run algorithms/upperRotation/tests/simulator/*.test.ts",
+    "test": "vitest run algorithms/upperRotation/tests/upperRotation.test.ts"
   },
   "keywords": [],
   "author": "",

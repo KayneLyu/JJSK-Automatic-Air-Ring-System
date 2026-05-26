@@ -120,7 +120,10 @@ export const calibrate = ({
   const { CHANNEL_COUNT, ROLLER } = standardized
   const {
     roller: { numCycles = 10, maxIntervalMs = 10_000 },
-    upperRotation: { deltaRange: { min = 180, max = 359, step = 1 } = {} },
+    upperRotation: {
+      deltaRange: { min = 180, max = 359, step = 1 } = {},
+      objectiveMode = 'auto',
+    },
   } = config
   const deltaRange = { min, max, step }
   const circumference = getCircumference(ROLLER)
@@ -138,6 +141,10 @@ export const calibrate = ({
    * 缓存首次成功计算的距离值（一次性标定）
    * */
   let cachedDistance: number | null = null
+  /**
+   * 记录最近一次参与 maxAngle 估计的已完成片段签名，避免在同一批片段上重复重算。
+   * */
+  let lastEstimatedTripSignature: string | null = null
   const next = ({
     thickness,
     airRing,
@@ -194,9 +201,11 @@ export const calibrate = ({
           `[Calibration] 首次距离标定成功: ${cachedDistance.toFixed(2)} mm`
         )
       }
+      // 这里的 segments 是上旋目标函数的角度分箱数，不是风道数量。
+      // 传入 CHANNEL_COUNT=48 会把 5 月 22 日这类片段推向高角度局部最优；
+      // 保持估计器默认分箱可与算法层重放结果一致。
       distance = cachedDistance
     } else if (cachedDistance !== null) {
-      // 即使没有检测到突变，也使用已缓存的距离
       distance = cachedDistance
     }
 
@@ -208,10 +217,39 @@ export const calibrate = ({
         distance,
       })
     }
-    const maxAngle = estimateThetaMaxWithPhaseCorrection(tripSegment, {
-      deltaRange,
-      segments: CHANNEL_COUNT,
-    })
+
+    const completedTripSignature = tripSegment
+      .filter(
+        (segment) => segment.duration > 0 && segment.measurements.length > 0
+      )
+      .map(
+        (segment) =>
+          `${segment.startTime}:${segment.duration}:${segment.measurements.length}`
+      )
+      .join('|')
+
+    if (!completedTripSignature) {
+      return buildCalibrationResult({
+        ...baseResult,
+        distance,
+      })
+    }
+
+    if (completedTripSignature === lastEstimatedTripSignature) {
+      // buildTripSegment 只会在片段结算时更新 measurements；
+      // 若已完成片段集合未变化，则重复估计 maxAngle 不会产生新信息。
+      return buildCalibrationResult({
+        ...baseResult,
+        distance,
+      })
+    }
+
+    lastEstimatedTripSignature = completedTripSignature
+
+    const maxAngle = estimateThetaMaxWithPhaseCorrection(
+      tripSegment,
+      objectiveMode === 'auto' ? { deltaRange } : { deltaRange, objectiveMode }
+    )
     if (!maxAngle) {
       /* 无法计算最大旋转角度，但不影响其他结果输出 */
       return buildCalibrationResult({
