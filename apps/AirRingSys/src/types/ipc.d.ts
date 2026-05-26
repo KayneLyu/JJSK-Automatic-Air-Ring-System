@@ -1,3 +1,4 @@
+import { PushData, RunResult } from "../../../../packages/Adbox-sdk/src/types";
 type IPlcValue = number | string | boolean
 type IMessage = { address: string; value: IPlcValue }
 
@@ -100,6 +101,8 @@ export interface IpcChannelMap {
   'ADBOX:REV': { args: [message?: number]; output: void }  // AD box 后退
   'ADBOX:STOP': { args: []; output: void }  // AD box 停止
   'ADBOX:HOME': { args: []; output: void }  // AD box 归零
+  'adbox:data': { args: [data: PushData]; output: [data: PushData] }  // AD box 数据推送
+  'adbox:RunResult': { args: [data: RunResult]; output: [data: RunResult] }  // AD box 运动指令
   'plc-controlData': {
     args: [data: IPlcControlResult]
     output: [data: IPlcControlResult]

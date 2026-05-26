@@ -8,22 +8,7 @@ import type {
   IpcChannelOutput,
 
 } from '@/types/ipc'
-import { ADBoxClient, ParamIndex } from '../../../packages/adbox-sdk'
-
-/**
- * AD盒通信
- */
-const adb = new ADBoxClient('192.168.251.12', 20021);
-adb.on('data', (push) => {
-  console.log(`AD0=${push.ad0}, stick=${push.systick} Pos0=${push.pos0}, In=${push.in?.toString(16)}`);
-});
-
-adb.on('runResult', (res) => {
-  console.log(`Run result: status=${res.status}, serial=${res .serial}`);
-});
-
-await adb.connect();
-
+import { ADBoxClient } from '../../../packages/adbox-sdk'
 
 
 const LOGO_PATH_CANDIDATES = ['D:/logo/logo.png']
@@ -107,14 +92,44 @@ export function useIpcSend<T extends IpcChannelName>(
   win.webContents.send(channel, ...args)
 }
 
+let adb: ADBoxClient;
+
+/**
+ * 初始化ADBOX
+ */
+export function initADBox(win: BrowserWindow) {
+  adb = new ADBoxClient('192.168.251.12', 20021);
+
+  adb.on('connected', async () => {
+    console.log('AD Box 已连接');
+    // 连接后同步一次编码器，确保 32 位扩展准确
+    await adb.syncAllPos();
+    // 通知渲染进程已连接
+    win.webContents.send('adbox-connected');
+  });
+
+  adb.on('data', (push) => {
+    // 将变化的数据直接转发给渲染进程
+    useIpcSend(win, 'adbox:data', push)
+  });
+
+  adb.on('runResult', (result) => {
+    useIpcSend(win, 'adbox:RunResult', result)
+  });
+
+  adb.on('error', (err) => {
+    console.error('AD Box 错误:', err);
+  });
+
+  adb.connect();
+}
 
 
+/**
+ * 与渲染进程通信
+ * @param win 
+ */
 export function setupRendererCommunicator(win: BrowserWindow) {
-
-
-
-
-  
   useIpcOn('win-minimize', () => {
     win.minimize()
   })
@@ -147,7 +162,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   /**
    * 前进
    */
-  useIpcOn('ADBOX:FORW', async() => {
+  useIpcOn('ADBOX:FORW', async () => {
     try {
       await adb.moveForward(1)
     } catch (error) {
@@ -158,7 +173,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   /**
    * 后退
    */
-  useIpcOn('ADBOX:REV', async() => {
+  useIpcOn('ADBOX:REV', async () => {
     try {
       await adb.moveBackward(1)
     } catch (error) {
@@ -169,7 +184,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   /**
   * 停止
   */
-  useIpcOn('ADBOX:STOP', async() => {
+  useIpcOn('ADBOX:STOP', async () => {
     try {
       await adb.stopDecel()
     } catch (error) {
@@ -181,7 +196,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   /**
  * 归零
  */
-  useIpcOn('ADBOX:HOME', async() => {
+  useIpcOn('ADBOX:HOME', async () => {
     try {
       await adb.home()
     } catch (error) {
@@ -199,13 +214,4 @@ export function setupRendererCommunicator(win: BrowserWindow) {
   //       console.error('打开客户端失败:', error)
   //     }
   //   })
-
-
-
-
-
-
-
-
-
 }

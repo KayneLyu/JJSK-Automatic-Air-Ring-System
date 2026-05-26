@@ -300,9 +300,9 @@ const applyPlcParams = async () => {
 
 const loadPlcParams = async () => {
    try {
-      const data = await window.ipcApi.invoke('plc-paramData', addressItems)
-      setFormValuesFromPlc(data)
-      plcParamBaseline.value = { ...data }
+      // const data = await window.ipcApi.invoke('plc-paramData', addressItems)
+      // setFormValuesFromPlc(data)
+      // plcParamBaseline.value = { ...data }
    } catch (error) {
       ElMessage.error(error instanceof Error ? error.message : 'PLC 参数读取失败')
    }
@@ -519,13 +519,7 @@ const options: Option[] = [
       value: "MEASURE"
    },
 ]
-const stateAddressMap: Record<IState, string> = {
-   FWD: 'DB4,X0.0',
-   REV: 'DB4,X0.1',
-   STOP: 'DB4,X0.2',
-   HOME: 'DB4,X0.3',
-   MEASURE: 'DB4,X0.4',
-}
+
 
 // 运行状态切换
 const inputChangeState = async (options: IState) => {
@@ -548,15 +542,15 @@ const inputChangeState = async (options: IState) => {
    }
 };
 
-window.ipcApi.on("plc-controlData", (_, data) => {
-   const key = Object.keys(data).find(key => data[(key) as IState])
-   runningState.value = key as IState ?? 'STOP';
+window.ipcApi.on("adbox:data", (_, data) => {
+   if (data.pos0Raw &&  data.pos0Raw !== undefined) measurePosition.value = data.pos0Raw;
 })
 
-window.ipcApi.on("ModBus-read", (_, data) => {
-   currentAD.value = data.adValues[0]
-   measurePosition.value = data.pulses[0]
+window.ipcApi.on("adbox:RunResult", (_, data) => {
+   console.log("运动指令反馈",data);
+   
 })
+
 
 </script>
 <template>

@@ -1,3 +1,5 @@
+import { EventEmitter } from 'events';
+
 // 推送数据包结构 (PT=0)
 export interface PushData {
   systick: number;      // 7位计数器 0-127
@@ -6,24 +8,32 @@ export interface PushData {
   in?: number;          // 16位输入状态
   inChange?: number;    // 16位输入变化位
   out?: number;         // 16位输出状态
-  pos0?: number;        // 32位编码器0（实际根据B1可能是16位）
-  pos1?: number;        // 32位编码器1
+  pos0Raw?: number;     // 16位编码器0原始值（低16位）
+  pos1Raw?: number;     // 16位编码器1原始值（低16位）
+  pos0?: number;        // 32位扩展后的编码器0
+  pos1?: number;        // 32位扩展后的编码器1
   reset: boolean;       // 重启标志位
+}
+
+// 完整32位编码器值
+export interface EncoderValues {
+  pos0: number;   // 32位
+  pos1: number;   // 32位
 }
 
 // 运行结果
 export interface RunResult {
-  status: number;       // DRIVE_MAN_STATUS
-  serial: number;       // 4字节序列号
+  status: number;
+  serial: number;
 }
 
-// 获取双编码器返回值
+// 获取双编码器返回值（32位）
 export interface EncAll {
   pos0: number;
   pos1: number;
 }
 
-// 参数索引（与 C# 一致）
+// 参数索引
 export const ParamIndex = {
   OpMode: 0,
   OpMotor: 1,
@@ -34,14 +44,11 @@ export const ParamIndex = {
 
 export type ParamIndexType = typeof ParamIndex[keyof typeof ParamIndex];
 
-// 电机类型枚举
 export enum MotorType {
   STEPPER = 0,
   SERVO = 1,
-  // 其他根据实际定义
 }
 
-// 驱动状态（根据 C# DRIVE_MAN_STATUS）
 export enum DriveManStatus {
   STOP = 0,
   RUNNING = 1,
@@ -71,5 +78,5 @@ export interface PendingRequest {
   timeoutTimer: NodeJS.Timeout;
   retryCount: number;
   expectedPrefix: Buffer;
-  command: Buffer;      // 完整功能包（含B0）
+  command: Buffer;
 }

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   setupRendererCommunicator,
+  initADBox
 } from './renderer.ts'
 import { setupConsoleFileLogger } from './consoleFileLogger.ts'
 // import './adbox'
@@ -38,6 +39,8 @@ function createWindow() {
   // 与渲染进程通信.
   if (win) {
     setupRendererCommunicator(win)
+    // 初始化ADBOX
+    initADBox(win)
   }
 
   if (VITE_DEV_SERVER_URL) {

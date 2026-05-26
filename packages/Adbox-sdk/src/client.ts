@@ -16,13 +16,24 @@ export class ADBoxClient extends EventEmitter {
   private currentRequest: PendingRequest | null = null;
   private serialCounter = 0;
 
-  constructor(public host: string = '192.168.251.12', public port: number = 20021) {
-    console.log(333);
-    
+  // 32位编码器扩展值（高位）
+  private pos0High = 0;
+  private pos1High = 0;
+  private lastPos0Raw = 0;
+  private lastPos1Raw = 0;
+
+  // 缓存上一次的值（用于未推送时保持）
+  private lastAd0 = 0;
+  private lastAd1 = 0;
+  private lastIn = 0;
+  private lastOut = 0;
+  private lastPos0 = 0;
+  private lastPos1 = 0;
+
+  constructor(public host: string = '192.168.251.12', public port: number = 20020) {
     super();
   }
 
-  // 连接
   async connect(timeout = 5000): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.socket) this.disconnect();
@@ -33,13 +44,21 @@ export class ADBoxClient extends EventEmitter {
       }, timeout);
 
       this.socket.connect(this.port, this.host, () => {
-        
         clearTimeout(timer);
         this.connected = true;
         this.parser.clear();
+        // 重置编码器扩展值和缓存
+        this.pos0High = 0;
+        this.pos1High = 0;
+        this.lastPos0Raw = 0;
+        this.lastPos1Raw = 0;
+        this.lastAd0 = 0;
+        this.lastAd1 = 0;
+        this.lastIn = 0;
+        this.lastOut = 0;
+        this.lastPos0 = 0;
+        this.lastPos1 = 0;
         this.emit('connected');
-        console.log(122222);
-        
         resolve();
       });
 
@@ -98,40 +117,116 @@ export class ADBoxClient extends EventEmitter {
     }
   }
 
-  private parseDataPush(payload: Buffer): void {
-    if (payload.length < 2) return;
-    const systick = payload[0] & 0x7f;
-    const b1 = payload[1];
-    let offset = 2;
-    const push: PushData = { systick, ad0: 0, reset: (b1 & 0x01) !== 0 };
-
-    if (offset + 1 < payload.length) {
-      push.ad0 = payload.readUInt16LE(offset);
-      offset += 2;
+  /**
+   * 将16位原始值扩展为32位
+   * 根据增量变化自动调整高位
+   */
+  private extendTo32Bits(raw16: number, lastRaw: number, currentHigh: number): { value32: number; newHigh: number } {
+    let newHigh = currentHigh;
+    
+    // 检查是否跨过 0xFFFF <-> 0x0000 边界
+    // 正向溢出：从 0xFFFF 附近跳到 0x0000 附近
+    if (lastRaw > 0xC000 && raw16 < 0x4000) {
+      newHigh++;
+    } 
+    // 负向溢出：从 0x0000 附近跳到 0xFFFF 附近
+    else if (lastRaw < 0x4000 && raw16 > 0xC000) {
+      newHigh--;
     }
-    if ((b1 & 0x08) && offset + 1 < payload.length) {
-      push.ad1 = payload.readUInt16LE(offset);
-      offset += 2;
-    }
-    if ((b1 & 0x10) && offset + 1 < payload.length) {
-      push.out = payload.readUInt16LE(offset);
-      offset += 2;
-    }
-    if ((b1 & 0x40) && offset + 3 < payload.length) {
-      push.pos0 = payload.readUInt32LE(offset);
-      offset += 4;
-    }
-    if ((b1 & 0x20) && offset + 3 < payload.length) {
-      push.pos1 = payload.readUInt32LE(offset);
-      offset += 4;
-    }
-    if ((b1 & 0x80) && offset + 3 < payload.length) {
-      push.in = payload.readUInt16LE(offset);
-      push.inChange = payload.readUInt16LE(offset + 2);
-      offset += 4;
-    }
-    this.emit('data', push);
+    
+    const value32 = (newHigh << 16) + raw16;
+    return { value32, newHigh };
   }
+
+ private parseDataPush(payload: Buffer): void {
+  if (payload.length < 2) return;
+  const systick = payload[0] & 0x7f;
+  const b1 = payload[1];
+  let offset = 2;
+
+  const hasIn   = (b1 & 0x80) !== 0;
+  const hasPos0 = (b1 & 0x40) !== 0;
+  const hasPos1 = (b1 & 0x20) !== 0;
+  const hasOut  = (b1 & 0x10) !== 0;
+  const hasAd1  = (b1 & 0x08) !== 0;
+  const hasReset= (b1 & 0x01) !== 0;
+
+  // 1. AD0 (始终存在)
+  let ad0 = this.lastAd0;
+  if (offset + 1 < payload.length) {
+    ad0 = payload.readUInt16LE(offset);
+    this.lastAd0 = ad0;
+    offset += 2;
+  }
+
+  // 2. In + InChange (可选)
+  let inVal = this.lastIn;
+  let inChange: number | undefined;
+  if (hasIn && offset + 3 < payload.length) {
+    inVal = payload.readUInt16LE(offset);
+    inChange = payload.readUInt16LE(offset + 2);
+    this.lastIn = inVal;
+    offset += 4;
+  }
+
+  // 3. Pos0 (16位原始，可选)
+  let pos0 = this.lastPos0;
+  let pos0Raw: number | undefined;
+  if (hasPos0 && offset + 1 < payload.length) {
+    pos0Raw = payload.readUInt16LE(offset);
+    const { value32, newHigh } = this.extendTo32Bits(pos0Raw, this.lastPos0Raw, this.pos0High);
+    pos0 = value32;
+    this.lastPos0 = pos0;
+    this.pos0High = newHigh;
+    this.lastPos0Raw = pos0Raw;
+    offset += 2;
+  }
+
+  // 4. Pos1 (16位原始，可选)
+  let pos1 = this.lastPos1;
+  let pos1Raw: number | undefined;
+  if (hasPos1 && offset + 1 < payload.length) {
+    pos1Raw = payload.readUInt16LE(offset);
+    const { value32, newHigh } = this.extendTo32Bits(pos1Raw, this.lastPos1Raw, this.pos1High);
+    pos1 = value32;
+    this.lastPos1 = pos1;
+    this.pos1High = newHigh;
+    this.lastPos1Raw = pos1Raw;
+    offset += 2;
+  }
+
+  // 5. Out (可选)
+  let out = this.lastOut;
+  if (hasOut && offset + 1 < payload.length) {
+    out = payload.readUInt16LE(offset);
+    this.lastOut = out;
+    offset += 2;
+  }
+
+  // 6. AD1 (可选，最后)
+  let ad1 = this.lastAd1;
+  if (hasAd1 && offset + 1 < payload.length) {
+    ad1 = payload.readUInt16LE(offset);
+    this.lastAd1 = ad1;
+    offset += 2;
+  }
+
+  const push: PushData = {
+    systick,
+    ad0,
+    ad1: hasAd1 ? ad1 : undefined,
+    in: hasIn ? inVal : undefined,
+    inChange: hasIn ? inChange : undefined,
+    out: hasOut ? out : undefined,
+    pos0Raw: hasPos0 ? pos0Raw : undefined,
+    pos1Raw: hasPos1 ? pos1Raw : undefined,
+    pos0: hasPos0 ? pos0 : undefined,
+    pos1: hasPos1 ? pos1 : undefined,
+    reset: hasReset,
+  };
+
+  this.emit('data', push);
+}
 
   private handleResponse(payload: Buffer): void {
     // 检查是否是 RN 主动推送
@@ -153,7 +248,7 @@ export class ADBoxClient extends EventEmitter {
       return;
     }
 
-    // 尝试匹配队列中的其他请求（防止错位）
+    // 尝试匹配队列中的其他请求
     for (let i = 0; i < this.pendingRequests.length; i++) {
       const req = this.pendingRequests[i];
       if (this.matchPrefix(payload, req.expectedPrefix)) {
@@ -239,7 +334,43 @@ export class ADBoxClient extends EventEmitter {
     });
   }
 
-  // ---------- 公开 API ----------
+  // ========== 手动同步编码器（修正扩展值）==========
+  async syncPos0(): Promise<number> {
+    const value = await this.getPos0();
+    this.pos0High = (value >> 16) & 0xFFFF;
+    this.lastPos0Raw = value & 0xFFFF;
+    this.lastPos0 = value;
+    return value;
+  }
+
+  async syncPos1(): Promise<number> {
+    const value = await this.getPos1();
+    this.pos1High = (value >> 16) & 0xFFFF;
+    this.lastPos1Raw = value & 0xFFFF;
+    this.lastPos1 = value;
+    return value;
+  }
+
+  async syncAllPos(): Promise<{ pos0: number; pos1: number }> {
+    const { pos0, pos1 } = await this.getPosAll();
+    this.pos0High = (pos0 >> 16) & 0xFFFF;
+    this.lastPos0Raw = pos0 & 0xFFFF;
+    this.lastPos0 = pos0;
+    this.pos1High = (pos1 >> 16) & 0xFFFF;
+    this.lastPos1Raw = pos1 & 0xFFFF;
+    this.lastPos1 = pos1;
+    return { pos0, pos1 };
+  }
+
+  // ========== 获取当前缓存的最新值（不发送指令）==========
+  getCachedAd0(): number { return this.lastAd0; }
+  getCachedAd1(): number { return this.lastAd1; }
+  getCachedIn(): number { return this.lastIn; }
+  getCachedOut(): number { return this.lastOut; }
+  getCachedPos0(): number { return this.lastPos0; }
+  getCachedPos1(): number { return this.lastPos1; }
+
+  // ========== 公开 API ==========
   async getInput(): Promise<number> {
     return this.sendCommand(IOCommands.getInput, (resp) => resp.readUInt16LE(3));
   }
