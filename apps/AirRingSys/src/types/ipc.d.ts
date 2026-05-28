@@ -1,4 +1,4 @@
-import { PushData, RunResult } from "../../../../packages/Adbox-sdk/src/types";
+import type { PushData, RunResult } from "../../../../packages/adbox-sdk";
 type IPlcValue = number | string | boolean
 type IMessage = { address: string; value: IPlcValue }
 
@@ -10,7 +10,7 @@ export type IPlcControlResult = {
   MEASURE: boolean // "DB4,X0.4",
 }
 
-export type IPlcParamData = {
+export type IPlcParamData = { 
   // 硬件
   frameLength: string // 机架长度
   rollerCircumference: string // 测速棍周长

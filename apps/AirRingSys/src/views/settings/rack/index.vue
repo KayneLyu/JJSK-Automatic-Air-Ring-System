@@ -10,6 +10,7 @@ import type {
 } from '@/types/ipc';
 import DynamicCharts from "./dynamic.vue";
 import SideCharts from './side.vue';
+import { calcThickness } from "./utiles.ts";
 
 type Option = {
    label: string;
@@ -27,7 +28,7 @@ const REAL_COMPARE_EPSILON = 1e-6
 const currentAD = ref(12345)
 const measurePosition = ref(0)
 const productionSpeed = ref('0.0m/min')
-const thickness = ref('100.2um')
+const thickness = ref('0')
 const bubbleChange = ref('0mm')
 const calibrationResult = ref<ICalibrationResult>({})
 const upperRotationDebug = ref<IUpperRotationDebugData>({})
@@ -482,17 +483,17 @@ const handleUpperRotationData = (_: unknown, data: IUpperRotationDebugData) => {
    }
 }
 
-onMounted(() => {
-   void loadPlcParams()
-   void loadCalibrationState()
-   window.ipcApi.on('calibration-result', handleCalibrationResult)
-   window.ipcApi.on('upperRotation-read', handleUpperRotationData)
-})
+// onMounted(() => {
+//    void loadPlcParams()
+//    void loadCalibrationState()
+//    window.ipcApi.on('calibration-result', handleCalibrationResult)
+//    window.ipcApi.on('upperRotation-read', handleUpperRotationData)
+// })
 
-onUnmounted(() => {
-   window.ipcApi.off('calibration-result', handleCalibrationResult)
-   window.ipcApi.off('upperRotation-read', handleUpperRotationData)
-})
+// onUnmounted(() => {
+//    window.ipcApi.off('calibration-result', handleCalibrationResult)
+//    window.ipcApi.off('upperRotation-read', handleUpperRotationData)
+// })
 
 // 运行状态
 const runningState = ref<IState>('STOP')
@@ -542,15 +543,19 @@ const inputChangeState = async (options: IState) => {
    }
 };
 
+// 监听adbox:data
 window.ipcApi.on("adbox:data", (_, data) => {
-   if (data.pos0Raw &&  data.pos0Raw !== undefined) measurePosition.value = data.pos0Raw;
+   currentAD.value = data.ad0;
+      thickness.value = calcThickness(data.ad0, {airAD: 50300, gain: 1.35}).toFixed(2)
+
+   if (data.pos0Raw &&  data.pos0Raw !== undefined) {
+      measurePosition.value = data.pos0Raw;
+   }
 })
 
 window.ipcApi.on("adbox:RunResult", (_, data) => {
    console.log("运动指令反馈",data);
-   
 })
-
 
 </script>
 <template>
@@ -573,7 +578,7 @@ window.ipcApi.on("adbox:RunResult", (_, data) => {
                </div>
                <div class="status-item">
                   <span class="label">厚度:</span>
-                  <span class="value">{{ thickness }}</span>
+                  <span class="value">{{ thickness }} um</span>
                </div>
                <div class="status-item">
                   <span class="label">膜泡折变:</span>

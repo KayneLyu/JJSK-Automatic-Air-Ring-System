@@ -59,7 +59,9 @@ const getConnectionLogDir = (name: string) => {
 }
 
 
-
+/**
+ * 监听 IPC 事件
+ */
 export function useIpcOn<T extends IpcChannelName>(
   channel: T,
   callback: (...args: IpcChannelArgs<T>) => void
@@ -69,6 +71,9 @@ export function useIpcOn<T extends IpcChannelName>(
   })
 }
 
+/**
+ * IPC Handle
+ */
 export function useIpcHandle<T extends IpcChannelName>(
   channel: T,
   callback: (
@@ -80,6 +85,9 @@ export function useIpcHandle<T extends IpcChannelName>(
   })
 }
 
+/**
+ * IPC Send
+ */
 export function useIpcSend<T extends IpcChannelName>(
   win: BrowserWindow,
   channel: T,
