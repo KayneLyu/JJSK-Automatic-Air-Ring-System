@@ -9,15 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "@jjsk/adbox-sdk": "workspace:^",
     "@jjsk/air-ring-server": "workspace:^",
     "@jjsk/core": "workspace:^",
-    "@jjsk/adbox-sdk": "workspace:^",
-    "@element-plus/icons-vue": "^2.3.2",
     "@vueuse/core": "^12.2.0",
     "axios": "^1.7.9",
     "dayjs": "^1.11.13",
     "dexie": "^4.0.10",
     "echarts": "^5.5.1",
+    "electron-store": "^11.0.2",
     "element-plus": "^2.8.8",
     "lru-cache": "^11.0.2",
     "pinia": "^3.0.0",

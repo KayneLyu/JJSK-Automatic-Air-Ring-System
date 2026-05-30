@@ -1,52 +1,15 @@
 <script setup lang="ts">
-import { onBeforeUnmount } from 'vue';
-import { useTimeoutFn } from '@vueuse/core'
-import { getThickInfo, getAirRingInfo, getAirRingConfig } from "@/api";
+import { onMounted } from 'vue';
+// import { useTimeoutFn } from '@vueuse/core'
+// import { getThickInfo, getAirRingInfo, getAirRingConfig } from "@/api";
 import Layouts from "@/layout/index.vue";
-import { useApiDataStore } from '@/store/polling-data.ts';
 
-// const store = useApiDataStore()
-// const getThickData = async () => {
-//   try {
-//     const data = await getThickInfo();
-//     if (data) {
-//       store.updateApiData(data)
-//     }
-//   } catch (error) {
-//     store.apiThickData.ErrCode = 0
-//   }
-// }
-// const getAirRingData = async () => {
-//   try {
-//     const data = await getAirRingInfo();
-//     const config = await getAirRingConfig()
-//     if(data) {
-//       store.updateAirRingData(data)
-//     }
-//     if(config) {
-//       store.updateAirRingConfig(config)
-//     }
-//   } catch (error) {
-//     store.apiAirRingData.ErrCode = 32
-//   }
-// }
-
-// // 开始轮询
-// const { start: startThickGauge, stop: stopThickGauge } = useTimeoutFn(() => {
-//   getThickData();
-//   startThickGauge()
-// }, 100)
-
-// const { start: start, stop: stopAirRing, } = useTimeoutFn(() => {
-//   getAirRingData();
-//   start()
-// }, 2000)
-
-// onBeforeUnmount(() => {
-//   stopThickGauge(),
-//   stopAirRing()
-// })
-
+onMounted( async() => {
+  const result = await window.ipcApi.invoke("adbox-connect")
+  if(result) {
+    console.log('ADBOX 连接成功!');
+  }
+})
 </script>
 
 <template>

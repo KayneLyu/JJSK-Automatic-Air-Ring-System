@@ -10,7 +10,7 @@ import { ParamCommands } from './commands/param';
 
 export class ADBoxClient extends EventEmitter {
   private socket: net.Socket | null = null;
-  private connected = false;
+  public connected = false;
   private parser = new FrameParser();
   private pendingRequests: PendingRequest[] = [];
   private currentRequest: PendingRequest | null = null;
@@ -367,6 +367,7 @@ export class ADBoxClient extends EventEmitter {
   getCachedAd1(): number { return this.lastAd1; }
   getCachedIn(): number { return this.lastIn; }
   getCachedOut(): number { return this.lastOut; }
+  getCachedPos0Raw(): number { return this.lastPos0Raw; }
   getCachedPos0(): number { return this.lastPos0; }
   getCachedPos1(): number { return this.lastPos1; }
 

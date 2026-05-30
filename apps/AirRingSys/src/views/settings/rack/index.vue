@@ -526,16 +526,19 @@ const options: Option[] = [
 const inputChangeState = async (options: IState) => {
    switch (options) {
       case 'FWD':
-         window.ipcApi.send('ADBOX:FORW');
+         window.ipcApi.invoke('adbox-forward');
          break;
       case 'REV':
-         window.ipcApi.send('ADBOX:REV');
+         window.ipcApi.invoke('adbox-backward');
          break;
       case 'STOP':
-         window.ipcApi.send('ADBOX:STOP');
+         window.ipcApi.invoke('adbox-stop');
          break;
       case 'HOME':
-         window.ipcApi.send('ADBOX:HOME');
+         window.ipcApi.invoke('adbox-home');
+         break;
+      case 'MEASURE':
+         window.ipcApi.invoke('adbox-start-scan');
          break;
       // 可选：兜底处理未知状态
       default:
@@ -544,17 +547,16 @@ const inputChangeState = async (options: IState) => {
 };
 
 // 监听adbox:data
-window.ipcApi.on("adbox:data", (_, data) => {
+window.ipcApi.on("adbox-data", (_, data) => {
    currentAD.value = data.ad0;
-      thickness.value = calcThickness(data.ad0, {airAD: 50300, gain: 1.35}).toFixed(2)
-
-   if (data.pos0Raw &&  data.pos0Raw !== undefined) {
+   thickness.value = calcThickness(data.ad0, { airAD: 50300, gain: 1.35 }).toFixed(2)
+   if (data.pos0Raw && data.pos0Raw !== undefined) {
       measurePosition.value = data.pos0Raw;
    }
 })
 
-window.ipcApi.on("adbox:RunResult", (_, data) => {
-   console.log("运动指令反馈",data);
+window.ipcApi.on("adbox-run-result", (_, data) => {
+   console.log("运动指令反馈", data);
 })
 
 </script>
@@ -652,22 +654,22 @@ window.ipcApi.on("adbox:RunResult", (_, data) => {
                         <div class="calibration-result-item">
                            <span class="label">正转</span>
                            <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ForwardRotation)
-                           }}</span>
+                              }}</span>
                         </div>
                         <div class="calibration-result-item">
                            <span class="label">反转</span>
                            <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ReverseRotation)
-                           }}</span>
+                              }}</span>
                         </div>
                         <div class="calibration-result-item">
                            <span class="label">正换向</span>
                            <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ForwardDirectionChange)
-                           }}</span>
+                              }}</span>
                         </div>
                         <div class="calibration-result-item">
                            <span class="label">反换向</span>
                            <span class="value">{{ formatUpperRotationBoolean(upperRotationDebug.ReverseDirectionChange)
-                           }}</span>
+                              }}</span>
                         </div>
                         <div class="calibration-result-item">
                            <span class="label">复位</span>
@@ -676,7 +678,7 @@ window.ipcApi.on("adbox:RunResult", (_, data) => {
                         <div class="calibration-result-item">
                            <span class="label">电机频率</span>
                            <span class="value">{{ formatUpperRotationMotorFrequency(upperRotationDebug.MotorFrequency)
-                           }}</span>
+                              }}</span>
                         </div>
                         <div class="calibration-result-item upper-rotation-heats-item">
                            <span class="label">热量</span>
