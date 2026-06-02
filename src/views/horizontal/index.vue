@@ -107,23 +107,38 @@ const beforeAutoMode = ref<IFrameThickData>({
 let tempData = ref<[number, number | null][]>([])
 let heatsChannel = ref<[string, number][]>([])
 
+/**
+ * 获取最新20条数据并排序
+*/
 const getFrameList = async () => {
    try {
-      const recentItems = await db.Frame.orderBy('frameId').reverse().limit(4).toArray();
-      if (recentItems.length) {
-         for (let index = 0; index < recentItems.length; index++) {
-            frameListData[recentItems.length - 1 - index] = {
-               ...recentItems[index],
-               datalist: <Array<[number, number]>>formateList(<number[]>recentItems[index].datalist, recentItems[index].mean)
-            }
-         }
+      const recentItems = await db.Frame.orderBy('frameId').reverse().limit(20).toArray();
+
+      // 取最新一条、第6新、第11新、第16新（从新到旧）
+      const selectedItems = [];
+      for (let i = 0; i < recentItems.length && selectedItems.length < 4; i += 5) {
+         selectedItems.push(recentItems[i]);
       }
-      const heatsData = await getHeats()
+
+      // 反转顺序：变为从旧到新（先渲染最早的）
+      const reversedItems = [...selectedItems].reverse();
+
+      // 填充 frameListData
+      frameListData.length = 0;
+      for (let i = 0; i < reversedItems.length; i++) {
+         frameListData[i] = {
+            ...reversedItems[i],
+            datalist: <Array<[number, number]>>formateList(<number[]>reversedItems[i].datalist, reversedItems[i].mean)
+         };
+      }
+
+      // heatsData
+      const heatsData = await getHeats();
       if (heatsData) {
          const formatHeatsData: Array<[string, number]> = heatsData.map((item, index) => {
-            return [`${index + 1}`, item]
-         })
-         heatsChannel.value = formatHeatsData
+            return [`${index + 1}`, item];
+         });
+         heatsChannel.value = formatHeatsData;
       }
    } catch (error) { }
 }
@@ -139,21 +154,22 @@ watch(() => store.updateFrameId, () => {
 const getBeforeAutoData = async () => {
    try {
       let result: IFrameThickData | undefined
-      if(configStore.beforeAutoID) {
+      if (configStore.beforeAutoID) {
          result = await db.Frame.get(configStore.beforeAutoID)
       } else {
          const [queryItem] = await db.Frame.orderBy('frameId').reverse().offset(19).limit(1).toArray()
          result = queryItem
       }
-      if(result) {
-         beforeAutoMode.value = {...result, datalist: <Array<[number, number]>>formateList(<number[]>result.datalist, result.mean)}
+      if (result) {
+         beforeAutoMode.value = { ...result, datalist: <Array<[number, number]>>formateList(<number[]>result.datalist, result.mean) }
       }
-   } catch (error) {}
+   } catch (error) { }
 }
 
 onMounted(() => {
-   void getBeforeAutoData()
+   getBeforeAutoData()
 })
+
 
 </script>
 
@@ -162,12 +178,8 @@ onMounted(() => {
       <div class="charts_content">
          <div class="chart_views">
             <el-card class="chartBox">
-               <HorizonCharts
-                  is-before-auto
-                  :startDate="beforeAutoMode.startTime" 
-                  :endDate="beforeAutoMode.endTime" 
-                  :id="beforeAutoMode.frameId"
-                  :frameData="<Array<[number, number]>>beforeAutoMode.datalist" />
+               <HorizonCharts is-before-auto :startDate="beforeAutoMode.startTime" :endDate="beforeAutoMode.endTime"
+                  :id="beforeAutoMode.frameId" :frameData="<Array<[number, number]>>beforeAutoMode.datalist" />
             </el-card>
          </div>
          <div class="info_card">
