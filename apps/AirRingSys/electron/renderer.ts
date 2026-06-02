@@ -109,7 +109,7 @@ export function initADBox(win: BrowserWindow) {
   adb = new ADBoxClient('192.168.251.12', 20021);
 
   adb.on('connected', async () => {
-    console.log('AD Box 已连接');
+    console.log('AD Box connect');
     // 连接后同步一次编码器，确保 32 位扩展准确
     await adb.syncAllPos();
     // 通知渲染进程已连接
@@ -118,11 +118,11 @@ export function initADBox(win: BrowserWindow) {
 
   adb.on('data', (push) => {
     // 将变化的数据直接转发给渲染进程
-    useIpcSend(win, 'adbox:data', push)
+    useIpcSend(win, 'adbox-data', push)
   });
 
   adb.on('runResult', (result) => {
-    useIpcSend(win, 'adbox:RunResult', result)
+    useIpcSend(win, 'adbox-run-result', result)
   });
 
   adb.on('error', (err) => {
@@ -130,6 +130,52 @@ export function initADBox(win: BrowserWindow) {
   });
 
   adb.connect();
+
+
+  /**
+ * 前进
+ */
+  useIpcHandle('adbox-forward', async () => {
+    try {
+      await adb.moveForward(1)
+    } catch (error) {
+
+    }
+  })
+
+  /**
+   * 后退
+   */
+  useIpcHandle('adbox-backward', async () => {
+    try {
+      await adb.moveBackward(1)
+    } catch (error) {
+
+    }
+  })
+
+  /**
+  * 停止
+  */
+  useIpcHandle('adbox-stop', async () => {
+    try {
+      await adb.stopDecel()
+    } catch (error) {
+
+    }
+  })
+
+
+  /**
+ * 归零
+ */
+  useIpcHandle('adbox-home', async () => {
+    try {
+      await adb.home()
+    } catch (error) {
+
+    }
+  })
 }
 
 
@@ -167,50 +213,7 @@ export function setupRendererCommunicator(win: BrowserWindow) {
     }
   })
 
-  /**
-   * 前进
-   */
-  useIpcOn('ADBOX:FORW', async () => {
-    try {
-      await adb.moveForward(1)
-    } catch (error) {
 
-    }
-  })
-
-  /**
-   * 后退
-   */
-  useIpcOn('ADBOX:REV', async () => {
-    try {
-      await adb.moveBackward(1)
-    } catch (error) {
-
-    }
-  })
-
-  /**
-  * 停止
-  */
-  useIpcOn('ADBOX:STOP', async () => {
-    try {
-      await adb.stopDecel()
-    } catch (error) {
-
-    }
-  })
-
-
-  /**
- * 归零
- */
-  useIpcOn('ADBOX:HOME', async () => {
-    try {
-      await adb.home()
-    } catch (error) {
-
-    }
-  })
   //   useIpcHandle('win-open-client', () => {
   //     try {
   //       return ensureServerRunning(

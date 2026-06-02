@@ -9,7 +9,7 @@ export function initMotionControl(mainWindow: BrowserWindow) {
     // ---------- 配置存储 ----------
     const store = new Store({
         defaults: {
-            maxPulse: 8900,      // 默认最大脉冲（机架长度）
+            maxPulse: 7000,      // 默认最大脉冲（机架长度）
             margin: 300,         // 膜宽余量（脉冲）
         },
     });
@@ -40,7 +40,7 @@ export function initMotionControl(mainWindow: BrowserWindow) {
 
         adb.on('data', (push: PushData) => {
             // 推送测厚仪数据，如果探头脉冲位置没改变则只有AD0 AD1字段
-            mainWindow.webContents.send('adbox-data', push.pos0Raw);
+            mainWindow.webContents.send('adbox-data', push);
             // 根据reset字段判断是否复位
             if (push.reset) {
                 console.warn('设备复位，重新同步');

@@ -548,9 +548,12 @@ const inputChangeState = async (options: IState) => {
 
 // 监听adbox:data
 window.ipcApi.on("adbox-data", (_, data) => {
-   currentAD.value = data.ad0;
-   thickness.value = calcThickness(data.ad0, { airAD: 50300, gain: 1.35 }).toFixed(2)
-   if (data.pos0Raw && data.pos0Raw !== undefined) {
+   if(data.pos0Raw) {
+      console.log(data);
+      
+   }
+   // thickness.value = calcThickness(data.ad0, { airAD: 50300, gain: 1.35 }).toFixed(2)
+   if (data.pos0Raw) {
       measurePosition.value = data.pos0Raw;
    }
 })
@@ -568,7 +571,7 @@ window.ipcApi.on("adbox-run-result", (_, data) => {
             <div class="status-row">
                <div class="status-item">
                   <span class="label">当前AD:</span>
-                  <span class="value">{{ currentAD }}</span>
+                  <span class="value" style="width: 100px;">{{ currentAD }}</span>
                </div>
                <div class="status-item">
                   <span class="label">测量位置:</span>

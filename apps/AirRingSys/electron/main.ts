@@ -4,8 +4,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   setupRendererCommunicator,
-  initADBox
+  // initADBox
 } from './renderer.ts'
+import { initMotionControl } from "./AD-Box.ts";
 import { setupConsoleFileLogger } from './consoleFileLogger.ts'
 // import './adbox'
 // const require = createRequire(import.meta.url)
@@ -40,7 +41,8 @@ function createWindow() {
   if (win) {
     setupRendererCommunicator(win)
     // 初始化ADBOX
-    initADBox(win)
+    initMotionControl(win)
+    // initADBox(win)
   }
 
   if (VITE_DEV_SERVER_URL) {

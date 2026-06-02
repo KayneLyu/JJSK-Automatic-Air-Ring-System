@@ -46,7 +46,7 @@ importers:
         version: 2.3.2(vue@3.5.22(typescript@5.9.3))
       '@jjsk/adbox-sdk':
         specifier: workspace:^
-        version: link:../../packages/adbox-sdk
+        version: link:../../packages/Adbox-sdk
       '@jjsk/air-ring-server':
         specifier: workspace:^
         version: link:../../packages/AirRingServer
@@ -219,19 +219,6 @@ importers:
       vitest:
         specifier: ^4.0.0
         version: 4.0.10(@types/debug@4.1.12)(@types/node@24.8.0)(less@4.4.2)
-
-  packages/adbox-sdk:
-    dependencies:
-      eventemitter3:
-        specifier: ^5.0.1
-        version: 5.0.4
-    devDependencies:
-      tsup:
-        specifier: ^8.0.2
-        version: 8.5.1(postcss@8.5.6)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.5.4
-        version: 5.9.3
 
   packages/core: {}
 

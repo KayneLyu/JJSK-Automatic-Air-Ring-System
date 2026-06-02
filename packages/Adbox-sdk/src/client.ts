@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import { FrameParser } from './protocol/framer';
 import { encode7E } from './protocol/codec';
 import { crc8 } from './protocol/crc';
-import { PushData, RunResult, EncAll, PendingRequest, ADBoxEvents } from './types';
+import { PushData, RunResult, EncAll, PendingRequest } from './types';
 import { IOCommands } from './commands/io';
 import { RunCommands } from './commands/run';
 import { ParamCommands } from './commands/param';
@@ -30,7 +30,7 @@ export class ADBoxClient extends EventEmitter {
   private lastPos0 = 0;
   private lastPos1 = 0;
 
-  constructor(public host: string = '192.168.251.12', public port: number = 20020) {
+  constructor(public host: string = '192.168.251.12', public port: number = 20021) {
     super();
   }
 
