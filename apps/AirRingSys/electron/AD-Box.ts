@@ -43,7 +43,10 @@ export function initMotionControl(mainWindow: BrowserWindow) {
 
   function getRuntimeConfig(): RuntimeConfig {
     const envMode = process.env['ADBOX_MODE']
-    const mode = (envMode === 'test' || envMode === 'prod' ? envMode : (store.get('adboxMode') as AdboxMode)) ?? 'prod'
+    const mode =
+      (envMode === 'test' || envMode === 'prod'
+        ? envMode
+        : (store.get('adboxMode') as AdboxMode)) ?? 'prod'
     return {
       adboxMode: mode,
       useDataBatcher: Boolean(store.get('useDataBatcher')),
@@ -117,7 +120,9 @@ export function initMotionControl(mainWindow: BrowserWindow) {
     client.on('runResult', (result: RunResult) => {
       if (result.status === 3) {
         console.error('限位触发！紧急停止')
-        emergencyStop().catch((err) => console.error('emergencyStop error:', err))
+        emergencyStop().catch((err) =>
+          console.error('emergencyStop error:', err)
+        )
         mainWindow.webContents.send('adbox-error', '限位开关触发，已紧急停止')
       }
       mainWindow.webContents.send('adbox-run-result', result)
@@ -248,12 +253,16 @@ export function initMotionControl(mainWindow: BrowserWindow) {
 
     while (isScanning && !emergencyStopFlag) {
       if (currentScanDir === 1) {
-        await moveAndWait(maxPos).catch((err) => console.warn('正向失败:', err.message))
+        await moveAndWait(maxPos).catch((err) =>
+          console.warn('正向失败:', err.message)
+        )
         if (!isScanning || emergencyStopFlag) break
         currentScanDir = -1
         await new Promise((r) => setTimeout(r, END_PAUSE_MS))
       } else {
-        await moveAndWait(minPos).catch((err) => console.warn('反向失败:', err.message))
+        await moveAndWait(minPos).catch((err) =>
+          console.warn('反向失败:', err.message)
+        )
         if (!isScanning || emergencyStopFlag) break
         currentScanDir = 1
         await new Promise((r) => setTimeout(r, END_PAUSE_MS))
@@ -300,7 +309,11 @@ export function initMotionControl(mainWindow: BrowserWindow) {
     const margin = getMargin()
     const newMax = webWidth + margin
     setMaxPulse(newMax)
-    mainWindow.webContents.send('scan-range-updated', { maxPulse: newMax, webWidth, margin })
+    mainWindow.webContents.send('scan-range-updated', {
+      maxPulse: newMax,
+      webWidth,
+      margin,
+    })
   }
 
   function setAdboxMode(mode: AdboxMode) {
@@ -375,10 +388,14 @@ export function initMotionControl(mainWindow: BrowserWindow) {
   ipcMain.handle('adbox-get-position', () => getCurrentPos0Raw())
 
   ipcMain.handle('config-get-max-pulse', () => getMaxPulse())
-  ipcMain.handle('config-set-max-pulse', (_, value: number) => setMaxPulse(value))
+  ipcMain.handle('config-set-max-pulse', (_, value: number) =>
+    setMaxPulse(value)
+  )
   ipcMain.handle('config-get-margin', () => getMargin())
   ipcMain.handle('config-set-margin', (_, value: number) => setMargin(value))
-  ipcMain.handle('config-set-scan-range-by-web-width', (_, webWidth: number) => setScanRangeByWebWidth(webWidth))
+  ipcMain.handle('config-set-scan-range-by-web-width', (_, webWidth: number) =>
+    setScanRangeByWebWidth(webWidth)
+  )
 
   ipcMain.handle('config-get-adbox-mode', () => getAdboxMode())
   ipcMain.handle('config-set-adbox-mode', async (_, mode: AdboxMode) => {
