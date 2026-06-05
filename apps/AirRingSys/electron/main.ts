@@ -6,9 +6,9 @@ import {
   setupRendererCommunicator,
   // initADBox
 } from './renderer.ts'
-import { initMotionControl } from "./AD-Box.ts";
+// import { initMotionControl } from "./AD-Box.ts";
+import { initMotionControl } from "./adbox-test.ts";
 import { setupConsoleFileLogger } from './consoleFileLogger.ts'
-// import './adbox'
 // const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
