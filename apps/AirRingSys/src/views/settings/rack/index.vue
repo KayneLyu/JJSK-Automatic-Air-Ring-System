@@ -521,24 +521,23 @@ const options: Option[] = [
    },
 ]
 
-
 // 运行状态切换
 const inputChangeState = async (options: IState) => {
    switch (options) {
       case 'FWD':
-         window.ipcApi.invoke('adbox-forward');
+         await window.ipcApi.invoke('adbox-forward');
          break;
       case 'REV':
-         window.ipcApi.invoke('adbox-backward');
+         await window.ipcApi.invoke('adbox-backward');
          break;
       case 'STOP':
-         window.ipcApi.invoke('adbox-stop');
+         await window.ipcApi.invoke('adbox-stop');
          break;
       case 'HOME':
-         window.ipcApi.invoke('adbox-home');
+         await window.ipcApi.invoke('adbox-home');
          break;
       case 'MEASURE':
-         window.ipcApi.invoke('adbox-start-scan');
+         await window.ipcApi.invoke('adbox-start-scan');
          break;
       // 可选：兜底处理未知状态
       default:
@@ -546,14 +545,17 @@ const inputChangeState = async (options: IState) => {
    }
 };
 
+// 移动到脉冲位置
+const moveToPulsePosition = async () => { 
+   await window.ipcApi.invoke('adbox-movePosition');
+}
+
 // 监听adbox:data
 window.ipcApi.on("adbox-data", (_, data) => {
-   if(data.pos0Raw) {
-      console.log(data);
-      
-   }
+   currentAD.value = data.ad0;
    // thickness.value = calcThickness(data.ad0, { airAD: 50300, gain: 1.35 }).toFixed(2)
    if (data.pos0Raw) {
+      console.log(data);
       measurePosition.value = data.pos0Raw;
    }
 })
@@ -606,7 +608,7 @@ window.ipcApi.on("adbox-run-result", (_, data) => {
                </el-segmented>
             </div>
             <el-input v-model="targetPulse" class="pulse-input" placeholder="目标脉冲" />
-            <el-button type="success">到达(脉冲)</el-button>
+            <el-button @click="moveToPulsePosition" type="success">到达(脉冲)</el-button>
 
          </div>
 

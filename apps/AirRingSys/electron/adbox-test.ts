@@ -1,9 +1,11 @@
 // main.ts
-import { BrowserWindow, ipcMain } from 'electron';
-import { AdBoxClient } from '../../../packages/adbox-sdk'
-import type { PushData, RunResult } from "../../../packages/adbox-sdk";
+import { BrowserWindow, ipcMain, app } from 'electron';
+import { TestADBoxClient } from '../../../packages/adbox-sdk'
+// import type { PushData, RunResult } from "../../../packages/adbox-sdk";
 import Store from 'electron-store';
+import { DataBatcher } from './data-batcher';
 
+let dataBatcher: DataBatcher<any>;
 
 export function initMotionControl(mainWindow: BrowserWindow) {
     // ---------- 配置存储 ----------
@@ -14,7 +16,13 @@ export function initMotionControl(mainWindow: BrowserWindow) {
         },
     });
 
-    let adb: AdBoxClient;
+    // 创建节流器：每 10 帧合并发送一次（约 100 fps 到渲染进程）
+    dataBatcher = new DataBatcher(mainWindow, 'ad:data-batch', {
+        interval: 50
+    });
+
+
+    let adb: TestADBoxClient;
 
     // ---------- 运动控制状态 ----------
     let isScanning = false;
@@ -29,26 +37,37 @@ export function initMotionControl(mainWindow: BrowserWindow) {
 
     // ---------- AD盒初始化 ----------
     async function initADBox() {
-        adb = new AdBoxClient({
+        adb = new TestADBoxClient({
             host: '192.168.251.12',
             port: 20021,
-            autoReconnect: true,
-            reconnectInterval: 5000,
-            readParamsFromDevice: true,
+            pushTimeout: 1000
         });
 
-        adb.on('connected', () => console.log('adbox-connected'));
-        adb.on('disconnected', () => console.log('adbox-disconnected retry in 5s...'));
-        adb.on('ready', () => console.log('adbox-ready'));
-        adb.on('data', (frame) => {
-            // 1000 fps 实时数据，可选择性转发给 UI
-            mainWindow.webContents.send('adbox-data', frame);
+        adb.on('connected', () => console.log('connected'));
+        adb.on('firstFrame', async () => {
+            await adb.syncPos0();
+            await adb.syncPos1();
+            console.log('async complete');
         });
+        adb.on('data', (frame) => {
+            dataBatcher.push(frame);
+            // 高频数据，推荐节流后发送到 UI
+        });
+        adb.on('runResult', (r) => console.log('running state', r));
+        adb.on('disconnected', () => console.log('disconnected'));
         adb.on('error', (err) => console.error(err));
+
         adb.connect();
+
+        // 调用移动
+        adb.moveToPosition(1000, 123).then(() => console.log('move complete'));
     }
 
-
+    app.on("before-quit",()=> {
+        adb?.disconnect();
+        dataBatcher?.destroy();
+        console.log('quit app and adbox');
+    })
 
     // ---------- 配置管理 ----------
     function setMaxPulse(value: number) {
@@ -84,7 +103,7 @@ export function initMotionControl(mainWindow: BrowserWindow) {
     // 正常停止扫描（减速）
     function stopScanGracefully() {
         isScanning = false;
-        adb.stop();
+        adb.stopDecel();
     }
 
     // ---------- IPC 接口 ----------
@@ -105,13 +124,13 @@ export function initMotionControl(mainWindow: BrowserWindow) {
         if (!adb?.connected) throw new Error('设备未连接');
         if (emergencyStopFlag) throw new Error('急停状态');
         stopScanGracefully();
-        await adb.forward();
+        await adb.moveForward();
     });
     ipcMain.handle('adbox-backward', async () => {
         if (!adb?.connected) throw new Error('设备未连接');
         if (emergencyStopFlag) throw new Error('急停状态');
         stopScanGracefully();
-        await adb.backward();
+        await adb.moveBackward();
     });
     ipcMain.handle('adbox-home', async () => {
         if (!adb?.connected) throw new Error('设备未连接');
@@ -119,11 +138,11 @@ export function initMotionControl(mainWindow: BrowserWindow) {
         stopScanGracefully();
         await adb.home();
     });
-    ipcMain.handle('adbox-home', async () => {
+    ipcMain.handle('adbox-movePosition', async () => {
         if (!adb?.connected) throw new Error('设备未连接');
         if (emergencyStopFlag) throw new Error('急停状态');
         stopScanGracefully();
-        await adb.moveAbs(1234);
+        await adb.moveToPosition(1234);
     });
     // ipcMain.handle('adbox-get-position', () => client?.getCachedPos0Raw() ?? 0);
     ipcMain.handle('config-get-max-pulse', () => getMaxPulse());
