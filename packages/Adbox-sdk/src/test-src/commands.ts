@@ -47,8 +47,9 @@ export const Commands = {
   HOME:      { prefix: ascii('RO'), responseDataLen: 0 },
   STOP:      { prefix: ascii('RS'), responseDataLen: 0 },
   ESTOP:     { prefix: ascii('RT'), responseDataLen: 0 },
-  MOVE_ABS:  { prefix: ascii('RR'), responseDataLen: 0 }, // 数据段手动拼接
-  MOVE_REL:  { prefix: ascii('RR'), responseDataLen: 0 },
+  MOVE_ABS:  { prefix: ascii('RRP'), responseDataLen: 0 },
+  MOVE_REL_POS: { prefix: ascii('RR+'), responseDataLen: 0 },
+  MOVE_REL_NEG: { prefix: ascii('RR-'), responseDataLen: 0 },
 
   GET_RUN_RESULT: { prefix: ascii('RN'), responseDataLen: 5, parse: (d: Buffer) => ({ status: d[0], serial: d.readUInt32LE(1) }) },
 

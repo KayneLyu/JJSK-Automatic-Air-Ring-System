@@ -8,7 +8,7 @@ import type {
   IpcChannelOutput,
 
 } from '@/types/ipc'
-import { ADBoxClient } from '../../../packages/adbox-sdk'
+import { ADBoxClient } from '@jjsk/adbox-sdk'
 
 
 const LOGO_PATH_CANDIDATES = ['D:/logo/logo.png']

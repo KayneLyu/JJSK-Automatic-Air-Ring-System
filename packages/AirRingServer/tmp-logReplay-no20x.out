@@ -1,0 +1,40 @@
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Startup Error [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯⎯[39m
+Error: Failed to load custom Reporter from basic
+    at loadCustomReporterModule (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:9065:9)
+    at file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:9078:23
+    ... 3 lines matching cause stack trace ...
+    at _createServer (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vite@7.2.0_@types+node@24.8.0_less@4.4.2/node_modules/vite/dist/node/chunks/config.js:26210:86)
+    at createViteServer (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:8445:17)
+    at createVitest (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:11221:14)
+    at prepareVitest (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:11506:61)
+    at startVitest (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:11476:61) {
+  [cause]: Error: Failed to load url basic (resolved id: basic). Does the file exist?
+      at reviveInvokeError (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vite@7.2.0_@types+node@24.8.0_less@4.4.2/node_modules/vite/dist/node/module-runner.js:475:14)
+      at Object.invoke (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vite@7.2.0_@types+node@24.8.0_less@4.4.2/node_modules/vite/dist/node/module-runner.js:491:33)
+      at ServerModuleRunner.getModuleInformation (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vite@7.2.0_@types+node@24.8.0_less@4.4.2/node_modules/vite/dist/node/module-runner.js:1086:7)
+      at ServerModuleRunner.import (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vite@7.2.0_@types+node@24.8.0_less@4.4.2/node_modules/vite/dist/node/module-runner.js:1013:23)
+      at loadCustomReporterModule (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:9063:26)
+      at file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:9078:23
+      at async Promise.all (index 0)
+      at Vitest._setServer (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:10499:138)
+      at BasicMinimalPluginContext.handler (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:11192:10)
+      at _createServer (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vite@7.2.0_@types+node@24.8.0_less@4.4.2/node_modules/vite/dist/node/chunks/config.js:26210:86) {
+    code: 'ERR_LOAD_URL',
+    runnerError: Error: RunnerError
+        at reviveInvokeError (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vite@7.2.0_@types+node@24.8.0_less@4.4.2/node_modules/vite/dist/node/module-runner.js:476:64)
+        at Object.invoke (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vite@7.2.0_@types+node@24.8.0_less@4.4.2/node_modules/vite/dist/node/module-runner.js:491:33)
+        at ServerModuleRunner.getModuleInformation (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vite@7.2.0_@types+node@24.8.0_less@4.4.2/node_modules/vite/dist/node/module-runner.js:1086:7)
+        at ServerModuleRunner.import (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vite@7.2.0_@types+node@24.8.0_less@4.4.2/node_modules/vite/dist/node/module-runner.js:1013:23)
+        at loadCustomReporterModule (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:9063:26)
+        at file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:9078:23
+        at async Promise.all (index 0)
+        at Vitest._setServer (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:10499:138)
+        at BasicMinimalPluginContext.handler (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vitest@4.0.7_@types+debug@4.1.12_@types+node@24.8.0_less@4.4.2/node_modules/vitest/dist/chunks/cli-api.Csks4as1.js:11192:10)
+        at _createServer (file:///Users/zane/WebstormProjects/JJSK-Automatic-Air-Ring-System/node_modules/.pnpm/vite@7.2.0_@types+node@24.8.0_less@4.4.2/node_modules/vite/dist/node/chunks/config.js:26210:86)
+  }
+}
+
+
+
+EXIT_CODE:1
