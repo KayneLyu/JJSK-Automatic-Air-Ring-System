@@ -17,7 +17,7 @@ export function initMotionControl(mainWindow: BrowserWindow) {
     });
 
     // 创建节流器：每 10 帧合并发送一次（约 100 fps 到渲染进程）
-    dataBatcher = new DataBatcher(mainWindow, 'ad:data-batch', {
+    dataBatcher = new DataBatcher(mainWindow, 'adbox-data', {
         interval: 50
     });
 
@@ -45,9 +45,11 @@ export function initMotionControl(mainWindow: BrowserWindow) {
 
         adb.on('connected', () => console.log('connected'));
         adb.on('firstFrame', async () => {
-            await adb.syncPos0();
-            await adb.syncPos1();
-            console.log('async complete');
+            // 等待 300~500ms，让设备通信稳定
+            await new Promise(resolve => setTimeout(resolve, 500));
+            // 分别捕获，失败只记录，不阻塞
+            adb.syncPos0().catch(err => console.warn('syncPos0:', err.message));
+            adb.syncPos1().catch(err => console.warn('syncPos1:', err.message));
         });
         adb.on('data', (frame) => {
             dataBatcher.push(frame);
@@ -60,10 +62,10 @@ export function initMotionControl(mainWindow: BrowserWindow) {
         adb.connect();
 
         // 调用移动
-        adb.moveToPosition(1000, 123).then(() => console.log('move complete'));
+        // adb.moveToPosition(1000, 123).then(() => console.log('move complete'));
     }
 
-    app.on("before-quit",()=> {
+    app.on("before-quit", () => {
         adb?.disconnect();
         dataBatcher?.destroy();
         console.log('quit app and adbox');
@@ -123,26 +125,44 @@ export function initMotionControl(mainWindow: BrowserWindow) {
     ipcMain.handle('adbox-forward', async () => {
         if (!adb?.connected) throw new Error('设备未连接');
         if (emergencyStopFlag) throw new Error('急停状态');
-        stopScanGracefully();
-        await adb.moveForward();
+        try {
+            stopScanGracefully();
+            await adb.moveForward();
+        } catch (error) {
+            console.log('run error', error);
+        }
     });
     ipcMain.handle('adbox-backward', async () => {
         if (!adb?.connected) throw new Error('设备未连接');
         if (emergencyStopFlag) throw new Error('急停状态');
-        stopScanGracefully();
-        await adb.moveBackward();
+        try {
+            stopScanGracefully();
+            await adb.moveBackward();
+        } catch (error) {
+            console.log('run error', error);
+        }
     });
     ipcMain.handle('adbox-home', async () => {
         if (!adb?.connected) throw new Error('设备未连接');
         if (emergencyStopFlag) throw new Error('急停状态');
-        stopScanGracefully();
-        await adb.home();
+        try {
+            stopScanGracefully();
+            await adb.home();
+        } catch (error) {
+            console.log('run error', error);
+
+        }
     });
     ipcMain.handle('adbox-movePosition', async () => {
         if (!adb?.connected) throw new Error('设备未连接');
         if (emergencyStopFlag) throw new Error('急停状态');
-        stopScanGracefully();
-        await adb.moveToPosition(1234);
+        try {
+            stopScanGracefully();
+            await adb.moveToPosition(1234);
+        } catch (error) {
+            console.log('run error', error);
+        }
+
     });
     // ipcMain.handle('adbox-get-position', () => client?.getCachedPos0Raw() ?? 0);
     ipcMain.handle('config-get-max-pulse', () => getMaxPulse());

@@ -1,5 +1,6 @@
-export { ADBoxClient } from './client';
 export { TestADBoxClient } from './test-src/test-client';
+export { ADBoxClient } from './client';
+
 export {
   ParamIndex,
   MotorType,
