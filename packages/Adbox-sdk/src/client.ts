@@ -249,7 +249,6 @@ export class ADBoxClient extends EventEmitter {
     this.emit('data', push)
   }
 
-<<<<<<< HEAD
 // C# 脉冲扩展算法
 private calPosition(last32: number, enc16: number): number {
   const last16 = last32 & 0xffff;
@@ -351,11 +350,6 @@ private parseDataPush(payload: Buffer): void {
 
   private handleResponse(payload: Buffer): void {
     // 检查是否是 RN 主动推送
-=======
-  // ─── 响应处理 ───────────────────────────────────────────────────────────
-
-  private _handleResponse(payload: Buffer): void {
->>>>>>> bf7fc156d148f11f374a461e4f80e61c6983f867
     if (payload.length >= 3 && payload[1] === 0x52 && payload[2] === 0x4e) {
       if (payload.length >= 7) {
         this.emit('runResult', { status: payload[3], serial: payload.readUInt32LE(4) } as RunResult)

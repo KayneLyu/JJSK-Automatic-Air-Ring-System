@@ -1,7 +1,6 @@
 export { ADBoxClient } from './client'
 
-/** @deprecated 已合并进 ADBoxClient，仅保留兼容导出 */
-export { ADBoxClient as TestADBoxClient } from './client'
+export { TestADBoxClient } from './test-src/test-client'
 
 export {
   ParamIndex,
