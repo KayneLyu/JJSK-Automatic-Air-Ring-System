@@ -1,4 +1,4 @@
-import type { PushData, RunResult } from "../../../../packages/adbox-sdk";
+import type { PushData, RunResult } from '@jjsk/adbox-sdk'
 type IPlcValue = number | string | boolean
 type IMessage = { address: string; value: IPlcValue }
 
@@ -10,7 +10,7 @@ export type IPlcControlResult = {
   MEASURE: boolean // "DB4,X0.4",
 }
 
-export type IPlcParamData = { 
+export type IPlcParamData = {
   // 硬件
   frameLength: string // 机架长度
   rollerCircumference: string // 测速棍周长
@@ -97,17 +97,16 @@ export interface IpcChannelMap {
   'win-get-logo': { args: []; output: string | undefined } // 获取logo
   'win-open-client': { args: []; output: boolean | undefined } //打开客户端
   // 'change-State': { args: [message: IMessage]; output: void } // 改变测厚仪状态
-  'adbox-start-scan': { args: []; output: [] }  // 开始扫描
-  'adbox-forward': { args: [message?: number]; output: void }  // AD box前进
-  'adbox-backward': { args: [message?: number]; output: void }  // AD box 后退
-  'adbox-stop': { args: []; output: void }  // AD box 停止
-  'adbox-home': { args: []; output: void }  // AD box 归零
-  'adbox-data': { args: [data: PushData]; output: [data: PushData] }  // AD box 数据推送
-  'adbox-connect': { args: []; output: [data: boolean] }  // AD box 连接
-  'adbox-run-result': { args: [data: RunResult]; output: [data: RunResult] }  // AD box 运动指令
-  'adbox-movePosition': { args: [position: number]; output: [data: RunResult] }  // AD box 运动指令
+  'adbox-start-scan': { args: []; output: [] } // 开始扫描
+  'adbox-forward': { args: [message?: number]; output: void } // AD box前进
+  'adbox-backward': { args: [message?: number]; output: void } // AD box 后退
+  'adbox-stop': { args: []; output: void } // AD box 停止
+  'adbox-home': { args: []; output: void } // AD box 归零
+  'adbox-data': { args: [data: PushData]; output: [data: PushData] } // AD box 数据推送
+  'adbox-connect': { args: []; output: [data: boolean] } // AD box 连接
+  'adbox-run-result': { args: [data: RunResult]; output: [data: RunResult] } // AD box 运动指令
+  'adbox-movePosition': { args: []; output: [data: RunResult] } // AD box 运动指令
 
-  
   'plc-controlData': {
     args: [data: IPlcControlResult]
     output: [data: IPlcControlResult]

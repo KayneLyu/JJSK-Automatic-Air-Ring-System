@@ -1,4 +1,14 @@
-import { EventEmitter } from 'events';
+// 客户端构造配置
+export interface ADBoxOptions {
+  host?: string;             // 默认 '192.168.251.12'
+  port?: number;             // 默认 20021
+  connectTimeout?: number;   // 连接超时 ms，默认 5000
+  autoReconnect?: boolean;   // 断线自动重连，默认 false
+  reconnectInterval?: number;// 重连间隔 ms，默认 3000
+  pushTimeout?: number;      // 推送看门狗超时 ms，0=关闭，默认 0
+  commandTimeout?: number;   // 指令超时 ms，默认 1000
+  maxRetries?: number;       // 指令重试次数，默认 2
+}
 
 // 推送数据包结构 (PT=0)
 export interface PushData {
@@ -63,7 +73,11 @@ export interface ADBoxEvents {
   runResult: (result: RunResult) => void;
   connected: () => void;
   close: () => void;
+  disconnected: () => void;
+  firstFrame: () => void;
+  reset: () => void;
   error: (err: Error) => void;
+  debug: (msg: string) => void;
 }
 
 export declare interface ADBoxClient {
@@ -78,5 +92,5 @@ export interface PendingRequest {
   timeoutTimer: NodeJS.Timeout;
   retryCount: number;
   expectedPrefix: Buffer;
-  command: Buffer;
+  command: Buffer;  // 不含 B0 的原始命令字节
 }

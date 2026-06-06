@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // main.ts
 import { BrowserWindow, ipcMain, app } from 'electron';
 import { TestADBoxClient } from '../../../packages/adbox-sdk'
@@ -174,3 +175,7 @@ export function initMotionControl(mainWindow: BrowserWindow) {
 }
 
 
+=======
+// Deprecated shim: keep compatibility for old imports.
+export { initMotionControl } from './AD-Box'
+>>>>>>> bf7fc156d148f11f374a461e4f80e61c6983f867

@@ -2,14 +2,11 @@ import { BrowserWindow, app, dialog, ipcMain } from 'electron'
 import fs from 'node:fs'
 import { join } from 'node:path'
 import type {
-
   IpcChannelArgs,
   IpcChannelName,
   IpcChannelOutput,
-
 } from '@/types/ipc'
-import { ADBoxClient } from '../../../packages/adbox-sdk'
-
+import { ADBoxClient } from '@jjsk/adbox-sdk'
 
 const LOGO_PATH_CANDIDATES = ['D:/logo/logo.png']
 
@@ -58,7 +55,6 @@ const getConnectionLogDir = (name: string) => {
   return join(app.getPath('userData'), 'logs', name)
 }
 
-
 /**
  * 监听 IPC 事件
  */
@@ -100,47 +96,44 @@ export function useIpcSend<T extends IpcChannelName>(
   win.webContents.send(channel, ...args)
 }
 
-let adb: ADBoxClient;
+let adb: ADBoxClient
 
 /**
  * 初始化ADBOX
  */
 export function initADBox(win: BrowserWindow) {
-  adb = new ADBoxClient('192.168.251.12', 20021);
+  adb = new ADBoxClient('192.168.251.12', 20021)
 
   adb.on('connected', async () => {
-    console.log('AD Box connect');
+    console.log('AD Box connect')
     // 连接后同步一次编码器，确保 32 位扩展准确
-    await adb.syncAllPos();
+    await adb.syncAllPos()
     // 通知渲染进程已连接
-    win.webContents.send('adbox-connected');
-  });
+    win.webContents.send('adbox-connected')
+  })
 
   adb.on('data', (push) => {
     // 将变化的数据直接转发给渲染进程
     useIpcSend(win, 'adbox-data', push)
-  });
+  })
 
   adb.on('runResult', (result) => {
     useIpcSend(win, 'adbox-run-result', result)
-  });
+  })
 
   adb.on('error', (err) => {
-    console.error('AD Box 错误:', err);
-  });
+    console.error('AD Box 错误:', err)
+  })
 
-  adb.connect();
-
+  adb.connect()
 
   /**
- * 前进
- */
+   * 前进
+   */
   useIpcHandle('adbox-forward', async () => {
     try {
       await adb.moveForward(1)
-    } catch (error) {
-
-    }
+    } catch (error) {}
   })
 
   /**
@@ -149,39 +142,31 @@ export function initADBox(win: BrowserWindow) {
   useIpcHandle('adbox-backward', async () => {
     try {
       await adb.moveBackward(1)
-    } catch (error) {
-
-    }
+    } catch (error) {}
   })
 
   /**
-  * 停止
-  */
+   * 停止
+   */
   useIpcHandle('adbox-stop', async () => {
     try {
       await adb.stopDecel()
-    } catch (error) {
-
-    }
+    } catch (error) {}
   })
 
-
   /**
- * 归零
- */
+   * 归零
+   */
   useIpcHandle('adbox-home', async () => {
     try {
       await adb.home()
-    } catch (error) {
-
-    }
+    } catch (error) {}
   })
 }
 
-
 /**
  * 与渲染进程通信
- * @param win 
+ * @param win
  */
 export function setupRendererCommunicator(win: BrowserWindow) {
   useIpcOn('win-minimize', () => {
@@ -212,7 +197,6 @@ export function setupRendererCommunicator(win: BrowserWindow) {
       return readLogoAsDataUrl()
     }
   })
-
 
   //   useIpcHandle('win-open-client', () => {
   //     try {

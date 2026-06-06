@@ -1,143 +1,255 @@
-import * as net from 'net';
-import { EventEmitter } from 'events';
-import { FrameParser } from './protocol/framer';
-import { encode7E } from './protocol/codec';
-import { crc8 } from './protocol/crc';
-import { PushData, RunResult, EncAll, PendingRequest } from './types';
-import { IOCommands } from './commands/io';
-import { RunCommands } from './commands/run';
-import { ParamCommands } from './commands/param';
+import * as net from 'net'
+import { EventEmitter } from 'events'
+import { FrameParser } from './protocol/framer'
+import { encode7E } from './protocol/codec'
+import { crc8 } from './protocol/crc'
+import { ADBoxOptions, PushData, RunResult, EncAll, PendingRequest } from './types'
+import { IOCommands } from './commands/io'
+import { RunCommands } from './commands/run'
+import { ParamCommands } from './commands/param'
+
+const DEFAULT_OPTS: Required<ADBoxOptions> = {
+  host: '192.168.251.12',
+  port: 20021,
+  connectTimeout: 5000,
+  autoReconnect: false,
+  reconnectInterval: 3000,
+  pushTimeout: 0,
+  commandTimeout: 1000,
+  maxRetries: 2,
+}
 
 export class ADBoxClient extends EventEmitter {
-  private socket: net.Socket | null = null;
-  public connected = false;
-  private parser = new FrameParser();
-  private pendingRequests: PendingRequest[] = [];
-  private currentRequest: PendingRequest | null = null;
-  private serialCounter = 0;
+  private socket: net.Socket | null = null
+  public connected = false
 
-  // 32位编码器扩展值（高位）
-  private pos0High = 0;
-  private pos1High = 0;
-  private lastPos0Raw = 0;
-  private lastPos1Raw = 0;
+  private parser = new FrameParser()
+  private pendingRequests: PendingRequest[] = []
+  private currentRequest: PendingRequest | null = null
+  private serialCounter = 0
 
-  // 缓存上一次的值（用于未推送时保持）
-  private lastAd0 = 0;
-  private lastAd1 = 0;
-  private lastIn = 0;
-  private lastOut = 0;
-  private lastPos0 = 0;
-  private lastPos1 = 0;
+  // 32位编码器扩展（维护 high 位 + lastRaw 用于跨界检测）
+  private pos0High = 0
+  private pos1High = 0
+  private lastPos0Raw = 0
+  private lastPos1Raw = 0
 
-  constructor(public host: string = '192.168.251.12', public port: number = 20021) {
-    super();
+  // 推送缓存（当 DBM 不含某字段时保持上次值）
+  private lastAd0 = 0
+  private lastAd1 = 0
+  private lastIn = 0
+  private lastOut = 0
+  private lastPos0 = 0
+  private lastPos1 = 0
+
+  // 自动重连 & 看门狗
+  private reconnectTimer: NodeJS.Timeout | null = null
+  private pushWatchdog: NodeJS.Timeout | null = null
+  private lastPushTime = 0
+  private firstFrameReceived = false
+
+  private opts: Required<ADBoxOptions>
+
+  /**
+   * 兼容旧用法 new ADBoxClient(host, port) 与新用法 new ADBoxClient(options)
+   */
+  constructor(hostOrOptions?: string | ADBoxOptions, port?: number) {
+    super()
+    if (typeof hostOrOptions === 'string') {
+      this.opts = { ...DEFAULT_OPTS, host: hostOrOptions, port: port ?? DEFAULT_OPTS.port }
+    } else {
+      this.opts = { ...DEFAULT_OPTS, ...hostOrOptions }
+    }
   }
 
-  async connect(timeout = 5000): Promise<void> {
+  // ─── 连接 ───────────────────────────────────────────────────────────────
+
+  async connect(): Promise<void> {
+    if (this.socket) this.disconnect()
     return new Promise((resolve, reject) => {
-      if (this.socket) this.disconnect();
-      this.socket = new net.Socket();
+      this.socket = new net.Socket()
+
       const timer = setTimeout(() => {
-        this.socket?.destroy();
-        reject(new Error('Connection timeout'));
-      }, timeout);
+        this.socket?.destroy()
+        reject(new Error('Connection timeout'))
+      }, this.opts.connectTimeout)
 
-      this.socket.connect(this.port, this.host, () => {
-        clearTimeout(timer);
-        this.connected = true;
-        this.parser.clear();
-        // 重置编码器扩展值和缓存
-        this.pos0High = 0;
-        this.pos1High = 0;
-        this.lastPos0Raw = 0;
-        this.lastPos1Raw = 0;
-        this.lastAd0 = 0;
-        this.lastAd1 = 0;
-        this.lastIn = 0;
-        this.lastOut = 0;
-        this.lastPos0 = 0;
-        this.lastPos1 = 0;
-        this.emit('connected');
-        resolve();
-      });
+      this.socket.connect(this.opts.port, this.opts.host, () => {
+        clearTimeout(timer)
+        this.connected = true
+        this.firstFrameReceived = false
+        this.lastPushTime = Date.now()
+        this.parser.clear()
+        this._resetCache()
+        this.emit('connected')
+        resolve()
+      })
 
-      this.socket.on('data', (chunk) => this.handleData(chunk));
+      this.socket.on('data', (chunk) => this._handleData(chunk))
+
       this.socket.on('error', (err) => {
-        clearTimeout(timer);
-        this.connected = false;
-        this.emit('error', err);
-        reject(err);
-      });
-      this.socket.on('close', () => {
-        this.connected = false;
-        this.clearAllPending('Connection closed');
-        this.emit('close');
-      });
-    });
+        clearTimeout(timer)
+        this.connected = false
+        this.emit('error', err)
+        reject(err)
+      })
+
+      this.socket.on('close', () => this._handleDisconnect())
+    })
   }
 
   disconnect(): void {
-    if (this.socket) {
-      this.socket.destroy();
-      this.socket = null;
-    }
-    this.connected = false;
-    this.clearAllPending('Disconnected');
+    this._stopReconnect()
+    this._stopWatchdog()
+    this.socket?.destroy()
+    this.socket = null
+    this.connected = false
+    this._clearAllPending('Disconnected')
   }
 
-  private clearAllPending(reason: string): void {
-    for (const req of this.pendingRequests) {
-      clearTimeout(req.timeoutTimer);
-      req.reject(new Error(reason));
-    }
-    this.pendingRequests = [];
-    if (this.currentRequest) {
-      clearTimeout(this.currentRequest.timeoutTimer);
-      this.currentRequest.reject(new Error(reason));
-      this.currentRequest = null;
-    }
+  // ─── 断线处理 ───────────────────────────────────────────────────────────
+
+  private _handleDisconnect(): void {
+    if (!this.connected) return
+    this.connected = false
+    this._clearAllPending('Connection closed')
+    this._stopWatchdog()
+    this.emit('close')
+    this.emit('disconnected')
+    if (this.opts.autoReconnect) this._startReconnect()
   }
 
-  private handleData(chunk: Buffer): void {
-    const frames = this.parser.feed(chunk);
-    for (const frame of frames) {
-      this.processFrame(frame);
-    }
+  private _startReconnect(): void {
+    if (this.reconnectTimer) return
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      this.connect().catch(() => this._startReconnect())
+    }, this.opts.reconnectInterval)
   }
 
-  private processFrame(frame: Buffer): void {
-    if (frame.length === 0) return;
-    const b0 = frame[0];
-    const pt = (b0 & 0x80) !== 0;
-    if (!pt) {
-      this.parseDataPush(frame);
-    } else {
-      this.handleResponse(frame);
-    }
+  private _stopReconnect(): void {
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
   }
 
-  /**
-   * 将16位原始值扩展为32位
-   * 根据增量变化自动调整高位
-   */
-  private extendTo32Bits(raw16: number, lastRaw: number, currentHigh: number): { value32: number; newHigh: number } {
-    let newHigh = currentHigh;
-    
-    // 检查是否跨过 0xFFFF <-> 0x0000 边界
-    // 正向溢出：从 0xFFFF 附近跳到 0x0000 附近
-    if (lastRaw > 0xC000 && raw16 < 0x4000) {
-      newHigh++;
-    } 
-    // 负向溢出：从 0x0000 附近跳到 0xFFFF 附近
-    else if (lastRaw < 0x4000 && raw16 > 0xC000) {
-      newHigh--;
-    }
-    
-    const value32 = (newHigh << 16) + raw16;
-    return { value32, newHigh };
+  // ─── 推送看门狗 ─────────────────────────────────────────────────────────
+
+  private _startWatchdog(): void {
+    if (this.pushWatchdog || this.opts.pushTimeout <= 0) return
+    this.pushWatchdog = setInterval(() => {
+      if (!this.connected) return
+      if (Date.now() - this.lastPushTime > this.opts.pushTimeout) {
+        this.emit('debug', '推送超时，断开重连')
+        this.disconnect()
+      }
+    }, 1000)
   }
 
+  private _stopWatchdog(): void {
+    if (this.pushWatchdog) { clearInterval(this.pushWatchdog); this.pushWatchdog = null }
+  }
+
+  // ─── 数据接收 ───────────────────────────────────────────────────────────
+
+  private _handleData(chunk: Buffer): void {
+    const frames = this.parser.feed(chunk)
+    for (const frame of frames) this._processFrame(frame)
+  }
+
+  private _processFrame(frame: Buffer): void {
+    if (frame.length === 0) return
+    const pt = (frame[0] & 0x80) !== 0
+    if (!pt) this._parseDataPush(frame)
+    else this._handleResponse(frame)
+  }
+
+  // ─── 推送解析 ───────────────────────────────────────────────────────────
+
+  private _extendTo32(raw16: number, lastRaw: number, curHigh: number): { value32: number; newHigh: number } {
+    let newHigh = curHigh
+    if (lastRaw > 0xc000 && raw16 < 0x4000) newHigh++
+    else if (lastRaw < 0x4000 && raw16 > 0xc000) newHigh--
+    return { value32: (newHigh << 16) + raw16, newHigh }
+  }
+
+  private _parseDataPush(payload: Buffer): void {
+    if (payload.length < 4) return
+
+    const systick = payload[0] & 0x7f
+    const dbm = payload[1]
+    let off = 2
+
+    const hasIn   = !!(dbm & 0x80)
+    const hasPos0 = !!(dbm & 0x40)
+    const hasPos1 = !!(dbm & 0x20)
+    const hasOut  = !!(dbm & 0x10)
+    const hasAd1  = !!(dbm & 0x08)
+    const reset   = !!(dbm & 0x01)
+
+    this.lastAd0 = payload.readUInt16LE(off); off += 2
+
+    let inVal = this.lastIn
+    let inChange: number | undefined
+    if (hasIn && off + 4 <= payload.length) {
+      this.lastIn = payload.readUInt16LE(off)
+      inChange = payload.readUInt16LE(off + 2)
+      inVal = this.lastIn
+      off += 4
+    }
+
+    let pos0Raw: number | undefined
+    if (hasPos0 && off + 2 <= payload.length) {
+      pos0Raw = payload.readUInt16LE(off)
+      const { value32, newHigh } = this._extendTo32(pos0Raw, this.lastPos0Raw, this.pos0High)
+      this.lastPos0 = value32
+      this.pos0High = newHigh
+      this.lastPos0Raw = pos0Raw
+      off += 2
+    }
+
+    let pos1Raw: number | undefined
+    if (hasPos1 && off + 2 <= payload.length) {
+      pos1Raw = payload.readUInt16LE(off)
+      const { value32, newHigh } = this._extendTo32(pos1Raw, this.lastPos1Raw, this.pos1High)
+      this.lastPos1 = value32
+      this.pos1High = newHigh
+      this.lastPos1Raw = pos1Raw
+      off += 2
+    }
+
+    if (hasOut && off + 2 <= payload.length) { this.lastOut = payload.readUInt16LE(off); off += 2 }
+    if (hasAd1 && off + 2 <= payload.length) { this.lastAd1 = payload.readUInt16LE(off); off += 2 }
+
+    const push: PushData = {
+      systick,
+      ad0: this.lastAd0,
+      ad1: hasAd1 ? this.lastAd1 : undefined,
+      in: hasIn ? inVal : undefined,
+      inChange: hasIn ? inChange : undefined,
+      out: hasOut ? this.lastOut : undefined,
+      pos0Raw: hasPos0 ? pos0Raw : undefined,
+      pos1Raw: hasPos1 ? pos1Raw : undefined,
+      pos0: hasPos0 ? this.lastPos0 : undefined,
+      pos1: hasPos1 ? this.lastPos1 : undefined,
+      reset,
+    }
+
+    this.lastPushTime = Date.now()
+
+    if (!this.firstFrameReceived) {
+      this.firstFrameReceived = true
+      this._startWatchdog()
+      this.emit('firstFrame')
+    }
+
+    if (reset) {
+      this.clearResetFlag().catch(() => {})
+      this.emit('reset')
+    }
+
+    this.emit('data', push)
+  }
+
+<<<<<<< HEAD
 // C# 脉冲扩展算法
 private calPosition(last32: number, enc16: number): number {
   const last16 = last32 & 0xffff;
@@ -239,273 +351,228 @@ private parseDataPush(payload: Buffer): void {
 
   private handleResponse(payload: Buffer): void {
     // 检查是否是 RN 主动推送
+=======
+  // ─── 响应处理 ───────────────────────────────────────────────────────────
+
+  private _handleResponse(payload: Buffer): void {
+>>>>>>> bf7fc156d148f11f374a461e4f80e61c6983f867
     if (payload.length >= 3 && payload[1] === 0x52 && payload[2] === 0x4e) {
       if (payload.length >= 7) {
-        const status = payload[3];
-        const serial = payload.readUInt32LE(4);
-        this.emit('runResult', { status, serial });
+        this.emit('runResult', { status: payload[3], serial: payload.readUInt32LE(4) } as RunResult)
       }
-      // 主动推送不消费请求，继续向下匹配
     }
 
-    // 匹配当前等待的请求
-    if (this.currentRequest && this.matchPrefix(payload, this.currentRequest.expectedPrefix)) {
-      clearTimeout(this.currentRequest.timeoutTimer);
-      this.currentRequest.resolve(payload);
-      this.currentRequest = null;
-      this.processNextRequest();
-      return;
+    if (this.currentRequest && this._matchPrefix(payload, this.currentRequest.expectedPrefix)) {
+      clearTimeout(this.currentRequest.timeoutTimer)
+      this.currentRequest.resolve(payload)
+      this.currentRequest = null
+      this._processNext()
+      return
     }
 
-    // 尝试匹配队列中的其他请求
     for (let i = 0; i < this.pendingRequests.length; i++) {
-      const req = this.pendingRequests[i];
-      if (this.matchPrefix(payload, req.expectedPrefix)) {
-        clearTimeout(req.timeoutTimer);
-        this.pendingRequests.splice(i, 1);
-        req.resolve(payload);
-        break;
+      if (this._matchPrefix(payload, this.pendingRequests[i].expectedPrefix)) {
+        const req = this.pendingRequests.splice(i, 1)[0]
+        clearTimeout(req.timeoutTimer)
+        req.resolve(payload)
+        break
       }
     }
   }
 
-  private matchPrefix(payload: Buffer, prefix: Buffer): boolean {
-    if (payload.length < prefix.length + 1) return false;
+  private _matchPrefix(payload: Buffer, prefix: Buffer): boolean {
+    if (payload.length < prefix.length + 1) return false
     for (let i = 0; i < prefix.length; i++) {
-      if (payload[i + 1] !== prefix[i]) return false;
+      if (payload[i + 1] !== prefix[i]) return false
     }
-    return true;
+    return true
   }
 
-  private processNextRequest(): void {
-    if (this.pendingRequests.length === 0) return;
-    const next = this.pendingRequests.shift()!;
-    this.currentRequest = next;
-    this.sendRawRequest(next.command, next.expectedPrefix, next.retryCount);
+  // ─── 命令队列 ───────────────────────────────────────────────────────────
+
+  private _processNext(): void {
+    if (this.pendingRequests.length === 0) return
+    const next = this.pendingRequests.shift()!
+    this.currentRequest = next
+    this._sendRaw(next.command, next.expectedPrefix, next.retryCount)
   }
 
-  private sendRawRequest(cmd: Buffer, expectedPrefix: Buffer, retryCount: number): void {
+  private _sendRaw(cmd: Buffer, expectedPrefix: Buffer, retryCount: number): void {
     if (!this.connected || !this.socket) {
       if (this.currentRequest) {
-        this.currentRequest.reject(new Error('Not connected'));
-        this.currentRequest = null;
+        this.currentRequest.reject(new Error('Not connected'))
+        this.currentRequest = null
       }
-      return;
+      return
     }
-    // 添加 B0 (PT=1, 低7位随意)
-    const fullCmd = Buffer.concat([Buffer.from([0x80]), cmd]);
-    const frame = Buffer.concat([fullCmd, Buffer.from([crc8(fullCmd)])]);
-    const wire = encode7E(frame);
-    this.socket.write(wire);
+    const fullCmd = Buffer.concat([Buffer.from([0x80]), cmd])
+    const wire = encode7E(Buffer.concat([fullCmd, Buffer.from([crc8(fullCmd)])]))
+    this.socket.write(wire)
 
     const timeoutTimer = setTimeout(() => {
-      if (this.currentRequest && this.currentRequest.command === cmd) {
-        if (retryCount < 2) {
-          // 重试
-          this.sendRawRequest(cmd, expectedPrefix, retryCount + 1);
+      if (this.currentRequest?.command === cmd) {
+        if (retryCount < this.opts.maxRetries) {
+          this._sendRaw(cmd, expectedPrefix, retryCount + 1)
         } else {
-          this.currentRequest.reject(new Error('Request timeout after retries'));
-          this.currentRequest = null;
-          this.processNextRequest();
+          this.currentRequest.reject(new Error('Request timeout after retries'))
+          this.currentRequest = null
+          this._processNext()
         }
       }
-    }, 1000);
-    if (this.currentRequest) this.currentRequest.timeoutTimer = timeoutTimer;
+    }, this.opts.commandTimeout)
+
+    if (this.currentRequest) this.currentRequest.timeoutTimer = timeoutTimer
   }
 
-  private async sendCommand<T>(
+  private _sendCommand<T>(
     builder: () => { cmd: Buffer; expectedPrefix: Buffer },
-    parser: (resp: Buffer) => T
+    parser: (resp: Buffer) => T,
   ): Promise<T> {
-    if (!this.connected) throw new Error('Not connected');
-    const { cmd, expectedPrefix } = builder();
+    if (!this.connected) return Promise.reject(new Error('Not connected'))
+    const { cmd, expectedPrefix } = builder()
     return new Promise((resolve, reject) => {
-      const pending: PendingRequest = {
-        resolve: (resp) => {
-          try {
-            resolve(parser(resp));
-          } catch (e) {
-            reject(e);
-          }
-        },
+      const req: PendingRequest = {
+        resolve: (resp) => { try { resolve(parser(resp)) } catch (e) { reject(e) } },
         reject,
         timeoutTimer: setTimeout(() => {}, 0),
         retryCount: 0,
         expectedPrefix,
         command: cmd,
-      };
-      if (this.currentRequest === null) {
-        this.currentRequest = pending;
-        this.sendRawRequest(cmd, expectedPrefix, 0);
-      } else {
-        this.pendingRequests.push(pending);
       }
-    });
+      if (this.currentRequest === null) {
+        this.currentRequest = req
+        this._sendRaw(cmd, expectedPrefix, 0)
+      } else {
+        this.pendingRequests.push(req)
+      }
+    })
   }
 
-  // ========== 手动同步编码器（修正扩展值）==========
+  // ─── 内部工具 ───────────────────────────────────────────────────────────
+
+  private _resetCache(): void {
+    this.pos0High = 0; this.pos1High = 0
+    this.lastPos0Raw = 0; this.lastPos1Raw = 0
+    this.lastAd0 = 0; this.lastAd1 = 0; this.lastIn = 0; this.lastOut = 0
+    this.lastPos0 = 0; this.lastPos1 = 0
+  }
+
+  private _clearAllPending(reason: string): void {
+    const err = new Error(reason)
+    for (const req of this.pendingRequests) { clearTimeout(req.timeoutTimer); req.reject(err) }
+    this.pendingRequests = []
+    if (this.currentRequest) {
+      clearTimeout(this.currentRequest.timeoutTimer)
+      this.currentRequest.reject(err)
+      this.currentRequest = null
+    }
+  }
+
+  // ─── 公开缓存读取 ────────────────────────────────────────────────────────
+
+  getCachedAd0(): number { return this.lastAd0 }
+  getCachedAd1(): number { return this.lastAd1 }
+  getCachedIn(): number { return this.lastIn }
+  getCachedOut(): number { return this.lastOut }
+  getCachedPos0Raw(): number { return this.lastPos0Raw }
+  getCachedPos0(): number { return this.lastPos0 }
+  getCachedPos1(): number { return this.lastPos1 }
+
+  // ─── 编码器同步 ──────────────────────────────────────────────────────────
+
   async syncPos0(): Promise<number> {
-    const value = await this.getPos0();
-    this.pos0High = (value >> 16) & 0xFFFF;
-    this.lastPos0Raw = value & 0xFFFF;
-    this.lastPos0 = value;
-    return value;
+    const v = await this.getPos0()
+    this.pos0High = (v >> 16) & 0xffff; this.lastPos0Raw = v & 0xffff; this.lastPos0 = v
+    return v
   }
 
   async syncPos1(): Promise<number> {
-    const value = await this.getPos1();
-    this.pos1High = (value >> 16) & 0xFFFF;
-    this.lastPos1Raw = value & 0xFFFF;
-    this.lastPos1 = value;
-    return value;
+    const v = await this.getPos1()
+    this.pos1High = (v >> 16) & 0xffff; this.lastPos1Raw = v & 0xffff; this.lastPos1 = v
+    return v
   }
 
   async syncAllPos(): Promise<{ pos0: number; pos1: number }> {
-    const { pos0, pos1 } = await this.getPosAll();
-    this.pos0High = (pos0 >> 16) & 0xFFFF;
-    this.lastPos0Raw = pos0 & 0xFFFF;
-    this.lastPos0 = pos0;
-    this.pos1High = (pos1 >> 16) & 0xFFFF;
-    this.lastPos1Raw = pos1 & 0xFFFF;
-    this.lastPos1 = pos1;
-    return { pos0, pos1 };
+    const { pos0, pos1 } = await this.getPosAll()
+    this.pos0High = (pos0 >> 16) & 0xffff; this.lastPos0Raw = pos0 & 0xffff; this.lastPos0 = pos0
+    this.pos1High = (pos1 >> 16) & 0xffff; this.lastPos1Raw = pos1 & 0xffff; this.lastPos1 = pos1
+    return { pos0, pos1 }
   }
 
-  // ========== 获取当前缓存的最新值（不发送指令）==========
-  getCachedAd0(): number { return this.lastAd0; }
-  getCachedAd1(): number { return this.lastAd1; }
-  getCachedIn(): number { return this.lastIn; }
-  getCachedOut(): number { return this.lastOut; }
-  getCachedPos0Raw(): number { return this.lastPos0Raw; }
-  getCachedPos0(): number { return this.lastPos0; }
-  getCachedPos1(): number { return this.lastPos1; }
+  // ─── IO 指令 ─────────────────────────────────────────────────────────────
 
-  // ========== 公开 API ==========
-  async getInput(): Promise<number> {
-    return this.sendCommand(IOCommands.getInput, (resp) => resp.readUInt16LE(3));
-  }
-
-  async getOutput(): Promise<number> {
-    return this.sendCommand(IOCommands.getOutput, (resp) => resp.readUInt16LE(3));
-  }
-
+  async getInput(): Promise<number> { return this._sendCommand(IOCommands.getInput, (r) => r.readUInt16LE(3)) }
+  async getOutput(): Promise<number> { return this._sendCommand(IOCommands.getOutput, (r) => r.readUInt16LE(3)) }
   async setOutput(mask: number, value: number): Promise<void> {
-    await this.sendCommand(() => IOCommands.setOutput(mask, value), () => undefined);
+    await this._sendCommand(() => IOCommands.setOutput(mask, value), () => undefined)
   }
-
-  async getPos0(): Promise<number> {
-    return this.sendCommand(IOCommands.getPos0, (resp) => resp.readInt32LE(4));
-  }
-
-  async getPos1(): Promise<number> {
-    return this.sendCommand(IOCommands.getPos1, (resp) => resp.readInt32LE(4));
-  }
-
+  async getPos0(): Promise<number> { return this._sendCommand(IOCommands.getPos0, (r) => r.readInt32LE(4)) }
+  async getPos1(): Promise<number> { return this._sendCommand(IOCommands.getPos1, (r) => r.readInt32LE(4)) }
   async getPosAll(): Promise<EncAll> {
-    return this.sendCommand(IOCommands.getPosAll, (resp) => ({
-      pos0: resp.readInt32LE(4),
-      pos1: resp.readInt32LE(8),
-    }));
+    return this._sendCommand(IOCommands.getPosAll, (r) => ({ pos0: r.readInt32LE(4), pos1: r.readInt32LE(8) }))
   }
+  async getSystemTick(): Promise<number> { return this._sendCommand(IOCommands.getSystemTick, (r) => r.readUInt32LE(2)) }
 
-  async getSystemTick(): Promise<number> {
-    return this.sendCommand(IOCommands.getSystemTick, (resp) => resp.readUInt32LE(2));
-  }
+  // ─── 运动参数 ────────────────────────────────────────────────────────────
 
-  // 运动参数设置
-  async setRunParamSpeed(velocity: number): Promise<void> {
-    await this.sendCommand(() => RunCommands.setSpeed(velocity), () => undefined);
-  }
-  async setRunParamInitSpeed(sv: number): Promise<void> {
-    await this.sendCommand(() => RunCommands.setInitSpeed(sv), () => undefined);
-  }
-  async setRunParamAccelTime(ms: number): Promise<void> {
-    await this.sendCommand(() => RunCommands.setAccelTime(ms), () => undefined);
-  }
-  async setRunParamDecelTime(ms: number): Promise<void> {
-    await this.sendCommand(() => RunCommands.setDecelTime(ms), () => undefined);
-  }
-  async setRunParamHomeSpeed1(speed: number): Promise<void> {
-    await this.sendCommand(() => RunCommands.setHomeSpeed1(speed), () => undefined);
-  }
-  async setRunParamHomeSpeed2(speed: number): Promise<void> {
-    await this.sendCommand(() => RunCommands.setHomeSpeed2(speed), () => undefined);
-  }
+  async setRunParamSpeed(v: number): Promise<void> { await this._sendCommand(() => RunCommands.setSpeed(v), () => undefined) }
+  async setRunParamInitSpeed(sv: number): Promise<void> { await this._sendCommand(() => RunCommands.setInitSpeed(sv), () => undefined) }
+  async setRunParamAccelTime(ms: number): Promise<void> { await this._sendCommand(() => RunCommands.setAccelTime(ms), () => undefined) }
+  async setRunParamDecelTime(ms: number): Promise<void> { await this._sendCommand(() => RunCommands.setDecelTime(ms), () => undefined) }
+  async setRunParamHomeSpeed1(s: number): Promise<void> { await this._sendCommand(() => RunCommands.setHomeSpeed1(s), () => undefined) }
+  async setRunParamHomeSpeed2(s: number): Promise<void> { await this._sendCommand(() => RunCommands.setHomeSpeed2(s), () => undefined) }
+  async getRunParamSpeed(): Promise<number> { return this._sendCommand(RunCommands.getSpeed, (r) => r.readUInt32LE(3)) }
+  async getRunParamInitSpeed(): Promise<number> { return this._sendCommand(RunCommands.getInitSpeed, (r) => r.readUInt32LE(3)) }
+  async getRunParamAccelTime(): Promise<number> { return this._sendCommand(RunCommands.getAccelTime, (r) => r.readUInt32LE(3)) }
+  async getRunParamDecelTime(): Promise<number> { return this._sendCommand(RunCommands.getDecelTime, (r) => r.readUInt32LE(3)) }
+  async getRunParamHomeSpeed1(): Promise<number> { return this._sendCommand(RunCommands.getHomeSpeed1, (r) => r.readUInt32LE(3)) }
+  async getRunParamHomeSpeed2(): Promise<number> { return this._sendCommand(RunCommands.getHomeSpeed2, (r) => r.readUInt32LE(3)) }
 
-  // 运动参数读取
-  async getRunParamSpeed(): Promise<number> {
-    return this.sendCommand(RunCommands.getSpeed, (resp) => resp.readUInt32LE(3));
-  }
-  async getRunParamInitSpeed(): Promise<number> {
-    return this.sendCommand(RunCommands.getInitSpeed, (resp) => resp.readUInt32LE(3));
-  }
-  async getRunParamAccelTime(): Promise<number> {
-    return this.sendCommand(RunCommands.getAccelTime, (resp) => resp.readUInt32LE(3));
-  }
-  async getRunParamDecelTime(): Promise<number> {
-    return this.sendCommand(RunCommands.getDecelTime, (resp) => resp.readUInt32LE(3));
-  }
-  async getRunParamHomeSpeed1(): Promise<number> {
-    return this.sendCommand(RunCommands.getHomeSpeed1, (resp) => resp.readUInt32LE(3));
-  }
-  async getRunParamHomeSpeed2(): Promise<number> {
-    return this.sendCommand(RunCommands.getHomeSpeed2, (resp) => resp.readUInt32LE(3));
-  }
+  // ─── 运动动作 ────────────────────────────────────────────────────────────
 
-  // 运动动作
   async moveToPosition(targetPos: number, serial?: number): Promise<void> {
-    const s = serial ?? ++this.serialCounter;
-    await this.sendCommand(() => RunCommands.moveToPosition(targetPos, s), () => undefined);
+    const s = serial ?? ++this.serialCounter
+    await this._sendCommand(() => RunCommands.moveToPosition(targetPos, s), () => undefined)
   }
   async moveRelative(pulses: number, serial?: number): Promise<void> {
-    const s = serial ?? ++this.serialCounter;
-    await this.sendCommand(() => RunCommands.moveRelative(pulses, s), () => undefined);
+    const s = serial ?? ++this.serialCounter
+    await this._sendCommand(() => RunCommands.moveRelative(pulses, s), () => undefined)
   }
   async moveForward(serial?: number): Promise<void> {
-    const s = serial ?? ++this.serialCounter;
-    await this.sendCommand(() => RunCommands.forward(s), () => undefined);
+    const s = serial ?? ++this.serialCounter
+    await this._sendCommand(() => RunCommands.forward(s), () => undefined)
   }
   async moveBackward(serial?: number): Promise<void> {
-    const s = serial ?? ++this.serialCounter;
-    await this.sendCommand(() => RunCommands.backward(s), () => undefined);
+    const s = serial ?? ++this.serialCounter
+    await this._sendCommand(() => RunCommands.backward(s), () => undefined)
   }
   async home(serial?: number): Promise<void> {
-    const s = serial ?? ++this.serialCounter;
-    await this.sendCommand(() => RunCommands.home(s), () => undefined);
+    const s = serial ?? ++this.serialCounter
+    await this._sendCommand(() => RunCommands.home(s), () => undefined)
   }
-  async stopDecel(): Promise<void> {
-    await this.sendCommand(RunCommands.stopDecel, () => undefined);
-  }
-  async stopEmergency(): Promise<void> {
-    await this.sendCommand(RunCommands.stopEmergency, () => undefined);
-  }
+  async stopDecel(): Promise<void> { await this._sendCommand(RunCommands.stopDecel, () => undefined) }
+  async stopEmergency(): Promise<void> { await this._sendCommand(RunCommands.stopEmergency, () => undefined) }
   async getRunResult(): Promise<RunResult> {
-    return this.sendCommand(RunCommands.getRunResult, (resp) => ({
-      status: resp[3],
-      serial: resp.readUInt32LE(4),
-    }));
+    return this._sendCommand(RunCommands.getRunResult, (r) => ({ status: r[3], serial: r.readUInt32LE(4) }))
   }
 
-  // 系统参数
+  // ─── 系统参数 ────────────────────────────────────────────────────────────
+
   async getSavedParam(index: number): Promise<number> {
-    return this.sendCommand(() => ParamCommands.getSavedParam(index), (resp) => resp.readUInt32LE(3));
+    return this._sendCommand(() => ParamCommands.getSavedParam(index), (r) => r.readUInt32LE(3))
   }
   async setSavedParam(index: number, value: number): Promise<void> {
-    await this.sendCommand(() => ParamCommands.setSavedParam(index, value), () => undefined);
+    await this._sendCommand(() => ParamCommands.setSavedParam(index, value), () => undefined)
   }
   async getTempParam(index: number): Promise<number> {
-    return this.sendCommand(() => ParamCommands.getTempParam(index), (resp) => resp.readUInt32LE(3));
+    return this._sendCommand(() => ParamCommands.getTempParam(index), (r) => r.readUInt32LE(3))
   }
   async setTempParam(index: number, value: number): Promise<void> {
-    await this.sendCommand(() => ParamCommands.setTempParam(index, value), () => undefined);
+    await this._sendCommand(() => ParamCommands.setTempParam(index, value), () => undefined)
   }
-  async applyParams(): Promise<void> {
-    await this.sendCommand(ParamCommands.applyParams, () => undefined);
-  }
+  async applyParams(): Promise<void> { await this._sendCommand(ParamCommands.applyParams, () => undefined) }
   async softReset(seconds: number): Promise<void> {
-    await this.sendCommand(() => ParamCommands.softReset(seconds), () => undefined);
+    await this._sendCommand(() => ParamCommands.softReset(seconds), () => undefined)
   }
-  async clearResetFlag(): Promise<void> {
-    await this.sendCommand(ParamCommands.clearResetFlag, () => undefined);
-  }
+  async clearResetFlag(): Promise<void> { await this._sendCommand(ParamCommands.clearResetFlag, () => undefined) }
 }
