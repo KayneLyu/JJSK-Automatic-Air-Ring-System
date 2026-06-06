@@ -37,7 +37,7 @@ const isApplyingManualTractionSpeed = ref(false)
 const isResettingCalibration = ref(false)
 
 // 操作栏数据
-const targetPulse = ref('1000')
+const targetPulse = ref(1000)
 const isApplying = ref(false)
 const plcParamBaseline = ref<Partial<IPlcParamResult>>({})
 
@@ -547,16 +547,15 @@ const inputChangeState = async (options: IState) => {
 
 // 移动到脉冲位置
 const moveToPulsePosition = async () => { 
-   await window.ipcApi.invoke('adbox-movePosition');
+   await window.ipcApi.invoke('adbox-movePosition',targetPulse.value );
 }
 
 // 监听adbox:data
 window.ipcApi.on("adbox-data", (_, data) => {
    currentAD.value = data.ad0;
    // thickness.value = calcThickness(data.ad0, { airAD: 50300, gain: 1.35 }).toFixed(2)
-   if (data.pos0Raw) {
-      console.log(data);
-      measurePosition.value = data.pos0Raw;
+   if (data.pos0) {
+      measurePosition.value = data.pos0;
    }
 })
 

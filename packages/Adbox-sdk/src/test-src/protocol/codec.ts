@@ -1,4 +1,5 @@
 const DELIM = 0x7e, ESC = 0x7d, XOR = 0x20;
+
 export function encode7E(raw: Buffer): Buffer {
   const chunks: Buffer[] = [];
   for (const b of raw) {
@@ -8,6 +9,7 @@ export function encode7E(raw: Buffer): Buffer {
   const body = Buffer.concat(chunks);
   return Buffer.concat([Buffer.from([DELIM]), body, Buffer.from([DELIM])]);
 }
+
 export function decode7E(frame: Buffer): Buffer | null {
   const out: number[] = [];
   for (let i = 0; i < frame.length; i++) {

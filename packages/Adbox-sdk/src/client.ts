@@ -138,74 +138,83 @@ export class ADBoxClient extends EventEmitter {
     return { value32, newHigh };
   }
 
- private parseDataPush(payload: Buffer): void {
-  if (payload.length < 2) return;
-  const systick = payload[0] & 0x7f;
-  const b1 = payload[1];
-  let offset = 2;
+// C# 脉冲扩展算法
+private calPosition(last32: number, enc16: number): number {
+  const last16 = last32 & 0xffff;
+  const d = (enc16 - last16) << 16 >> 16; // 有符号差值
+  return last32 + d;
+}
 
-  const hasIn   = (b1 & 0x80) !== 0;
-  const hasPos0 = (b1 & 0x40) !== 0;
-  const hasPos1 = (b1 & 0x20) !== 0;
-  const hasOut  = (b1 & 0x10) !== 0;
-  const hasAd1  = (b1 & 0x08) !== 0;
-  const hasReset= (b1 & 0x01) !== 0;
 
-  // 1. AD0 (始终存在)
-  let ad0 = this.lastAd0;
-  if (offset + 1 < payload.length) {
-    ad0 = payload.readUInt16LE(offset);
-    this.lastAd0 = ad0;
-    offset += 2;
+
+private parseDataPush(payload: Buffer): void {
+  if (payload.length < 4) return; // B0 + B1 + AD0 至少4字节
+
+  const dbm = payload[1];
+  // 计算预期总长度（与C#完全一致）
+  let expectedLen = 4; // B0(1) + B1(1) + AD0(2)
+  if (dbm & 0x80) expectedLen += 4;  // In + InChange (各2字节)
+  if (dbm & 0x40) expectedLen += 2;  // POS0 (2字节)
+  if (dbm & 0x20) expectedLen += 2;  // pos0 (2字节)
+  if (dbm & 0x10) expectedLen += 2;  // Out (2字节)
+  if (dbm & 0x08) expectedLen += 2;  // AD1 (2字节)
+
+  // 长度不匹配则丢弃该包（问题关键修复）
+  if (expectedLen !== payload.length) {
+    // console.warn('Data packet length mismatch', expectedLen, payload.length);
+    return;
   }
 
-  // 2. In + InChange (可选)
+  const systick = payload[0] & 0x7f;
+  const reset = !!(dbm & 0x01);
+  let offset = 2;
+
+  // AD0 (始终存在)
+  const ad0 = payload.readUInt16LE(offset);
+  this.lastAd0 = ad0;
+  offset += 2;
+
+  // In + InChange
   let inVal = this.lastIn;
   let inChange: number | undefined;
-  if (hasIn && offset + 3 < payload.length) {
+  if (dbm & 0x80) {
     inVal = payload.readUInt16LE(offset);
     inChange = payload.readUInt16LE(offset + 2);
     this.lastIn = inVal;
     offset += 4;
   }
 
-  // 3. Pos0 (16位原始，可选)
-  let pos0 = this.lastPos0;
+  // POS0 (ENC1)
+  let pos0: number | undefined;
   let pos0Raw: number | undefined;
-  if (hasPos0 && offset + 1 < payload.length) {
+  if (dbm & 0x40) {
     pos0Raw = payload.readUInt16LE(offset);
-    const { value32, newHigh } = this.extendTo32Bits(pos0Raw, this.lastPos0Raw, this.pos0High);
-    pos0 = value32;
-    this.lastPos0 = pos0;
-    this.pos0High = newHigh;
-    this.lastPos0Raw = pos0Raw;
+    this.pos0High = this.calPosition(this.pos0High, pos0Raw);
+    pos0 = this.pos0High;
     offset += 2;
   }
 
-  // 4. Pos1 (16位原始，可选)
-  let pos1 = this.lastPos1;
+  // pos0 (ENC2)
+  let pos1: number | undefined;
   let pos1Raw: number | undefined;
-  if (hasPos1 && offset + 1 < payload.length) {
+  if (dbm & 0x20) {
     pos1Raw = payload.readUInt16LE(offset);
-    const { value32, newHigh } = this.extendTo32Bits(pos1Raw, this.lastPos1Raw, this.pos1High);
-    pos1 = value32;
-    this.lastPos1 = pos1;
-    this.pos1High = newHigh;
-    this.lastPos1Raw = pos1Raw;
+    this.pos1High = this.calPosition(this.pos1High, pos1Raw);
+    pos1 = this.pos1High;
     offset += 2;
   }
 
-  // 5. Out (可选)
+  // Out
   let out = this.lastOut;
-  if (hasOut && offset + 1 < payload.length) {
+  if (dbm & 0x10) {
     out = payload.readUInt16LE(offset);
     this.lastOut = out;
     offset += 2;
   }
 
-  // 6. AD1 (可选，最后)
+  // AD1
   let ad1 = this.lastAd1;
-  if (hasAd1 && offset + 1 < payload.length) {
+  if (dbm & 0x08) {
     ad1 = payload.readUInt16LE(offset);
     this.lastAd1 = ad1;
     offset += 2;
@@ -214,15 +223,15 @@ export class ADBoxClient extends EventEmitter {
   const push: PushData = {
     systick,
     ad0,
-    ad1: hasAd1 ? ad1 : undefined,
-    in: hasIn ? inVal : undefined,
-    inChange: hasIn ? inChange : undefined,
-    out: hasOut ? out : undefined,
-    pos0Raw: hasPos0 ? pos0Raw : undefined,
-    pos1Raw: hasPos1 ? pos1Raw : undefined,
-    pos0: hasPos0 ? pos0 : undefined,
-    pos1: hasPos1 ? pos1 : undefined,
-    reset: hasReset,
+    ad1: (dbm & 0x08) ? ad1 : undefined,
+    in: (dbm & 0x80) ? inVal : undefined,
+    inChange,
+    out: (dbm & 0x10) ? out : undefined,
+    pos0,
+    pos1,
+    pos0Raw,
+    pos1Raw,
+    reset,
   };
 
   this.emit('data', push);

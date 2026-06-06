@@ -60,41 +60,47 @@ export class RunCommands {
 
   // ---------- 运动动作 ----------
   static moveToPosition(targetPos: number, serial: number): { cmd: Buffer; expectedPrefix: Buffer } {
-    const cmd = Buffer.alloc(3 + 4 + 4); // "RRP" + pos(4) + serial(4)
-    cmd.write('RRP', 0, 3, 'ascii');
-    cmd.writeInt32LE(targetPos, 3);
-    cmd.writeUInt32LE(serial, 7);
-    return { cmd, expectedPrefix: Buffer.from('RRP') };
+    const data = Buffer.alloc(1 + 4 + 4); // P(1) + pos(4) + serial(4)
+    data.writeUInt8(0x50, 0); // 'P'
+    data.writeInt32LE(targetPos, 1);
+    data.writeInt32LE(serial, 5);
+    return {
+      cmd: Buffer.concat([Buffer.from('RR'), data]),
+      expectedPrefix: Buffer.from('RR'),   // 前缀只有 "RR"
+    };
   }
 
   static moveRelative(pulses: number, serial: number): { cmd: Buffer; expectedPrefix: Buffer } {
     const sign = pulses >= 0 ? '+' : '-';
     const absVal = Math.abs(pulses);
-    const cmd = Buffer.alloc(3 + 4 + 4);
-    cmd.write(`RR${sign}`, 0, 3, 'ascii');
-    cmd.writeUInt32LE(absVal, 3);
-    cmd.writeUInt32LE(serial, 7);
-    return { cmd, expectedPrefix: Buffer.from(`RR${sign}`) };
+    const data = Buffer.alloc(1 + 4 + 4);
+    data.writeUInt8(sign === '+' ? 0x2B : 0x2D, 0); // '+' or '-'
+    data.writeUInt32LE(absVal, 1);
+    data.writeInt32LE(serial, 5);
+    return {
+      cmd: Buffer.concat([Buffer.from('RR'), data]),
+      expectedPrefix: Buffer.from('RR'),
+    };
   }
 
   static forward(serial: number): { cmd: Buffer; expectedPrefix: Buffer } {
-    const cmd = Buffer.alloc(3 + 4);
+    const cmd = Buffer.alloc(2 + 4);
     cmd.write('RF', 0, 2, 'ascii');
-    cmd.writeUInt32LE(serial, 2);
+    cmd.writeInt32LE(serial, 2);
     return { cmd, expectedPrefix: Buffer.from('RF') };
   }
 
   static backward(serial: number): { cmd: Buffer; expectedPrefix: Buffer } {
-    const cmd = Buffer.alloc(3 + 4);
+    const cmd = Buffer.alloc(2 + 4);
     cmd.write('RB', 0, 2, 'ascii');
-    cmd.writeUInt32LE(serial, 2);
+    cmd.writeInt32LE(serial, 2);
     return { cmd, expectedPrefix: Buffer.from('RB') };
   }
 
   static home(serial: number): { cmd: Buffer; expectedPrefix: Buffer } {
-    const cmd = Buffer.alloc(3 + 4);
+    const cmd = Buffer.alloc(2 + 4);
     cmd.write('RO', 0, 2, 'ascii');
-    cmd.writeUInt32LE(serial, 2);
+    cmd.writeInt32LE(serial, 2);
     return { cmd, expectedPrefix: Buffer.from('RO') };
   }
 

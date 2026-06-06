@@ -1,7 +1,7 @@
 // main.ts
 import { BrowserWindow, ipcMain, app } from 'electron';
 import { TestADBoxClient } from '../../../packages/adbox-sdk'
-// import type { PushData, RunResult } from "../../../packages/adbox-sdk";
+import type { PushData } from "../../../packages/Adbox-sdk/src/test-src/types.ts";
 import Store from 'electron-store';
 import { DataBatcher } from './data-batcher';
 
@@ -40,19 +40,20 @@ export function initMotionControl(mainWindow: BrowserWindow) {
         adb = new TestADBoxClient({
             host: '192.168.251.12',
             port: 20021,
-            pushTimeout: 1000
+            pushTimeout: 1000,
+            commandTimeout: 1000,
+            maxRetries: 2,
         });
 
         adb.on('connected', () => console.log('connected'));
         adb.on('firstFrame', async () => {
-            // 等待 300~500ms，让设备通信稳定
-            await new Promise(resolve => setTimeout(resolve, 500));
-            // 分别捕获，失败只记录，不阻塞
-            adb.syncPos0().catch(err => console.warn('syncPos0:', err.message));
-            adb.syncPos1().catch(err => console.warn('syncPos1:', err.message));
+            console.log('start receiving data');
+            // 同步编码器高位（可选）
+            await adb.syncPos0().catch(() => { });
         });
-        adb.on('data', (frame) => {
-            dataBatcher.push(frame);
+        adb.on('data', (push: PushData) => {
+
+            dataBatcher.push(push);
             // 高频数据，推荐节流后发送到 UI
         });
         adb.on('runResult', (r) => console.log('running state', r));
@@ -111,19 +112,19 @@ export function initMotionControl(mainWindow: BrowserWindow) {
     // ---------- IPC 接口 ----------
     ipcMain.handle('adbox-connect', async () => {
         if (!adb) await initADBox();
-        return adb.connected;
+        // return adb.connected;
     });
     // ipcMain.handle('adbox-start-scan', async () => {
     //     if (!adb?.connected) throw new Error('设备未连接');
     //     await startScan();
     // });
     ipcMain.handle('adbox-stop', async () => {
-        if (!adb?.connected) throw new Error('设备未连接');
+        // if (!adb?.connected) throw new Error('设备未连接');
         stopScanGracefully();
     });
 
     ipcMain.handle('adbox-forward', async () => {
-        if (!adb?.connected) throw new Error('设备未连接');
+        // if (!adb?.connected) throw new Error('设备未连接');
         if (emergencyStopFlag) throw new Error('急停状态');
         try {
             stopScanGracefully();
@@ -133,7 +134,7 @@ export function initMotionControl(mainWindow: BrowserWindow) {
         }
     });
     ipcMain.handle('adbox-backward', async () => {
-        if (!adb?.connected) throw new Error('设备未连接');
+        // if (!adb?.connected) throw new Error('设备未连接');
         if (emergencyStopFlag) throw new Error('急停状态');
         try {
             stopScanGracefully();
@@ -143,7 +144,7 @@ export function initMotionControl(mainWindow: BrowserWindow) {
         }
     });
     ipcMain.handle('adbox-home', async () => {
-        if (!adb?.connected) throw new Error('设备未连接');
+        // if (!adb?.connected) throw new Error('设备未连接');
         if (emergencyStopFlag) throw new Error('急停状态');
         try {
             stopScanGracefully();
@@ -153,12 +154,12 @@ export function initMotionControl(mainWindow: BrowserWindow) {
 
         }
     });
-    ipcMain.handle('adbox-movePosition', async () => {
-        if (!adb?.connected) throw new Error('设备未连接');
+    ipcMain.handle('adbox-movePosition', async ( _, position: number) => {
+        // if (!adb?.connected) throw new Error('设备未连接');
         if (emergencyStopFlag) throw new Error('急停状态');
         try {
             stopScanGracefully();
-            await adb.moveToPosition(1234);
+            await adb.moveToPosition(position);
         } catch (error) {
             console.log('run error', error);
         }
