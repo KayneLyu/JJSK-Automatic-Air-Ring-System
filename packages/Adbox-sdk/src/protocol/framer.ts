@@ -1,36 +1,47 @@
 import { decode7E } from './codec';
-import { crc8 } from './crc';
+import { crc8 } from './crc8';
+const DELIM = 0x7e;
 
 export class FrameParser {
-  private buffer = Buffer.alloc(0);
+  private buf = Buffer.alloc(0);
 
-  /**
-   * 喂入原始数据，返回所有已校验通过的完整载荷
-   */
-  feed(data: Buffer): Buffer[] {
-    this.buffer = Buffer.concat([this.buffer, data]);
+  feed(chunk: Buffer): Buffer[] {
+    this.buf = Buffer.concat([this.buf, chunk]);
     const frames: Buffer[] = [];
+
     while (true) {
-      const result = decode7E(this.buffer);
-      if (!result) break;
-      const { payload, consumed } = result;
-      // 校验 CRC8
-      if (payload.length >= 1) {
-        const dataWithoutCrc = payload.subarray(0, payload.length - 1);
-        const receivedCrc = payload[payload.length - 1];
-        if (crc8(dataWithoutCrc) === receivedCrc) {
-          frames.push(dataWithoutCrc);
-        } else {
-          // CRC 错误，丢弃该帧并记录错误（可触发 error 事件）
-          // 这里简单丢弃，上层可监听 error
-        }
+      const start = this.buf.indexOf(DELIM);
+      if (start === -1) break;
+      const end = this.buf.indexOf(DELIM, start + 1);
+      if (end === -1) break;
+
+      // 调试
+      // [RAW FRAME] frameContent.toString('hex')
+      const frameContent = this.buf.subarray(start + 1, end);
+      // 保留 end 处的 0x7E 作为下一帧的开始
+      this.buf = this.buf.subarray(end);   // 原来是 end + 1，导致丢掉下一帧的头
+
+      if (frameContent.length === 0) {
+        // 双 0x7E 产生的空帧，直接跳过
+        continue;
       }
-      this.buffer = this.buffer.subarray(consumed);
+
+      const raw = decode7E(frameContent);
+      if (!raw || raw.length < 2) continue;
+
+      const dataLen = raw.length - 1;
+      const computed = crc8(raw.subarray(0, dataLen));
+      const expected = raw[dataLen];
+      if (computed === expected) {
+        frames.push(raw.subarray(0, dataLen));
+        // console.log(`[FRAME] CRC OK -> payload: ${raw.subarray(0, dataLen).toString('hex')}`);
+      } 
+      // else {
+        // console.log(`[FRAME] CRC FAIL -> calc=${computed.toString(16)} exp=${expected.toString(16)}`);
+      // }
     }
     return frames;
   }
 
-  clear(): void {
-    this.buffer = Buffer.alloc(0);
-  }
+  clear() { this.buf = Buffer.alloc(0); }
 }

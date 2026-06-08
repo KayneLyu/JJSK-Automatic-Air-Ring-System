@@ -8,12 +8,8 @@ export function crc8(data: Buffer): number {
     let b = byte;
     crc ^= b;
     for (let i = 0; i < 8; i++) {
-      if (crc & 0x80) {
-        crc = (crc << 1) ^ poly;
-      } else {
-        crc <<= 1;
-      }
-      crc &= 0xff;
+      if (crc & 0x80) crc = ((crc << 1) ^ poly) & 0xff;
+      else crc = (crc << 1) & 0xff;
     }
   }
   return crc;

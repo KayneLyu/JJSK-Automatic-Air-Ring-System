@@ -1,9 +1,9 @@
 // main.ts
 import { BrowserWindow, ipcMain, app } from 'electron';
-import { TestADBoxClient } from '../../../packages/Adbox-sdk'
-import type { PushData } from "../../../packages/Adbox-sdk/src/test-src/types.ts";
+import { ADBoxClient } from '@jjsk/adbox-sdk'
+import type { PushData } from "@jjsk/adbox-sdk";
 import Store from 'electron-store';
-import { DataBatcher } from './data-batcher';
+import { DataBatcher } from './data-batcher.ts';
 
 let dataBatcher: DataBatcher<any>;
 
@@ -22,7 +22,7 @@ export function initMotionControl(mainWindow: BrowserWindow) {
     });
 
 
-    let adb: TestADBoxClient;
+    let adb: ADBoxClient;
 
     // ---------- 运动控制状态 ----------
     let isScanning = false;
@@ -37,7 +37,7 @@ export function initMotionControl(mainWindow: BrowserWindow) {
 
     // ---------- AD盒初始化 ----------
     async function initADBox() {
-        adb = new TestADBoxClient({
+        adb = new ADBoxClient({
             host: '192.168.251.12',
             port: 20021,
             pushTimeout: 1000,
@@ -53,8 +53,9 @@ export function initMotionControl(mainWindow: BrowserWindow) {
         });
         adb.on('data', (push: PushData) => {
 
-            dataBatcher.push(push);
+            // dataBatcher.push(push);
             // 高频数据，推荐节流后发送到 UI
+            mainWindow.webContents.send("adbox-data", push)
         });
         adb.on('runResult', (r) => console.log('running state', r));
         adb.on('disconnected', () => console.log('disconnected'));
@@ -112,19 +113,19 @@ export function initMotionControl(mainWindow: BrowserWindow) {
     // ---------- IPC 接口 ----------
     ipcMain.handle('adbox-connect', async () => {
         if (!adb) await initADBox();
-        // return adb.connected;
+        return adb.isConnected;
     });
-    // ipcMain.handle('adbox-start-scan', async () => {
-    //     if (!adb?.connected) throw new Error('设备未连接');
-    //     await startScan();
-    // });
+    ipcMain.handle('adbox-start-scan', async () => {
+        if (!adb?.isConnected) throw new Error('设备未连接');
+        // await startScan();
+    });
     ipcMain.handle('adbox-stop', async () => {
-        // if (!adb?.connected) throw new Error('设备未连接');
+        if (!adb?.isConnected) throw new Error('设备未连接');
         stopScanGracefully();
     });
 
     ipcMain.handle('adbox-forward', async () => {
-        // if (!adb?.connected) throw new Error('设备未连接');
+        if (!adb?.isConnected) throw new Error('设备未连接');
         if (emergencyStopFlag) throw new Error('急停状态');
         try {
             stopScanGracefully();
