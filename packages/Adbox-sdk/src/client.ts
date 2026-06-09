@@ -59,6 +59,14 @@ export class ADBoxClient extends EventEmitter {
     return this.connected;
   }
 
+
+  getCachedAd0() { return this.lastAd0; }
+  getCachedAd1() { return this.lastAd1; }
+  getCachedIn() { return this.lastIn; }
+  getCachedOut() { return this.lastOut; }
+  getCachedPos0() { return this.pos0_32; }
+  getCachedPos1() { return this.pos1_32; }
+
   // ============= 连接管理 =============
   async connect(): Promise<void> {
     if (this.socket) this.disconnect();
@@ -341,7 +349,7 @@ export class ADBoxClient extends EventEmitter {
             const dataStart = 1 + def.prefix.length; // 跳过B0和前缀
             if (def.parse) resolve(def.parse(payload.subarray(dataStart)));
             else if (customParse) resolve(customParse(payload.subarray(dataStart)));
-            else resolve(undefined as any);
+            else payload.subarray(dataStart) as any;
           } catch (e) { reject(e); }
         },
         reject,
@@ -382,36 +390,139 @@ export class ADBoxClient extends EventEmitter {
     return val;
   }
 
-  // IO
-  getInput() { return this.sendCommand(Commands.GET_IN); }
-  getOutput() { return this.sendCommand(Commands.GET_OUT); }
-  getPos0() { return this.sendCommand(Commands.GET_POS0); }
-  getPos1() { return this.sendCommand(Commands.GET_POS1); }
-  getPosAll() { return this.sendCommand(Commands.GET_POS_ALL); }
-  setOutput(mask: number, value: number) {
-    const data = Buffer.alloc(4); data.writeUInt16LE(mask, 0); data.writeUInt16LE(value, 2);
-    return this.sendCommand(Commands.SET_OUT, data);
+  // ---- IO ----
+  /**
+  * 读取输入口状态
+  * @returns 16 位输入状态值
+  */
+  async getInput(): Promise<number> { return this.sendCommand(Commands.GET_IN); }
+
+  /**
+  * 读取输出口状态
+  * @returns 16 位输出状态值
+  */
+  async getOutput(): Promise<number> { return this.sendCommand(Commands.GET_OUT); }
+
+  /**
+  * 读取编码器 1 的 32 位绝对位置（pos0）
+  * @returns 32 位有符号整数位置值
+  */
+  async getPos0(): Promise<number> { return this.sendCommand(Commands.GET_POS0); }
+
+  /**
+  * 读取编码器 2 的 32 位绝对位置（pos1）
+  * @returns 32 位有符号整数位置值
+  */
+  async getPos1(): Promise<number> { return this.sendCommand(Commands.GET_POS1); }
+
+  /**
+  * 同时读取两个编码器的 32 位绝对位置
+  * @returns { pos0: number, pos1: number }
+  */
+  async getPosAll() { return this.sendCommand(Commands.GET_POS_ALL); }
+
+  /**
+  * 设置输出口状态
+  * @param mask 需要修改的输出位掩码（16 位）
+  * @param value 对应位的目标值（16 位）
+  */
+  async setOutput(mask: number, value: number): Promise<void> {
+    const data = Buffer.alloc(4);
+    data.writeUInt16LE(mask, 0);
+    data.writeUInt16LE(value, 2);
+    await this.sendCommand(Commands.SET_OUT, data);
   }
-  getSystemTick() { return this.sendCommand(Commands.GET_TICK); }
 
-  // 运行参数设置
-  setRunParamSpeed(v: number) { return this.sendCommand(Commands.SET_V, u32le(v)); }
-  setRunParamInitSpeed(sv: number) { return this.sendCommand(Commands.SET_SV, u32le(sv)); }
-  setRunParamAccelTime(ms: number) { return this.sendCommand(Commands.SET_ACC, u32le(ms)); }
-  setRunParamDecelTime(ms: number) { return this.sendCommand(Commands.SET_DEC, u32le(ms)); }
-  setRunParamHomeSpeed1(s: number) { return this.sendCommand(Commands.SET_H1, u32le(s)); }
-  setRunParamHomeSpeed2(s: number) { return this.sendCommand(Commands.SET_H2, u32le(s)); }
+  /**
+  * 读取系统 tick 计数器
+  * @returns 32 位无符号 tick 值
+  */
+  async getSystemTick(): Promise<number> { return this.sendCommand(Commands.GET_TICK); }
 
-  // 读取运行参数
-  getRunParamSpeed() { return this.sendCommand(Commands.GET_V); }
-  getRunParamInitSpeed() { return this.sendCommand(Commands.GET_SV); }
-  getRunParamAccelTime() { return this.sendCommand(Commands.GET_ACC); }
-  getRunParamDecelTime() { return this.sendCommand(Commands.GET_DEC); }
-  getRunParamHomeSpeed1() { return this.sendCommand(Commands.GET_H1); }
-  getRunParamHomeSpeed2() { return this.sendCommand(Commands.GET_H2); }
+
+  // ---- 运行参数设置 ----
+  /**
+  * 设置运行速度
+  * @param v 速度值（pps，脉冲每秒）
+  */
+  async setRunParamSpeed(v: number): Promise<void> { await this.sendCommand(Commands.SET_V, u32le(v)); }
+
+  /**
+  * 设置起始速度
+  * @param sv 起始速度值（pps）
+  */
+  async setRunParamInitSpeed(sv: number): Promise<void> { await this.sendCommand(Commands.SET_SV, u32le(sv)); }
+
+  /**
+  * 设置加速时间
+  * @param ms 加速时间（毫秒）
+  */
+  async setRunParamAccelTime(ms: number): Promise<void> { await this.sendCommand(Commands.SET_ACC, u32le(ms)); }
+
+  /**
+  * 设置减速时间
+  * @param ms 减速时间（毫秒）
+  */
+  async setRunParamDecelTime(ms: number): Promise<void> { await this.sendCommand(Commands.SET_DEC, u32le(ms)); }
+
+  /**
+  * 设置回零第一段速度
+  * @param s 速度值（pps）
+  */
+  async setRunParamHomeSpeed1(s: number): Promise<void> { await this.sendCommand(Commands.SET_H1, u32le(s)); }
+
+  /**
+  * 设置回零第二段速度
+  * @param s 速度值（pps）
+  */
+  async setRunParamHomeSpeed2(s: number): Promise<void> { await this.sendCommand(Commands.SET_H2, u32le(s)); }
+
+  // ---- 读取运行参数 ----
+
+  /**
+  * 读取当前运行速度
+  * @returns 速度值（pps）
+  */
+  async getRunParamSpeed(): Promise<number> { return this.sendCommand(Commands.GET_V); }
+
+  /**
+  * 读取起始速度
+  * @returns 起始速度值（pps）
+  */
+  async getRunParamInitSpeed(): Promise<number> { return this.sendCommand(Commands.GET_SV); }
+
+  /**
+  * 读取加速时间
+  * @returns 加速时间（毫秒）
+  */
+  async getRunParamAccelTime(): Promise<number> { return this.sendCommand(Commands.GET_ACC); }
+
+  /**
+  * 读取减速时间
+  * @returns 减速时间（毫秒）
+  */
+  async getRunParamDecelTime(): Promise<number> { return this.sendCommand(Commands.GET_DEC); }
+
+  /**
+  * 读取回零第一段速度
+  * @returns 速度值（pps）
+  */
+  async getRunParamHomeSpeed1(): Promise<number> { return this.sendCommand(Commands.GET_H1); }
+
+  /**
+  * 读取回零第二段速度
+  * @returns 速度值（pps）
+  */
+  async getRunParamHomeSpeed2(): Promise<number> { return this.sendCommand(Commands.GET_H2); }
 
   // 运行动作
   // 运行动作（发送即忘，不等待响应）
+
+  /**
+  * 运行到绝对位置（脉冲数）
+  * @param target 目标绝对位置（32 位有符号整数）
+  * @param serial 运动序列号（可选，不传则自动生成）
+  */
   moveToPosition(target: number, serial?: number): void {
     const s = serial ?? ++this.serialCounter;
     const buf = Buffer.alloc(9);
@@ -421,45 +532,178 @@ export class ADBoxClient extends EventEmitter {
     this.sendAndForget(Buffer.concat([Commands.MOVE_ABS.prefix, buf]));
   }
 
+
+  /**
+  * 正向持续运动（直到撞限位或手动停止）
+  * @param serial 运动序列号（可选）
+  */
   moveForward(serial?: number): void {
     const s = serial ?? ++this.serialCounter;
     this.sendAndForget(Buffer.concat([Commands.FORWARD.prefix, i32le(s)]));
   }
 
+  /**
+  * 反向持续运动（直到撞限位或手动停止）
+  * @param serial 运动序列号（可选）
+  */
   moveBackward(serial?: number): void {
     const s = serial ?? ++this.serialCounter;
     this.sendAndForget(Buffer.concat([Commands.BACKWARD.prefix, i32le(s)]));
   }
 
+  /**
+  * 执行回零动作
+  * @param serial 运动序列号（可选）
+  */
   home(serial?: number): void {
     const s = serial ?? ++this.serialCounter;
     this.sendAndForget(Buffer.concat([Commands.HOME.prefix, i32le(s)]));
   }
 
+  /**
+  * 减速停止（正常停止）
+  */
   stopDecel(): void {
     this.sendAndForget(Commands.STOP.prefix);
   }
 
+  /**
+  * 紧急停止（立即停转）
+  */
   stopEmergency(): void {
     this.sendAndForget(Commands.ESTOP.prefix);
   }
 
   // 注意：getRunResult 保留为异步，因为需要读取返回结果
+  /**
+  * 获取最近一次运行结果（状态 + 序列号）
+  * @returns { status: number, serial: number }
+  */
   async getRunResult(): Promise<RunResult> {
     return this.sendCommand(Commands.GET_RUN_RESULT);
   }
 
-  // 系统参数
-  getSavedParam(index: number) { return this.sendCommand(Commands.GET_PARAM(index)); }
-  setSavedParam(index: number, value: number) {
-    return this.sendCommand(Commands.SET_PARAM(index), u32le(value));
+  // ================== 系统参数（读取） ==================
+
+  /**
+ * 读取电机类型
+ * @returns 电机类型编号（0-3）
+ */
+  async getParamMotorType(): Promise<number> {
+    const buf = await this.sendCommand(Commands.GET_PARAM(0)) as Buffer;
+    return buf.readUInt8(0) & 3;
   }
-  applyParams() { return this.sendCommand(Commands.APPLY_PARAM); }
-  softReset(seconds: number) {
+
+  /**
+ * 读取脉冲比分子（电机脉冲数）
+ * @returns 16 位无符号整数
+ */
+  async getParamRatio01(): Promise<number> {
+    const buf = await this.sendCommand(Commands.GET_PARAM(1)) as Buffer;
+    return buf.readUInt16LE(0);
+  }
+
+  /**
+ * 读取脉冲比分母（编码器脉冲数）
+ * @returns 16 位无符号整数
+ */
+  async getParamRatio02(): Promise<number> {
+    const buf = await this.sendCommand(Commands.GET_PARAM(2)) as Buffer;
+    return buf.readUInt16LE(0);
+  }
+
+  /**
+ * 读取零点偏移（脉冲平移量）
+ * @returns 16 位有符号整数
+ */
+  async getParamZero(): Promise<number> {
+    const buf = await this.sendCommand(Commands.GET_PARAM(3)) as Buffer;
+    return buf.readInt16LE(0);
+  }
+
+  /**
+ * 读取手动速度（Jog 速度）
+ * @returns 32 位无符号整数
+ */
+  async getParamJog(): Promise<number> {
+    const buf = await this.sendCommand(Commands.GET_PARAM(4)) as Buffer;
+    return buf.readUInt32LE(0);
+  }
+
+  // ================== 系统参数（设置） ==================
+  /**
+ * 设置电机类型（会自动将低 2 位写入并置高相关位）
+ * @param type 电机类型编号（0-3）
+ */
+  async setParamMotorType(type: number): Promise<void> {
+    const val = (type & 3) | (0x3 << 2);
+    const data = Buffer.alloc(4);
+    data.writeUInt32LE(val, 0);
+    await this.sendCommand(Commands.SET_PARAM(0), data);
+  }
+
+  /**
+ * 设置脉冲比分子（电机脉冲数）
+ * @param ratio 16 位无符号整数
+ */
+  async setParamRatio01(ratio: number): Promise<void> {
+    const data = Buffer.alloc(4);
+    data.writeUInt32LE(ratio, 0);
+    await this.sendCommand(Commands.SET_PARAM(1), data);
+  }
+
+  /**
+ * 设置脉冲比分母（编码器脉冲数）
+ * @param ratio 16 位无符号整数
+ */
+  async setParamRatio02(ratio: number): Promise<void> {
+    const data = Buffer.alloc(4);
+    data.writeUInt32LE(ratio, 0);
+    await this.sendCommand(Commands.SET_PARAM(2), data);
+  }
+
+  /**
+ * 设置零点偏移（脉冲平移量）
+ * @param offset 16 位有符号整数
+ */
+  async setParamZero(offset: number): Promise<void> {
+    const data = Buffer.alloc(4);
+    data.writeInt32LE(offset, 0);
+    await this.sendCommand(Commands.SET_PARAM(3), data);
+  }
+
+  /**
+ * 设置手动速度（Jog 速度）
+ * @param jog 32 位无符号整数（pps）
+ */
+  async setParamJog(jog: number): Promise<void> {
+    const data = Buffer.alloc(4);
+    data.writeUInt32LE(jog, 0);
+    await this.sendCommand(Commands.SET_PARAM(4), data);
+  }
+
+  /**
+ * 应用参数（使所有 P+S 设置生效）
+ */
+  async applyParams(): Promise<void> {
+    await this.sendCommand(Commands.APPLY_PARAM);
+  }
+
+  /**
+ * 软件复位设备（指定秒数后停止喂狗，设备将重启）
+ * @param seconds 延时秒数
+ */
+  async softReset(seconds: number): Promise<void> {
     const data = Buffer.concat([Buffer.from([seconds]), Buffer.from('reset', 'ascii')]);
-    return this.sendCommand(Commands.SOFT_RESET, data);
+    await this.sendCommand(Commands.SOFT_RESET, data);
   }
-  clearResetFlag() { return this.sendCommand(Commands.CLEAR_RESET); }
+
+  /**
+ * 清除设备复位标志（告诉设备上位机已知晓复位）
+ */
+  async clearResetFlag(): Promise<void> {
+    await this.sendCommand(Commands.CLEAR_RESET);
+  }
 
   // 清理
   private clearAllPending(err: Error) {

@@ -545,9 +545,15 @@ const inputChangeState = async (options: IState) => {
    }
 };
 
+const maxPulse = ref(7000)
+
 // 移动到脉冲位置
 const moveToPulsePosition = async () => { 
-   await window.ipcApi.invoke('adbox-movePosition',targetPulse.value );
+   await window.ipcApi.invoke('adbox-move-to',targetPulse.value );
+}
+// 设置最大脉冲值
+const saveMaxPulse = async() => {
+   await window.ipcApi.invoke('config-set-max-pulse',maxPulse.value );
 }
 
 // 监听adbox:data
@@ -609,6 +615,8 @@ window.ipcApi.on("adbox-run-result", (_, data) => {
             <el-input v-model="targetPulse" class="pulse-input" placeholder="目标脉冲" />
             <el-button @click="moveToPulsePosition" type="success">到达(脉冲)</el-button>
 
+            <el-input v-model="maxPulse" class="pulse-input" placeholder="最大脉冲" />
+            <el-button @click="saveMaxPulse" type="success">保存(最大脉冲)</el-button>
          </div>
 
          <!-- 标签页 -->
@@ -957,7 +965,7 @@ window.ipcApi.on("adbox-run-result", (_, data) => {
    width: 400px;
    border: 1px solid #c1c1c1;
    border-radius: 5px;
-   margin-right: 100px;
+   margin-right: 50px;
 }
 
 .status-row {

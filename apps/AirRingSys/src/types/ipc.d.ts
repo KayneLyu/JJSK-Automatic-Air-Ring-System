@@ -104,8 +104,9 @@ export interface IpcChannelMap {
   'adbox-home': { args: []; output: void } // AD box 归零
   'adbox-data': { args: [data: PushData]; output: [data: PushData] } // AD box 数据推送
   'adbox-connect': { args: []; output: [data: boolean] } // AD box 连接
-  'adbox-run-result': { args: [data: RunResult]; output: [data: RunResult] } // AD box 运动指令
-  'adbox-movePosition': { args: [position: number]; output: [data: RunResult] } // AD box 运动指令
+  'adbox-run-result': { args: [data: RunResult]; output: [data: RunResult] } // AD box 运动结果
+  'adbox-move-to': { args: [position: number]; output: [data: RunResult] } // AD box 移动到xx脉冲
+  'config-set-max-pulse': { args: [position: number]; output: [data: RunResult] } // AD box 设置最大脉冲值
 
   'plc-controlData': {
     args: [data: IPlcControlResult]
