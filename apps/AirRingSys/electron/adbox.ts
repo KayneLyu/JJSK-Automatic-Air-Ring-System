@@ -2,7 +2,10 @@ import { BrowserWindow, ipcMain, app } from 'electron';
 import { ADBoxClient } from '@jjsk/adbox-sdk';
 import type { PushData, RunResult } from '@jjsk/adbox-sdk';
 import Store from 'electron-store';
+import { join } from 'node:path';
+import { createConnectionLogger } from '@jjsk/air-ring-server/connections/base/connectionLogger';
 import { DataBatcher } from './data-batcher';
+import { calibrationBridge } from './rendererCommunicator';
 
 // ==================== 类型定义 ====================
 type MotionState = 'idle' | 'forward' | 'backward' | 'stopping' | 'scanning' | 'emergency';
@@ -18,6 +21,7 @@ let mainWindow: BrowserWindow | null = null; // 保存引用供内部使用
 let dataBatcher: DataBatcher<PushData> | null = null;
 let adb: ADBoxClient | null = null;
 let store: Store<AppConfig> | null = null;
+let connectionLogger: ReturnType<typeof createConnectionLogger> | null = null;
 
 // 运动状态
 let motionState: MotionState = 'idle';
@@ -44,6 +48,19 @@ export function initMotionControl(win: BrowserWindow) {
         },
     });
     currentMaxPulse = store.get('maxPulse');
+
+    // ---------- 日志记录器 ----------
+    const logDir = join(app.getPath('userData'), 'logs', 'thickness');
+    connectionLogger = createConnectionLogger({
+        dirPath: logDir,
+        source: 'thickness/adbox',
+        deviceType: 'thickness',
+        deviceName: '测厚仪',
+        filePrefix: 'thickness-adbox',
+        datePattern: 'YYYY-MM-DD-HH',
+        maxSize: '100m',
+        maxFiles: '7d',
+    });
 
     // ---------- 节流器 ----------
     // 确保 mainWindow 已赋值
@@ -79,6 +96,11 @@ async function initADBox() {
     adb.on('connected', () => {
         console.log('ADBox connected');
         mainWindow?.webContents.send('adbox-status', { connected: true });
+        connectionLogger?.log({
+            protocol: 'modbus',
+            event: 'connect',
+            meta: { host: '192.168.251.12', port: 20021 },
+        });
     });
 
     adb.on('firstFrame', async () => {
@@ -88,6 +110,34 @@ async function initADBox() {
 
     adb.on('data', (push: PushData) => {
         dataBatcher?.push(push);
+        calibrationBridge.feedAdboxPushData(push);
+
+        // 记录日志，格式与 ModBus 批量读取兼容，便于日志重放复用
+        if (connectionLogger) {
+            const nowMs = Date.now();
+            const now = new Date(nowMs);
+            const msSinceMidnight = nowMs - Date.UTC(
+                now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
+                0, 0, 0, 0
+            );
+            connectionLogger.log({
+                protocol: 'modbus',
+                event: 'read',
+                data: {
+                    adValues: [push.ad0],
+                    pulses: [push.pos0 ?? 0],
+                    timestamps: [msSinceMidnight],
+                },
+                meta: {
+                    host: '192.168.251.12',
+                    port: 20021,
+                    reset: push.reset,
+                    ad1: push.ad1,
+                    in: push.in,
+                    out: push.out,
+                },
+            });
+        }
     });
 
     adb.on('runResult', (result: RunResult) => {
@@ -99,12 +149,26 @@ async function initADBox() {
     adb.on('disconnected', () => {
         console.log('ADBox disconnected');
         mainWindow?.webContents.send('adbox-status', { connected: false });
+        connectionLogger?.log({
+            protocol: 'modbus',
+            event: 'connect_error',
+            error: new Error('ADBox disconnected'),
+            meta: { host: '192.168.251.12', port: 20021 },
+        });
         stopScanInternal(false);
         motionState = 'idle';
         mainWindow?.webContents.send('motion-state', 'idle');
     });
 
-    adb.on('error', (err) => console.error('ADBox error:', err));
+    adb.on('error', (err) => {
+        console.error('ADBox error:', err);
+        connectionLogger?.log({
+            protocol: 'modbus',
+            event: 'read_error',
+            error: err,
+            meta: { host: '192.168.251.12', port: 20021 },
+        });
+    });
 
     try {
         await adb.connect();

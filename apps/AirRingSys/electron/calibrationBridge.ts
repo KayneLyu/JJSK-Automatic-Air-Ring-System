@@ -1,4 +1,5 @@
 import type { IPollingModBusData } from '@/types/ipc'
+import type { PushData } from '@jjsk/adbox-sdk'
 import {
   createCalibrationSession,
   type CalibrateResult,
@@ -148,6 +149,56 @@ export const createModbusCalibrationBridge = (
     })
   }
 
+  const feedAdboxPushData = (push: PushData) => {
+    const probeValue = push.ad0
+    const pulse = push.pos0 ?? 0
+    const nowMs = Date.now()
+
+    if (!Number.isFinite(probeValue)) {
+      return session.getResult()
+    }
+
+    // sysTick 是 7-bit 硬件帧计数器 (0-127)，不可作为时间戳
+    // 使用 Date.now() 转为毫秒级午夜偏移，与 ModBus 时间戳格式一致
+    const now = new Date(nowMs)
+    const rawTimestamp =
+      nowMs -
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        0,
+        0,
+        0,
+        0
+      )
+
+    const timestamp = normalizeThicknessTimestamp(rawTimestamp, nowMs)
+
+    const motionDirection =
+      previousPulse === undefined
+        ? previousMotionDirection
+        : pulse >= previousPulse
+
+    previousPulse = pulse
+    previousMotionDirection = motionDirection
+    latestThicknessTimestamp = timestamp
+
+    const thicknessSample: ThicknessData = {
+      timestamp,
+      ProbeValue: probeValue,
+      HorizontalPulse: pulse,
+      MotionDirection: motionDirection,
+    }
+
+    const result = session.feedThickness(thicknessSample)
+    if (result) {
+      return result
+    }
+
+    return session.getResult()
+  }
+
   const reset = (disturbanceTs: number = Date.now()) => {
     previousPulse = undefined
     previousMotionDirection = true
@@ -168,6 +219,7 @@ export const createModbusCalibrationBridge = (
   return {
     feedModbusData,
     feedUpperRotationData,
+    feedAdboxPushData,
     setManualTractionSpeed,
     reset,
     getManualTractionSpeed: session.getManualTractionSpeed,

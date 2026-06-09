@@ -4,8 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   setupRendererCommunicator,
-  // initADBox
-} from './renderer.ts'
+} from './rendererCommunicator.ts'
 import { initMotionControl } from './adbox.ts'
 import { setupConsoleFileLogger } from './consoleFileLogger.ts'
 // const require = createRequire(import.meta.url)

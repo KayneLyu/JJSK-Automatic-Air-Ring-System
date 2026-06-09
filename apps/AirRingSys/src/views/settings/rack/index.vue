@@ -483,17 +483,17 @@ const handleUpperRotationData = (_: unknown, data: IUpperRotationDebugData) => {
    }
 }
 
-// onMounted(() => {
-//    void loadPlcParams()
-//    void loadCalibrationState()
-//    window.ipcApi.on('calibration-result', handleCalibrationResult)
-//    window.ipcApi.on('upperRotation-read', handleUpperRotationData)
-// })
+onMounted(() => {
+   void loadPlcParams()
+   void loadCalibrationState()
+   window.ipcApi.on('calibration-result', handleCalibrationResult)
+   window.ipcApi.on('upperRotation-read', handleUpperRotationData)
+})
 
-// onUnmounted(() => {
-//    window.ipcApi.off('calibration-result', handleCalibrationResult)
-//    window.ipcApi.off('upperRotation-read', handleUpperRotationData)
-// })
+onUnmounted(() => {
+   window.ipcApi.off('calibration-result', handleCalibrationResult)
+   window.ipcApi.off('upperRotation-read', handleUpperRotationData)
+})
 
 // 运行状态
 const runningState = ref<IState>('STOP')

@@ -161,6 +161,8 @@ const calibrationBridge = createModbusCalibrationBridge({
   },
 })
 
+export { calibrationBridge }
+
 export function useIpcOn<T extends IpcChannelName>(
   channel: T,
   callback: (...args: IpcChannelArgs<T>) => void
