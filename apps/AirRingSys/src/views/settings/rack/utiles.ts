@@ -1,3 +1,79 @@
+import type { PushData } from '@jjsk/adbox-sdk'
+import type { IPollingModBusData } from '@/types/ipc'
+
+type ThicknessRealtimePayload =
+  | IPollingModBusData
+  | PushData
+  | PushData[]
+
+const hasModbusBatchShape = (
+  payload: unknown
+): payload is IPollingModBusData => {
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
+
+  const candidate = payload as Partial<IPollingModBusData>
+  return (
+    Array.isArray(candidate.adValues) &&
+    Array.isArray(candidate.pulses) &&
+    Array.isArray(candidate.timestamps)
+  )
+}
+
+const normalizeAdboxFrames = (
+  payload: PushData | PushData[]
+): IPollingModBusData | null => {
+  const frames = Array.isArray(payload) ? payload : [payload]
+  if (frames.length === 0) {
+    return null
+  }
+
+  const nowMs = Date.now()
+  const adValues: number[] = []
+  const pulses: number[] = []
+  const timestamps: number[] = []
+
+  for (let index = 0; index < frames.length; index += 1) {
+    const frame = frames[index]
+    if (!frame || typeof frame.ad0 !== 'number' || typeof frame.pos0 !== 'number') {
+      continue
+    }
+
+    adValues.push(frame.ad0)
+    pulses.push(frame.pos0)
+    timestamps.push(nowMs + index)
+  }
+
+  if (adValues.length === 0) {
+    return null
+  }
+
+  return {
+    adValues,
+    pulses,
+    timestamps,
+  }
+}
+
+export const normalizeThicknessRealtimePayload = (
+  payload: ThicknessRealtimePayload
+): IPollingModBusData | null => {
+  if (hasModbusBatchShape(payload)) {
+    return payload
+  }
+
+  if (Array.isArray(payload)) {
+    return normalizeAdboxFrames(payload)
+  }
+
+  if (payload && typeof payload === 'object') {
+    return normalizeAdboxFrames(payload as PushData)
+  }
+
+  return null
+}
+
 /**
  * 数据更新与去重工具函数
  * @param newData 新轮询到的数据，包含 timestamps 和 adValues 两个数组
