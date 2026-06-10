@@ -1,4 +1,4 @@
-import { BrowserWindow, app, dialog, ipcMain } from 'electron'
+import { BrowserWindow, app, ipcMain } from 'electron'
 import fs from 'node:fs'
 import { join } from 'node:path'
 import type {

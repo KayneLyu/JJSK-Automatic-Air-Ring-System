@@ -2,9 +2,7 @@ import { app, BrowserWindow, globalShortcut } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  setupRendererCommunicator,
-} from './rendererCommunicator.ts'
+import { setupRendererCommunicator } from './renderer.ts'
 import { initMotionControl } from './adbox.ts'
 import { setupConsoleFileLogger } from './consoleFileLogger.ts'
 // const require = createRequire(import.meta.url)

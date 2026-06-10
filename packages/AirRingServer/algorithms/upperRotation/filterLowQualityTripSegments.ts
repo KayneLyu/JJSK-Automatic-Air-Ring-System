@@ -119,7 +119,10 @@ export const filterLowQualityTripSegments = (
   const medianValidRatio = getMedian(validRatios)
   const medianPulseSpan = getMedian(pulseSpans)
   const medianPointCount = getMedian(pointCounts)
-  const maxPulseSpan = Math.max(...pulseSpans, 0)
+  let maxPulseSpan = 0
+  for (const pulseSpan of pulseSpans) {
+    if (pulseSpan > maxPulseSpan) maxPulseSpan = pulseSpan
+  }
 
   const strictFiltered = candidates
     .filter((item) => {

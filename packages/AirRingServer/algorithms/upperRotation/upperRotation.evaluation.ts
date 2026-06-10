@@ -56,10 +56,15 @@ export const evaluateDirect = (
   const thetaMaxRad = (thetaMaxDeg * Math.PI) / 180
 
   try {
-    for (const { data, duration, accelRatio } of segs) {
+    for (let si = 0; si < segs.length; si++) {
+      const seg = segs[si]
+      const data = seg.data
       if (!data || data.length === 0) continue
+      const duration = seg.duration
+      const accelRatio = seg.accelRatio
 
-      for (const p of data) {
+      for (let i = 0; i < data.length; i++) {
+        const p = data[i]
         if (isNaN(p.y)) continue
 
         // 仅使用梯形速度曲线映射时间→角度，不加入 offsetDeg
@@ -125,10 +130,15 @@ export const evaluateExpanded = (
   const thetaMaxRad = (thetaMaxDeg * Math.PI) / 180
 
   try {
-    for (const { data, duration, accelRatio } of segs) {
+    for (let si = 0; si < segs.length; si++) {
+      const seg = segs[si]
+      const data = seg.data
       if (!data || data.length === 0) continue
+      const duration = seg.duration
+      const accelRatio = seg.accelRatio
 
-      for (const p of data) {
+      for (let i = 0; i < data.length; i++) {
+        const p = data[i]
         if (isNaN(p.y)) continue
 
         // 使用梯形速度曲线精确映射时间→角度

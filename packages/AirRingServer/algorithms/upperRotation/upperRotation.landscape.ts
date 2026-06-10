@@ -47,7 +47,12 @@ export const analyzeLossLandscape = (
   }
 
   const span = max - min
-  const globalBestLoss = Math.min(...normalized.map((s) => s.loss))
+  let globalBestLoss = normalized[0].loss
+  for (let i = 1; i < normalized.length; i++) {
+    if (normalized[i].loss < globalBestLoss) {
+      globalBestLoss = normalized[i].loss
+    }
+  }
   const safeBest = Math.max(globalBestLoss, 1e-9)
   const boundaryStart = Math.max(min, max - Math.min(14, span * 0.16))
   const boundaryBand = normalized.filter((s) => s.theta >= boundaryStart)
