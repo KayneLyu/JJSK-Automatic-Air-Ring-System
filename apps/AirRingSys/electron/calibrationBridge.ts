@@ -32,6 +32,11 @@ export type CreateModbusCalibrationBridgeOptions = {
   onResult?: (result: CalibrateResult) => void
 }
 
+type FeedThicknessSampleInput = Pick<
+  ThicknessData,
+  'timestamp' | 'ProbeValue' | 'HorizontalPulse'
+>
+
 export const createModbusCalibrationBridge = (
   options: CreateModbusCalibrationBridgeOptions = {}
 ) => {
@@ -115,6 +120,53 @@ export const createModbusCalibrationBridge = (
     }
   }
 
+  const normalizeThicknessSample = (
+    sample: FeedThicknessSampleInput
+  ): ThicknessData | null => {
+    const probeValue = sample.ProbeValue
+    const pulse = sample.HorizontalPulse
+    const timestamp = sample.timestamp ?? Date.now()
+
+    if (
+      !Number.isFinite(probeValue) ||
+      !Number.isFinite(pulse) ||
+      !Number.isFinite(timestamp)
+    ) {
+      return null
+    }
+
+    const motionDirection =
+      previousPulse === undefined
+        ? previousMotionDirection
+        : pulse >= previousPulse
+
+    previousPulse = pulse
+    previousMotionDirection = motionDirection
+    latestThicknessTimestamp = timestamp
+
+    return {
+      timestamp,
+      ProbeValue: probeValue,
+      HorizontalPulse: pulse,
+      MotionDirection: motionDirection,
+    }
+  }
+
+  const feedThicknessSample = (sample: FeedThicknessSampleInput) => {
+    const thicknessSample = normalizeThicknessSample(sample)
+
+    if (!thicknessSample) {
+      return session.getResult()
+    }
+
+    const result = session.feedThickness(thicknessSample)
+    if (result) {
+      return result
+    }
+
+    return session.getResult()
+  }
+
   const feedModbusData = (data: IPollingModBusData) => {
     const nowMs = Date.now()
     const sampleCount = Math.min(
@@ -125,12 +177,11 @@ export const createModbusCalibrationBridge = (
 
     for (let index = 0; index < sampleCount; index += 1) {
       const thicknessSample = buildThicknessSample(data, index, nowMs)
-
       if (!thicknessSample) {
         continue
       }
 
-      const result = session.feedThickness(thicknessSample)
+      const result = feedThicknessSample(thicknessSample)
       if (result) {
         return result
       }
@@ -167,6 +218,7 @@ export const createModbusCalibrationBridge = (
 
   return {
     feedModbusData,
+    feedThicknessSample,
     feedUpperRotationData,
     setManualTractionSpeed,
     reset,
