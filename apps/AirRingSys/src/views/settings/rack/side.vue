@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-import { ref, watch } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import * as echarts from 'echarts/core';
 import {
     TitleComponent,
@@ -10,7 +10,9 @@ import { LineChart } from 'echarts/charts';
 import { UniversalTransition } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import useChartsInit from '@/hooks/useInitCharts';
-import { createThicknessCollector } from './utiles';
+import { createThicknessCollector, normalizeThicknessRealtimePayload } from './utiles';
+import type { PushData } from '@jjsk/adbox-sdk';
+import type { IPollingModBusData } from '@/types/ipc';
 
 echarts.use([
     TitleComponent,
@@ -91,7 +93,12 @@ export interface PollingResponse {
 const collector = createThicknessCollector()
 
 
-window.ipcApi.on("ModBus-read", (_, data) => {
+const handleRealtimeThickness = (_: unknown, payload: IPollingModBusData | PushData | PushData[]) => {
+    const data = normalizeThicknessRealtimePayload(payload)
+    if (!data) {
+        return
+    }
+
     const { pulses, adValues } = data
 
     // 1️⃣ 喂数据
@@ -115,6 +122,12 @@ window.ipcApi.on("ModBus-read", (_, data) => {
             }
         ]
     })
+}
+
+window.ipcApi.on("adbox-data", handleRealtimeThickness)
+
+onUnmounted(() => {
+    window.ipcApi.off("adbox-data", handleRealtimeThickness)
 })
 
 </script>
