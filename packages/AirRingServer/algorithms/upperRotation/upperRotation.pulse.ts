@@ -1,4 +1,4 @@
-import { type TripSegment } from '../../types'
+import { type TripSegment, type ValidThicknessData } from '../../types'
 import { goldenSectionSearch } from '../../utils'
 import {
   type ExpandedPoint,
@@ -24,7 +24,7 @@ export const estimateWithPulseExpansion = (
       if (seg.measurements.length === 0 || seg.duration <= 0) continue
 
       const flipped = buildFlippedMeasurements(seg)
-      const withPulse: typeof flipped = []
+      const withPulse: ValidThicknessData[] = []
       let pMin = Infinity
       let pMax = -Infinity
       for (let i = 0; i < flipped.length; i++) {

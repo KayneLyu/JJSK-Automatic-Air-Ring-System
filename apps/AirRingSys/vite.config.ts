@@ -1,25 +1,27 @@
 import { defineConfig } from 'vite'
 import path from 'node:path'
-import electron from 'vite-plugin-electron/simple'
+import electronSimple from 'vite-plugin-electron/simple'
+import electron from 'vite-plugin-electron'
 import vue from '@vitejs/plugin-vue'
 import { join } from 'path'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
+const sharedAlias = {
+  '@': join(__dirname, '/src'),
+  '@jjsk/air-ring-server/electron': path.resolve(
+    __dirname,
+    '../../packages/AirRingServer/electron.ts'
+  ),
+  '@jjsk/core': path.resolve(__dirname, '../../packages/core'),
+  '@jjsk/ad-box': path.resolve(__dirname, '../../packages/Adbox-sdk'),
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  
   resolve: {
-    alias: {
-      '@': join(__dirname, '/src'), // 路径别名
-      '@jjsk/air-ring-server/electron': path.resolve(
-        __dirname,
-        '../../packages/AirRingServer/electron.ts'
-      ),
-      '@jjsk/core': path.resolve(__dirname, '../../packages/core'),
-      '@jjsk/ad-box': path.resolve(__dirname, '../../packages/Adbox-sdk')
-    },
+    alias: sharedAlias,
     extensions: ['.js', '.json', '.ts', '.tsx'],
   },
   plugins: [
@@ -30,24 +32,38 @@ export default defineConfig({
     Components({
       resolvers: [ElementPlusResolver()],
     }),
-    electron({
+    electronSimple({
       main: {
-        // Shortcut of `build.lib.entry`.
         entry: 'electron/main.ts',
       },
       preload: {
-        // Shortcut of `build.rollupOptions.input`.
-        // Preload scripts may contain Web assets, so use the `build.rollupOptions.input` instead `build.lib.entry`.
         input: path.join(__dirname, 'electron/preload.ts'),
       },
-      // Ployfill the Electron and Node.js API for Renderer process.
-      // If you want use Node.js in Renderer process, the `nodeIntegration` needs to be enabled in the Main process.
-      // See 👉 https://github.com/electron-vite/vite-plugin-electron-renderer
       renderer:
         process.env.NODE_ENV === 'test'
-          ? // https://github.com/electron-vite/vite-plugin-electron-renderer/issues/78#issuecomment-2053600808
-            undefined
+          ? undefined
           : {},
     }),
+    // Worker 线程脚本独立打包，输出到 dist-electron/calibrationWorker.js
+    // new Worker(__dirname + '/calibrationWorker.js') 在运行时按此路径加载
+    ...electron([
+      {
+        entry: 'electron/calibrationWorker.ts',
+        vite: {
+          resolve: { alias: sharedAlias },
+          build: {
+            outDir: 'dist-electron',
+            lib: {
+              entry: 'electron/calibrationWorker.ts',
+              formats: ['cjs'],
+              fileName: () => 'calibrationWorker.js',
+            },
+            rollupOptions: {
+              external: ['node:worker_threads', 'electron'],
+            },
+          },
+        },
+      },
+    ]),
   ],
 })

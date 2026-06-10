@@ -1,13 +1,20 @@
 import type { IPollingModBusData } from '@/types/ipc'
 import type { PushData } from '@jjsk/adbox-sdk'
+import { Worker } from 'node:worker_threads'
+import { join } from 'node:path'
 import {
   createCalibrationSession,
   type CalibrateResult,
+  type PendingAngleEstimate,
   type RingData,
   type ThicknessData,
   type CalibrationConfig,
   type Scalar,
 } from '@jjsk/air-ring-server/electron'
+import type {
+  CalibrationWorkerRequest,
+  CalibrationWorkerResponse,
+} from './calibrationWorker'
 
 const DEFAULT_CALIBRATION_CONFIG: CalibrationConfig = {
   roller: {
@@ -37,6 +44,72 @@ type FeedThicknessSampleInput = Pick<
   ThicknessData,
   'timestamp' | 'ProbeValue' | 'HorizontalPulse'
 >
+
+/**
+ * 解析 Worker 脚本路径。
+ * vite-plugin-electron 以 CJS 格式输出，__dirname 始终可用，
+ * worker 文件与主进程文件输出到同一目录（dist-electron/）。
+ */
+const resolveWorkerPath = () => join(__dirname, 'calibrationWorker.js')
+
+/** 互斥锁：同一时刻只允许一个 Worker 在运行 */
+let workerBusy = false
+let workerIdCounter = 0
+
+/**
+ * 在独立 Worker 线程中执行上旋角度估算。
+ * - 互斥：若上一次估算尚未完成，本次直接跳过（当前 segments 的下一次换向时会重算）。
+ * - 非阻塞：立即返回，结果通过 onAngle 回调传回。
+ */
+const runAngleEstimateInWorker = (
+  req: Omit<CalibrationWorkerRequest, 'id'>,
+  onAngle: (maxAngle: number) => void
+) => {
+  if (workerBusy) {
+    console.debug('[CalibrationBridge] Worker 正在运行，本次角度估算已跳过')
+    return
+  }
+
+  workerBusy = true
+  const id = ++workerIdCounter
+  const workerPath = resolveWorkerPath()
+
+  let worker: Worker
+  try {
+    worker = new Worker(workerPath)
+  } catch (err) {
+    workerBusy = false
+    console.error('[CalibrationBridge] Worker 创建失败:', err)
+    return
+  }
+
+  worker.on('message', (res: CalibrationWorkerResponse) => {
+    workerBusy = false
+    if (res.id !== id) return
+    if (res.ok) {
+      onAngle(res.maxAngle)
+    } else {
+      const errRes = res as Extract<CalibrationWorkerResponse, { ok: false }>
+      console.warn('[CalibrationBridge] Worker 角度估算失败:', errRes.error)
+    }
+    worker.terminate().catch(() => {})
+  })
+
+  worker.on('error', (err) => {
+    workerBusy = false
+    console.error('[CalibrationBridge] Worker 运行错误:', err)
+    worker.terminate().catch(() => {})
+  })
+
+  worker.on('exit', (code) => {
+    if (code !== 0) {
+      workerBusy = false
+      console.error(`[CalibrationBridge] Worker 异常退出，code=${code}`)
+    }
+  })
+
+  worker.postMessage({ ...req, id } satisfies CalibrationWorkerRequest)
+}
 
 export const createModbusCalibrationBridge = (
   options: CreateModbusCalibrationBridgeOptions = {}
@@ -153,6 +226,16 @@ export const createModbusCalibrationBridge = (
     }
   }
 
+  /** 处理 pendingAngleEstimate：启动 Worker，完成后将 maxAngle 合并回 session */
+  const handlePendingAngleEstimate = (pending: PendingAngleEstimate) => {
+    runAngleEstimateInWorker(
+      { tripSegments: pending.tripSegments, options: pending.options },
+      (maxAngle) => {
+        session.applyAngleEstimate(maxAngle)
+      }
+    )
+  }
+
   const feedThicknessSample = (sample: FeedThicknessSampleInput) => {
     const thicknessSample = normalizeThicknessSample(sample)
 
@@ -160,12 +243,12 @@ export const createModbusCalibrationBridge = (
       return session.getResult()
     }
 
-    const result = session.feedThickness(thicknessSample)
-    if (result) {
-      return result
+    const { calibrateResult, pendingAngleEstimate } = session.feedThickness(thicknessSample)
+    if (pendingAngleEstimate) {
+      handlePendingAngleEstimate(pendingAngleEstimate)
     }
 
-    return session.getResult()
+    return calibrateResult
   }
 
   const feedModbusData = (data: IPollingModBusData) => {
@@ -182,9 +265,13 @@ export const createModbusCalibrationBridge = (
         continue
       }
 
-      const result = feedThicknessSample(thicknessSample)
-      if (result) {
-        return result
+      const { calibrateResult, pendingAngleEstimate } = session.feedThickness(thicknessSample)
+      if (pendingAngleEstimate) {
+        handlePendingAngleEstimate(pendingAngleEstimate)
+        return calibrateResult
+      }
+      if (calibrateResult) {
+        return calibrateResult
       }
     }
 
@@ -194,10 +281,14 @@ export const createModbusCalibrationBridge = (
   const feedUpperRotationData = (data: RingData) => {
     const timestamp = data.timestamp ?? latestThicknessTimestamp ?? Date.now()
 
-    return session.feedAirRing({
+    const { calibrateResult, pendingAngleEstimate } = session.feedAirRing({
       ...data,
       timestamp,
     })
+    if (pendingAngleEstimate) {
+      handlePendingAngleEstimate(pendingAngleEstimate)
+    }
+    return calibrateResult
   }
 
   const feedAdboxPushData = (push: PushData) => {
@@ -242,12 +333,12 @@ export const createModbusCalibrationBridge = (
       MotionDirection: motionDirection,
     }
 
-    const result = session.feedThickness(thicknessSample)
-    if (result) {
-      return result
+    const { calibrateResult, pendingAngleEstimate } = session.feedThickness(thicknessSample)
+    if (pendingAngleEstimate) {
+      handlePendingAngleEstimate(pendingAngleEstimate)
     }
 
-    return session.getResult()
+    return calibrateResult
   }
 
   const reset = (disturbanceTs: number = Date.now()) => {

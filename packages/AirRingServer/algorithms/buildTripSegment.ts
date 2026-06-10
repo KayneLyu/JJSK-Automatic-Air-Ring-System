@@ -352,9 +352,14 @@ export const buildTripSegment = (options?: {
     if (thickness) {
       if (thickness.timestamp) {
         if ((thickness.ProbeValue || 0) > 0) {
-          validThickness.push(
-            thickness as WithRequired<ThicknessData, 'timestamp' | 'ProbeValue'>
-          )
+          // 限制当前段缓冲区大小：ADBox 1ms 采样时，一个典型上旋行程约 5-10 分钟，
+          // 约 300,000-600,000 点。上限 200,000 约等于 3.3 分钟，足以覆盖完整行程，
+          // 同时防止极端情况（信号长时间不切换）下内存无限增长。
+          if (validThickness.length < 200_000) {
+            validThickness.push(
+              thickness as WithRequired<ThicknessData, 'timestamp' | 'ProbeValue'>
+            )
+          }
           // 同步累积到全局分布数组（用于阈值计算），最多保留 50000 个采样
           if (allRawProbeValues.length < 50000) {
             allRawProbeValues.push(thickness.ProbeValue!)
