@@ -198,11 +198,17 @@ export const calibrate = ({
 
     if (!v || v <= 0) {
       /* 无法计算牵引速度 */
-      return { result: buildCalibrationResult(baseResult), pendingAngleEstimate: null }
+      return {
+        result: buildCalibrationResult(baseResult),
+        pendingAngleEstimate: null,
+      }
     }
     if (!fastSize) {
       /* 突变窗口未完成标定 */
-      return { result: buildCalibrationResult(baseResult), pendingAngleEstimate: null }
+      return {
+        result: buildCalibrationResult(baseResult),
+        pendingAngleEstimate: null,
+      }
     }
     setWindowSize(fastSize)
 
@@ -272,9 +278,10 @@ export const calibrate = ({
       result: buildCalibrationResult({ ...baseResult, distance }),
       pendingAngleEstimate: {
         tripSegments: [...tripSegment],
-        options: objectiveMode === 'auto'
-          ? { deltaRange }
-          : { deltaRange, objectiveMode },
+        options:
+          objectiveMode === 'auto'
+            ? { deltaRange }
+            : { deltaRange, objectiveMode },
       },
     }
   }
@@ -306,7 +313,9 @@ export const createCalibrationSession = ({
   )
   let currentResult: CalibrateResult | null = null
 
-  const feed = (input: CalibrationStreamInput): {
+  const feed = (
+    input: CalibrationStreamInput
+  ): {
     calibrateResult: CalibrateResult | null
     pendingAngleEstimate: PendingAngleEstimate | null
   } => {
@@ -339,7 +348,9 @@ export const createCalibrationSession = ({
       let lastPending: PendingAngleEstimate | null = null
 
       for (const item of list) {
-        const { calibrateResult, pendingAngleEstimate } = feed({ thickness: item })
+        const { calibrateResult, pendingAngleEstimate } = feed({
+          thickness: item,
+        })
         if (pendingAngleEstimate) {
           lastPending = pendingAngleEstimate
         }
@@ -348,14 +359,19 @@ export const createCalibrationSession = ({
         }
       }
 
-      return { calibrateResult: currentResult, pendingAngleEstimate: lastPending }
+      return {
+        calibrateResult: currentResult,
+        pendingAngleEstimate: lastPending,
+      }
     },
     feedAirRing: (airRing: RingData | RingData[]) => {
       const list = Array.isArray(airRing) ? airRing : [airRing]
       let lastPending: PendingAngleEstimate | null = null
 
       for (const item of list) {
-        const { calibrateResult, pendingAngleEstimate } = feed({ airRing: item })
+        const { calibrateResult, pendingAngleEstimate } = feed({
+          airRing: item,
+        })
         if (pendingAngleEstimate) {
           lastPending = pendingAngleEstimate
         }
@@ -364,7 +380,10 @@ export const createCalibrationSession = ({
         }
       }
 
-      return { calibrateResult: currentResult, pendingAngleEstimate: lastPending }
+      return {
+        calibrateResult: currentResult,
+        pendingAngleEstimate: lastPending,
+      }
     },
     /**
      * 将 Worker 异步计算得到的 maxAngle 合并回结果，并触发 onResult 回调。
