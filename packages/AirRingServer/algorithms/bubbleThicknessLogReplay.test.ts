@@ -264,6 +264,117 @@ const inferMembraneWidthMm = (
   return range > 0 ? range : null
 }
 
+/**
+ * 双峰阈值检测：从厚度分布中检测出界点的阈值。
+ *
+ * 测厚仪超出膜范围时，辐射穿透率高 → AD 值显著高于在界值，
+ * 形成双峰分布。以两个峰之间的谷底作为出界阈值。
+ *
+ * 与 buildTripSegment.ts 中的 detectBimodalThreshold 逻辑一致。
+ */
+const detectOutOfBoundsThreshold = (probeValues: number[]): number | null => {
+  if (probeValues.length < 100) return null
+
+  const sorted = [...probeValues].sort((a, b) => a - b)
+  const p01 = sorted[Math.floor(sorted.length * 0.01)]
+  const p99 = sorted[Math.floor(sorted.length * 0.99)]
+  const range = p99 - p01
+  if (range <= 0) return null
+
+  const NUM_BINS = 50
+  const binWidth = range / NUM_BINS
+  const hist = new Array(NUM_BINS).fill(0)
+
+  for (const v of probeValues) {
+    const bin = Math.min(
+      Math.floor((v - p01) / binWidth),
+      NUM_BINS - 1
+    )
+    hist[bin]++
+  }
+
+  let maxCount = 0
+  let peakBin = 0
+  for (let i = 0; i < NUM_BINS; i++) {
+    if (hist[i] > maxCount) {
+      maxCount = hist[i]
+      peakBin = i
+    }
+  }
+
+  let valleyBin = -1
+  let valleyCount = Infinity
+  const startBin = Math.max(peakBin + 3, Math.floor(NUM_BINS * 0.3))
+  const endBin = Math.min(NUM_BINS - 3, Math.floor(NUM_BINS * 0.9))
+
+  for (let i = startBin; i < endBin; i++) {
+    if (hist[i] < valleyCount) {
+      valleyCount = hist[i]
+      valleyBin = i
+    }
+  }
+
+  if (valleyBin < 0) return null
+
+  // 谷底密度须明显低于峰值（<20%），且右侧存在可检测的峰
+  if (valleyCount > maxCount * 0.2) return null
+
+  let rightPeak = 0
+  for (let i = valleyBin + 1; i < NUM_BINS; i++) {
+    if (hist[i] > rightPeak) rightPeak = hist[i]
+  }
+  if (rightPeak < 0.02 * maxCount) return null
+
+  return p01 + (valleyBin + 0.5) * binWidth
+}
+
+/**
+ * 过滤出界点：基于双峰阈值 + IQR 扫描仪位置
+ * 返回过滤后的三元组 + 估计的扫描仪中心位置
+ */
+const filterOutOfBounds = (
+  triples: MeasurementTriple[],
+  membraneWidthMm: number
+): { filtered: MeasurementTriple[]; centerMm: number; removed: number } => {
+  if (triples.length < 100) {
+    return { filtered: [], centerMm: 0, removed: 0 }
+  }
+
+  // Scanner 位置中心化：用中位数估计中心位置
+  const positions = triples.map((t) => t.scannerPosMm)
+  const sorted = [...positions].sort((a, b) => a - b)
+  const center = sorted[Math.floor(sorted.length / 2)]
+
+  // 双峰阈值检测
+  const probeValues = triples.map((t) => t.thickness)
+  const threshold = detectOutOfBoundsThreshold(probeValues)
+
+  const halfWidth = membraneWidthMm / 2
+  const filtered: MeasurementTriple[] = []
+  let removed = 0
+
+  for (const t of triples) {
+    const centeredPos = t.scannerPosMm - center
+    if (Math.abs(centeredPos) > halfWidth) {
+      removed++
+      continue
+    }
+    if (threshold !== null && t.thickness > threshold) {
+      removed++
+      continue
+    }
+    filtered.push({
+      upperAngleDeg: t.upperAngleDeg,
+      scannerPosMm: centeredPos,
+      thickness: t.thickness,
+    })
+  }
+
+  return { filtered, centerMm: center, removed }
+}
+
+const DIAG_CALIBRATED_THETA = { may22: 295.946, june10: 306.022 } as const
+
 describe('日志重放: 推算膜泡原始厚度', () => {
   test(
     'May 22: 推算膜泡原始厚度分布',
@@ -288,22 +399,32 @@ describe('日志重放: 推算膜泡原始厚度', () => {
 
       const params = inferThetaMaxAndOneWay(airRingPoints)
       expect(params).not.toBeNull()
+      const thetaMax = DIAG_CALIBRATED_THETA.may22
       console.log(
-        `推算: thetaMax≈${params!.thetaMaxDeg}°, oneWay≈${(params!.oneWayMs / 1000).toFixed(0)}s`
+        `推算: oneWay≈${(params!.oneWayMs / 1000).toFixed(0)}s, thetaMax=${thetaMax.toFixed(3)}° (标定)`
       )
 
-      const triples = buildTriplesFromRawData(
+      const rawTriples = buildTriplesFromRawData(
         thicknessPoints,
         airRingPoints,
-        params!.thetaMaxDeg,
+        thetaMax,
         params!.oneWayMs
       )
-      expect(triples.length).toBeGreaterThan(1000)
-      console.log(`提取 ${triples.length} 个测量三元组`)
+      expect(rawTriples.length).toBeGreaterThan(1000)
+      console.log(`提取 ${rawTriples.length} 个测量三元组`)
 
-      const membraneWidthMm = inferMembraneWidthMm(triples)
+      // === 出界过滤 + scanner 中心化 ===
+      const membraneWidthMm = inferMembraneWidthMm(rawTriples)
       expect(membraneWidthMm).not.toBeNull()
-      console.log(`膜泡宽度 ≈ ${membraneWidthMm!.toFixed(0)}mm`)
+      const { filtered: triples, centerMm, removed } = filterOutOfBounds(
+        rawTriples,
+        membraneWidthMm!
+      )
+      console.log(
+        `膜泡宽度 ≈ ${membraneWidthMm!.toFixed(0)}mm, 中心 offset=${centerMm.toFixed(0)}mm, 过滤掉 ${removed} 个出界点 (${((removed / rawTriples.length) * 100).toFixed(1)}%)`
+      )
+      expect(triples.length).toBeGreaterThan(500)
+      // === May 22 end ===
 
       const result = reconstructBubbleThickness(
         triples,
@@ -381,22 +502,32 @@ describe('日志重放: 推算膜泡原始厚度', () => {
 
       const params = inferThetaMaxAndOneWay(airRingPoints)
       expect(params).not.toBeNull()
+      const thetaMax = DIAG_CALIBRATED_THETA.june10
       console.log(
-        `推算: thetaMax≈${params!.thetaMaxDeg}°, oneWay≈${(params!.oneWayMs / 1000).toFixed(0)}s`
+        `推算: oneWay≈${(params!.oneWayMs / 1000).toFixed(0)}s, thetaMax=${thetaMax.toFixed(3)}° (标定)`
       )
 
-      const triples = buildTriplesFromRawData(
+      const rawTriples = buildTriplesFromRawData(
         thicknessPoints,
         airRingPoints,
-        params!.thetaMaxDeg,
+        thetaMax,
         params!.oneWayMs
       )
-      expect(triples.length).toBeGreaterThan(1000)
-      console.log(`提取 ${triples.length} 个测量三元组`)
+      expect(rawTriples.length).toBeGreaterThan(1000)
+      console.log(`提取 ${rawTriples.length} 个测量三元组`)
 
-      const membraneWidthMm = inferMembraneWidthMm(triples)
+      // === 出界过滤 + scanner 中心化 ===
+      const membraneWidthMm = inferMembraneWidthMm(rawTriples)
       expect(membraneWidthMm).not.toBeNull()
-      console.log(`膜泡宽度 ≈ ${membraneWidthMm!.toFixed(0)}mm`)
+      const { filtered: triples, centerMm, removed } = filterOutOfBounds(
+        rawTriples,
+        membraneWidthMm!
+      )
+      console.log(
+        `膜泡宽度 ≈ ${membraneWidthMm!.toFixed(0)}mm, 中心 offset=${centerMm.toFixed(0)}mm, 过滤掉 ${removed} 个出界点 (${((removed / rawTriples.length) * 100).toFixed(1)}%)`
+      )
+      expect(triples.length).toBeGreaterThan(500)
+      // === June 10 end ===
 
       const result = reconstructBubbleThickness(
         triples,
