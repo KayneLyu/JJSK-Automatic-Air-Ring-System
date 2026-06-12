@@ -6,6 +6,7 @@ import {
   reconstructBubbleThickness,
   type MeasurementTriple,
 } from './bubbleThicknessReconstruction'
+import { trapezoidalPosition } from './upperRotation/upperRotation.evaluation'
 
 const LOGS_DIR =
   process.env.AIR_RING_LOGS_DIR ?? 'C:/Users/zane/Downloads/logs'
@@ -133,34 +134,38 @@ const parseAirRingLog = (filePath: string): AirRingPoint[] => {
   return points
 }
 
-/**
- * 直接从原始数据构建测量三元组，不经过 buildTripSegment。
- *
- * 原理：
- * 1. 从上旋方向变化信号检测行程边界（方向切换 = 新行程开始）
- * 2. 在每个行程内，用梯形速度曲线将时间映射到上旋角度
- * 3. 每个厚度点的 scannerPos 从 HorizontalPulse 换算
- */
-const buildTriplesFromRawData = (
-  thicknessPoints: ThicknessPoint[],
-  airRingPoints: AirRingPoint[],
-  thetaMaxDeg: number,
-  oneWayMs: number
-): MeasurementTriple[] => {
-  const PULSE_TO_MM = 0.1
+type TripBoundary = { timestamp: number; isForward: boolean }
 
-  type TripBoundary = { timestamp: number; isForward: boolean }
+/** 从上旋方向变化信号检测行程边界（方向切换 = 新行程开始） */
+const detectTripBoundaries = (airRingPoints: AirRingPoint[]): TripBoundary[] => {
   const boundaries: TripBoundary[] = []
-
   let lastForward: boolean | null = null
   for (const p of airRingPoints) {
-    const isForward = p.ForwardRotation && !p.ReverseRotation
     if (!p.ForwardRotation && !p.ReverseRotation) continue
+    const isForward = p.ForwardRotation && !p.ReverseRotation
     if (lastForward !== null && isForward !== lastForward) {
       boundaries.push({ timestamp: p.timestamp, isForward })
     }
     lastForward = isForward
   }
+  return boundaries
+}
+
+/**
+ * 直接从原始数据构建测量三元组。
+ *
+ * 关键修正：
+ * - 使用梯形速度曲线（trapezoidalPosition）映射时间→上旋角度，而非简单线性映射
+ * - pulseToMm 参数化（默认 0.1 = THICKNESS_UNIT_PULSE_DIS）
+ */
+const buildTriplesFromRawData = (
+  thicknessPoints: ThicknessPoint[],
+  airRingPoints: AirRingPoint[],
+  thetaMaxDeg: number,
+  oneWayMs: number,
+  pulseToMm: number = 0.1
+): MeasurementTriple[] => {
+  const boundaries = detectTripBoundaries(airRingPoints)
 
   if (boundaries.length < 2) {
     console.log('行程边界不足，仅检测到', boundaries.length, '个')
@@ -181,6 +186,9 @@ const buildTriplesFromRawData = (
 
     if (tripDuration < 60_000 || tripDuration > oneWayMs * 1.5) continue
 
+    const durationSec = tripDuration / 1000
+    const accelRatio = Math.min(20000, tripDuration * 0.45) / tripDuration
+
     while (tIdx < thicknessPoints.length && thicknessPoints[tIdx].timestamp < start.timestamp) {
       tIdx++
     }
@@ -198,13 +206,15 @@ const buildTriplesFromRawData = (
       const tInTrip = tp.timestamp - start.timestamp
       const progress = Math.max(0, Math.min(1, tInTrip / tripDuration))
 
+      // 关键修正：使用梯形速度曲线替代简单线性映射
+      const pos = trapezoidalPosition(progress, accelRatio)
       const upperAngle = start.isForward
-        ? progress * thetaMaxDeg
-        : (1 - progress) * thetaMaxDeg
+        ? pos * thetaMaxDeg
+        : (1 - pos) * thetaMaxDeg
 
       triples.push({
         upperAngleDeg: upperAngle,
-        scannerPosMm: tp.HorizontalPulse * PULSE_TO_MM,
+        scannerPosMm: tp.HorizontalPulse * pulseToMm,
         thickness: tp.ProbeValue,
       })
     }
@@ -216,18 +226,7 @@ const buildTriplesFromRawData = (
 const inferThetaMaxAndOneWay = (
   airRingPoints: AirRingPoint[]
 ): { thetaMaxDeg: number; oneWayMs: number } | null => {
-  type TripBoundary = { timestamp: number; isForward: boolean }
-  const boundaries: TripBoundary[] = []
-
-  let lastForward: boolean | null = null
-  for (const p of airRingPoints) {
-    if (!p.ForwardRotation && !p.ReverseRotation) continue
-    const isForward = p.ForwardRotation && !p.ReverseRotation
-    if (lastForward !== null && isForward !== lastForward) {
-      boundaries.push({ timestamp: p.timestamp, isForward })
-    }
-    lastForward = isForward
-  }
+  const boundaries = detectTripBoundaries(airRingPoints)
 
   if (boundaries.length < 2) return null
 
@@ -241,11 +240,14 @@ const inferThetaMaxAndOneWay = (
 
   for (let oneWayMs = 300_000; oneWayMs <= 600_000; oneWayMs += 60_000) {
     if (Math.abs(medianDuration - oneWayMs) < oneWayMs * 0.3) {
-      return { thetaMaxDeg: 320, oneWayMs }
+      // 使用 logReplayMaxAngle.test.ts 标定的精确 thetaMax 值
+      // May 22: 295.946°, June 10: 306.022°
+      // 默认使用保守估计 300°
+      return { thetaMaxDeg: 300, oneWayMs }
     }
   }
 
-  return { thetaMaxDeg: 320, oneWayMs: medianDuration }
+  return { thetaMaxDeg: 300, oneWayMs: medianDuration }
 }
 
 const inferMembraneWidthMm = (

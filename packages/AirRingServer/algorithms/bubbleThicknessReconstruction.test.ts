@@ -128,6 +128,55 @@ const runSimulatorTest = (
   expect(meanRecon).toBeGreaterThan(85)
   expect(meanRecon).toBeLessThan(115)
 
+  // === Per-bin 形状精度验证 ===
+  // 将 720 点 ground truth 下采样到 48 bins 与 reconstruction 对齐
+  const gtSamplePoints = groundTruthProfile.length
+  const gtBinned = new Array(48).fill(0).map(() => ({ sum: 0, count: 0 }))
+  for (let i = 0; i < gtSamplePoints; i++) {
+    const angle = (i / gtSamplePoints) * 360
+    const bin = Math.floor((angle / 360) * 48) % 48
+    gtBinned[bin].sum += groundTruthProfile[i]
+    gtBinned[bin].count++
+  }
+  const gtDownsampled = gtBinned.map((b) =>
+    b.count > 0 ? b.sum / b.count : 0
+  )
+
+  let maxBinError = 0
+  let avgBinError = 0
+  let validBins = 0
+  for (let i = 0; i < 48; i++) {
+    if (gtDownsampled[i] > 0) {
+      const err = Math.abs(result.profile[i] - gtDownsampled[i])
+      avgBinError += err
+      if (err > maxBinError) maxBinError = err
+      validBins++
+    }
+  }
+  avgBinError /= validBins
+
+  const reconVar =
+    result.profile.reduce((s, v) => s + (v - meanRecon) ** 2, 0) /
+    result.profile.length
+  const gtVar =
+    gtDownsampled.reduce((s, v) => s + (v - meanGT) ** 2, 0) /
+    gtDownsampled.length
+
+  console.log(`[${label}] 逐bin验证:
+    有效 bins: ${validBins}/48
+    平均 bin 误差: ${avgBinError.toFixed(3)} µm
+    最大 bin 误差: ${maxBinError.toFixed(3)} µm
+    重建方差: ${reconVar.toFixed(3)}, GT方差: ${gtVar.toFixed(3)}
+  `)
+
+  // 验证：重建方差 ≤ GT 方差（奇次谐波在 null space 中，会被滤掉）
+  // 但不应完全为 0（除非 profile 仅含奇次谐波如纯 sin 波）
+  if (gtVar > 1) {
+    expect(reconVar).toBeLessThanOrEqual(gtVar * 1.1)
+  }
+  // 平均 bin 误差 < 5µm
+  expect(avgBinError).toBeLessThan(5)
+
   vi.useRealTimers()
   return { meanGT, meanRecon, result, triples }
 }
