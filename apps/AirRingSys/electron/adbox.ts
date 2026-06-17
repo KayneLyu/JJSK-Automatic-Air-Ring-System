@@ -1,20 +1,15 @@
 import { BrowserWindow, ipcMain, app } from 'electron'
-import { mkdirSync } from 'node:fs'
-import { appendFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { ADBoxClient } from '@jjsk/adbox-sdk'
 import type { PushData, RunResult } from '@jjsk/adbox-sdk'
-import type {
-  ICalibrationBridgeState,
-  ICalibrationControlData,
-  ICalibrationControlResult,
-  ICalibrationResult,
-  IUpperRotationDebugData,
-} from '@/types/ipc'
+import type { ICalibrationResult, IUpperRotationDebugData } from '@/types/ipc'
 import { createUpperRotationS7Connection } from '@jjsk/air-ring-server/electron'
 import Store from 'electron-store'
 import { DataBatcher } from './data-batcher'
 import { createModbusCalibrationBridge } from './calibrationBridge'
+import { initCalibrationIpc } from './calibrationIpc'
+import { SQLiteService, type FrameRow } from './sqliteService'
+import { DataPipeline } from './dataPipeline'
 
 // ==================== 类型定义 ====================
 type MotionState =
@@ -29,29 +24,45 @@ type MotionState =
 interface AppConfig {
   maxPulse: number
   margin: number
+  manualTractionSpeed?: number
+  manualDistance?: number
+  manualMaxAngle?: number
+  manualMutationWindowSize?: number
+  // 设备常量
+  rollerMode: string
+  rollerValue: string
+  rollerNumCycles: string
+  airAD: string
+  materialGain: string
+  upperDeltaMin: string
+  upperDeltaMax: string
+  upperObjectiveMode: string
+  airDuctCount: string
+  systemAirDuct1Angle: string
+  // 标定结果
+  rollerResultTractionSpeed?: number
+  frameLengthMMResult?: number
+  frameLengthPulseResult?: number
+  mutationWindowSizeResult?: number
+  upperResultMaxAngle?: number
+  upperResultDistance?: number
 }
 
 // ==================== 全局状态 (模块级私有) ====================
 let mainWindow: BrowserWindow | null = null // 保存引用供内部使用
 let dataBatcher: DataBatcher<PushData> | null = null
+let pipeline: DataPipeline | null = null
+let sqliteDb: SQLiteService | null = null
 let adb: ADBoxClient | null = null
 let store: Store<AppConfig> | null = null
 let upperRotationConnection: ReturnType<
   typeof createUpperRotationS7Connection
 > | null = null
 let upperRotationPollInterval: NodeJS.Timeout | null = null
-let thicknessLogWriteQueue = Promise.resolve()
-let thicknessLogSeq = 0
 let sysTickBaseWallTime: number | undefined
 let sysTickBaseExpanded: number | undefined
 let previousSysTickRaw: number | undefined
 let previousSysTickExpanded: number | undefined
-const pendingThicknessBatch: Array<{
-  adValue: number
-  pulse: number
-  timestamp: number
-  sysTick: number
-}> = []
 
 // 运动状态
 let motionState: MotionState = 'idle'
@@ -61,17 +72,15 @@ let emergencyStopFlag = false
 let currentMaxPulse = 6500
 let pauseTimer: NodeJS.Timeout | null = null
 const END_PAUSE_MS = 200
-const THICKNESS_LOG_BATCH_SIZE = 25
+
+const getConnectionLogDir = (device: string) =>
+  join(app.getPath('userData'), 'logs', 'connections', device)
 
 const calibrationBridge = createModbusCalibrationBridge({
   onResult: (result) => {
     emitCalibrationResult(result as ICalibrationResult)
   },
 })
-
-const getConnectionLogDir = (name: string) => {
-  return join(app.getPath('userData'), 'logs', name)
-}
 
 const getUpperRotationConnection = () => {
   if (!upperRotationConnection) {
@@ -145,123 +154,6 @@ const resolvePushTimestamp = (push: PushData, receivedAt: number) => {
   return sysTickBaseWallTime + (expandedSysTick - sysTickBaseExpanded)
 }
 
-const getRelativeUtcDayTimestamp = (timestampMs: number) => {
-  const now = new Date(timestampMs)
-  const dayStartMs = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-    0,
-    0,
-    0,
-    0
-  )
-
-  return timestampMs - dayStartMs
-}
-
-const formatDateHour = (timestampMs: number) => {
-  const date = new Date(timestampMs)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hour = String(date.getHours()).padStart(2, '0')
-  return `${year}-${month}-${day}-${hour}`
-}
-
-const appendThicknessLogLine = (line: string, timestampMs: number) => {
-  const dirPath = getConnectionLogDir('thickness')
-  mkdirSync(dirPath, { recursive: true })
-  const filePath = join(
-    dirPath,
-    `thickness-adbox-${formatDateHour(timestampMs)}.log`
-  )
-
-  thicknessLogWriteQueue = thicknessLogWriteQueue
-    .then(() => appendFile(filePath, line, 'utf8'))
-    .catch((error) => {
-      console.error('ADBox 测厚日志写入失败:', error)
-    })
-}
-
-const flushThicknessLogBatch = (force = false) => {
-  while (
-    pendingThicknessBatch.length >= THICKNESS_LOG_BATCH_SIZE ||
-    (force && pendingThicknessBatch.length > 0)
-  ) {
-    const batch = pendingThicknessBatch.splice(
-      0,
-      force ? pendingThicknessBatch.length : THICKNESS_LOG_BATCH_SIZE
-    )
-
-    if (batch.length === 0) {
-      return
-    }
-
-    thicknessLogSeq += 1
-
-    const batchTimestamp = batch[batch.length - 1].timestamp
-    const data = {
-      adValues: batch.map((item) => item.adValue),
-      pulses: batch.map((item) => item.pulse),
-      timestamps: batch.map((item) =>
-        getRelativeUtcDayTimestamp(item.timestamp)
-      ),
-    }
-
-    const record = {
-      level: 'info',
-      message: {
-        source: 'thickness/app-adbox',
-        deviceType: 'thickness',
-        deviceName: '测厚仪',
-        protocol: 'adbox',
-        event: 'read',
-        data,
-        meta: {
-          pollSeq: thicknessLogSeq,
-          adCount: data.adValues.length,
-          pulseCount: data.pulses.length,
-          timestampCount: data.timestamps.length,
-          firstTimestamp: data.timestamps[0],
-          lastTimestamp: data.timestamps[data.timestamps.length - 1],
-          firstPulse: data.pulses[0],
-          lastPulse: data.pulses[data.pulses.length - 1],
-          firstSysTick: batch[0]?.sysTick,
-          lastSysTick: batch[batch.length - 1]?.sysTick,
-          sourceProtocol: 'adbox',
-        },
-      },
-      timestamp: new Date(batchTimestamp).toISOString(),
-    }
-
-    appendThicknessLogLine(`${JSON.stringify(record)}\n`, batchTimestamp)
-  }
-}
-
-const handleThicknessPush = (push: PushData) => {
-  if (typeof push.ad0 !== 'number' || typeof push.pos0 !== 'number') {
-    return
-  }
-
-  const receivedAt = Date.now()
-  const timestamp = resolvePushTimestamp(push, receivedAt)
-
-  calibrationBridge.feedThicknessSample({
-    timestamp,
-    ProbeValue: push.ad0,
-    HorizontalPulse: push.pos0,
-  })
-
-  pendingThicknessBatch.push({
-    adValue: push.ad0,
-    pulse: push.pos0,
-    timestamp,
-    sysTick: push.sysTick,
-  })
-  flushThicknessLogBatch()
-}
-
 async function startUpperRotationPolling() {
   if (upperRotationPollInterval) {
     return
@@ -281,12 +173,24 @@ async function startUpperRotationPolling() {
         return
       }
 
-      calibrationBridge.feedUpperRotationData(upperRotationData)
-      emitUpperRotationData(upperRotationData)
+      pipeline?.receiveRotation(upperRotationData)
     } catch (error) {
       console.error('上旋 S7 读取失败:', error)
     }
   }, 400)
+}
+
+const handleThicknessPush = (push: PushData) => {
+  if (typeof push.ad0 !== 'number' || typeof push.pos0 !== 'number') return
+
+  const receivedAt = Date.now()
+  const timestamp = resolvePushTimestamp(push, receivedAt)
+
+  calibrationBridge.feedThicknessSample({
+    timestamp,
+    ProbeValue: push.ad0,
+    HorizontalPulse: push.pos0,
+  })
 }
 
 function stopUpperRotationPolling() {
@@ -304,7 +208,7 @@ function stopUpperRotationPolling() {
  * 初始化运动控制模块
  * @param win Electron 主窗口实例
  */
-export function initMotionControl(win: BrowserWindow) {
+export async function initMotionControl(win: BrowserWindow) {
   mainWindow = win
 
   // ---------- 配置存储 ----------
@@ -312,16 +216,38 @@ export function initMotionControl(win: BrowserWindow) {
     defaults: {
       maxPulse: 7000,
       margin: 300,
+      rollerMode: 'circumference',
+      rollerValue: '314',
+      rollerNumCycles: '10',
+      airAD: '2048',
+      materialGain: '1.0',
+      upperDeltaMin: '180',
+      upperDeltaMax: '359',
+      upperObjectiveMode: 'auto',
+      airDuctCount: '48',
+      systemAirDuct1Angle: '0',
     },
   })
   currentMaxPulse = store.get('maxPulse')
 
-  // ---------- 节流器 ----------
-  // 确保 mainWindow 已赋值
+  // ---------- 数据管道 (RingBuffer + SQLite + 三路分离) ----------
   if (!mainWindow) throw new Error('Main window not set')
-  dataBatcher = new DataBatcher<PushData>(mainWindow, 'adbox-data', {
-    interval: 50,
+  sqliteDb = new SQLiteService()
+
+  sqliteDb.init()
+
+  pipeline = new DataPipeline(mainWindow, sqliteDb)
+  pipeline.registerComputation({
+    feedThicknessSample: (sample) =>
+      calibrationBridge.feedThicknessSample(sample),
+    feedUpperRotationData: (data) =>
+      calibrationBridge.feedUpperRotationData(data),
+    emitUpperRotationData: (data) => emitUpperRotationData(data),
   })
+  pipeline.start()
+
+  // pipeline内部的 batcher 用于渲染，替代原来的 dataBatcher
+  dataBatcher = pipeline['batcher'] as unknown as DataBatcher<PushData>
 
   // ---------- AD盒初始化 ----------
   initADBox()
@@ -329,12 +255,20 @@ export function initMotionControl(win: BrowserWindow) {
 
   // ---------- IPC 注册 ----------
   registerIpcHandlers()
+  initCalibrationIpc({
+    bridge: calibrationBridge,
+    sqliteDb: sqliteDb!,
+    sendToWindow: (channel, data) => {
+      mainWindow?.webContents.send(channel, data)
+    },
+  })
 
   // ---------- 应用退出清理 ----------
   app.on('before-quit', () => {
-    flushThicknessLogBatch(true)
     stopUpperRotationPolling()
     resetSysTickClock()
+    pipeline?.stop()
+    sqliteDb?.close()
     adb?.disconnect()
     dataBatcher?.destroy()
   })
@@ -366,7 +300,7 @@ async function initADBox() {
 
   adb.on('data', (push: PushData) => {
     handleThicknessPush(push)
-    dataBatcher?.push(push)
+    pipeline?.receiveThickness(push, Date.now())
   })
 
   adb.on('runResult', (result: RunResult) => {
@@ -378,7 +312,6 @@ async function initADBox() {
   adb.on('disconnected', () => {
     console.log('ADBox disconnected')
     mainWindow?.webContents.send('adbox-status', { connected: false })
-    flushThicknessLogBatch(true)
     resetSysTickClock()
     stopScanInternal(false)
     motionState = 'idle'
@@ -607,56 +540,113 @@ function registerIpcHandlers() {
       setMargin(Number(value)),
     'config-set-scan-range': async (_event: unknown, webWidth: unknown) =>
       setScanRangeByWebWidth(Number(webWidth)),
-    'calibration-set-manual-traction-speed': async (
+
+    // 手动标定参数
+    'calibration-get-manual-params': async () => ({
+      tractionSpeed: store?.get('manualTractionSpeed'),
+      distance: store?.get('manualDistance'),
+      maxAngle: store?.get('manualMaxAngle'),
+      mutationWindowSize: store?.get('manualMutationWindowSize'),
+    }),
+    'calibration-set-manual-params': async (
       _event: unknown,
-      data: unknown
-    ): Promise<ICalibrationControlResult> => {
-      const calibrationData = data as ICalibrationControlData
-      const manualTractionSpeed = Number(calibrationData.manualTractionSpeed)
-
-      if (!Number.isFinite(manualTractionSpeed) || manualTractionSpeed <= 0) {
-        return {
-          success: false,
-          disturbanceTs: calibrationBridge.getDisturbanceTs() ?? Date.now(),
-          error: '牵引速度必须是大于 0 的有效数字',
-        }
+      params: unknown
+    ) => {
+      const p = params as {
+        tractionSpeed?: number
+        distance?: number
+        maxAngle?: number
+        mutationWindowSize?: number
       }
-
-      const disturbanceTs = Date.now()
-      calibrationBridge.setManualTractionSpeed(
-        manualTractionSpeed,
-        disturbanceTs
-      )
-      emitCalibrationResult({ tractionSpeed: manualTractionSpeed })
-
-      return {
-        success: true,
-        manualTractionSpeed,
-        disturbanceTs,
-      }
+      if (p.tractionSpeed !== undefined)
+        store?.set('manualTractionSpeed', p.tractionSpeed)
+      if (p.distance !== undefined) store?.set('manualDistance', p.distance)
+      if (p.maxAngle !== undefined) store?.set('manualMaxAngle', p.maxAngle)
+      if (p.mutationWindowSize !== undefined)
+        store?.set('manualMutationWindowSize', p.mutationWindowSize)
+      return { success: true }
     },
-    'calibration-get-state': async (): Promise<ICalibrationBridgeState> => {
-      return {
-        manualTractionSpeed: calibrationBridge.getManualTractionSpeed(),
-        disturbanceTs: calibrationBridge.getDisturbanceTs() ?? Date.now(),
-        result: calibrationBridge.getResult(),
+
+    // 设备常量
+    'config-get-device-constants': async () => ({
+      rollerMode: store?.get('rollerMode') ?? 'circumference',
+      rollerValue: store?.get('rollerValue') ?? '314',
+      rollerNumCycles: store?.get('rollerNumCycles') ?? '10',
+      airAD: store?.get('airAD') ?? '2048',
+      materialGain: store?.get('materialGain') ?? '1.0',
+      upperDeltaMin: store?.get('upperDeltaMin') ?? '180',
+      upperDeltaMax: store?.get('upperDeltaMax') ?? '359',
+      upperObjectiveMode: store?.get('upperObjectiveMode') ?? 'auto',
+      airDuctCount: store?.get('airDuctCount') ?? '48',
+      systemAirDuct1Angle: store?.get('systemAirDuct1Angle') ?? '0',
+    }),
+    'config-set-device-constants': async (_event: unknown, params: unknown) => {
+      const p = params as {
+        rollerMode?: string
+        rollerValue?: string
+        rollerNumCycles?: string
+        airAD?: string
+        materialGain?: string
+        upperDeltaMin?: string
+        upperDeltaMax?: string
+        upperObjectiveMode?: string
+        airDuctCount?: string
+        systemAirDuct1Angle?: string
       }
+      if (p.rollerMode !== undefined) store?.set('rollerMode', p.rollerMode)
+      if (p.rollerValue !== undefined) store?.set('rollerValue', p.rollerValue)
+      if (p.rollerNumCycles !== undefined)
+        store?.set('rollerNumCycles', p.rollerNumCycles)
+      if (p.airAD !== undefined) store?.set('airAD', p.airAD)
+      if (p.materialGain !== undefined)
+        store?.set('materialGain', p.materialGain)
+      if (p.upperDeltaMin !== undefined)
+        store?.set('upperDeltaMin', p.upperDeltaMin)
+      if (p.upperDeltaMax !== undefined)
+        store?.set('upperDeltaMax', p.upperDeltaMax)
+      if (p.upperObjectiveMode !== undefined)
+        store?.set('upperObjectiveMode', p.upperObjectiveMode)
+      if (p.airDuctCount !== undefined)
+        store?.set('airDuctCount', p.airDuctCount)
+      if (p.systemAirDuct1Angle !== undefined)
+        store?.set('systemAirDuct1Angle', p.systemAirDuct1Angle)
+      return { success: true }
     },
-    'calibration-reset': async (): Promise<ICalibrationControlResult> => {
-      const disturbanceTs = Date.now()
-      const manualTractionSpeed = calibrationBridge.getManualTractionSpeed()
 
-      calibrationBridge.reset(disturbanceTs)
-
-      if (manualTractionSpeed !== undefined) {
-        emitCalibrationResult({ tractionSpeed: manualTractionSpeed })
+    // 标定结果
+    'config-get-calibration-results': async () => ({
+      rollerTractionSpeed: store?.get('rollerResultTractionSpeed'),
+      frameLengthMM: store?.get('frameLengthMMResult'),
+      frameLengthPulse: store?.get('frameLengthPulseResult'),
+      mutationWindowSize: store?.get('mutationWindowSizeResult'),
+      upperMaxAngle: store?.get('upperResultMaxAngle'),
+      upperDistance: store?.get('upperResultDistance'),
+    }),
+    'config-set-calibration-results': async (
+      _event: unknown,
+      params: unknown
+    ) => {
+      const p = params as {
+        rollerTractionSpeed?: number
+        frameLengthMM?: number
+        frameLengthPulse?: number
+        mutationWindowSize?: number
+        upperMaxAngle?: number
+        upperDistance?: number
       }
-
-      return {
-        success: true,
-        manualTractionSpeed,
-        disturbanceTs,
-      }
+      if (p.rollerTractionSpeed !== undefined)
+        store?.set('rollerResultTractionSpeed', p.rollerTractionSpeed)
+      if (p.frameLengthMM !== undefined)
+        store?.set('frameLengthMMResult', p.frameLengthMM)
+      if (p.frameLengthPulse !== undefined)
+        store?.set('frameLengthPulseResult', p.frameLengthPulse)
+      if (p.mutationWindowSize !== undefined)
+        store?.set('mutationWindowSizeResult', p.mutationWindowSize)
+      if (p.upperMaxAngle !== undefined)
+        store?.set('upperResultMaxAngle', p.upperMaxAngle)
+      if (p.upperDistance !== undefined)
+        store?.set('upperResultDistance', p.upperDistance)
+      return { success: true }
     },
   }
 
@@ -670,4 +660,66 @@ function registerIpcHandlers() {
       }
     })
   }
+
+  // ═══ SQLite 历史数据查询 ═══
+  ipcMain.handle(
+    'db-get-frames',
+    async (_event, startMs: number, endMs: number, limit?: number) => {
+      return sqliteDb?.queryFramesByTime(startMs, endMs, limit ?? 100) ?? []
+    }
+  )
+
+  ipcMain.handle('db-get-latest-frame', async () => {
+    return sqliteDb?.getLatestFrame() ?? null
+  })
+
+  ipcMain.handle(
+    'db-get-thickness-raw',
+    async (_event, startMs: number, endMs: number) => {
+      return sqliteDb?.queryThicknessRaw(startMs, endMs) ?? []
+    }
+  )
+
+  ipcMain.handle('db-get-pipeline-stats', async () => {
+    return pipeline?.getStats() ?? null
+  })
+
+  ipcMain.handle('db-persist-frame', async (_event, frame: unknown) => {
+    if (!pipeline || !frame) return
+    pipeline.persistFrame(frame as any)
+  })
+
+  ipcMain.handle(
+    'db-get-frames-by-id',
+    async (_event, startId: number, endId: number) => {
+      return sqliteDb?.queryFramesByIdRange(startId, endId) ?? []
+    }
+  )
+
+  ipcMain.handle(
+    'db-import-sweep',
+    async (
+      _event,
+      sweep: {
+        pulses: number[]
+        adValues: number[]
+        airAD: number
+        gain: number
+        source: string
+      }
+    ) => {
+      if (!sqliteDb) return 0
+      return sqliteDb.importSweep(
+        sweep.pulses,
+        sweep.adValues,
+        sweep.airAD,
+        sweep.gain,
+        sweep.source
+      )
+    }
+  )
+
+  ipcMain.handle('db-get-latest-frames', async (_event, count: number) => {
+    return sqliteDb?.queryLatestFrames(count) ?? []
+  })
 }

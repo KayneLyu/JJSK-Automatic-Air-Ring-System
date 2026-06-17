@@ -81,6 +81,35 @@ export type ICalibrationControlResult = {
   error?: string
 }
 
+export type IManualCalibrationParams = {
+  tractionSpeed?: number
+  distance?: number
+  maxAngle?: number
+  mutationWindowSize?: number
+}
+
+export type IDeviceConstants = {
+  rollerMode: string
+  rollerValue: string
+  rollerNumCycles: string
+  airAD: string
+  materialGain: string
+  upperDeltaMin: string
+  upperDeltaMax: string
+  upperObjectiveMode: string
+  airDuctCount: string
+  systemAirDuct1Angle: string
+}
+
+export type ICalibrationResults = {
+  rollerTractionSpeed?: number
+  frameLengthMM?: number
+  frameLengthPulse?: number
+  mutationWindowSize?: number
+  upperMaxAngle?: number
+  upperDistance?: number
+}
+
 export type ICalibrationBridgeState = {
   manualTractionSpeed?: number
   disturbanceTs: number
@@ -106,7 +135,14 @@ export interface IpcChannelMap {
   'adbox-connect': { args: []; output: [data: boolean] } // AD box 连接
   'adbox-run-result': { args: [data: RunResult]; output: [data: RunResult] } // AD box 运动结果
   'adbox-move-to': { args: [position: number]; output: [data: RunResult] } // AD box 移动到xx脉冲
-  'config-set-max-pulse': { args: [position: number]; output: [data: RunResult] } // AD box 设置最大脉冲值
+  'adbox-get-connection-status': {
+    args: []
+    output: boolean
+  } // AD box 连接状态
+  'config-set-max-pulse': {
+    args: [position: number]
+    output: [data: RunResult]
+  } // AD box 设置最大脉冲值
 
   'plc-controlData': {
     args: [data: IPlcControlResult]
@@ -137,10 +173,134 @@ export interface IpcChannelMap {
     args: []
     output: ICalibrationControlResult
   } // 沿用当前速度重新开始本次标定
+  'calibration-historical-progress': {
+    args: [data: IHistoricalCalibrationProgress]
+    output: [data: IHistoricalCalibrationProgress]
+  } // 历史数据标定进度推送
+  'calibration-feed-historical': {
+    args: [input: {
+      startMs: number
+      endMs: number
+      manualTractionSpeed?: number
+      disturbanceTs?: number
+    }]
+    output: ICalibrationControlResult & { result?: ICalibrationResult }
+  } // 从数据库历史数据标定
+  'calibration-get-manual-params': {
+    args: []
+    output: IManualCalibrationParams
+  } // 获取手动标定参数
+  'calibration-set-manual-params': {
+    args: [params: IManualCalibrationParams]
+    output: { success: boolean }
+  } // 保存手动标定参数
+  // 设备常量持久化
+  'config-get-device-constants': {
+    args: []
+    output: IDeviceConstants
+  }
+  'config-set-device-constants': {
+    args: [params: IDeviceConstants]
+    output: { success: boolean }
+  }
+  // 标定结果持久化
+  'config-get-calibration-results': {
+    args: []
+    output: ICalibrationResults
+  }
+  'config-set-calibration-results': {
+    args: [params: ICalibrationResults]
+    output: { success: boolean }
+  }
+  // 单参数独立标定（历史数据）
+  'calibration-run-traction-speed': {
+    args: [input: {
+      startMs: number
+      endMs: number
+      circumference: number
+      numCycles?: number
+    }]
+    output: { success: boolean; tractionSpeed?: number; error?: string }
+  }
+  'calibration-auto-traction-speed': {
+    args: [input: {
+      circumference: number
+      numCycles?: number
+    }]
+    output: { success: boolean; tractionSpeed?: number; source?: string; error?: string }
+  }
+  'calibration-run-mutation-window': {
+    args: [input: {
+      startMs: number
+      endMs: number
+      channelCount: number
+      alpha?: number
+    }]
+    output: { success: boolean; mutationWindowSize?: number; error?: string }
+  }
+  'calibration-run-max-angle': {
+    args: [input: {
+      startMs: number
+      endMs: number
+      deltaMin?: number
+      deltaMax?: number
+      objectiveMode?: string
+    }]
+    output: { success: boolean; maxAngle?: number; error?: string }
+  }
+  'calibration-run-distance': {
+    args: [input: {
+      startMs: number
+      endMs: number
+      tractionSpeed: number
+      disturbanceTs: number
+      windowSize: number
+      deviation?: number
+    }]
+    output: { success: boolean; distance?: number; error?: string }
+  }
   'ModBus-read': {
     args: [data: IPollingModBusData]
     output: [data: IPollingModBusData]
   } // 获取modbus轮询数据
+
+  // ═══ SQLite 历史数据查询 (数据管道) ═══
+  'db-get-frames': {
+    args: [startMs: number, endMs: number, limit?: number]
+    output: FrameRow[]
+  }
+  'db-get-latest-frame': {
+    args: []
+    output: FrameRow | null
+  }
+  'db-get-thickness-raw': {
+    args: [startMs: number, endMs: number]
+    output: ThicknessRawRow[]
+  }
+  'db-get-pipeline-stats': {
+    args: []
+    output: {
+      thicknessInRing: number
+      rotationInRing: number
+      thicknessTimeRange: { oldest: number | null; newest: number | null }
+    }
+  }
+  'db-persist-frame': {
+    args: [frame: FrameBatchItem]
+    output: void
+  }
+  'db-get-frames-by-id': {
+    args: [startId: number, endId: number]
+    output: FrameRow[]
+  }
+  'db-import-sweep': {
+    args: [sweep: { pulses: number[]; adValues: number[]; airAD: number; gain: number; source: string }]
+    output: number
+  }
+  'db-get-latest-frames': {
+    args: [count: number]
+    output: FrameRow[]
+  }
 }
 
 // IPC 通道名
@@ -151,3 +311,68 @@ export type IpcChannelArgs<T extends IpcChannelName> = IpcChannelMap[T]['args']
 // 对应通道的返回值类型
 export type IpcChannelOutput<T extends IpcChannelName> =
   IpcChannelMap[T]['output']
+
+// ═══ SQLite 数据管道类型 (v3) ═══
+
+export interface FrameRow {
+  frameId: number
+  startTime: string
+  endTime: string
+  startTimestamp: number
+  endTimestamp: number
+  speed: number
+  width: number
+  rotateSpeed: number
+  sigmaVal: number
+  sigmaPercent: number
+  mean: number
+  minVal: number
+  minPercent: number
+  maxVal: number
+  maxPercent: number
+  IsBackw: number
+  source: string
+  airAD: number
+  gain: number
+  /** Deprecated: no longer stored in DB, may be undefined when queried historically */
+  datalist?: string
+  rawDatalist?: string
+}
+
+export interface ThicknessRawRow {
+  id: number
+  timestamp: number
+  pos: number
+  ad: number
+  source: string
+  airAD: number
+  gain: number
+}
+
+export interface IHistoricalCalibrationProgress {
+  processed: number
+  total: number
+}
+
+export interface FrameBatchItem {
+  startTime: string
+  endTime: string
+  startTimestamp: number
+  endTimestamp: number
+  speed: number
+  width: number
+  rotateSpeed: number
+  sigmaVal: number
+  sigmaPercent: number
+  mean: number
+  minVal: number
+  minPercent: number
+  maxVal: number
+  maxPercent: number
+  IsBackw: boolean
+  source: string
+  airAD: number
+  gain: number
+  datalist?: number[]
+  rawDatalist?: number[]
+}

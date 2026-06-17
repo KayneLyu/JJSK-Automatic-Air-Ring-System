@@ -1,5 +1,11 @@
 export {
   createCalibrationSession,
+  calibrateTractionSpeed,
+  calibrateMutationWindowSize,
+  detectMutation,
+  calibrateDistance,
+  buildTripSegments,
+  calibrateMaxAngle,
   type CalibrateResult,
   type CalibrateNextResult,
   type PendingAngleEstimate,

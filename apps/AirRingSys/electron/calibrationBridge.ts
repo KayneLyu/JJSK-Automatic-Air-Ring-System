@@ -33,6 +33,18 @@ const DEFAULT_STANDARDIZED: Scalar = {
   },
 }
 
+export interface ICalibrationBridge {
+  feedModbusData(data: IPollingModBusData): CalibrateResult | null
+  feedThicknessSample(sample: FeedThicknessSampleInput): CalibrateResult | null
+  feedUpperRotationData(data: RingData): CalibrateResult | null
+  feedAdboxPushData(push: PushData): CalibrateResult | null
+  setManualTractionSpeed(speed: number, disturbanceTs?: number): void
+  reset(disturbanceTs?: number): void
+  getManualTractionSpeed(): number | undefined
+  getDisturbanceTs(): number | undefined
+  getResult(): CalibrateResult | null
+}
+
 export type CreateModbusCalibrationBridgeOptions = {
   config?: CalibrationConfig
   standardized?: Scalar

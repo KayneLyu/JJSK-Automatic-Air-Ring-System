@@ -4,6 +4,7 @@ import SaveIcon from '@/components/icons/Save.vue';
 import HistoryIcon from "@/components/icons/History.vue";
 import ChannelCharts from './charts.vue';
 import { db } from '@/utils/dexie.ts';
+import type { FrameRow } from '@/types/ipc';
 import { showNotification } from '@/utils';
 import { setAutoRingHeats } from '@/api';
 
@@ -52,18 +53,21 @@ const handleSave = async () => {
 // 获取对应数据
 const getCurrentRecord = async (id: number) => {
     try {
-        const frameData = await db.Frame.get(id)
-        const heatsData = await db.Heats.get(id)
-        if (frameData && heatsData) {
+        const rows = await window.ipcApi.invoke('db-get-frames-by-id', id, id)
+        const frameData: FrameRow | undefined = rows[0]
+        if (frameData) {
+            const datalist: number[] = frameData.datalist
+                ? JSON.parse(frameData.datalist)
+                : []
             frameInfo.value = {
-                frameData: frameData.datalist as [],
+                frameData: datalist as [],
                 mean: frameData.mean,
                 sigma: frameData.sigmaPercent,
                 currentId: id,
                 startDate: frameData.startTime,
                 endDate: frameData.endTime,
                 width: frameData.width,
-                heatsData: heatsData.heats as []
+                heatsData: []
             }
         }
     } catch (error) { }

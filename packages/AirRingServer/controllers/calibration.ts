@@ -6,10 +6,12 @@ import type { ThicknessData } from '../connections/thickness'
 import type { RingData } from '../connections/airRing'
 import type { CalibrationConfig, Scalar, TripSegment } from '../types'
 import type { UpperRotationObjectiveMode } from '../algorithms/upperRotation/upperRotation.config'
+import { WithRequired } from '@jjsk/core'
 import { calibrateTractionSpeedSmooth } from '../algorithms/tractionSpeedSmooth'
-import { calibrateMutationWindowSize } from '../algorithms/mutationWindowSize'
+import { calibrateMutationWindowSize as algoCalibrateMutationWindowSize } from '../algorithms/mutationWindowSize'
 import { findMutation } from '../algorithms/findMutation'
 import { buildTripSegment } from '../algorithms/buildTripSegment'
+import { estimateThetaMaxWithPhaseCorrection } from '../algorithms/upperRotation/upperRotation.estimate'
 
 export type CalibrateOptions = {
   standardized: Scalar
@@ -151,7 +153,7 @@ export const calibrate = ({
     numCycles,
     maxIntervalMs
   )
-  const { next: MutationWindowSizeNext } = calibrateMutationWindowSize({
+  const { next: MutationWindowSizeNext } = algoCalibrateMutationWindowSize({
     CHANNEL_COUNT,
   })
   const { next: FindMutationNext, setWindowSize } = findMutation()
@@ -180,7 +182,7 @@ export const calibrate = ({
     // ---------- Step 2: 标定突变检测窗口大小 ----------
     const { fastSize, size } = MutationWindowSizeNext({ thickness, airRing })
     const baseResult: Partial<CalibrateResult> = {
-      mutationWindowSize: size,
+      mutationWindowSize: size ?? fastSize,
     }
 
     if (v !== null && v !== undefined && v > 0) {
@@ -286,6 +288,157 @@ export const calibrate = ({
     }
   }
   return { next }
+}
+
+// ════════════════════════════════════════
+// 以下为 5 个独立标定函数（批次模式），
+// 用于 UI 触发的单参数标定操作。
+// ════════════════════════════════════════
+
+/**
+ * 标定 1：牵引速度
+ * 通过辊速信号上升沿计算平均速度。
+ */
+export function calibrateTractionSpeed(
+  data: ThicknessData[],
+  config: {
+    circumference: number
+    numCycles?: number
+    maxIntervalMs?: number
+  }
+): number | null {
+  const { next } = calibrateTractionSpeedSmooth(
+    config.circumference,
+    config.numCycles ?? 10,
+    config.maxIntervalMs ?? 10_000
+  )
+  let last: number | null = null
+  for (const d of data) {
+    const v = next(d)
+    if (v !== null) last = v
+  }
+  return last
+}
+
+/**
+ * 标定 2：突变窗口
+ * 通过厚度 MotionDirection 换向和上旋 ForwardRotation 换向计算窗口。
+ */
+export function calibrateMutationWindowSize(
+  thickness: ThicknessData[],
+  airRing: RingData[],
+  config: {
+    channelCount: number
+    alpha?: number
+  }
+): { fastSize: number | undefined; size: number | undefined } {
+  const { next } = calibrateMutationWindowSize({
+    CHANNEL_COUNT: config.channelCount,
+    alpha: config.alpha,
+  })
+
+  let result: { fastSize: number | undefined; size: number | undefined } = {}
+  // 按时间戳交错喂入
+  const events: {
+    ts: number
+    thickness?: ThicknessData
+    airRing?: RingData
+  }[] = []
+  for (const d of thickness) {
+    events.push({ ts: d.timestamp ?? 0, thickness: d })
+  }
+  for (const d of airRing) {
+    events.push({ ts: d.timestamp ?? 0, airRing: d })
+  }
+  events.sort((a, b) => a.ts - b.ts)
+
+  for (const ev of events) {
+    const r = next({ thickness: ev.thickness, airRing: ev.airRing })
+    if (r.size !== undefined || r.fastSize !== undefined) {
+      result = r as { fastSize: number | undefined; size: number | undefined }
+    }
+  }
+  return result
+}
+
+/**
+ * 标定 3：突变检测
+ * 滑动窗口查找厚度突变点。
+ */
+export function detectMutation(
+  data: ThicknessData[],
+  windowSize: number,
+  deviation: number = 0.05
+): WithRequired<ThicknessData, 'timestamp'> | null {
+  const { next, setWindowSize } = findMutation(deviation)
+  setWindowSize(windowSize)
+  for (const d of data) {
+    const m = next(d)
+    if (m) return m
+  }
+  return null
+}
+
+/**
+ * 标定 4：扰动距离
+ * distance = speed * (mutationTimestamp - disturbanceTs) / 1000
+ */
+export function calibrateDistance(
+  tractionSpeed: number,
+  mutationTimestamp: number,
+  disturbanceTs: number
+): number {
+  return tractionSpeed * ((mutationTimestamp - disturbanceTs) / 1000)
+}
+
+/**
+ * 辅助：构建行程分段
+ */
+export function buildTripSegments(
+  thickness: ThicknessData[],
+  airRing: RingData[]
+): TripSegment[] {
+  const { next } = buildTripSegment()
+  const events: {
+    ts: number
+    thickness?: ThicknessData
+    airRing?: RingData
+  }[] = []
+  for (const d of thickness) {
+    events.push({ ts: d.timestamp ?? 0, thickness: d })
+  }
+  for (const d of airRing) {
+    events.push({ ts: d.timestamp ?? 0, airRing: d })
+  }
+  events.sort((a, b) => a.ts - b.ts)
+  for (const ev of events) {
+    next({ thickness: ev.thickness, airRing: ev.airRing })
+  }
+  const segs: TripSegment[] = []
+  for (const ev of events) {
+    const r = next({ thickness: ev.thickness, airRing: ev.airRing })
+    if (r.length > segs.length) segs.push(...r.slice(segs.length))
+  }
+  return segs
+}
+
+/**
+ * 标定 5：上旋最大角度
+ */
+export function calibrateMaxAngle(
+  tripSegments: TripSegment[],
+  options?: {
+    deltaRange?: { min: number; max: number; step: number }
+    objectiveMode?: UpperRotationObjectiveMode
+  }
+): number | null {
+  if (tripSegments.length < 2) return null
+  const opt = options ?? {}
+  const deltaRange = opt.deltaRange ?? { min: 180, max: 359, step: 1 }
+  return estimateThetaMaxWithPhaseCorrection(tripSegments, {
+    deltaRange,
+    objectiveMode: opt.objectiveMode,
+  })
 }
 
 export const createCalibrationSession = ({
@@ -413,14 +566,7 @@ export const createCalibrationSession = ({
       console.info(
         `[Calibration] 扰动触发标记: ${new Date(newDisturbanceTs).toISOString()}`
       )
-      // TODO: 后续接入 PLC 扰动动作调用
-      // 当前暂不更新 disturbanceTs，待 PLC 接口就位后启用以下逻辑：
-      // currentDisturbanceTs = newDisturbanceTs
-      // currentResult = null
-      // currentCalibrator = buildCalibrator(
-      //   currentDisturbanceTs,
-      //   currentManualTractionSpeed
-      // )
+      currentDisturbanceTs = newDisturbanceTs
     },
     setManualTractionSpeed: (
       nextManualTractionSpeed: number | undefined,

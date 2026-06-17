@@ -51,10 +51,6 @@ const readLogoAsDataUrl = () => {
   return undefined
 }
 
-const getConnectionLogDir = (name: string) => {
-  return join(app.getPath('userData'), 'logs', name)
-}
-
 /**
  * 监听 IPC 事件
  */

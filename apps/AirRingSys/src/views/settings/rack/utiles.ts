@@ -1,10 +1,7 @@
 import type { PushData } from '@jjsk/adbox-sdk'
 import type { IPollingModBusData } from '@/types/ipc'
 
-type ThicknessRealtimePayload =
-  | IPollingModBusData
-  | PushData
-  | PushData[]
+type ThicknessRealtimePayload = IPollingModBusData | PushData | PushData[]
 
 const hasModbusBatchShape = (
   payload: unknown
@@ -36,7 +33,11 @@ const normalizeAdboxFrames = (
 
   for (let index = 0; index < frames.length; index += 1) {
     const frame = frames[index]
-    if (!frame || typeof frame.ad0 !== 'number' || typeof frame.pos0 !== 'number') {
+    if (
+      !frame ||
+      typeof frame.ad0 !== 'number' ||
+      typeof frame.pos0 !== 'number'
+    ) {
       continue
     }
 
@@ -86,40 +87,39 @@ export const updateChartData = (
   currentData: Array<[number, number]>,
   maxLength: number = 1000
 ): Array<[number, number]> => {
-
   // 1. 创建一个 Map 用于去重
   // Key: 时间戳 (number), Value: 数值 (number)
-  const dataMap = new Map<number, number>();
+  const dataMap = new Map<number, number>()
 
   // 2. 先将旧数据放入 Map
   currentData.forEach(([time, value]) => {
-    dataMap.set(time, value);
-  });
+    dataMap.set(time, value)
+  })
 
   // 3. 将新数据放入 Map (覆盖旧数据)
   newData.timestamps.forEach((time, index) => {
     // 确保 adValues 有对应的值
     if (index < newData.adValues.length) {
-      dataMap.set(time, newData.adValues[index]);
+      dataMap.set(time, newData.adValues[index])
     }
-  });
+  })
 
   // 4. 将 Map 转回二维数组 [[time, value], ...]
   // Map 的 entries() 方法正好返回 [key, value] 的迭代器
-  let result = Array.from(dataMap.entries());
+  let result = Array.from(dataMap.entries())
 
   // 5. 按时间戳排序（升序）
   // a 和 b 此时都是 [time, value] 数组，a[0] 是时间戳
-  result.sort((a, b) => a[0] - b[0]);
+  result.sort((a, b) => a[0] - b[0])
 
   // 6. 维护最大长度
   // 如果超过 1000，截取最后 1000 条（保留最新的数据）
   if (result.length > maxLength) {
-    result = result.slice(result.length - maxLength);
+    result = result.slice(result.length - maxLength)
   }
 
-  return result;
-};
+  return result
+}
 export function createThicknessCollector() {
   const pulseMap = new Map()
 
@@ -144,11 +144,7 @@ export function createThicknessCollector() {
         else if (delta < 0) newDirection = -1
 
         // 🚨 正向完成（到右端后开始回头）
-        if (
-          direction === 1 &&
-          pulse > 6800 &&
-          newDirection === -1
-        ) {
+        if (direction === 1 && pulse > 6800 && newDirection === -1) {
           if (pulseMap.size > 500) {
             completedData = buildFullData()
           }
@@ -156,11 +152,7 @@ export function createThicknessCollector() {
         }
 
         // 🚨 反向完成（到左端后开始往前）
-        if (
-          direction === -1 &&
-          pulse < 200 &&
-          newDirection === 1
-        ) {
+        if (direction === -1 && pulse < 200 && newDirection === 1) {
           if (pulseMap.size > 500) {
             completedData = buildFullData()
           }
@@ -187,7 +179,7 @@ export function createThicknessCollector() {
       }
       result.push({
         pulse: i,
-        ad: lastValue
+        ad: lastValue,
       })
     }
 
@@ -205,18 +197,14 @@ export function createThicknessCollector() {
 
   return {
     process,
-    getPreviewData
+    getPreviewData,
   }
 }
 
-
-
-
 /**
-* X光测厚计算配置
-*/
+ * X光测厚计算配置
+ */
 export interface ThicknessConfig {
-
   /**
    * 空气AD值
    * 例如：50300
@@ -235,7 +223,6 @@ export interface ThicknessConfig {
   gain?: number
 }
 
-
 /**
  * 根据 AD 值计算薄膜厚度（μm）
  *
@@ -250,15 +237,8 @@ export interface ThicknessConfig {
  * 精度：
  * RMS ≈ 0.35μm
  */
-export function calcThickness(
-  ad: number,
-  config: ThicknessConfig
-): number {
-
-  const {
-    airAD,
-    gain = 1.0
-  } = config
+export function calcThickness(ad: number, config: ThicknessConfig): number {
+  const { airAD, gain = 1.0 } = config
 
   // 防止异常
   if (ad <= 0) {
@@ -280,23 +260,18 @@ export function calcThickness(
    *
    * Thickness = A*x² + B*x + C
    */
-  const baseThickness =
-    9.65 * x * x +
-    243.08 * x -
-    0.087
+  const baseThickness = 9.65 * x * x + 243.08 * x - 0.087
 
   /**
    * 材料倍率补偿
    */
-  const finalThickness =
-    baseThickness * gain
+  const finalThickness = baseThickness * gain
 
   /**
    * 防止负值
    */
   return Math.max(0, finalThickness)
 }
-
 
 /**
  * 根据实际厚度与当前显示厚度
@@ -306,7 +281,6 @@ export function calcGain(
   actualThickness: number,
   displayedThickness: number
 ): number {
-
   if (displayedThickness <= 0) {
     return 1
   }

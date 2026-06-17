@@ -1,14 +1,13 @@
 import { app, BrowserWindow, globalShortcut } from 'electron'
 import fs from 'node:fs'
-import path from 'node:path'
+import path, { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setupRendererCommunicator } from './renderer.ts'
 import { initMotionControl } from './adbox.ts'
 import { setupConsoleFileLogger } from './consoleFileLogger.ts'
-// const require = createRequire(import.meta.url)
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-process.env.APP_ROOT = path.join(__dirname, '..')
+globalThis.__dirname = dirname(fileURLToPath(import.meta.url))
+process.env.APP_ROOT = path.join(globalThis.__dirname, '..')
 
 // 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
 export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
@@ -21,7 +20,7 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
 let win: BrowserWindow | null
 let restoreConsoleFileLogger: (() => void) | null = null
 
-function createWindow() {
+async function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
     autoHideMenuBar: true,
@@ -29,7 +28,7 @@ function createWindow() {
     height: 1024,
     frame: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
+      preload: path.join(globalThis.__dirname, 'preload.mjs'),
     },
   })
 
@@ -37,7 +36,7 @@ function createWindow() {
   if (win) {
     setupRendererCommunicator(win)
     // 初始化ADBOX
-    initMotionControl(win)
+    await initMotionControl(win)
     // initADBox(win)
   }
 
@@ -63,7 +62,7 @@ if (!getLock) {
 app.on('ready', () => {
   // 开机自动启动应用
   app.setLoginItemSettings({
-    openAtLogin: true,
+    openAtLogin: !VITE_DEV_SERVER_URL, // 开发环境不开机启动
   })
 })
 
@@ -72,11 +71,11 @@ app.on('will-finish-launching', () => {
     return
   }
 
-  if (!fs.existsSync('D:/JJSK_Data')) {
-    fs.mkdirSync('D:/JJSK_Data')
+  if (!fs.existsSync('C:/JJSK_Data')) {
+    fs.mkdirSync('C:/JJSK_Data')
   }
 
-  app.setPath('appData', 'D:/JJSK_Data')
+  app.setPath('appData', 'C:/JJSK_Data')
 })
 
 app.on('before-quit', () => {
@@ -105,9 +104,9 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const { dirPath, restore } = setupConsoleFileLogger(app)
   restoreConsoleFileLogger = restore
   console.log('主进程控制台日志已写入:', dirPath)
-  createWindow()
+  await createWindow()
 })
