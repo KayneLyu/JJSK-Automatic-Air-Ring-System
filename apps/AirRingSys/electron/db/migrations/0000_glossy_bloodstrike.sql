@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS `frame_data`;
+DROP TABLE IF EXISTS `frame`;
 CREATE TABLE `air_ring_raw` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`timestamp` integer NOT NULL,
@@ -8,37 +10,6 @@ CREATE TABLE `air_ring_raw` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_air_ring_raw_ts` ON `air_ring_raw` (`timestamp`);--> statement-breakpoint
-CREATE TABLE `frame` (
-	`frameId` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`startTime` text,
-	`endTime` text,
-	`startTimestamp` integer DEFAULT 0 NOT NULL,
-	`endTimestamp` integer DEFAULT 0 NOT NULL,
-	`speed` real DEFAULT 0 NOT NULL,
-	`width` real DEFAULT 0 NOT NULL,
-	`rotateSpeed` real DEFAULT 0 NOT NULL,
-	`sigmaVal` real DEFAULT 0 NOT NULL,
-	`sigmaPercent` real DEFAULT 0 NOT NULL,
-	`mean` real DEFAULT 0 NOT NULL,
-	`minVal` real DEFAULT 0 NOT NULL,
-	`minPercent` real DEFAULT 0 NOT NULL,
-	`maxVal` real DEFAULT 0 NOT NULL,
-	`maxPercent` real DEFAULT 0 NOT NULL,
-	`IsBackw` integer DEFAULT 0 NOT NULL,
-	`source` text DEFAULT 'adbox' NOT NULL,
-	`airAD` real DEFAULT 0 NOT NULL,
-	`gain` real DEFAULT 1 NOT NULL
-);
---> statement-breakpoint
-CREATE INDEX `idx_frame_start_ts` ON `frame` (`startTimestamp`);--> statement-breakpoint
-CREATE INDEX `idx_frame_end_ts` ON `frame` (`endTimestamp`);--> statement-breakpoint
-CREATE INDEX `idx_frame_source` ON `frame` (`source`);--> statement-breakpoint
-CREATE TABLE `frame_data` (
-	`frameId` integer PRIMARY KEY NOT NULL,
-	`datalist` text,
-	`rawDatalist` text
-);
---> statement-breakpoint
 CREATE TABLE `roller_raw` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`timestamp` integer NOT NULL,
@@ -64,7 +35,7 @@ CREATE INDEX `idx_rotation_raw_ts` ON `rotation_raw` (`timestamp`);--> statement
 CREATE TABLE `thickness_raw` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`timestamp` integer NOT NULL,
-	`pos` integer NOT NULL,
+	`pulse` integer NOT NULL,
 	`ad` real NOT NULL,
 	`source` text DEFAULT 'adbox' NOT NULL,
 	`airAD` real DEFAULT 0 NOT NULL,
@@ -72,4 +43,4 @@ CREATE TABLE `thickness_raw` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_thickness_raw_ts` ON `thickness_raw` (`timestamp`);--> statement-breakpoint
-CREATE INDEX `idx_thickness_raw_ts_pos` ON `thickness_raw` (`timestamp`,`pos`);
+CREATE INDEX `idx_thickness_raw_ts_pulse` ON `thickness_raw` (`timestamp`,`pulse`);

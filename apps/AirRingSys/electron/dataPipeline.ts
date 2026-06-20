@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { RingBuffer, ThicknessRingItem, RotationRingItem } from './ringBuffer'
-import { SQLiteService, FrameBatchItem } from './sqliteService'
+import { SQLiteService } from './sqliteService'
 import type { PushData } from '@jjsk/adbox-sdk'
 import type { IUpperRotationDebugData } from '@/types/ipc'
 import { DataBatcher } from './data-batcher'
@@ -63,8 +63,8 @@ export class DataPipeline {
   start(): void {
     this.flushTimer = setInterval(() => {
       const counts = this.sqlite.flush()
-      if (counts.thickness > 0 || counts.rotation > 0 || counts.frame > 0) {
-        console.log(`[Pipeline] SQLite flush: T=${counts.thickness} R=${counts.rotation} F=${counts.frame}`)
+      if (counts.thickness > 0 || counts.rotation > 0) {
+        console.log(`[Pipeline] SQLite flush: T=${counts.thickness} R=${counts.rotation}`)
       }
     }, this.FLUSH_INTERVAL_MS)
 
@@ -72,7 +72,7 @@ export class DataPipeline {
     //   const before = Date.now() - this.RETENTION_THICKNESS_MS
     //   const result = this.sqlite.cleanup(before)
     //   if (result.thickness > 0) {
-    //     console.log(`[Pipeline] 清理过期数据: T=${result.thickness} R=${result.rotation} A=${result.airRing} F=${result.frame}`)
+    //     console.log(`[Pipeline] 清理过期数据: T=${result.thickness} R=${result.rotation} A=${result.airRing}`)
     //   }
     // }, this.CLEANUP_INTERVAL_MS)
   }
@@ -91,7 +91,7 @@ export class DataPipeline {
     // 1. RingBuffer 写入
     this.thicknessRing.push({
       timestamp,
-      pos: push.pos0,
+      pulse: push.pos0,
       ad: push.ad0,
       source: 'adbox',
     })
@@ -107,7 +107,7 @@ export class DataPipeline {
     })
 
     // 4. 持久化 (批量缓冲)
-    this.sqlite.pushThickness(timestamp, push.pos0, push.ad0, 'adbox')
+    this.sqlite.pushThickness(timestamp, push.pos0, push.ad0, 'adbox', 0, 1.0)
   }
 
   /** 上旋/风环数据入口 */
@@ -145,11 +145,6 @@ export class DataPipeline {
     if (data.Heats && data.Heats.length > 0) {
       this.sqlite.pushAirRing(ts, data.Heats, 0, 0, 0)
     }
-  }
-
-  /** 写入 Frame (由渲染层或物化引擎产生) */
-  persistFrame(frame: FrameBatchItem): void {
-    this.sqlite.pushFrame(frame)
   }
 
   /** 强制刷写 SQLite 缓冲区 */

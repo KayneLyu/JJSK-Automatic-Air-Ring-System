@@ -9,7 +9,7 @@ import { join, resolve, dirname } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import Database from 'better-sqlite3'
-import { calcThicknessClient, buildSweepDataList } from '../electron/db/helpers'
+
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -32,12 +32,14 @@ const MIGRATION_SQL_PATH = resolve(
 
 // ── Command line ──
 let airAD = DEFAULT_AIR_AD
+let gain = DEFAULT_GAIN
 let customDir: string | null = null
 let skipExisting = true
 
 for (let i = 2; i < process.argv.length; i++) {
   const arg = process.argv[i]
   if (arg === '--air-ad') airAD = parseInt(process.argv[++i])
+  else if (arg === '--gain') gain = parseFloat(process.argv[++i])
   else if (arg === '--dir') customDir = resolve(process.argv[++i])
   else if (arg === '--no-skip') skipExisting = false
   else if (arg === '--help' || arg === '-h') {
@@ -68,12 +70,6 @@ function utcDayStartMs(epochMs: number): number {
     0,
     0
   )
-}
-
-function formatTime(epochMs: number): string {
-  const d = new Date(epochMs)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 // ── Scan log files ──
@@ -153,7 +149,7 @@ if (!existsSync(dbDir)) {
 
 function dbHasData(db: Database.Database): boolean {
   try {
-    const r = db.prepare('SELECT COUNT(*) as cnt FROM frame').get() as
+    const r = db.prepare('SELECT COUNT(*) as cnt FROM thickness_raw').get() as
       | { cnt: number }
       | undefined
     return r !== undefined && r.cnt > 0
@@ -268,60 +264,25 @@ function importBatch(line: string): { rows: number } | 'skipped' | null {
     return 'skipped'
   }
 
-  const rawDatalist = buildSweepDataList(pulses, adValues)
-  const thickness = rawDatalist.map((ad) =>
-    calcThicknessClient(ad, airAD, gain)
-  )
-  const validValues = thickness.filter((v) => v > 0)
-
-  if (validValues.length < 100) return null
-
-  const mean = validValues.reduce((s, v) => s + v, 0) / validValues.length
-  const variance =
-    validValues.reduce((s, v) => s + (v - mean) ** 2, 0) / validValues.length
-  const sigmaVal = Math.sqrt(variance) * 2
-  const sigmaPercent = mean > 0 ? (sigmaVal / mean) * 100 : 0
-  const minVal = Math.min(...validValues)
-  const maxVal = Math.max(...validValues)
-
   const insertThickness = db.prepare(
-    "INSERT INTO thickness_raw (timestamp, pos, ad, source, airAD, gain) VALUES (?, ?, ?, 'adbox', ?, ?)"
-  )
-  const insertFrame = db.prepare(
-    "INSERT INTO frame (startTime, endTime, startTimestamp, endTimestamp, speed, width, rotateSpeed, sigmaVal, sigmaPercent, mean, minVal, minPercent, maxVal, maxPercent, IsBackw, source, airAD, gain) VALUES (?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?, 0, 'adbox', ?, ?)"
+    "INSERT INTO thickness_raw (timestamp, pulse, ad, source, airAD, gain) VALUES (?, ?, ?, 'adbox', ?, ?)"
   )
   db.exec('BEGIN')
   try {
+    let inserted = 0
     for (let i = 0; i < pulses.length; i++) {
       const pulse = pulses[i]
       const ad = adValues[i]
-      if (pulse < 0 || pulse > 6999 || ad <= 0) continue
+      if (pulse < 0 || ad <= 0) continue
       insertThickness.run(absoluteTimestamps[i], pulse, ad, airAD, gain)
+      inserted++
     }
-
-    const timeStr = formatTime(startTs)
-    insertFrame.run(
-      timeStr,
-      timeStr,
-      startTs,
-      endTs,
-      Math.round(sigmaVal * 100) / 100,
-      Math.round(sigmaPercent * 100) / 100,
-      Math.round(mean * 100) / 100,
-      minVal,
-      mean > 0 ? Math.round((1 - minVal / mean) * 10000) / 100 : 0,
-      maxVal,
-      mean > 0 ? Math.round((maxVal / mean - 1) * 10000) / 100 : 0,
-      airAD,
-      gain
-    )
     db.exec('COMMIT')
+    return { rows: inserted }
   } catch (e) {
     db.exec('ROLLBACK')
     throw e
   }
-
-  return { rows: pulses.filter((p) => p >= 0 && p <= 6999).length }
 }
 
 // ── Rotation log import ──

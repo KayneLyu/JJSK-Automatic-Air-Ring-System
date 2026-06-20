@@ -100,7 +100,7 @@ export class RingBuffer<T extends { timestamp: number }> {
 
 export interface ThicknessRingItem {
   timestamp: number
-  pos: number
+  pulse: number
   ad: number
   source: 'adbox' | 'modbus'
 }

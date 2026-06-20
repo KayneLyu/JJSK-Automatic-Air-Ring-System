@@ -5,7 +5,7 @@ import { useProduct } from '@/store/product.ts';
 import { useApiDataStore } from '@/store/polling-data.ts';
 import { normalizeThicknessRealtimePayload, createThicknessCollector, calcThickness } from '@/views/settings/rack/utiles.ts'
 import type { PushData } from '@jjsk/adbox-sdk'
-import type { IPollingModBusData, IUpperRotationDebugData, FrameBatchItem } from '@/types/ipc'
+import type { IPollingModBusData, IUpperRotationDebugData } from '@/types/ipc'
 import HeaderComponent from './header/index.vue';
 import MenuComponent from './menu/index.vue';
 import ContentComponent from './content/index.vue';
@@ -49,44 +49,7 @@ const processThicknessData = (payload: IPollingModBusData | PushData | PushData[
     if (validValues.length < 100) return
 
     const mean = validValues.reduce((s, v) => s + v, 0) / validValues.length
-    const variance = validValues.reduce((s, v) => s + (v - mean) ** 2, 0) / validValues.length
-    const sigmaVal = Math.sqrt(variance) * 2
-    const sigmaPercent = mean > 0 ? (sigmaVal / mean) * 100 : 0
-    const minVal = Math.min(...validValues)
-    const maxVal = Math.max(...validValues)
-
     const nowMs = Date.now()
-    const now = new Date(nowMs)
-    const tpl = (n: number) => String(n).padStart(2, '0')
-    const timeStr = `${now.getFullYear()}-${tpl(now.getMonth()+1)}-${tpl(now.getDate())} ${tpl(now.getHours())}:${tpl(now.getMinutes())}:${tpl(now.getSeconds())}`
-
-    const frame: FrameBatchItem = {
-        startTime: timeStr,
-        endTime: timeStr,
-        startTimestamp: nowMs,
-        endTimestamp: nowMs,
-        speed: 0,
-        width: 0,
-        rotateSpeed: 0,
-        sigmaVal: Math.round(sigmaVal * 100) / 100,
-        sigmaPercent: Math.round(sigmaPercent * 100) / 100,
-        mean: Math.round(mean * 100) / 100,
-        minVal,
-        minPercent: mean > 0 ? Math.round((1 - minVal / mean) * 10000) / 100 : 0,
-        maxVal,
-        maxPercent: mean > 0 ? Math.round((maxVal / mean - 1) * 10000) / 100 : 0,
-        IsBackw: false,
-        source: 'adbox',
-        airAD,
-        gain,
-        datalist,
-        rawDatalist: rawAdValues,
-    }
-
-    // 通过 IPC 持久化 Frame 到 SQLite (主进程)
-    window.ipcApi.invoke('db-persist-frame', frame).catch((err) => {
-        console.warn('[ADBox→SQLite] 持久化 Frame 失败:', err)
-    })
 
     // 本地 frameStore 更新 (用于实时显示)
     frameStore.updateFrameId = nowMs

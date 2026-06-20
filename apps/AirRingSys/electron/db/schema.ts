@@ -11,7 +11,7 @@ export const thicknessRaw = sqliteTable(
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
     timestamp: integer('timestamp').notNull(),
-    pos: integer('pos').notNull(),
+    pulse: integer('pulse').notNull(),
     ad: real('ad').notNull(),
     source: text('source').notNull().default('adbox'),
     airAD: real('airAD').notNull().default(0),
@@ -19,7 +19,7 @@ export const thicknessRaw = sqliteTable(
   },
   (t) => ({
     tsIdx: index('idx_thickness_raw_ts').on(t.timestamp),
-    tsPosIdx: index('idx_thickness_raw_ts_pos').on(t.timestamp, t.pos),
+    tsPosIdx: index('idx_thickness_raw_ts_pulse').on(t.timestamp, t.pulse),
   })
 )
 
@@ -68,43 +68,4 @@ export const rollerRaw = sqliteTable(
   (t) => ({
     tsIdx: index('idx_roller_raw_ts').on(t.timestamp),
   })
-)
-
-export const frame = sqliteTable(
-  'frame',
-  {
-    frameId: integer('frameId').primaryKey({ autoIncrement: true }),
-    startTime: text('startTime'),
-    endTime: text('endTime'),
-    startTimestamp: integer('startTimestamp').notNull().default(0),
-    endTimestamp: integer('endTimestamp').notNull().default(0),
-    speed: real('speed').notNull().default(0),
-    width: real('width').notNull().default(0),
-    rotateSpeed: real('rotateSpeed').notNull().default(0),
-    sigmaVal: real('sigmaVal').notNull().default(0),
-    sigmaPercent: real('sigmaPercent').notNull().default(0),
-    mean: real('mean').notNull().default(0),
-    minVal: real('minVal').notNull().default(0),
-    minPercent: real('minPercent').notNull().default(0),
-    maxVal: real('maxVal').notNull().default(0),
-    maxPercent: real('maxPercent').notNull().default(0),
-    IsBackw: integer('IsBackw').notNull().default(0),
-    source: text('source').notNull().default('adbox'),
-    airAD: real('airAD').notNull().default(0),
-    gain: real('gain').notNull().default(1.0),
-  },
-  (t) => ({
-    startTsIdx: index('idx_frame_start_ts').on(t.startTimestamp),
-    endTsIdx: index('idx_frame_end_ts').on(t.endTimestamp),
-    sourceIdx: index('idx_frame_source').on(t.source),
-  })
-)
-
-export const frameData = sqliteTable(
-  'frame_data',
-  {
-    frameId: integer('frameId').primaryKey(),
-    datalist: text('datalist'),
-    rawDatalist: text('rawDatalist'),
-  }
 )

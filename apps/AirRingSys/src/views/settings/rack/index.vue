@@ -11,6 +11,7 @@ import type {
   IUpperRotationDebugData,
 } from '@/types/ipc'
 import SideCharts from './side.vue'
+import LongitudinalCharts from './LongitudinalCharts.vue'
 
 type Option = {
   label: string
@@ -1366,6 +1367,12 @@ window.ipcApi.on('adbox-run-result', (_, data) => {
           </div>
         </el-tab-pane>
 
+        <el-tab-pane label="纵向" name="longitudinal">
+          <div class="tab-pane-body">
+            <LongitudinalCharts />
+          </div>
+        </el-tab-pane>
+
         <el-tab-pane label="横向" name="lateral">
           <div class="tab-pane-body">
             <!-- 横向 -->
@@ -1419,6 +1426,7 @@ window.ipcApi.on('adbox-run-result', (_, data) => {
 
   :deep(.el-tabs__content) {
     display: flex;
+    flex-direction: column;
     flex: 1;
     min-height: 0;
     overflow: hidden;

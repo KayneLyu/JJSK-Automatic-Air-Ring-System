@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { reactive, ref, watch, onMounted } from 'vue'
-import type { FrameRow } from '@/types/ipc'
 import { formateList } from '@/utils/ChartsData.ts'
 import TempCharts from './TempCharts.vue'
 import { useConfigStore } from '@/store/config.ts'
@@ -12,7 +11,7 @@ import HeatState from './heats/HeatsFrame.vue'
 import HeatsCardInfo from './heats/HeatsCard.vue'
 import { getHeats } from '@/api'
 
-function toThickData(row: FrameRow): IFrameThickData {
+function toThickData(row: any): IFrameThickData {
   return {
     frameId: row.frameId,
     startTime: row.startTime,
@@ -135,8 +134,8 @@ let heatsChannel = ref<[string, number][]>([])
 
 const getFrameList = async () => {
   try {
-    const rows = await window.ipcApi.invoke('db-get-latest-frames', 4)
-    if (rows.length) {
+    const rows = await (window.ipcApi as any).invoke('db-get-latest-frames', 4)
+    if (rows?.length) {
       for (let index = 0; index < rows.length; index++) {
         const thick = toThickData(rows[index])
         frameListData[rows.length - 1 - index] = {
@@ -173,15 +172,15 @@ const getBeforeAutoData = async () => {
   try {
     let result: IFrameThickData | undefined
     if (configStore.beforeAutoID) {
-      const rows = await window.ipcApi.invoke(
+      const rows = await (window.ipcApi as any).invoke(
         'db-get-frames-by-id',
         configStore.beforeAutoID,
         configStore.beforeAutoID
       )
-      result = rows.length ? toThickData(rows[0]) : undefined
+      result = rows?.length ? toThickData(rows[0]) : undefined
     } else {
-      const rows = await window.ipcApi.invoke('db-get-latest-frames', 20)
-      if (rows.length >= 20) {
+      const rows = await (window.ipcApi as any).invoke('db-get-latest-frames', 20)
+      if (rows?.length >= 20) {
         result = toThickData(rows[rows.length - 1])
       }
     }

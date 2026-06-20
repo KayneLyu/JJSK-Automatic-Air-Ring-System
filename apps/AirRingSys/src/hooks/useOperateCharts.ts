@@ -1,9 +1,8 @@
 import { ref, computed } from 'vue'
-import type { FrameRow } from '@/types/ipc'
 import { useConfigStore } from '@/store/config.ts'
 import { useFrameStore } from '@/store/frame.ts'
 
-function toIFrameThickData(row: FrameRow): IFrameThickData {
+function toIFrameThickData(row: any): IFrameThickData {
   return {
     frameId: row.frameId,
     startTime: row.startTime,
@@ -70,21 +69,21 @@ function useOperateChartsHooks() {
       if (pickDate) {
         const startMs = new Date(pickDate + ' 00:00:00').getTime()
         const endMs = new Date(pickDate + ' 23:59:59').getTime()
-        const rows = await window.ipcApi.invoke(
+        const rows = await (window.ipcApi as any).invoke(
           'db-get-frames',
           startMs,
           endMs,
           100
         )
-        result = rows.map(toIFrameThickData)
+        result = (rows ?? []).map(toIFrameThickData)
       } else {
-        const rows = await window.ipcApi.invoke(
+        const rows = await (window.ipcApi as any).invoke(
           'db-get-frames',
           0,
           Date.now(),
           100
         )
-        result = rows.reverse().map(toIFrameThickData)
+        result = (rows ?? []).reverse().map(toIFrameThickData)
       }
       if (result.length) {
         refreshDataHandle(result)
@@ -116,12 +115,12 @@ function useOperateChartsHooks() {
       endId = lastFrameId.value + store.queryHours * 100
     }
     try {
-      const rows = await window.ipcApi.invoke(
+      const rows = await (window.ipcApi as any).invoke(
         'db-get-frames-by-id',
         startId,
         endId
       )
-      const result = rows.map(toIFrameThickData)
+      const result = (rows ?? []).map(toIFrameThickData)
       if (result.length) {
         refreshDataHandle(result)
       } else {

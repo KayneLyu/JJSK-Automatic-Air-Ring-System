@@ -163,14 +163,14 @@ export function initCalibrationIpc(options: InitCalibrationIpcOptions) {
           offset
         )
         for (const r of rows) {
-          const md = prevPulse === undefined ? true : r.pos >= prevPulse
-          prevPulse = r.pos
+          const md = prevPulse === undefined ? true : r.pulse >= prevPulse
+          prevPulse = r.pulse
           events.push({
             timestamp: r.timestamp,
             thickness: {
               timestamp: r.timestamp,
               ProbeValue: r.ad,
-              HorizontalPulse: r.pos,
+              HorizontalPulse: r.pulse,
               MotionDirection: md,
             },
           })
@@ -295,7 +295,7 @@ export function initCalibrationIpc(options: InitCalibrationIpcOptions) {
       const data = thickness.map((r) => ({
         timestamp: r.timestamp,
         ProbeValue: r.ad,
-        HorizontalPulse: r.pos,
+        HorizontalPulse: r.pulse,
         MotionDirection: true,
       }))
       const speed = calibrateTractionSpeed(data, {
@@ -358,7 +358,7 @@ export function initCalibrationIpc(options: InitCalibrationIpcOptions) {
       const data = thickness.map((r) => ({
         timestamp: r.timestamp,
         ProbeValue: r.ad,
-        HorizontalPulse: r.pos,
+        HorizontalPulse: r.pulse,
         MotionDirection: true,
       }))
       const speed = calibrateTractionSpeed(data, { circumference, numCycles })
@@ -401,7 +401,7 @@ export function initCalibrationIpc(options: InitCalibrationIpcOptions) {
       const thickData = thickness.map((r) => ({
         timestamp: r.timestamp,
         ProbeValue: r.ad,
-        HorizontalPulse: r.pos,
+        HorizontalPulse: r.pulse,
         MotionDirection: true,
       }))
       const ringData = rotation.map((r) => ({
@@ -453,7 +453,7 @@ export function initCalibrationIpc(options: InitCalibrationIpcOptions) {
       const thickData = thickness.map((r) => ({
         timestamp: r.timestamp,
         ProbeValue: r.ad,
-        HorizontalPulse: r.pos,
+        HorizontalPulse: r.pulse,
         MotionDirection: true,
       }))
       const ringData = rotation.map((r) => ({
@@ -530,7 +530,7 @@ export function initCalibrationIpc(options: InitCalibrationIpcOptions) {
         const thickData = allThickness.map((r) => ({
           timestamp: r.timestamp,
           ProbeValue: r.ad,
-          HorizontalPulse: r.pos,
+          HorizontalPulse: r.pulse,
           MotionDirection: true,
         }))
         const ringData = allRotation.map((r) => ({
@@ -597,7 +597,7 @@ export function initCalibrationIpc(options: InitCalibrationIpcOptions) {
       const thickData = thickness.map((r) => ({
         timestamp: r.timestamp,
         ProbeValue: r.ad,
-        HorizontalPulse: r.pos,
+        HorizontalPulse: r.pulse,
         MotionDirection: true,
       }))
       const mutation = detectMutation(thickData, windowSize, deviation)

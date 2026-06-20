@@ -3,14 +3,13 @@ import { ref, watch } from 'vue';
 import LoopCharts from './loop-charts.vue';
 import { useFrameStore } from '@/store/frame.ts';
 import dayjs from 'dayjs';
-import type { FrameRow } from '@/types/ipc';
 import FrameInfo from '@/components/frame-info.vue';
 
 const frameStore = useFrameStore()
 
 const frameData = ref<IFrameThickData | null>(null)
 
-function frameRowToThickData(row: FrameRow): IFrameThickData {
+function frameRowToThickData(row: any): IFrameThickData {
   return {
     frameId: row.frameId,
     startTime: row.startTime,
@@ -38,7 +37,7 @@ function frameRowToThickData(row: FrameRow): IFrameThickData {
 
 const getLastFrameData = async () => {
   try {
-    const result = await window.ipcApi.invoke('db-get-latest-frame')
+    const result = await (window.ipcApi as any).invoke('db-get-latest-frame')
     if (result) {
       const thick = frameRowToThickData(result)
       const formatData = thick.datalist.map((item, index) => {
