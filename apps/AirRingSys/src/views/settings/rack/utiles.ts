@@ -120,11 +120,14 @@ export const updateChartData = (
 
   return result
 }
-export function createThicknessCollector() {
+export function createThicknessCollector(maxPulse = 7000) {
   const pulseMap = new Map()
 
   let lastPulse: any = null
   let direction: any = null
+
+  const boundaryHigh = maxPulse * 0.97
+  const boundaryLow = maxPulse * 0.03
 
   function process(pulses: number[], adValues: number[]) {
     let completedData = null
@@ -133,7 +136,7 @@ export function createThicknessCollector() {
       const pulse = pulses[i]
       const ad = adValues[i]
 
-      if (pulse < 0 || pulse > 6999) continue
+      if (pulse < 0 || pulse > maxPulse) continue
 
       if (lastPulse !== null) {
         const delta = pulse - lastPulse
@@ -143,16 +146,14 @@ export function createThicknessCollector() {
         if (delta > 0) newDirection = 1
         else if (delta < 0) newDirection = -1
 
-        // 🚨 正向完成（到右端后开始回头）
-        if (direction === 1 && pulse > 6800 && newDirection === -1) {
+        if (direction === 1 && pulse > boundaryHigh && newDirection === -1) {
           if (pulseMap.size > 500) {
             completedData = buildFullData()
           }
           pulseMap.clear()
         }
 
-        // 🚨 反向完成（到左端后开始往前）
-        if (direction === -1 && pulse < 200 && newDirection === 1) {
+        if (direction === -1 && pulse < boundaryLow && newDirection === 1) {
           if (pulseMap.size > 500) {
             completedData = buildFullData()
           }
@@ -173,7 +174,7 @@ export function createThicknessCollector() {
     const result = []
     let lastValue = null
 
-    for (let i = 0; i < 7000; i++) {
+    for (let i = 0; i <= maxPulse; i++) {
       if (pulseMap.has(i)) {
         lastValue = pulseMap.get(i)
       }

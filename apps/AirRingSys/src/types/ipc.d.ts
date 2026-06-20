@@ -265,17 +265,25 @@ export interface IpcChannelMap {
   } // 获取modbus轮询数据
 
   // ═══ SQLite 历史数据查询 (数据管道) ═══
-  'db-get-frames': {
-    args: [startMs: number, endMs: number, limit?: number]
-    output: FrameRow[]
-  }
-  'db-get-latest-frame': {
-    args: []
-    output: FrameRow | null
-  }
   'db-get-thickness-raw': {
     args: [startMs: number, endMs: number]
     output: ThicknessRawRow[]
+  }
+  'db-get-latest-thickness-raw': {
+    args: [count: number]
+    output: ThicknessRawRow[]
+  }
+  'db-get-latest-sweeps': {
+    args: [count: number, beforeTs?: number]
+    output: SweepRow[]
+  }
+  'db-get-latest-sweeps-count': {
+    args: [mode: 'single' | 'round']
+    output: number
+  }
+  'db-get-frames': {
+    args: [startMs: number, endMs: number, count?: number]
+    output: FrameRow[]
   }
   'db-get-pipeline-stats': {
     args: []
@@ -285,21 +293,9 @@ export interface IpcChannelMap {
       thicknessTimeRange: { oldest: number | null; newest: number | null }
     }
   }
-  'db-persist-frame': {
-    args: [frame: FrameBatchItem]
-    output: void
-  }
-  'db-get-frames-by-id': {
-    args: [startId: number, endId: number]
-    output: FrameRow[]
-  }
   'db-import-sweep': {
     args: [sweep: { pulses: number[]; adValues: number[]; airAD: number; gain: number; source: string }]
     output: number
-  }
-  'db-get-latest-frames': {
-    args: [count: number]
-    output: FrameRow[]
   }
 }
 
@@ -313,6 +309,27 @@ export type IpcChannelOutput<T extends IpcChannelName> =
   IpcChannelMap[T]['output']
 
 // ═══ SQLite 数据管道类型 (v3) ═══
+
+export interface ThicknessRawRow {
+  id: number
+  timestamp: number
+  pulse: number
+  ad: number
+  source: string
+  airAD: number
+  gain: number
+}
+
+export interface SweepPoint {
+  pos: number
+  ad: number
+  ts: number
+}
+
+export interface SweepRow {
+  direction: 'forward' | 'backward'
+  points: SweepPoint[]
+}
 
 export interface FrameRow {
   frameId: number
@@ -331,19 +348,8 @@ export interface FrameRow {
   maxVal: number
   maxPercent: number
   IsBackw: number
-  source: string
-  airAD: number
-  gain: number
-  /** Deprecated: no longer stored in DB, may be undefined when queried historically */
-  datalist?: string
-  rawDatalist?: string
-}
-
-export interface ThicknessRawRow {
-  id: number
-  timestamp: number
-  pos: number
-  ad: number
+  datalist: string
+  rawDatalist: string
   source: string
   airAD: number
   gain: number
@@ -352,27 +358,4 @@ export interface ThicknessRawRow {
 export interface IHistoricalCalibrationProgress {
   processed: number
   total: number
-}
-
-export interface FrameBatchItem {
-  startTime: string
-  endTime: string
-  startTimestamp: number
-  endTimestamp: number
-  speed: number
-  width: number
-  rotateSpeed: number
-  sigmaVal: number
-  sigmaPercent: number
-  mean: number
-  minVal: number
-  minPercent: number
-  maxVal: number
-  maxPercent: number
-  IsBackw: boolean
-  source: string
-  airAD: number
-  gain: number
-  datalist?: number[]
-  rawDatalist?: number[]
 }

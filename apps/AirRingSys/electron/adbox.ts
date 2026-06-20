@@ -8,7 +8,7 @@ import Store from 'electron-store'
 import { DataBatcher } from './data-batcher'
 import { createModbusCalibrationBridge } from './calibrationBridge'
 import { initCalibrationIpc } from './calibrationIpc'
-import { SQLiteService, type FrameRow } from './sqliteService'
+import { SQLiteService } from './sqliteService'
 import { DataPipeline } from './dataPipeline'
 
 // ==================== 类型定义 ====================
@@ -663,38 +663,70 @@ function registerIpcHandlers() {
 
   // ═══ SQLite 历史数据查询 ═══
   ipcMain.handle(
-    'db-get-frames',
-    async (_event, startMs: number, endMs: number, limit?: number) => {
-      return sqliteDb?.queryFramesByTime(startMs, endMs, limit ?? 100) ?? []
-    }
-  )
-
-  ipcMain.handle('db-get-latest-frame', async () => {
-    return sqliteDb?.getLatestFrame() ?? null
-  })
-
-  ipcMain.handle(
     'db-get-thickness-raw',
     async (_event, startMs: number, endMs: number) => {
       return sqliteDb?.queryThicknessRaw(startMs, endMs) ?? []
     }
   )
 
+  ipcMain.handle(
+    'db-get-latest-thickness-raw',
+    async (_event, count: number) => {
+      return sqliteDb?.queryLatestThicknessRaw(count) ?? []
+    }
+  )
+
+  ipcMain.handle(
+    'db-get-latest-sweeps',
+    async (_event, count: number, beforeTs?: number) => {
+      const maxPulse = store?.get('maxPulse') || 7000
+      return sqliteDb?.queryLatestSweeps(count, maxPulse, beforeTs ?? 0) ?? []
+    }
+  )
+
+  ipcMain.handle(
+    'db-get-latest-sweeps-count',
+    async (_event, mode: 'single' | 'round') => {
+      const maxPulse = store?.get('maxPulse') || 7000
+      return sqliteDb?.queryLatestSweepsCount(mode, maxPulse) ?? 0
+    }
+  )
+
+  ipcMain.handle(
+    'db-get-frames',
+    async (
+      _event,
+      startMs: number,
+      endMs: number,
+      count?: number
+    ) => {
+      const maxPulse = store?.get('maxPulse') || 7000
+      return (
+        sqliteDb?.queryFramesByTimeRange(
+          startMs,
+          endMs,
+          count ?? 100,
+          maxPulse
+        ) ?? []
+      )
+    }
+  )
+
+  ipcMain.handle('db-get-latest-frame', async () => {
+    return null
+  })
+
+  ipcMain.handle('db-get-latest-frames', async () => {
+    return []
+  })
+
+  ipcMain.handle('db-get-frames-by-id', async () => {
+    return []
+  })
+
   ipcMain.handle('db-get-pipeline-stats', async () => {
     return pipeline?.getStats() ?? null
   })
-
-  ipcMain.handle('db-persist-frame', async (_event, frame: unknown) => {
-    if (!pipeline || !frame) return
-    pipeline.persistFrame(frame as any)
-  })
-
-  ipcMain.handle(
-    'db-get-frames-by-id',
-    async (_event, startId: number, endId: number) => {
-      return sqliteDb?.queryFramesByIdRange(startId, endId) ?? []
-    }
-  )
 
   ipcMain.handle(
     'db-import-sweep',
@@ -718,8 +750,4 @@ function registerIpcHandlers() {
       )
     }
   )
-
-  ipcMain.handle('db-get-latest-frames', async (_event, count: number) => {
-    return sqliteDb?.queryLatestFrames(count) ?? []
-  })
 }
