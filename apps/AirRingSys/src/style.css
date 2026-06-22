@@ -97,7 +97,6 @@ li {
 body {
   width: 100%;
   min-height: 100vh;
-  transition: color 0.5s, background-color 0.5s;
   font-size: 15px;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

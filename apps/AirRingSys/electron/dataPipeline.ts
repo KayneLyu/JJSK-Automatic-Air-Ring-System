@@ -2,8 +2,32 @@ import { BrowserWindow } from 'electron'
 import { RingBuffer, ThicknessRingItem, RotationRingItem } from './ringBuffer'
 import { SQLiteService } from './sqliteService'
 import type { PushData } from '@jjsk/adbox-sdk'
-import type { IUpperRotationDebugData } from '@/types/ipc'
+import type { IUpperRotationDebugData, BubbleSweepResult } from '@/types/ipc'
 import { DataBatcher } from './data-batcher'
+import {
+  reconstructBubbleThickness,
+  type BubbleReconstructionResult,
+  type MeasurementTriple,
+} from '@jjsk/air-ring-server/algorithms/bubbleThicknessReconstruction.ts'
+import { trapezoidalPosition } from '@jjsk/air-ring-server/algorithms/upperRotation/upperRotation.evaluation.ts'
+
+/**
+ * X 光 AD → 厚度 (μm) 转换
+ *
+ * 与 `apps/AirRingSys/src/views/settings/rack/utiles.ts:241` 同源。
+ * 主进程复制一份以避免 renderer→main 反向依赖；公式不变。
+ */
+const calcThicknessMicrons = (
+  ad: number,
+  airAD: number,
+  gain: number
+): number => {
+  if (ad <= 0 || airAD <= 0) return 0
+  if (ad >= airAD) return 0
+  const x = Math.log(airAD / ad)
+  const base = 9.65 * x * x + 243.08 * x - 0.087
+  return Math.max(0, base * (gain || 1.0))
+}
 
 /**
  * 数据管道 — 硬件→RingBuffer→{渲染, 计算, 持久化} 三路分离
@@ -22,7 +46,7 @@ export class DataPipeline {
   private readonly FLUSH_INTERVAL_MS = 500
   private cleanupTimer: NodeJS.Timeout | null = null
   private readonly CLEANUP_INTERVAL_MS = 60_000 // 每分钟
-  private readonly RETENTION_THICKNESS_MS = 2 * 3600_000  // 2小时
+  private readonly RETENTION_THICKNESS_MS = 2 * 3600_000 // 2小时
 
   // 计算回调
   private feedThicknessSample?: (sample: {
@@ -64,7 +88,9 @@ export class DataPipeline {
     this.flushTimer = setInterval(() => {
       const counts = this.sqlite.flush()
       if (counts.thickness > 0 || counts.rotation > 0) {
-        console.log(`[Pipeline] SQLite flush: T=${counts.thickness} R=${counts.rotation}`)
+        console.log(
+          `[Pipeline] SQLite flush: T=${counts.thickness} R=${counts.rotation}`
+        )
       }
     }, this.FLUSH_INTERVAL_MS)
 
@@ -164,4 +190,468 @@ export class DataPipeline {
       thicknessTimeRange: this.thicknessRing.getTimeRange(),
     }
   }
+
+
+  // ═══════════════════════════════════════════════════════════════
+  // 膜泡原始厚度重建（Bubble Thickness Reconstruction）
+  // ═══════════════════════════════════════════════════════════════
+
+  getBubbleProfile(params: {
+    membraneWidthMm: number
+    thetaMaxDeg: number
+    mmPerPulse: number
+    airAD: number
+    gain: number
+    numBins?: number
+    processDeformationFactor?: number
+    startMs?: number
+    endMs?: number
+    useLatestWindowMs?: number
+  }): BubbleReconstructionResult | null {
+    if (params.membraneWidthMm <= 0 || params.thetaMaxDeg <= 0) return null
+    if (params.mmPerPulse <= 0) return null
+    if (params.airAD <= 0) return null
+
+    const numBins = params.numBins ?? 48
+    const processFactor = params.processDeformationFactor ?? 1.02
+    const MAX_POINTS_PER_SWEEP = 2000
+
+    let startMs = params.startMs ?? 0
+    let endMs = params.endMs ?? Date.now()
+    if (params.useLatestWindowMs && params.useLatestWindowMs > 0) {
+      endMs = Date.now()
+      startMs = endMs - params.useLatestWindowMs
+    }
+
+    const sweeps = this.findSweepsFromHistory(startMs, endMs)
+    if (sweeps.length === 0) return null
+
+    // 取最长一趟
+    const sweep = sweeps.reduce((a, b) =>
+      b.endTs - b.startTs > a.endTs - a.startTs ? b : a
+    )
+
+    const allRows = this.sqlite.queryThicknessRaw(sweep.startTs, sweep.endTs)
+    if (allRows.length < 100) return null
+    const rows =
+      allRows.length > MAX_POINTS_PER_SWEEP
+        ? downsampleUniform(allRows, MAX_POINTS_PER_SWEEP)
+        : allRows
+
+    return this.buildProfile(
+      rows,
+      {
+        startTs: sweep.startTs,
+        direction: sweep.direction,
+        durationMs: sweep.endTs - sweep.startTs,
+      },
+      params.membraneWidthMm,
+      params.thetaMaxDeg,
+      params.mmPerPulse,
+      params.airAD,
+      params.gain,
+      numBins,
+      processFactor
+    )
+  }
+
+  /**
+   * 在 [startMs, endMs] 窗口内找所有趟的起止时刻
+   */
+  private findSweepsFromHistory(
+    startMs: number,
+    endMs: number
+  ): {
+    startTs: number
+    endTs: number
+    direction: 'forward' | 'reverse'
+  }[] {
+    const rotRows = this.sqlite.queryRotationRaw(startMs, endMs)
+    if (!rotRows || rotRows.length === 0) return []
+
+    const changes: { ts: number; direction: 'forward' | 'reverse' }[] = []
+    for (const r of rotRows) {
+      if (r.forwardDirChange) {
+        changes.push({ ts: r.timestamp, direction: 'forward' })
+      } else if (r.reverseDirChange) {
+        changes.push({ ts: r.timestamp, direction: 'reverse' })
+      }
+    }
+    if (changes.length === 0) return []
+
+    const MIN_SWEEP_MS = 30_000
+    const sweeps: {
+      startTs: number
+      endTs: number
+      direction: 'forward' | 'reverse'
+    }[] = []
+
+    for (let i = 0; i < changes.length - 1; i += 1) {
+      const start = changes[i]
+      const end = changes[i + 1]
+      if (end.ts - start.ts < MIN_SWEEP_MS) continue
+      sweeps.push({
+        startTs: start.ts,
+        endTs: end.ts,
+        direction: start.direction,
+      })
+    }
+
+    // 如果窗口末尾还有一段未完成的当前行程，补一段到 endMs
+    const last = changes[changes.length - 1]
+    if (endMs - last.ts >= MIN_SWEEP_MS) {
+      sweeps.push({
+        startTs: last.ts,
+        endTs: endMs,
+        direction: last.direction,
+      })
+    }
+
+    return sweeps
+  }
+
+  /**
+   * 按时间窗口取多趟扫描，每趟重建一个 profile
+   */
+  getBubbleSweeps(params: {
+    membraneWidthMm: number
+    thetaMaxDeg: number
+    mmPerPulse: number
+    airAD: number
+    gain: number
+    numBins?: number
+    processDeformationFactor?: number
+    startMs?: number
+    endMs?: number
+    useLatestWindowMs?: number
+    limit?: number
+  }): BubbleSweepResult[] {
+    if (params.membraneWidthMm <= 0 || params.thetaMaxDeg <= 0) return []
+    if (params.mmPerPulse <= 0) return []
+    if (params.airAD <= 0) return []
+
+    const numBins = params.numBins ?? 48
+    const processFactor = params.processDeformationFactor ?? 1.02
+    const MAX_POINTS_PER_SWEEP = 2000
+
+    let startMs = params.startMs ?? 0
+    let endMs = params.endMs ?? Date.now()
+    if (params.useLatestWindowMs && params.useLatestWindowMs > 0) {
+      endMs = Date.now()
+      startMs = endMs - params.useLatestWindowMs
+    }
+
+    const sweeps = this.findSweepsFromHistory(startMs, endMs)
+    if (sweeps.length === 0) return []
+
+    const limited = params.limit ? sweeps.slice(-params.limit) : sweeps
+
+    const results: BubbleSweepResult[] = []
+    for (const sweep of limited) {
+      const allRows = this.sqlite.queryThicknessRaw(sweep.startTs, sweep.endTs)
+      if (allRows.length < 100) continue
+      const rows =
+        allRows.length > MAX_POINTS_PER_SWEEP
+          ? downsampleUniform(allRows, MAX_POINTS_PER_SWEEP)
+          : allRows
+      const profile = this.buildProfile(
+        rows,
+        {
+          startTs: sweep.startTs,
+          direction: sweep.direction,
+          durationMs: sweep.endTs - sweep.startTs,
+        },
+        params.membraneWidthMm,
+        params.thetaMaxDeg,
+        params.mmPerPulse,
+        params.airAD,
+        params.gain,
+        numBins,
+        processFactor
+      )
+      if (!profile) continue
+      results.push({
+        ...profile,
+        id: `sweep-${sweep.startTs}-${sweep.direction}`,
+        time: sweep.startTs,
+        direction: sweep.direction,
+        cycleDurationMs: sweep.endTs - sweep.startTs,
+      })
+    }
+
+    return results
+  }
+
+  getLatestBubbleSweeps(params: {
+    count: number
+    beforeTs?: number
+    membraneWidthMm: number
+    thetaMaxDeg: number
+    mmPerPulse: number
+    airAD: number
+    gain: number
+    numBins?: number
+    processDeformationFactor?: number
+  }): BubbleSweepResult[] {
+    if (params.membraneWidthMm <= 0 || params.thetaMaxDeg <= 0) return []
+    if (params.mmPerPulse <= 0) return []
+    if (params.airAD <= 0) return []
+    if (params.count <= 0) return []
+
+    const numBins = params.numBins ?? 48
+    const processFactor = params.processDeformationFactor ?? 1.02
+    const MAX_POINTS_PER_SWEEP = 2000
+    const eventCount = params.count + 1
+
+    const rotRows = this.sqlite.queryLatestDirectionChanges(
+      eventCount,
+      params.beforeTs ?? 0
+    )
+    if (rotRows.length < 2) return []
+
+    const changes: { ts: number; direction: 'forward' | 'reverse' }[] = []
+    for (const r of rotRows) {
+      if (r.forwardDirChange) {
+        changes.push({ ts: r.timestamp, direction: 'forward' })
+      } else if (r.reverseDirChange) {
+        changes.push({ ts: r.timestamp, direction: 'reverse' })
+      }
+    }
+    if (changes.length < 2) return []
+
+    const MIN_SWEEP_MS = 30_000
+    const sweepBounds: {
+      startTs: number
+      endTs: number
+      direction: 'forward' | 'reverse'
+    }[] = []
+    const pairCount = Math.min(params.count, changes.length - 1)
+    for (let i = 0; i < pairCount; i += 1) {
+      const start = changes[i + 1]
+      const end = changes[i]
+      if (end.ts - start.ts < MIN_SWEEP_MS) continue
+      sweepBounds.push({
+        startTs: start.ts,
+        endTs: end.ts,
+        direction: start.direction,
+      })
+    }
+
+    const results: BubbleSweepResult[] = []
+    for (const sweep of sweepBounds) {
+      const allRows = this.sqlite.queryThicknessRaw(sweep.startTs, sweep.endTs)
+      if (allRows.length < 100) continue
+      const rows =
+        allRows.length > MAX_POINTS_PER_SWEEP
+          ? downsampleUniform(allRows, MAX_POINTS_PER_SWEEP)
+          : allRows
+      const profile = this.buildProfile(
+        rows,
+        {
+          startTs: sweep.startTs,
+          direction: sweep.direction,
+          durationMs: sweep.endTs - sweep.startTs,
+        },
+        params.membraneWidthMm,
+        params.thetaMaxDeg,
+        params.mmPerPulse,
+        params.airAD,
+        params.gain,
+        numBins,
+        processFactor
+      )
+      if (!profile) continue
+      results.push({
+        ...profile,
+        id: `sweep-${sweep.startTs}-${sweep.direction}`,
+        time: sweep.startTs,
+        direction: sweep.direction,
+        cycleDurationMs: sweep.endTs - sweep.startTs,
+      })
+    }
+
+    return results.sort((a, b) => a.time - b.time)
+  }
+
+  private buildProfile(
+    data: ReadonlyArray<{ timestamp: number; pulse: number; ad: number }>,
+    cycle: {
+      startTs: number
+      direction: 'forward' | 'reverse'
+      durationMs: number
+    },
+    membraneWidthMm: number,
+    thetaMaxDeg: number,
+    mmPerPulse: number,
+    airAD: number,
+    gain: number,
+    numBins: number,
+    processFactor: number
+  ): BubbleReconstructionResult | null {
+    if (data.length < 100) return null
+
+    const prefiltered: Array<{
+      timestamp: number
+      scannerPosMm: number
+      thickness: number
+    }> = []
+
+    for (const item of data) {
+      if (item.ad <= 0 || item.pulse < 0) continue
+      if (item.ad < airAD * 0.3) continue
+      const thickMicrons = calcThicknessMicrons(item.ad, airAD, gain)
+      if (thickMicrons <= 0 || thickMicrons > 500) continue
+      const elapsed = item.timestamp - cycle.startTs
+      if (elapsed < 0) continue
+
+      prefiltered.push({
+        timestamp: item.timestamp,
+        scannerPosMm: item.pulse * mmPerPulse,
+        thickness: thickMicrons,
+      })
+    }
+
+    if (prefiltered.length < numBins) return null
+
+    const sortedPositions = [...prefiltered]
+      .map((p) => p.scannerPosMm)
+      .sort((a, b) => a - b)
+    const centerMm = sortedPositions[Math.floor(sortedPositions.length / 2)]
+
+    const q05 = sortedPositions[Math.floor(sortedPositions.length * 0.05)]
+    const q95 = sortedPositions[Math.floor(sortedPositions.length * 0.95)]
+    const inferredWidthMm = q95 - q05
+    const effectiveWidthMm =
+      inferredWidthMm > 0 && inferredWidthMm < membraneWidthMm * 3
+        ? inferredWidthMm
+        : membraneWidthMm
+
+    const halfWidth = effectiveWidthMm / 2
+    const thicknessThreshold = this.detectOutOfBoundsThreshold(
+      prefiltered.map((p) => p.thickness)
+    )
+
+    const triples: MeasurementTriple[] = []
+    const binWidthDeg = 360 / numBins
+    const binTimestampSum: number[] = new Array(numBins).fill(0)
+    const binTimestampCount: number[] = new Array(numBins).fill(0)
+
+    const tripDuration = Math.max(1, cycle.durationMs)
+    const accelRatio = Math.min(20_000, tripDuration * 0.45) / tripDuration
+
+    for (const item of prefiltered) {
+      const centeredPos = item.scannerPosMm - centerMm
+      if (Math.abs(centeredPos) > halfWidth) continue
+      if (thicknessThreshold !== null && item.thickness > thicknessThreshold)
+        continue
+
+      const elapsed = item.timestamp - cycle.startTs
+      const progress = Math.max(0, Math.min(1, elapsed / tripDuration))
+      const pos = trapezoidalPosition(progress, accelRatio)
+      const upperAngleDeg =
+        cycle.direction === 'forward'
+          ? pos * thetaMaxDeg
+          : thetaMaxDeg - pos * thetaMaxDeg
+
+      triples.push({
+        upperAngleDeg,
+        scannerPosMm: centeredPos,
+        thickness: item.thickness,
+      })
+
+      const scannerOffset = (centeredPos / effectiveWidthMm) * 180
+      const alpha = (((upperAngleDeg + scannerOffset) % 360) + 360) % 360
+      const binIdx = Math.floor(alpha / binWidthDeg) % numBins
+      binTimestampSum[binIdx] += item.timestamp
+      binTimestampCount[binIdx] += 1
+    }
+
+    if (triples.length < numBins) {
+      console.warn(
+        `[buildProfile] 过滤后三元组不足: ${triples.length} < ${numBins}`
+      )
+      return null
+    }
+
+    const result = reconstructBubbleThickness(triples, effectiveWidthMm, {
+      numBins,
+      processDeformationFactor: processFactor,
+      lambda: 0.01,
+    })
+
+    if (!result) return null
+    if (!this.isProfilePlausible(result)) return null
+
+    const binTimestamps: number[] = binTimestampSum.map((sum, i) =>
+      binTimestampCount[i] > 0 ? sum / binTimestampCount[i] : 0
+    )
+
+    return { ...result, binTimestamps }
+  }
+
+  private detectOutOfBoundsThreshold(values: number[]): number | null {
+    if (values.length < 100) return null
+
+    const sorted = [...values].sort((a, b) => a - b)
+    const p01 = sorted[Math.floor(sorted.length * 0.01)]
+    const p99 = sorted[Math.floor(sorted.length * 0.99)]
+    const range = p99 - p01
+    if (range <= 0) return null
+
+    const NUM_BINS = 50
+    const binWidth = range / NUM_BINS
+    const hist = new Array(NUM_BINS).fill(0)
+
+    for (const v of values) {
+      const bin = Math.min(Math.floor((v - p01) / binWidth), NUM_BINS - 1)
+      hist[bin]++
+    }
+
+    let maxCount = 0
+    let peakBin = 0
+    for (let i = 0; i < NUM_BINS; i++) {
+      if (hist[i] > maxCount) {
+        maxCount = hist[i]
+        peakBin = i
+      }
+    }
+
+    let valleyBin = -1
+    let valleyCount = Infinity
+    const startBin = Math.max(peakBin + 3, Math.floor(NUM_BINS * 0.3))
+    const endBin = Math.min(NUM_BINS - 3, Math.floor(NUM_BINS * 0.9))
+
+    for (let i = startBin; i < endBin; i++) {
+      if (hist[i] < valleyCount) {
+        valleyCount = hist[i]
+        valleyBin = i
+      }
+    }
+
+    if (valleyBin < 0) return null
+    if (valleyCount > maxCount * 0.2) return null
+
+    let rightPeak = 0
+    for (let i = valleyBin + 1; i < NUM_BINS; i++) {
+      if (hist[i] > rightPeak) rightPeak = hist[i]
+    }
+    if (rightPeak < 0.02 * maxCount) return null
+
+    return p01 + (valleyBin + 0.5) * binWidth
+  }
+
+  private isProfilePlausible(result: BubbleReconstructionResult): boolean {
+    if (result.profile.length === 0) return false
+    return result.profile.every((v) => Number.isFinite(v))
+  }
+}
+
+const downsampleUniform = <T>(arr: T[], target: number): T[] => {
+  if (arr.length <= target) return arr
+  const stride = arr.length / target
+  const out: T[] = []
+  for (let i = 0; i < target; i += 1) {
+    out.push(arr[Math.floor(i * stride)])
+  }
+  return out
 }

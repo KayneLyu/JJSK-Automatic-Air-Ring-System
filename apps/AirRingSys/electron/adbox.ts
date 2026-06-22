@@ -750,4 +750,73 @@ function registerIpcHandlers() {
       )
     }
   )
+
+  // ═══ 膜泡原始厚度重建（reconstructBubbleThickness）═══
+  ipcMain.handle(
+    'bubble-reconstruct',
+    async (
+      _event,
+      params: {
+        membraneWidthMm: number
+        thetaMaxDeg: number
+        mmPerPulse: number
+        airAD: number
+        gain: number
+        numBins?: number
+        processDeformationFactor?: number
+        startMs?: number
+        endMs?: number
+        useLatestWindowMs?: number
+      }
+    ) => {
+      if (!pipeline) return null
+      return pipeline.getBubbleProfile(params)
+    }
+  )
+
+  // ═══ 膜泡厚度：按趟重建（每趟扫描 = 一幅 profile）═══
+  ipcMain.handle(
+    'bubble-get-sweeps',
+    async (
+      _event,
+      params: {
+        membraneWidthMm: number
+        thetaMaxDeg: number
+        mmPerPulse: number
+        airAD: number
+        gain: number
+        numBins?: number
+        processDeformationFactor?: number
+        startMs?: number
+        endMs?: number
+        useLatestWindowMs?: number
+        limit?: number
+      }
+    ) => {
+      if (!pipeline) return []
+      return pipeline.getBubbleSweeps(params)
+    }
+  )
+
+  // ═══ 膜泡厚度：最近 N 趟（分页模式，参考 LongitudinalCharts）═══
+  ipcMain.handle(
+    'bubble-get-latest-sweeps',
+    async (
+      _event,
+      params: {
+        count: number
+        beforeTs?: number
+        membraneWidthMm: number
+        thetaMaxDeg: number
+        mmPerPulse: number
+        airAD: number
+        gain: number
+        numBins?: number
+        processDeformationFactor?: number
+      }
+    ) => {
+      if (!pipeline) return []
+      return pipeline.getLatestBubbleSweeps(params)
+    }
+  )
 }

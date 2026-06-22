@@ -135,6 +135,10 @@ export interface IpcChannelMap {
   'adbox-connect': { args: []; output: [data: boolean] } // AD box 连接
   'adbox-run-result': { args: [data: RunResult]; output: [data: RunResult] } // AD box 运动结果
   'adbox-move-to': { args: [position: number]; output: [data: RunResult] } // AD box 移动到xx脉冲
+  'adbox-status': {
+    args: []
+    output: [{ connected: boolean }]
+  } // AD box 连接状态推送
   'adbox-get-connection-status': {
     args: []
     output: boolean
@@ -248,6 +252,14 @@ export interface IpcChannelMap {
     }]
     output: { success: boolean; maxAngle?: number; error?: string }
   }
+  'calibration-max-angle-historical': {
+    args: [input: {
+      deltaMin?: number
+      deltaMax?: number
+      objectiveMode?: string
+    }]
+    output: { success: boolean; maxAngle?: number; error?: string }
+  }
   'calibration-run-distance': {
     args: [input: {
       startMs: number
@@ -296,6 +308,63 @@ export interface IpcChannelMap {
   'db-import-sweep': {
     args: [sweep: { pulses: number[]; adValues: number[]; airAD: number; gain: number; source: string }]
     output: number
+  }
+
+  // ═══ 膜泡原始厚度重建（reconstructBubbleThickness）═══
+  'bubble-reconstruct': {
+    args: [
+      params: {
+        membraneWidthMm: number
+        thetaMaxDeg: number
+        mmPerPulse: number
+        airAD: number
+        gain: number
+        numBins?: number
+        processDeformationFactor?: number
+        startMs?: number
+        endMs?: number
+        useLatestWindowMs?: number
+      }
+    ]
+    output: BubbleReconstructionResult | null
+  }
+
+  // ═══ 膜泡厚度：按趟重建（每趟扫描 = 一幅 profile）═══
+  'bubble-get-sweeps': {
+    args: [
+      params: {
+        membraneWidthMm: number
+        thetaMaxDeg: number
+        mmPerPulse: number
+        airAD: number
+        gain: number
+        numBins?: number
+        processDeformationFactor?: number
+        startMs?: number
+        endMs?: number
+        useLatestWindowMs?: number
+        limit?: number
+      }
+    ]
+    output: BubbleSweepResult[]
+  }
+
+  // ═══ 膜泡厚度：最近 N 趟（分页模式）═══
+  'bubble-get-latest-sweeps': {
+    args: [
+      params: {
+        count: number
+        beforeTs?: number
+        membraneWidthMm: number
+        thetaMaxDeg: number
+        mmPerPulse: number
+        airAD: number
+        gain: number
+        numBins?: number
+        processDeformationFactor?: number
+      }
+    ]
+    output: BubbleSweepResult[]
   }
 }
 
@@ -358,4 +427,24 @@ export interface FrameRow {
 export interface IHistoricalCalibrationProgress {
   processed: number
   total: number
+}
+
+// ═══ reconstructBubbleThickness 输出类型 ═══
+export interface BubbleReconstructionResult {
+  profile: number[]
+  numBins: number
+  binWidthDeg: number
+  rmsError: number
+  maxError: number
+  numMeasurements: number
+  binCoverage: number[]
+  binTimestamps?: number[] // 每个 bin center 对应的采集时间戳 (ms)
+}
+
+// ═══ 一趟扫描（forward 或 reverse）的完整重建结果 ═══
+export interface BubbleSweepResult extends BubbleReconstructionResult {
+  id: string // 唯一 id：`sweep-{timestamp}-{direction}`
+  time: number // 这一趟的起点时间戳 (ms)
+  direction: 'forward' | 'reverse'
+  cycleDurationMs: number // 这一趟的实测时长
 }

@@ -303,6 +303,27 @@ export class SQLiteService {
       .reverse() as RotationRawRow[]
   }
 
+  /**
+   * 取最近 N 个方向变化事件（forwardDirChange / reverseDirChange 任一非 0）
+   * 用于「最近 N 趟扫描」分页查询：每次需要 N+1 个事件才能拼出 N 趟完整扫描
+   */
+  queryLatestDirectionChanges(count: number, beforeTs = 0): RotationRawRow[] {
+    if (!this.ready) return []
+    const whereParts = ['(forwardDirChange > 0 OR reverseDirChange > 0)']
+    const params: (number | string)[] = []
+    if (beforeTs > 0) {
+      whereParts.push('timestamp < ?')
+      params.push(beforeTs)
+    }
+    params.push(count)
+    return this.sqliteDb
+      .prepare(
+        `SELECT * FROM rotation_raw WHERE ${whereParts.join(' AND ')} ` +
+          `ORDER BY timestamp DESC LIMIT ?`
+      )
+      .all(...params) as RotationRawRow[]
+  }
+
   queryLatestSweeps(
     limit: number,
     maxPulse: number,
@@ -317,7 +338,9 @@ export class SQLiteService {
           ts: schema.thicknessRaw.timestamp,
         })
         .from(schema.thicknessRaw)
-        .where(beforeTs > 0 ? lt(schema.thicknessRaw.timestamp, beforeTs) : undefined)
+        .where(
+          beforeTs > 0 ? lt(schema.thicknessRaw.timestamp, beforeTs) : undefined
+        )
         .orderBy(desc(schema.thicknessRaw.timestamp))
         .limit(limit)
         .all() as { pos: number; ad: number; ts: number }[]

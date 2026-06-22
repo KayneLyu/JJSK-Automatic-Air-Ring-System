@@ -16,6 +16,7 @@ import type { RingData } from '../connections/airRing/types'
  *   membraneWidthMm: 膜宽（mm），由扫描仪行程标定
  *   options.numBins: 角度分箱数（默认 = channelCount 对应的 N）
  *   options.lambda: L2 正则化系数（默认 1e-4）
+ *   options.mu: 二阶差分平滑正则系数（默认 0.1，mu=0 关闭）
  *
  * 输出：
  *   profile[i]: 膜泡第 i 个分箱处的单层厚度（µm）
@@ -30,6 +31,7 @@ export type MeasurementTriple = {
 export type BubbleReconstructionOptions = {
   numBins?: number
   lambda?: number
+  mu?: number
   processDeformationFactor?: number
 }
 
@@ -41,6 +43,7 @@ export type BubbleReconstructionResult = {
   maxError: number
   numMeasurements: number
   binCoverage: number[]
+  binTimestamps?: number[] // 每个 bin center 对应的采集时间戳 (ms)
 }
 
 const normalizeAngle = (deg: number): number => {
@@ -98,13 +101,21 @@ const buildLinearSystem = (
 }
 
 /**
- * 求解稀疏线性系统最小二乘 (A^T A + λI) x = A^T b
+ * 求解稀疏线性系统最小二乘 (A^T A + λI + μ·D^T D) x = A^T b
+ *
+ * - λI: L2 正则化，保证数值稳定
+ * - μ·D^T D: 圆周方向二阶差分平滑，D 是循环三对角差分算子
+ *   D[i][i-1]=1, D[i][i]=-2, D[i][i+1]=1 (mod N)
+ *   D^T D 是循环五对角，模式 [1, -4, 6, -4, 1]
+ *   对均匀 profile 零贡献，对相邻 bin 突变（高频噪声）强惩罚
+ *
  * 使用高斯消元（部分主元选取）
  */
 const solveNormalEquations = (
   A: number[][],
   b: number[],
-  lambda: number
+  lambda: number,
+  mu: number
 ): number[] => {
   const M = A.length
   const N = A[0].length
@@ -130,6 +141,21 @@ const solveNormalEquations = (
 
   for (let i = 0; i < N; i++) {
     ATA[i][i] += lambda
+  }
+
+  // 二阶差分平滑：D^T D 循环五对角 [1, -4, 6, -4, 1]
+  if (mu > 0) {
+    for (let i = 0; i < N; i++) {
+      ATA[i][i] += mu * 6
+      const i1 = (i + 1) % N
+      const im1 = (i - 1 + N) % N
+      const i2 = (i + 2) % N
+      const im2 = (i - 2 + N) % N
+      ATA[i][i1] += mu * -4
+      ATA[i][im1] += mu * -4
+      ATA[i][i2] += mu * 1
+      ATA[i][im2] += mu * 1
+    }
   }
 
   const aug: number[][] = Array.from({ length: N }, (_, i) => [
@@ -217,6 +243,7 @@ export const reconstructBubbleThickness = (
 ): BubbleReconstructionResult => {
   const numBins = options?.numBins ?? 48
   const lambda = options?.lambda ?? 1e-4
+  const mu = options?.mu ?? 0.1
   const processFactor = options?.processDeformationFactor ?? 1.02
   const binWidthDeg = 360 / numBins
 
@@ -233,7 +260,13 @@ export const reconstructBubbleThickness = (
     numBins,
     processFactor
   )
-  const profile = solveNormalEquations(A, b, lambda)
+  const rawProfile = solveNormalEquations(A, b, lambda, mu)
+
+  // 业务级非负投影：f(θ) 是单层膜厚，物理上不能为负
+  // L2 正则化不保证非负解（正定矩阵的逆可以有负元素），病态数据下原始解
+  // 可能用负值 bin 去"补偿"其他 bin 的偏差——物理上无意义
+  // 这里做一次非负投影 + 基于投影后的 profile 重算残差，残差才是诚实的
+  const profile: number[] = rawProfile.map((v) => (v > 0 ? v : 0))
 
   const residuals: number[] = new Array(measurements.length).fill(0)
   let sumSq = 0

@@ -9,6 +9,11 @@ import { setupConsoleFileLogger } from './consoleFileLogger.ts'
 globalThis.__dirname = dirname(fileURLToPath(import.meta.url))
 process.env.APP_ROOT = path.join(globalThis.__dirname, '..')
 
+// 拖动性能:开启 GPU 栅格化 + 解除帧率上限,确保 Chromium 合成器在窗口拖拽期间
+// 能保持高帧率提交 compositor frame。必须早于 app.ready 注册。
+app.commandLine.appendSwitch('enable-gpu-rasterization')
+app.commandLine.appendSwitch('disable-frame-rate-limit')
+
 // 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
 export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')

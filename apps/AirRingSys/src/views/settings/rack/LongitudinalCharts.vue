@@ -36,19 +36,7 @@ const loading = ref(false)
 const displayMode = ref<'single' | 'round'>('single')
 const sweeps = ref<SweepData[]>([])
 const currentIndex = ref(0)
-const maxPulse = ref(7000)
 const thicknessCfg = ref<ThicknessConfig>({ airAD: 50300, gain: 1.0 })
-
-async function loadMaxPulse() {
-  try {
-    const result = (await window.ipcApi.invoke(
-      'config-get-calibration-results'
-    )) as { frameLengthPulse?: number }
-    if (result?.frameLengthPulse && result.frameLengthPulse > 0) {
-      maxPulse.value = result.frameLengthPulse
-    }
-  } catch {}
-}
 
 async function loadThicknessConfig() {
   try {
@@ -73,7 +61,8 @@ function detectDirection(points: number[][]): 'forward' | 'backward' {
 
 const navIndex = computed(() => {
   if (sweeps.value.length === 0) return 0
-  if (displayMode.value === 'single') return sweeps.value.length - currentIndex.value
+  if (displayMode.value === 'single')
+    return sweeps.value.length - currentIndex.value
   return Math.floor((sweeps.value.length - 1 - currentIndex.value) / 2) + 1
 })
 
@@ -124,39 +113,7 @@ const displaySweeps = computed(() => {
     : ([other, cur].filter(Boolean) as SweepData[])
 })
 
-const chartOption = computed<echarts.EChartsCoreOption>(() => ({
-  tooltip: {
-    trigger: 'axis',
-    formatter(params: unknown) {
-      const items = params as { seriesName: string; data: [number, number, number]; color: string }[]
-      if (!items.length) return ''
-      const pos = items[0].data[0]
-      let html = `<div style="font-weight:bold;margin-bottom:4px">位置 ${pos} pulse</div>`
-      for (const s of items) {
-        const ad = s.data[1]
-        const ts = s.data[2]
-        const timeStr = ts > 0 ? new Date(ts).toLocaleString() : '—'
-        const thick = calcThickness(ad, thicknessCfg.value)
-        html += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0">
-          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color}"></span>
-          ${s.seriesName} <span style="color:#909399;font-size:11px">${timeStr}</span> AD <b>${ad}</b> 厚度 <b>${thick.toFixed(2)}μm</b>
-        </div>`
-      }
-      return html
-    },
-  },
-  legend: { data: ['正程', '逆程'] },
-  grid: { left: 50, right: 40, top: 40, bottom: 40 },
-  xAxis: { type: 'value', name: '位置(pulse)', min: 0, max: maxPulse.value },
-  yAxis: { type: 'value', name: 'AD', splitLine: { show: true } },
-  series: [
-    { name: '正程', type: 'line', showSymbol: false, data: [] },
-    { name: '逆程', type: 'line', showSymbol: false, data: [] },
-  ],
-}))
-const { updateCharts } = useChartsInit('chartRef', chartOption.value)
-
-function buildSeries() {
+const chartOption = computed<echarts.EChartsCoreOption>(() => {
   const fwdPoints: [number, number, number][] = []
   const bwdPoints: [number, number, number][] = []
   for (const s of displaySweeps.value) {
@@ -165,28 +122,53 @@ function buildSeries() {
   }
   fwdPoints.sort((a, b) => a[0] - b[0])
   bwdPoints.sort((a, b) => a[0] - b[0])
-  updateCharts({ series: [{ data: fwdPoints }, { data: bwdPoints }] })
-}
+  return {
+    tooltip: {
+      trigger: 'axis',
+      formatter(params: unknown) {
+        const items = params as {
+          seriesName: string
+          data: [number, number, number]
+          color: string
+        }[]
+        if (!items.length) return ''
+        const pos = items[0].data[0]
+        let html = `<div style="font-weight:bold;margin-bottom:4px">位置 ${pos} pulse</div>`
+        for (const s of items) {
+          const ad = s.data[1]
+          const ts = s.data[2]
+          const timeStr = ts > 0 ? new Date(ts).toLocaleString() : '—'
+          const thick = calcThickness(ad, thicknessCfg.value)
+          html += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color}"></span>
+            ${s.seriesName} <span style="color:#909399;font-size:11px">${timeStr}</span> AD <b>${ad}</b> 厚度 <b>${thick.toFixed(2)}μm</b>
+          </div>`
+        }
+        return html
+      },
+    },
+    legend: { data: ['正程', '逆程'] },
+    grid: { left: 50, right: 40, top: 40, bottom: 40 },
+    xAxis: { type: 'value', name: '位置(pulse)', min: 0 },
+    yAxis: { type: 'value', name: 'AD', splitLine: { show: true } },
+    series: [
+      { name: '正程', type: 'line', showSymbol: false, data: fwdPoints },
+      { name: '逆程', type: 'line', showSymbol: false, data: bwdPoints },
+    ],
+  }
+})
+const { updateCharts } = useChartsInit('chartRef', chartOption.value)
 
 watch(
-  displaySweeps,
-  () => {
-    buildSeries()
+  chartOption,
+  (val) => {
+    updateCharts(val, true)
   },
   { deep: true }
 )
-watch(displayMode, () => {
-  buildSeries()
-})
 
 // ── Real-time ──
-let collector = createThicknessCollector(maxPulse.value)
-
-watch(maxPulse, (val) => {
-  updateCharts({ xAxis: { max: val } } as any)
-  sweeps.value = []
-  collector = createThicknessCollector(val)
-})
+let collector = createThicknessCollector()
 
 function handleRealtimeData(
   _: unknown,
@@ -222,9 +204,11 @@ async function loadHistoricalData(beforeTs?: number) {
       HISTORY_PAGE_SIZE,
       beforeTs
     )) as SweepRow[]
-    const mapped = rows.map(r => ({
+    const mapped = rows.map((r) => ({
       direction: r.direction,
-      points: r.points.map(p => [p.pos, p.ad, p.ts] as [number, number, number]),
+      points: r.points.map(
+        (p) => [p.pos, p.ad, p.ts] as [number, number, number]
+      ),
     }))
     if (beforeTs && beforeTs > 0) {
       if (mapped.length === 0) {
@@ -279,7 +263,10 @@ function prevSweep() {
 
 function nextSweep() {
   const step = displayMode.value === 'round' ? 2 : 1
-  currentIndex.value = Math.min(currentIndex.value + step, sweeps.value.length - 1)
+  currentIndex.value = Math.min(
+    currentIndex.value + step,
+    sweeps.value.length - 1
+  )
 }
 
 // ── Connection ──
@@ -306,8 +293,7 @@ function handleStatus(_msg: unknown, payload: { connected: boolean }) {
 
 onMounted(async () => {
   await checkConnection()
-  loadMaxPulse()
-  loadThicknessConfig()
+  await loadThicknessConfig()
   window.ipcApi.on('adbox-status', handleStatus)
   if (isConnected.value) {
     window.ipcApi.on('adbox-data', handleRealtimeData)
@@ -330,12 +316,20 @@ onUnmounted(() => {
         isConnected ? '测厚仪已连接 — 实时数据' : '离线模式 — 历史数据'
       }}</span>
       <span v-if="!isConnected" class="nav-controls">
-        <button :disabled="sweeps.length === 0 || (currentIndex < (displayMode === 'round' ? 2 : 1) && !hasOlderData)" @click="prevSweep">
+        <button
+          :disabled="
+            sweeps.length === 0 ||
+            (currentIndex < (displayMode === 'round' ? 2 : 1) && !hasOlderData)
+          "
+          @click="prevSweep"
+        >
           上一幅
         </button>
         <span class="nav-info">{{ sweeps.length > 0 ? navIndex : 0 }}</span>
         <button
-          :disabled="currentIndex >= sweeps.length - (displayMode === 'round' ? 2 : 1)"
+          :disabled="
+            currentIndex >= sweeps.length - (displayMode === 'round' ? 2 : 1)
+          "
           @click="nextSweep"
         >
           下一幅
