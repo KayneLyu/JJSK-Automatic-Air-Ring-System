@@ -7,6 +7,7 @@ import {
   type MeasurementTriple,
 } from './bubbleThicknessReconstruction'
 import { trapezoidalPosition } from './upperRotation/upperRotation.evaluation'
+import { detectBimodalThreshold } from './buildTripSegment'
 
 const LOGS_DIR =
   process.env.AIR_RING_LOGS_DIR ?? 'C:/Users/zane/Downloads/logs'
@@ -265,70 +266,6 @@ const inferMembraneWidthMm = (
 }
 
 /**
- * 双峰阈值检测：从厚度分布中检测出界点的阈值。
- *
- * 测厚仪超出膜范围时，辐射穿透率高 → AD 值显著高于在界值，
- * 形成双峰分布。以两个峰之间的谷底作为出界阈值。
- *
- * 与 buildTripSegment.ts 中的 detectBimodalThreshold 逻辑一致。
- */
-const detectOutOfBoundsThreshold = (probeValues: number[]): number | null => {
-  if (probeValues.length < 100) return null
-
-  const sorted = [...probeValues].sort((a, b) => a - b)
-  const p01 = sorted[Math.floor(sorted.length * 0.01)]
-  const p99 = sorted[Math.floor(sorted.length * 0.99)]
-  const range = p99 - p01
-  if (range <= 0) return null
-
-  const NUM_BINS = 50
-  const binWidth = range / NUM_BINS
-  const hist = new Array(NUM_BINS).fill(0)
-
-  for (const v of probeValues) {
-    const bin = Math.min(
-      Math.floor((v - p01) / binWidth),
-      NUM_BINS - 1
-    )
-    hist[bin]++
-  }
-
-  let maxCount = 0
-  let peakBin = 0
-  for (let i = 0; i < NUM_BINS; i++) {
-    if (hist[i] > maxCount) {
-      maxCount = hist[i]
-      peakBin = i
-    }
-  }
-
-  let valleyBin = -1
-  let valleyCount = Infinity
-  const startBin = Math.max(peakBin + 3, Math.floor(NUM_BINS * 0.3))
-  const endBin = Math.min(NUM_BINS - 3, Math.floor(NUM_BINS * 0.9))
-
-  for (let i = startBin; i < endBin; i++) {
-    if (hist[i] < valleyCount) {
-      valleyCount = hist[i]
-      valleyBin = i
-    }
-  }
-
-  if (valleyBin < 0) return null
-
-  // 谷底密度须明显低于峰值（<20%），且右侧存在可检测的峰
-  if (valleyCount > maxCount * 0.2) return null
-
-  let rightPeak = 0
-  for (let i = valleyBin + 1; i < NUM_BINS; i++) {
-    if (hist[i] > rightPeak) rightPeak = hist[i]
-  }
-  if (rightPeak < 0.02 * maxCount) return null
-
-  return p01 + (valleyBin + 0.5) * binWidth
-}
-
-/**
  * 过滤出界点：基于双峰阈值 + IQR 扫描仪位置
  * 返回过滤后的三元组 + 估计的扫描仪中心位置
  */
@@ -347,7 +284,7 @@ const filterOutOfBounds = (
 
   // 双峰阈值检测
   const probeValues = triples.map((t) => t.thickness)
-  const threshold = detectOutOfBoundsThreshold(probeValues)
+  const threshold = detectBimodalThreshold(probeValues)
 
   const halfWidth = membraneWidthMm / 2
   const filtered: MeasurementTriple[] = []

@@ -175,7 +175,7 @@ const detectOtsuThreshold = (
  *
  * @returns 阈值，若无明显双峰分布则返回 null
  */
-const detectBimodalThreshold = (ys: number[]): number | null => {
+export const detectBimodalThreshold = (ys: number[]): number | null => {
   const histogram = buildHistogram(ys)
   if (!histogram) return null
 

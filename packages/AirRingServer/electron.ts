@@ -46,3 +46,4 @@ export {
   type UpperRotationOffsetMode,
   type UpperRotationStrategyProfile,
 } from './algorithms/upperRotation/upperRotation'
+export { detectBimodalThreshold } from './algorithms/buildTripSegment'
