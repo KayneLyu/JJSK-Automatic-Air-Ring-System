@@ -3,29 +3,55 @@ import { ref, watch } from 'vue';
 import LoopCharts from './loop-charts.vue';
 import { useFrameStore } from '@/store/frame.ts';
 import dayjs from 'dayjs';
-import { db } from '@/utils/dexie.ts';
 import FrameInfo from '@/components/frame-info.vue';
 
 const frameStore = useFrameStore()
 
 const frameData = ref<IFrameThickData | null>(null)
 
+function frameRowToThickData(row: any): IFrameThickData {
+  return {
+    frameId: row.frameId,
+    startTime: row.startTime,
+    endTime: row.endTime,
+    startTimestamp: row.startTimestamp,
+    endTimestamp: row.endTimestamp,
+    speed: row.speed,
+    width: row.width,
+    rotateSpeed: row.rotateSpeed,
+    sigmaVal: row.sigmaVal,
+    sigmaPercent: row.sigmaPercent,
+    mean: row.mean,
+    minVal: row.minVal,
+    minPercent: row.minPercent,
+    maxVal: row.maxVal,
+    maxPercent: row.maxPercent,
+    IsBackw: row.IsBackw === 1,
+    datalist: row.datalist ? JSON.parse(row.datalist) : [],
+    rawDatalist: row.rawDatalist ? JSON.parse(row.rawDatalist) : [],
+    source: row.source as IFrameThickData['source'],
+    airAD: row.airAD,
+    gain: row.gain,
+  }
+}
+
 const getLastFrameData = async () => {
   try {
-    const result = await db.Frame.orderBy('endTime').reverse().first()
+    const result = await (window.ipcApi as any).invoke('db-get-latest-frame')
     if (result) {
-      let formatData = result.datalist.map((item, index) => {
-        const value = (((<number>item - result.mean) / result.mean) * 100).toFixed(1)
+      const thick = frameRowToThickData(result)
+      const formatData = thick.datalist.map((item, index) => {
+        const value = (((<number>item - thick.mean) / thick.mean) * 100).toFixed(1)
         if (index === 119) {
-          const zeroValue = (((<number>result.datalist[0] - result.mean) / result.mean) * 100).toFixed(1)
+          const zeroValue = (((<number>thick.datalist[0] - thick.mean) / thick.mean) * 100).toFixed(1)
           return [Number(zeroValue), 0]
         }
         return [Number(value), index]
       })
-      frameData.value = { ...result, datalist: formatData as Array<[number, number]>}
+      frameData.value = { ...thick, datalist: formatData as Array<[number, number]>}
     }
-  } catch (error) {
-    console.error('loop error get data from dexie');
+  } catch {
+    console.error('loop error get data from IPC');
   }
 }
 

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>膜泡 360° 单层厚度分布</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  #wrapper { text-align: center; }
+  canvas {
+    background: #16213e;
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  }
+  .legend-panel {
+    margin-top: 12px;
+    display: flex;
+    gap: 32px;
+    justify-content: center;
+    color: #ccc;
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .legend-color { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
+  .legend-swatch { width: 20px; height: 4px; border-radius: 2px; display: inline-block; }
+  .legend-detail { font-size: 12px; color: #999; margin-left: 26px; }
+</style>
+</head>
+<body>
+<div id="wrapper">
+  <canvas id="polar" width="800" height="800"></canvas>
+  <div class="legend-panel" id="legend"></div>
+</div>
+
+<script>
+(function () {
+  var canvas = document.getElementById('polar');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+  var cx = W / 2, cy = H / 2;
+
+  // ── Embedded CSV data ─────────────────────────────────────
+  var may22Raw = "binIndex,angleDeg,thickness\n0,0.00,4896.748\n1,7.50,4910.476\n2,15.00,4849.083\n3,22.50,4755.183\n4,30.00,4671.101\n5,37.50,4623.696\n6,45.00,4616.872\n7,52.50,4634.305\n8,60.00,4650.543\n9,67.50,4645.226\n10,75.00,4613.945\n11,82.50,4570.901\n12,90.00,4542.115\n13,97.50,4552.167\n14,105.00,4610.336\n15,112.50,4702.469\n16,120.00,4792.630\n17,127.50,4834.534\n18,135.00,4788.611\n19,142.50,4638.024\n20,150.00,4397.136\n21,157.50,4108.760\n22,165.00,3830.921\n23,172.50,3617.983\n24,180.00,3503.252\n25,187.50,3489.524\n26,195.00,3550.917\n27,202.50,3644.817\n28,210.00,3728.899\n29,217.50,3776.304\n30,225.00,3783.128\n31,232.50,3765.695\n32,240.00,3749.457\n33,247.50,3754.774\n34,255.00,3786.055\n35,262.50,3829.099\n36,270.00,3857.885\n37,277.50,3847.833\n38,285.00,3789.664\n39,292.50,3697.531\n40,300.00,3607.370\n41,307.50,3565.466\n42,315.00,3611.389\n43,322.50,3761.976\n44,330.00,4002.864\n45,337.50,4291.240\n46,345.00,4569.079\n47,352.50,4782.017";
+  var june10Raw = "binIndex,angleDeg,thickness\n0,0.00,5405.222\n1,7.50,5409.077\n2,15.00,5336.666\n3,22.50,5204.525\n4,30.00,5038.918\n5,37.50,4868.854\n6,45.00,4718.703\n7,52.50,4602.407\n8,60.00,4520.767\n9,67.50,4462.494\n10,75.00,4408.672\n11,82.50,4339.341\n12,90.00,4240.351\n13,97.50,4108.576\n14,105.00,3953.986\n15,112.50,3797.963\n16,120.00,3668.266\n17,127.50,3591.933\n18,135.00,3588.038\n19,142.50,3662.235\n20,150.00,3804.584\n21,157.50,3991.296\n22,165.00,4190.000\n23,172.50,4367.186\n24,180.00,4495.925\n25,187.50,4561.877\n26,195.00,4566.059\n27,202.50,4523.696\n28,210.00,4459.517\n29,217.50,4400.794\n30,225.00,4369.993\n31,232.50,4379.014\n32,240.00,4426.512\n33,247.50,4498.990\n34,255.00,4575.296\n35,262.50,4633.240\n36,270.00,4656.498\n37,277.50,4639.850\n38,285.00,4591.296\n39,292.50,4530.406\n40,300.00,4483.308\n41,307.50,4475.630\n42,315.00,4525.269\n43,322.50,4636.964\n44,330.00,4800.132\n45,337.50,4990.630\n46,345.00,5176.021\n47,352.50,5323.023";
+
+  function parseCSV(raw) {
+    var lines = raw.split('\n');
+    var data = [];
+    for (var i = 1; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      var cols = line.split(',');
+      data.push({
+        idx: parseInt(cols[0], 10),
+        ang: parseFloat(cols[1]),
+        thk: parseFloat(cols[2])
+      });
+    }
+    return data;
+  }
+
+  var may22 = parseCSV(may22Raw);
+  var june10 = parseCSV(june10Raw);
+
+  // ── Metrics ───────────────────────────────────────────────
+  function computeRMS(d) {
+    var mean = d.reduce(function(s, p) { return s + p.thk; }, 0) / d.length;
+    var sq = d.reduce(function(s, p) { var e = p.thk - mean; return s + e * e; }, 0) / d.length;
+    return Math.sqrt(sq);
+  }
+
+  var may22Width = 1850;
+  var june10Width = 1865;
+  var may22RMS = computeRMS(may22);
+  var june10RMS = computeRMS(june10);
+
+  var datasets = [
+    { label: 'May 22',  color: '#3b82f6', data: may22,  rms: may22RMS,  width: may22Width },
+    { label: 'June 10', color: '#ef4444', data: june10, rms: june10RMS, width: june10Width },
+  ];
+
+  // ── Legend ────────────────────────────────────────────────
+  var legendEl = document.getElementById('legend');
+  legendEl.innerHTML = datasets.map(function(ds) {
+    return '<div class="legend-item">' +
+      '<div class="legend-color"><span class="legend-swatch" style="background:' + ds.color + '"></span>' + ds.label + '</div>' +
+      '<div class="legend-detail">重建 RMS 误差: ' + ds.rms.toFixed(1) + ' AD | 膜泡宽度: ' + ds.width + ' mm</div>' +
+    '</div>';
+  }).join('');
+
+  // ── Radial range ──────────────────────────────────────────
+  var allThk = [];
+  for (var i = 0; i < may22.length; i++) allThk.push(may22[i].thk);
+  for (var i = 0; i < june10.length; i++) allThk.push(june10[i].thk);
+  var minThk = Math.min.apply(null, allThk);
+  var maxThk = Math.max.apply(null, allThk);
+  var rGridStep = 1000;
+  var rMin = Math.floor(minThk / rGridStep) * rGridStep;
+  var rMax = Math.ceil(maxThk / rGridStep) * rGridStep;
+  var maxRadius = 320;
+
+  function thkToRadius(thk) {
+    return ((thk - rMin) / (rMax - rMin)) * maxRadius;
+  }
+
+  ctx.clearRect(0, 0, W, H);
+
+  // ── Title ─────────────────────────────────────────────────
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px "Segoe UI", "Microsoft YaHei", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('膜泡 360° 单层厚度分布', cx, 28);
+
+  // ── Unit note ─────────────────────────────────────────────
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '12px "Segoe UI", "Microsoft YaHei", sans-serif';
+  ctx.fillText('厚度单位为原始 AD 计数 (非 µm)', cx, 48);
+
+  // ── Polar grid circles ────────────────────────────────────
+  var gridCycles = (rMax - rMin) / rGridStep;
+  for (var k = 0; k <= gridCycles; k++) {
+    var thk = rMin + k * rGridStep;
+    var r = thkToRadius(thk);
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // grid label (top)
+    ctx.save();
+    ctx.translate(cx, cy - r);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(thk + ' AD', 0, -3);
+    ctx.restore();
+  }
+
+  // ── Radial lines for 0/90/180/270 ─────────────────────────
+  var angleMarks = [0, 90, 180, 270];
+  for (var a = 0; a < angleMarks.length; a++) {
+    var angDeg = angleMarks[a];
+    var rad = angDeg * Math.PI / 180;
+    // canvas: 0° at top, clockwise
+    var dx = Math.cos(-rad + Math.PI / 2);
+    var dy = -Math.sin(-rad + Math.PI / 2);
+
+    // line
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + maxRadius * dx, cy + maxRadius * dy);
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // label
+    var ll = maxRadius + 20;
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(angDeg + '°', cx + ll * dx, cy + ll * dy);
+  }
+
+  // ── Draw data curves ──────────────────────────────────────
+  for (var d = 0; d < datasets.length; d++) {
+    var ds = datasets[d];
+    ctx.beginPath();
+    for (var i = 0; i < ds.data.length; i++) {
+      var pt = ds.data[i];
+      var rad = pt.ang * Math.PI / 180;
+      var r = thkToRadius(pt.thk);
+      var x = cx + r * Math.cos(-rad + Math.PI / 2);
+      var y = cy - r * Math.sin(-rad + Math.PI / 2);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    // close loop back to first point
+    var pt0 = ds.data[0];
+    var rad0 = pt0.ang * Math.PI / 180;
+    var r0 = thkToRadius(pt0.thk);
+    ctx.lineTo(cx + r0 * Math.cos(-rad0 + Math.PI / 2), cy - r0 * Math.sin(-rad0 + Math.PI / 2));
+
+    ctx.strokeStyle = ds.color;
+    ctx.lineWidth = 2.5;
+    ctx.globalAlpha = 0.9;
+    ctx.stroke();
+
+    // fill
+    ctx.lineTo(cx, cy);
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = ds.color;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // ── Center dot ────────────────────────────────────────────
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.fill();
+})();
+</script>
+</body>
+</html>

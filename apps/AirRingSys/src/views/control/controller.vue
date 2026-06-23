@@ -57,8 +57,10 @@ const toggleAutoMode = async () => {
           </template>
           <div class="status_container">
             <div @click="toggleAutoMode" class="auto_status">
-              <el-icon size="50"
-                :style="{ color: store.apiAirRingData.IsAuto ? '#34e53a' : '', filter: store.apiAirRingData.IsAuto ? 'drop-shadow(0 0 5px rgba(30, 217, 39, 0.617)' : '' }">
+              <el-icon
+                size="50"
+                :class="['auto-icon', { 'auto-icon-on': store.apiAirRingData.IsAuto }]"
+              >
                 <AutoIcon />
               </el-icon>
               <p>{{ $t("control.autoMode") }}</p>
@@ -180,6 +182,11 @@ const toggleAutoMode = async () => {
   .auto_status {
     cursor: pointer;
     text-align: center;
+  }
+
+  .auto-icon-on {
+    color: #34e53a;
+    filter: drop-shadow(0 0 5px rgba(30, 217, 39, 0.617));
   }
 
   .save_channel {

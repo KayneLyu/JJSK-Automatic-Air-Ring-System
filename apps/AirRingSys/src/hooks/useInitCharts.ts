@@ -1,4 +1,11 @@
-import { ref, onBeforeUnmount, watch, useTemplateRef, onMounted } from 'vue'
+import {
+  ref,
+  onBeforeUnmount,
+  watch,
+  useTemplateRef,
+  onMounted,
+  nextTick,
+} from 'vue'
 import * as echarts from 'echarts/core'
 import { useConfigStore } from '@/store/config.ts'
 import type { EChartsCoreOption } from 'echarts/core'
@@ -10,7 +17,8 @@ type IPropsDta = {
 const useInitCharts = (
   containerName: string,
   options: EChartsCoreOption,
-  props?: IPropsDta
+  props?: IPropsDta,
+  onReady?: (chart: echarts.ECharts) => void
 ) => {
   const { t } = useI18n()
   const brushList = ref<number[]>([])
@@ -20,39 +28,43 @@ const useInitCharts = (
   const store = useConfigStore()
   // 初始化图表
   const initChart = () => {
-    if (chartRef.value) {
-      try {
-        chartInstanceRef = echarts.init(
-          chartRef.value,
-          store.isDark ? 'dark' : ''
-        )
-        chartInstanceRef.setOption(options)
-        if (props && props.frameData) {
-          chartInstanceRef.setOption({
-            series: [{ data: props.frameData }],
-          })
-        }
-      } catch (error) {
-        showNotification(
-          t('notification.info'),
-          t('notification.initError'),
-          'error'
-        )
-      }
-      // 创建 ResizeObserver 实例并添加监听（只在初始化时进行）
-      if (!observer) {
-        observer = new ResizeObserver(() => {
-          if (chartInstanceRef) {
-            chartInstanceRef.resize()
-          }
+    if (!chartRef.value) return
+    const el = chartRef.value
+    // flex 子元素 onMounted 时父容器可能还没算完尺寸 → 0×0
+    // 等 nextTick + RAF 拿到真实布局后再 init
+    if (el.clientWidth === 0 || el.clientHeight === 0) {
+      requestAnimationFrame(() => initChart())
+      return
+    }
+    try {
+      chartInstanceRef = echarts.init(el, store.isDark ? 'dark' : '')
+      chartInstanceRef.setOption(options)
+      if (props && props.frameData) {
+        chartInstanceRef.setOption({
+          series: [{ data: props.frameData }],
         })
-        observer.observe(chartRef.value)
       }
+      onReady?.(chartInstanceRef)
+    } catch (error) {
+      showNotification(
+        t('notification.info'),
+        t('notification.initError'),
+        'error'
+      )
+    }
+    // 创建 ResizeObserver 实例并添加监听（只在初始化时进行）
+    if (!observer) {
+      observer = new ResizeObserver(() => {
+        if (chartInstanceRef) {
+          chartInstanceRef.resize()
+        }
+      })
+      observer.observe(el)
     }
   }
-  const updateCharts = (newOptions: EChartsCoreOption) => {
+  const updateCharts = (newOptions: EChartsCoreOption, notMerge = false) => {
     if (chartRef.value) {
-      chartInstanceRef?.setOption(newOptions)
+      chartInstanceRef?.setOption(newOptions, notMerge)
     }
   }
 
@@ -110,7 +122,8 @@ const useInitCharts = (
   )
 
   onMounted(() => {
-    initChart()
+    // 等下一帧 layout 稳定后再 init，否则 flex 子元素 clientWidth/Height 还是 0
+    nextTick(() => initChart())
   })
 
   // 在组件卸载前，清理相关资源

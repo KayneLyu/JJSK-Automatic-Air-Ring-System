@@ -35,6 +35,13 @@ export default defineConfig({
     electronSimple({
       main: {
         entry: 'electron/main.ts',
+        vite: {
+          build: {
+            rollupOptions: {
+              external: ['better-sqlite3'],
+            },
+          },
+        },
       },
       preload: {
         input: path.join(__dirname, 'electron/preload.ts'),
@@ -45,7 +52,6 @@ export default defineConfig({
           : {},
     }),
     // Worker 线程脚本独立打包，输出到 dist-electron/calibrationWorker.js
-    // new Worker(__dirname + '/calibrationWorker.js') 在运行时按此路径加载
     ...electron([
       {
         entry: 'electron/calibrationWorker.ts',

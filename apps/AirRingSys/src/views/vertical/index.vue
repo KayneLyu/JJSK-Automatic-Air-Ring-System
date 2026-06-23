@@ -1,10 +1,10 @@
-<script setup lang='ts'>
-import { ref } from 'vue';
-import CharsOperate from "@/components/CharsOperate.vue";
-import useOperateCharts from '@/hooks/useOperateCharts.ts';
-import VerticalCharts from './vertical-charts.vue';
-import FrameInfo from '@/components/frame-info.vue';
-import FrameCharts from './frame-charts.vue';
+<script setup lang="ts">
+import { ref } from 'vue'
+import CharsOperate from '@/components/CharsOperate.vue'
+import useOperateCharts from '@/hooks/useOperateCharts.ts'
+import VerticalCharts from './vertical-charts.vue'
+import FrameInfo from '@/components/frame-info.vue'
+import FrameCharts from './frame-charts.vue'
 
 const {
   sigmaDataList,
@@ -18,8 +18,8 @@ const {
   getTrendDataList,
   nextPageQuery,
   changeStep,
-  changeCurrentIndex
-} = useOperateCharts();
+  changeCurrentIndex,
+} = useOperateCharts()
 
 const trendInfo = ref({
   maxValue: 0,
@@ -28,34 +28,43 @@ const trendInfo = ref({
   min: 0,
   max: 0,
   startTime: '',
-  endTime: ''
+  endTime: '',
 })
-
 </script>
 
 <template>
   <div class="vertical">
-    <CharsOperate :currentId="currentId" :isFreshData="isFreshData" :last-frame-id="lastFrameId"
-      :lastFrameIndex="queryDataList.length" :current-index="currentIndex" :changeStep="changeStep"
-      :next-page-query="nextPageQuery" :get-trend-data-list="getTrendDataList" />
+    <CharsOperate
+      :currentId="currentId"
+      :isFreshData="isFreshData"
+      :last-frame-id="lastFrameId"
+      :lastFrameIndex="queryDataList.length"
+      :current-index="currentIndex"
+      :changeStep="changeStep"
+      :next-page-query="nextPageQuery"
+      :get-trend-data-list="getTrendDataList"
+    />
     <div class="vertical_charts">
       <el-card class="charts_container">
-        <VerticalCharts :frameIndex="currentIndex" :frameID="currentId" :trend-info="trendInfo"
-          :sigma-data="sigmaDataList" 
-          :frameData="meanDataList" 
-          :handleCurrent="changeCurrentIndex" 
+        <VerticalCharts
+          :frameIndex="currentIndex"
+          :frameID="currentId"
+          :trend-info="trendInfo"
+          :sigma-data="sigmaDataList"
+          :frameData="meanDataList"
+          :handleCurrent="changeCurrentIndex"
           :start-date="queryDataList[0]?.endTime"
           :end-date="queryDataList[queryDataList.length - 1]?.endTime"
-          />
+        />
       </el-card>
     </div>
 
     <div class="detail_charts">
-      <div style="height: 50px; line-height: 50px;">
+      <div style="height: 50px; line-height: 50px">
         <FrameInfo :thick-info="currentFrame" />
       </div>
       <el-card class="charts_container">
-        <FrameCharts 
+        <FrameCharts
           :currentId="currentFrame?.frameId"
           :startDate="currentFrame?.startTime"
           :endDate="currentFrame?.endTime"
@@ -125,6 +134,5 @@ const trendInfo = ref({
   flex-direction: column;
   margin-top: 10px;
   height: 28%;
-
 }
 </style>

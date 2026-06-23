@@ -81,6 +81,37 @@ export type ICalibrationControlResult = {
   error?: string
 }
 
+export type IManualCalibrationParams = {
+  tractionSpeed?: number
+  distance?: number
+  maxAngle?: number
+  mutationWindowSize?: number
+}
+
+export type IDeviceConstants = {
+  rollerMode: string
+  rollerValue: string
+  rollerNumCycles: string
+  airAD: string
+  materialGain: string
+  upperDeltaMin: string
+  upperDeltaMax: string
+  upperObjectiveMode: string
+  airDuctCount: string
+  systemAirDuct1Angle: string
+}
+
+export type ICalibrationResults = {
+  rollerTractionSpeed?: number
+  frameLengthMM?: number
+  frameLengthPulse?: number
+  mmPerPulse?: number
+  membraneWidthMm?: number
+  mutationWindowSize?: number
+  upperMaxAngle?: number
+  upperDistance?: number
+}
+
 export type ICalibrationBridgeState = {
   manualTractionSpeed?: number
   disturbanceTs: number
@@ -106,7 +137,18 @@ export interface IpcChannelMap {
   'adbox-connect': { args: []; output: [data: boolean] } // AD box 连接
   'adbox-run-result': { args: [data: RunResult]; output: [data: RunResult] } // AD box 运动结果
   'adbox-move-to': { args: [position: number]; output: [data: RunResult] } // AD box 移动到xx脉冲
-  'config-set-max-pulse': { args: [position: number]; output: [data: RunResult] } // AD box 设置最大脉冲值
+  'adbox-status': {
+    args: []
+    output: [{ connected: boolean }]
+  } // AD box 连接状态推送
+  'adbox-get-connection-status': {
+    args: []
+    output: boolean
+  } // AD box 连接状态
+  'config-set-max-pulse': {
+    args: [position: number]
+    output: [data: RunResult]
+  } // AD box 设置最大脉冲值
 
   'plc-controlData': {
     args: [data: IPlcControlResult]
@@ -137,10 +179,209 @@ export interface IpcChannelMap {
     args: []
     output: ICalibrationControlResult
   } // 沿用当前速度重新开始本次标定
+  'calibration-historical-progress': {
+    args: [data: IHistoricalCalibrationProgress]
+    output: [data: IHistoricalCalibrationProgress]
+  } // 历史数据标定进度推送
+  'calibration-feed-historical': {
+    args: [input: {
+      startMs: number
+      endMs: number
+      manualTractionSpeed?: number
+      disturbanceTs?: number
+    }]
+    output: ICalibrationControlResult & { result?: ICalibrationResult }
+  } // 从数据库历史数据标定
+  'calibration-get-manual-params': {
+    args: []
+    output: IManualCalibrationParams
+  } // 获取手动标定参数
+  'calibration-set-manual-params': {
+    args: [params: IManualCalibrationParams]
+    output: { success: boolean }
+  } // 保存手动标定参数
+  // 设备常量持久化
+  'config-get-device-constants': {
+    args: []
+    output: IDeviceConstants
+  }
+  'config-set-device-constants': {
+    args: [params: IDeviceConstants]
+    output: { success: boolean }
+  }
+  // 标定结果持久化
+  'config-get-calibration-results': {
+    args: []
+    output: ICalibrationResults
+  }
+  'config-set-calibration-results': {
+    args: [params: ICalibrationResults]
+    output: { success: boolean }
+  }
+  // 单参数独立标定（历史数据）
+  'calibration-run-traction-speed': {
+    args: [input: {
+      startMs: number
+      endMs: number
+      circumference: number
+      numCycles?: number
+    }]
+    output: { success: boolean; tractionSpeed?: number; error?: string }
+  }
+  'calibration-auto-traction-speed': {
+    args: [input: {
+      circumference: number
+      numCycles?: number
+    }]
+    output: { success: boolean; tractionSpeed?: number; source?: string; error?: string }
+  }
+  'calibration-run-mutation-window': {
+    args: [input: {
+      startMs: number
+      endMs: number
+      channelCount: number
+      alpha?: number
+    }]
+    output: { success: boolean; mutationWindowSize?: number; error?: string }
+  }
+  'calibration-run-max-angle': {
+    args: [input: {
+      startMs: number
+      endMs: number
+      deltaMin?: number
+      deltaMax?: number
+      objectiveMode?: string
+    }]
+    output: { success: boolean; maxAngle?: number; error?: string }
+  }
+  'calibration-max-angle-historical': {
+    args: [input: {
+      deltaMin?: number
+      deltaMax?: number
+      objectiveMode?: string
+    }]
+    output: { success: boolean; maxAngle?: number; error?: string }
+  }
+  'calibration-run-distance': {
+    args: [input: {
+      startMs: number
+      endMs: number
+      tractionSpeed: number
+      disturbanceTs: number
+      windowSize: number
+      deviation?: number
+    }]
+    output: { success: boolean; distance?: number; error?: string }
+  }
+  // 膜宽标定：测厚仪最近 10 趟扫描，每趟做 AD 寻边（双峰阈值 + 首末在膜 pulse 位置）取中位数
+  'calibration-run-membrane-width': {
+    args: [input: {
+      mmPerPulse: number
+    }]
+    output: {
+      success: boolean
+      membraneWidthMm?: number
+      sampleCount?: number
+      sweepCount?: number
+      edgeSweepCount?: number
+      error?: string
+    }
+  }
   'ModBus-read': {
     args: [data: IPollingModBusData]
     output: [data: IPollingModBusData]
   } // 获取modbus轮询数据
+
+  // ═══ SQLite 历史数据查询 (数据管道) ═══
+  'db-get-thickness-raw': {
+    args: [startMs: number, endMs: number]
+    output: ThicknessRawRow[]
+  }
+  'db-get-latest-thickness-raw': {
+    args: [count: number]
+    output: ThicknessRawRow[]
+  }
+  'db-get-latest-sweeps': {
+    args: [count: number, beforeTs?: number]
+    output: SweepRow[]
+  }
+  'db-get-latest-sweeps-count': {
+    args: [mode: 'single' | 'round']
+    output: number
+  }
+  'db-get-frames': {
+    args: [startMs: number, endMs: number, count?: number]
+    output: FrameRow[]
+  }
+  'db-get-pipeline-stats': {
+    args: []
+    output: {
+      thicknessInRing: number
+      rotationInRing: number
+      thicknessTimeRange: { oldest: number | null; newest: number | null }
+    }
+  }
+  'db-import-sweep': {
+    args: [sweep: { pulses: number[]; adValues: number[]; airAD: number; gain: number; source: string }]
+    output: number
+  }
+
+  // ═══ 膜泡原始厚度重建（reconstructBubbleThickness）═══
+  'bubble-reconstruct': {
+    args: [
+      params: {
+        membraneWidthMm: number
+        thetaMaxDeg: number
+        mmPerPulse: number
+        airAD: number
+        gain: number
+        numBins?: number
+        processDeformationFactor?: number
+        startMs?: number
+        endMs?: number
+        useLatestWindowMs?: number
+      }
+    ]
+    output: BubbleReconstructionResult | null
+  }
+
+  // ═══ 膜泡厚度：按趟重建（每趟扫描 = 一幅 profile）═══
+  'bubble-get-sweeps': {
+    args: [
+      params: {
+        membraneWidthMm: number
+        thetaMaxDeg: number
+        mmPerPulse: number
+        airAD: number
+        gain: number
+        numBins?: number
+        processDeformationFactor?: number
+        startMs?: number
+        endMs?: number
+        useLatestWindowMs?: number
+        limit?: number
+      }
+    ]
+    output: BubbleSweepResult[]
+  }
+
+  // ═══ 膜泡厚度：最近 N 趟（分页模式）═══
+  'bubble-get-latest-sweeps': {
+    args: [
+      params: {
+        count: number
+        beforeTs?: number
+        membraneWidthMm: number
+        thetaMaxDeg: number
+        mmPerPulse: number
+        airAD: number
+        gain: number
+        numBins?: number
+        processDeformationFactor?: number
+      }
+    ]
+    output: BubbleSweepResult[]
+  }
 }
 
 // IPC 通道名
@@ -151,3 +392,75 @@ export type IpcChannelArgs<T extends IpcChannelName> = IpcChannelMap[T]['args']
 // 对应通道的返回值类型
 export type IpcChannelOutput<T extends IpcChannelName> =
   IpcChannelMap[T]['output']
+
+// ═══ SQLite 数据管道类型 (v3) ═══
+
+export interface ThicknessRawRow {
+  id: number
+  timestamp: number
+  pulse: number
+  ad: number
+  source: string
+  airAD: number
+  gain: number
+}
+
+export interface SweepPoint {
+  pos: number
+  ad: number
+  ts: number
+}
+
+export interface SweepRow {
+  direction: 'forward' | 'backward'
+  points: SweepPoint[]
+}
+
+export interface FrameRow {
+  frameId: number
+  startTime: string
+  endTime: string
+  startTimestamp: number
+  endTimestamp: number
+  speed: number
+  width: number
+  rotateSpeed: number
+  sigmaVal: number
+  sigmaPercent: number
+  mean: number
+  minVal: number
+  minPercent: number
+  maxVal: number
+  maxPercent: number
+  IsBackw: number
+  datalist: string
+  rawDatalist: string
+  source: string
+  airAD: number
+  gain: number
+}
+
+export interface IHistoricalCalibrationProgress {
+  processed: number
+  total: number
+}
+
+// ═══ reconstructBubbleThickness 输出类型 ═══
+export interface BubbleReconstructionResult {
+  profile: number[]
+  numBins: number
+  binWidthDeg: number
+  rmsError: number
+  maxError: number
+  numMeasurements: number
+  binCoverage: number[]
+  binTimestamps?: number[] // 每个 bin center 对应的采集时间戳 (ms)
+}
+
+// ═══ 一趟扫描（forward 或 reverse）的完整重建结果 ═══
+export interface BubbleSweepResult extends BubbleReconstructionResult {
+  id: string // 唯一 id：`sweep-{timestamp}-{direction}`
+  time: number // 这一趟的起点时间戳 (ms)
+  direction: 'forward' | 'reverse'
+  cycleDurationMs: number // 这一趟的实测时长
+}

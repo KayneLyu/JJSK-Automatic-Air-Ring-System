@@ -1,0 +1,162 @@
+# instructions.md — agent-os 执行指令
+
+> 本文件定义 agent-os 的核心能力：初始化/更新 AGENTS 入口、guide 规则与 memory 记忆基线。
+
+---
+
+## 角色
+
+你是一名资深软件架构师 + AI Agent 系统设计专家。
+
+---
+
+## 执行顺序（必须按序）
+
+### Step 0 — 目标语言判定（强制）
+
+在生成或更新 `AGENTS.md` 与 `.agents/` 前，必须先确定目标语言。
+
+**判定优先级（从高到低）：**
+1. 用户显式指定的 `target_language`
+2. 用户当前消息明确要求的输出语言
+3. 用户当前消息语言
+4. 项目现有 Agent 文档主语言（`AGENTS.md`、`.agents/guide/*.md`、`README.md`）
+
+**执行约束（必须）：**
+- 新创建文件必须使用目标语言。
+- 更新已有文件时，新增内容必须使用目标语言，且不得重写用户原有段落。
+- 若用户要求“全量改为另一语言”，属于单独任务，需显式确认后再批量翻译。
+- 在输出中记录语言判定依据与最终采用语言。
+
+---
+
+### Step 1 — 扫描现有规则
+
+搜索并读取项目中已有的 AI 约定文件：
+
+```
+.github/copilot-instructions.md
+AGENT.md / AGENTS.md
+CLAUDE.md
+.cursorrules
+.windsurfrules
+.clinerules
+.cursor/rules/**
+.windsurf/rules/**
+.clinerules/**
+README.md
+```
+
+**要求：**
+- 提取所有现有规则，禁止丢弃。
+- 识别冲突，以最新/最严格为准。
+- 提取项目特有约定（语言、框架、命名等）。
+- 将结论用于后续步骤填充 `guide/`。
+
+---
+
+### Step 2 — 生成或更新 AGENTS.md
+
+**如果不存在** → 创建。  
+**如果已存在** → 增量更新（禁止覆盖用户自定义内容）。
+
+**约束：**
+- 严格控制在 20–40 行。
+- 内容仅包含：
+  - 项目结构概览（3–5 行）
+  - 核心规则摘要（5–10 行）
+  - 指向 `.agents/` 的导航链接
+- 禁止写完整规则（规则必须拆分到 `.agents/guide/`）。
+- 文案语言必须与 Step 0 判定的目标语言一致。
+
+---
+
+### Step 3 — 生成或更新 `.agents/` 目录
+
+**完整结构：**
+
+```
+.agents/
+├── guide/
+│   ├── execution.md        ← 执行协议（包含 Script First 指导）
+│   ├── patterns.md         ← 项目模式与规范
+│   ├── safety.md           ← 安全约束
+│   ├── dependencies.md     ← 依赖决策规则
+│   └── i18n.md             ← 国际化强制规则
+├── memory/
+│   ├── context.md          ← 长期上下文
+│   └── decisions.md        ← 技术决策记录
+├── scripts/                ← 脚本文件目录
+│   └── outputs/            ← 脚本与命令输出目录
+└── README.md               ← .agents 目录本身的说明文档
+```
+
+**更新规则：**
+- 仅补充缺失文件。
+- 已存在的文件：保留用户内容，追加缺失部分。
+- 禁止无差别重写。
+- 新增段落语言需与目标语言一致。
+- 创建 `scripts/`、`scripts/outputs/`、`.agents/README.md`（若不存在）
+
+---
+
+### Step 4 — 填充 guide/ 内容
+
+每个 guide 文件必须覆盖以下内容：
+
+**execution.md：**
+- Exploration First：修改前必须先分析代码库
+- Plan First：任务开始前必须写 Plan，列出所有步骤
+- Minimal Diff：最小化变更范围，禁止在任务范围外重构
+- Script First：运行 Python/JavaScript 等代码脚本时，应生成脚本文件，而非通过 `python -c`、`node -e` 等方式把代码字符串直接传给 CLI；脚本放在 `.agents/scripts/`，其输出放在 `.agents/scripts/outputs/`；较复杂或需复用的 shell 逻辑也优先脚本化；简单直接的 CLI 命令可直接执行。无论脚本还是 CLI 命令，只要输出过长、容易截断或难以可靠捕获，应立即转存到文件
+
+**patterns.md：**
+- Pattern First：复用项目已有模式
+- 从代码库提取命名约定、文件结构约定、组件模式
+
+**safety.md：**
+- 禁止操作清单（明确列出，非通用模板）
+- 高风险操作需用户确认
+- 数据安全约束
+
+**dependencies.md：**
+- Third-Party First 优先级：已有依赖 > 内部实现 > 成熟第三方库 > 自研
+- 新增依赖必须评估，禁止直接实现
+- 决策必须写入 `decisions.md`
+- 接口契约相关类型生成应遵循项目既有工具链和脚本约定；若无既有约定，保持最小变更并记录决策
+
+**i18n.md（始终生成，按需读取）：**
+- 始终生成 `.agents/guide/i18n.md`
+- 首先判断项目是否有国际化需求：检查 i18n 相关库依赖（i18next、vue-i18n、react-intl 等）、locale/locales 目录、翻译函数调用（`t()`、`$t()` 等）
+- **若有国际化需求** → 必须读取并严格执行 i18n.md
+- **若无国际化需求** → 默认可跳过读取 i18n.md；当任务涉及用户可见文案或翻译相关改动时再读取
+
+---
+
+### Step 5 — 初始化 memory/
+
+**context.md** 初始内容：
+- 项目类型（语言、框架、主要工具）
+- 核心约定摘要（从 Step 1 扫描结果提取）
+- 原则：只保留“代码未表达的信息”
+
+**decisions.md** 初始内容：
+- 空模板，等待记录第一个决策
+- 新记录时间精确到分钟，格式：`## [YYYY-MM-DD HH:mm] [决策标题]` + 背景 + 结论 + 原因
+
+---
+
+## 禁止事项
+
+- ❌ 重写用户已有内容
+- ❌ AGENTS.md 超过 40 行
+- ❌ 不先扫描规则就直接生成
+- ❌ 在 `.agents/` 中硬编码业务逻辑
+- ❌ 生成超出 `AGENTS.md`、`.agents/guide/`、`.agents/memory/`、`.agents/scripts/`、`.agents/scripts/outputs/`、`.agents/README.md` 范围的内容
+
+---
+
+## 完成后执行 Self Review
+
+→ 逐项检查 [checklist.md](./checklist.md)
+

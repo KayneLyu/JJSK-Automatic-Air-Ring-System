@@ -1,5 +1,11 @@
 export {
   createCalibrationSession,
+  calibrateTractionSpeed,
+  calibrateMutationWindowSize,
+  detectMutation,
+  calibrateDistance,
+  buildTripSegments,
+  calibrateMaxAngle,
   type CalibrateResult,
   type CalibrateNextResult,
   type PendingAngleEstimate,
@@ -40,3 +46,4 @@ export {
   type UpperRotationOffsetMode,
   type UpperRotationStrategyProfile,
 } from './algorithms/upperRotation/upperRotation'
+export { detectBimodalThreshold } from './algorithms/buildTripSegment'

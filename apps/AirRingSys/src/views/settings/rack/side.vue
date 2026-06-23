@@ -92,6 +92,22 @@ export interface PollingResponse {
 
 const collector = createThicknessCollector()
 
+let pendingRaf: number | null = null
+let pendingPreview: [number, number][] | null = null
+let pendingDataList: [number, number][] | null = null
+
+const flushChart = () => {
+    pendingRaf = null
+    updateCharts({
+        series: [
+            { data: pendingPreview ?? [] },
+            { data: pendingDataList ?? dataList },
+        ],
+    })
+    pendingPreview = null
+    pendingDataList = null
+}
+
 
 const handleRealtimeThickness = (_: unknown, payload: IPollingModBusData | PushData | PushData[]) => {
     const data = normalizeThicknessRealtimePayload(payload)
@@ -112,16 +128,12 @@ const handleRealtimeThickness = (_: unknown, payload: IPollingModBusData | PushD
         dataList = fullData.map(item => [item.pulse, item.ad])
 
         // saveToJson(fullData)
+        pendingDataList = dataList
     }
-    updateCharts({
-        series: [
-            {
-                data: preview
-            },{
-                data: dataList,
-            }
-        ]
-    })
+    pendingPreview = preview
+    if (pendingRaf === null) {
+        pendingRaf = requestAnimationFrame(flushChart)
+    }
 }
 
 window.ipcApi.on("adbox-data", handleRealtimeThickness)
