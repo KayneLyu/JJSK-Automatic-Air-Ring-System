@@ -18,6 +18,28 @@
 
 **已知限制**：使用原始 AD 计数而非 µm、无出界过滤、thetaMax 为启发式估算
 
+### Phase 2.5 — 真实数据对齐验证（已完成 2026-06-24）
+1. [x] 添加 `predictMeasuredThickness` 公共函数（用 profile + α 计算预测 T）
+2. [x] 新建 `bubbleThicknessAlignment.test.ts`，输出 CSV + HTML 可视化
+3. [x] 揭示物理约束：180° 反对称分量在数学上不可观测
+4. [x] 实测数据中 92-97% 方差位于不可恢复子空间（May 22: 3.33%，June 10: 8.35%）
+5. [x] 在可恢复子空间内，模型捕获了 64-72% 的方差
+6. [x] 参数扫描确认 25 组 (lambda, mu) 极差仅 0.028%，算法已达 LSTSQ 理论上限
+7. [x] numBins 扫描确认 24→96 bins 仅提升 1.4 个百分点
+
+**关键结论**：
+- 当前算法对该数据是最优的，**调 lambda/mu 无效**
+- 63.51% (May 22) / 71.65% (June 10) 捕获率是 LSTSQ 框架的理论上限
+- 想突破必须跳出 LSTSQ 框架：时间模型 / Bayesian 先验 / 多传感器
+
+**关键产物**：
+- `bubbleThicknessReconstruction.ts:predictMeasuredThickness`
+- `algorithms/bubbleThicknessAlignment.test.ts`（5 个测试）
+- `tasks/.../outputs/alignment-{dataset}.{csv,html}`
+- `tasks/.../outputs/alignment-summary.csv`
+- `tasks/.../outputs/lambda-mu-sweep.csv`（25 组参数）
+- `tasks/.../outputs/numbins-sweep.csv`（5 组 bin 数）
+
 ### Phase 3 — 实时化（待启动）
 1. [ ] 增量更新：每完成一个扫描仪行程追加方程
 2. [ ] 滑动窗口：仅用最近 N 个行程

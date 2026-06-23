@@ -101,6 +101,51 @@ const buildLinearSystem = (
 }
 
 /**
+ * 给定重建后的单层厚度 profile，预测单个测量点的双层厚度 T_k
+ *
+ * 物理模型：
+ *   α_k = upperAngle_k + (scannerPos_k / membraneWidth) × 180°
+ *   T_k = processDeformationFactor × (f(α_k) + f(α_k + 180°))
+ *
+ * 使用与 `buildLinearSystem` 一致的双线性插值，保证预测与内部残差计算一致。
+ *
+ * @param profile 重建出的 N 维单层厚度数组（已含非负投影）
+ * @param measurement 单个测量三元组
+ * @param membraneWidthMm 膜宽（mm）
+ * @param processDeformationFactor 工艺变形因子（默认 1.02）
+ * @returns 预测的双层厚度
+ */
+export const predictMeasuredThickness = (
+  profile: number[],
+  measurement: MeasurementTriple,
+  membraneWidthMm: number,
+  processDeformationFactor: number = 1.02
+): number => {
+  const numBins = profile.length
+  const binWidth = 360 / numBins
+  const alpha = normalizeAngle(
+    measurement.upperAngleDeg + (measurement.scannerPosMm / membraneWidthMm) * 180
+  )
+  const beta = normalizeAngle(alpha + 180)
+
+  const alphaIdx = alpha / binWidth
+  const betaIdx = beta / binWidth
+  const alphaLo = Math.floor(alphaIdx) % numBins
+  const alphaHi = (alphaLo + 1) % numBins
+  const betaLo = Math.floor(betaIdx) % numBins
+  const betaHi = (betaLo + 1) % numBins
+  const alphaWeight = alphaIdx - Math.floor(alphaIdx)
+  const betaWeight = betaIdx - Math.floor(betaIdx)
+
+  const fAlpha =
+    profile[alphaLo] * (1 - alphaWeight) + profile[alphaHi] * alphaWeight
+  const fBeta =
+    profile[betaLo] * (1 - betaWeight) + profile[betaHi] * betaWeight
+
+  return (fAlpha + fBeta) * processDeformationFactor
+}
+
+/**
  * 求解稀疏线性系统最小二乘 (A^T A + λI + μ·D^T D) x = A^T b
  *
  * - λI: L2 正则化，保证数值稳定
