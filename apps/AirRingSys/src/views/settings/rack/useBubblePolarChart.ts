@@ -12,12 +12,10 @@ import useChartsInit from '@/hooks/useInitCharts'
 import type { BubbleSweepResult } from '@/types/ipc'
 import {
   EMPTY_POLAR_OPTION,
-  OVERLAY_OPACITY,
   directionColor,
   directionLabel,
   formatTime,
   isInProgress,
-  type ChartSweepData,
 } from './bubbleRawThickness.constants'
 
 // polar + clockwise:true 是 ECharts 里**唯一**能拿到顺时针角度布局的方式
@@ -46,29 +44,17 @@ interface AxisPointerLabelParam {
  */
 export function useBubblePolarChart(
   selectedSweep:
-    | Ref<ChartSweepData | null>
-    | (() => ChartSweepData | null),
-  overlaySweeps?:
-    | Ref<BubbleSweepResult[]>
-    | (() => BubbleSweepResult[])
+    | Ref<BubbleSweepResult | null>
+    | (() => BubbleSweepResult | null)
 ) {
-  const sweepRef: Ref<ChartSweepData | null> = isRef(selectedSweep)
+  const sweepRef: Ref<BubbleSweepResult | null> = isRef(selectedSweep)
     ? selectedSweep
-    : (ref(selectedSweep) as unknown as Ref<ChartSweepData | null>)
-
-  const overlayRef: Ref<BubbleSweepResult[]> = isRef(overlaySweeps)
-    ? overlaySweeps
-    : ref<BubbleSweepResult[]>(overlaySweeps ? overlaySweeps() : [])
+    : (ref(selectedSweep) as unknown as Ref<BubbleSweepResult | null>)
 
   const selectedMaxRadius = computed(() => {
     const s = sweepRef.value
     if (!s) return 200
-    const overlays = overlayRef.value ?? []
-    let max = Math.max(...s.profile)
-    for (const o of overlays) {
-      const oMax = Math.max(...o.profile)
-      if (oMax > max) max = oMax
-    }
+    const max = Math.max(...s.profile)
     return Math.max(50, Math.ceil((max * 1.2) / 50) * 50)
   })
 
@@ -88,7 +74,7 @@ export function useBubblePolarChart(
     const color = directionColor(direction)
     const inProgress = isInProgress(sweep, Date.now())
     const durMin = (cycleDurationMs / 60_000).toFixed(1)
-    const titleText = `${directionLabel(direction)}${direction === 'merged' ? '厚度' : '向扫描'} · ${formatTime(time)} · ${durMin} min${inProgress ? ' · 进行中' : ''}`
+    const titleText = `${directionLabel(direction)}向扫描 · ${formatTime(time)} · ${durMin} min${inProgress ? ' · 进行中' : ''}`
 
     const numBins = profile.length
     const binWidth = 360 / numBins
@@ -98,45 +84,6 @@ export function useBubblePolarChart(
     // 极坐标数据格式 [radius, angle] = [厚度, 角度]，闭合环需首尾相连
     const lineData: [number, number][] = profile.map((v, i) => [v, dataAt(i)])
     lineData.push([profile[0], dataAt(0)])
-
-    // 叠加层（合并模式下的正/反向单趟，淡色显示）
-    const overlays = overlayRef.value ?? []
-    const overlaySeries: Array<{
-      type: 'line'
-      name: string
-      coordinateSystem: 'polar'
-      z: number
-      data: [number, number][]
-      lineStyle: { width: number; color: string; opacity: number }
-      showSymbol: boolean
-    }> = []
-    for (const ov of overlays) {
-      const ovBinWidth = 360 / ov.profile.length
-      const ovData: [number, number][] = ov.profile.map((v, i) => [
-        v,
-        i * ovBinWidth + ovBinWidth / 2,
-      ])
-      ovData.push([ov.profile[0], ovBinWidth / 2])
-      overlaySeries.push({
-        type: 'line',
-        name: `${directionLabel(ov.direction)}向`,
-        coordinateSystem: 'polar',
-        z: 1,
-        data: ovData,
-        lineStyle: {
-          width: 1.5,
-          color: directionColor(ov.direction),
-          opacity: OVERLAY_OPACITY,
-        },
-        showSymbol: false,
-      })
-    }
-
-    // 主 series 名称（tooltip 中显示）
-    const mainName =
-      direction === 'merged'
-        ? '合并厚度'
-        : `${directionLabel(direction)}向扫描`
 
     return {
       title: {
@@ -168,6 +115,32 @@ export function useBubblePolarChart(
           let html = `<div style="font-weight:600;margin-bottom:2px">角度 ${angle.toFixed(1)}°</div>`
           for (const p of arr) {
             html += `<div>${p.marker} ${p.seriesName}：<b>${p.value[0].toFixed(2)}</b> μm</div>`
+          }
+          // 压合厚度：测厚仪扫过同一径向上对向两个 bin（差 180°）的厚度之和
+          // 原始膜厚本质就是"压平"后的厚度
+          const numBins = sweep.profile.length
+          if (numBins > 0) {
+            const binWidthDeg = 360 / numBins
+            // bin 中心在 [i*bw, (i+1)*bw) 左闭右开区间，floor 取所在 bin
+            // 与 ECharts 找最近数据点用的 bin 对齐（89° → bin 29，269° → bin 89）
+            const currentBin = Math.floor(angle / binWidthDeg) % numBins
+            const oppositeBin =
+              (currentBin + Math.floor(numBins / 2)) % numBins
+            const cur = sweep.profile[currentBin]
+            const opp = sweep.profile[oppositeBin]
+            if (cur !== undefined && opp !== undefined) {
+              const compressed = cur + opp
+              const oppositeAngle = (angle + 180) % 360
+              html += `<div style="color:#67c23a">压合厚度：<b>${compressed.toFixed(2)}</b> μm <span style="color:#909399;font-size:11px">(${angle.toFixed(0)}° / ${oppositeAngle.toFixed(0)}°)</span></div>`
+            }
+            // 测厚时间：binTimestamps[bin] 即测厚仪测到该 bin 厚度的时间
+            const binTimestamps = sweep.binTimestamps
+            if (binTimestamps && binTimestamps.length >= numBins) {
+              const ts = binTimestamps[currentBin]
+              if (ts && ts > 0) {
+                html += `<div style="color:#909399;font-size:11px">测厚时间：${formatTime(ts)}</div>`
+              }
+            }
           }
           return html
         },
@@ -204,12 +177,10 @@ export function useBubblePolarChart(
         splitLine: { lineStyle: { color: '#ebeef5' } },
         splitArea: { show: false },
       },
-      // overlay 在前（z=1），主 series 在后（z=10）渲染在上层
       series: [
-        ...overlaySeries,
         {
           type: 'line',
-          name: mainName,
+          name: `${directionLabel(direction)}向扫描`,
           coordinateSystem: 'polar',
           z: 10,
           data: lineData,

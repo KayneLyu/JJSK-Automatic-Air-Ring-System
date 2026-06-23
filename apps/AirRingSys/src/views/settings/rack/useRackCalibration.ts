@@ -21,6 +21,7 @@ export function useRackCalibration(deps: UseRackCalibrationDeps) {
   const isCalRoller = ref(false)
   const isCalAngle = ref(false)
   const isCalDistance = ref(false)
+  const isCalMembraneWidth = ref(false)
   const isApplyingManualTractionSpeed = ref(false)
   const isResettingCalibration = ref(false)
   const manualTractionSpeed = ref('')
@@ -234,6 +235,59 @@ export function useRackCalibration(deps: UseRackCalibrationDeps) {
     }
   }
 
+  // 膜宽 标定：基于当前 mmPerPulse，用 5%-95% 分位算法推断膜宽
+  async function calibrateMembraneWidth() {
+    if (isCalMembraneWidth.value) return
+    const result = deviceConfig.thicknessResult.value
+    const stored = result.mmPerPulse
+    const fallback =
+      result.frameLengthMM && result.frameLengthPulse
+        ? result.frameLengthMM / result.frameLengthPulse
+        : undefined
+    const mmPerPulse =
+      stored !== undefined && Number.isFinite(stored) && stored > 0
+        ? stored
+        : fallback
+    if (
+      mmPerPulse === undefined ||
+      !Number.isFinite(mmPerPulse) ||
+      mmPerPulse <= 0
+    ) {
+      ElMessage.error('请先在测厚仪中填写 mm/脉冲（或机架长度 + 脉冲量）')
+      return
+    }
+    isCalMembraneWidth.value = true
+    try {
+      const r = (await window.ipcApi.invoke(
+        'calibration-run-membrane-width',
+        {
+          mmPerPulse,
+        }
+      )) as {
+        success: boolean
+        membraneWidthMm?: number
+        sampleCount?: number
+        sweepCount?: number
+        edgeSweepCount?: number
+        error?: string
+      }
+      if (!r.success) {
+        ElMessage.error(r.error ?? '膜宽标定失败')
+        return
+      }
+      deviceConfig.thicknessResult.value = {
+        ...deviceConfig.thicknessResult.value,
+        membraneWidthMm: r.membraneWidthMm,
+      }
+      ElMessage.success(
+        `膜宽: ${r.membraneWidthMm} mm（最近 ${r.sweepCount ?? 0} 趟，寻边成功 ${r.edgeSweepCount ?? 0} 趟，样本 ${r.sampleCount}）`
+      )
+      void deviceConfig.saveCalibrationResults()
+    } finally {
+      isCalMembraneWidth.value = false
+    }
+  }
+
   function handleCalibrationResult(_: unknown, data: ICalibrationResult) {
     if (data.tractionSpeed !== undefined) {
       deviceConfig.rollerResult.value = { tractionSpeed: data.tractionSpeed }
@@ -274,6 +328,7 @@ export function useRackCalibration(deps: UseRackCalibrationDeps) {
     isCalRoller,
     isCalAngle,
     isCalDistance,
+    isCalMembraneWidth,
     isApplyingManualTractionSpeed,
     isResettingCalibration,
     manualTractionSpeed,
@@ -284,5 +339,6 @@ export function useRackCalibration(deps: UseRackCalibrationDeps) {
     calibrateRollerSpeed,
     calibrateUpperAngle,
     calibrateDistance,
+    calibrateMembraneWidth,
   }
 }

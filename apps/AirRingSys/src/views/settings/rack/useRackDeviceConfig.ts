@@ -35,6 +35,8 @@ export interface RollerResult {
 export interface ThicknessResult {
   frameLengthMM?: number
   frameLengthPulse?: number
+  mmPerPulse?: number
+  membraneWidthMm?: number
   mutationWindowSize?: number
 }
 
@@ -114,6 +116,12 @@ export function useRackDeviceConfig() {
         ...(results.frameLengthPulse !== undefined
           ? { frameLengthPulse: results.frameLengthPulse }
           : {}),
+        ...(results.mmPerPulse !== undefined
+          ? { mmPerPulse: results.mmPerPulse }
+          : {}),
+        ...(results.membraneWidthMm !== undefined
+          ? { membraneWidthMm: results.membraneWidthMm }
+          : {}),
         ...(results.mutationWindowSize !== undefined
           ? { mutationWindowSize: results.mutationWindowSize }
           : {}),
@@ -157,6 +165,8 @@ export function useRackDeviceConfig() {
         rollerTractionSpeed: rollerResult.value.tractionSpeed,
         frameLengthMM: thicknessResult.value.frameLengthMM,
         frameLengthPulse: thicknessResult.value.frameLengthPulse,
+        mmPerPulse: thicknessResult.value.mmPerPulse,
+        membraneWidthMm: thicknessResult.value.membraneWidthMm,
         mutationWindowSize: thicknessResult.value.mutationWindowSize,
         upperMaxAngle: upperResult.value.maxAngle,
         upperDistance: upperResult.value.distance,

@@ -43,6 +43,8 @@ interface AppConfig {
   rollerResultTractionSpeed?: number
   frameLengthMMResult?: number
   frameLengthPulseResult?: number
+  mmPerPulseResult?: number
+  membraneWidthMmResult?: number
   mutationWindowSizeResult?: number
   upperResultMaxAngle?: number
   upperResultDistance?: number
@@ -618,6 +620,8 @@ function registerIpcHandlers() {
       rollerTractionSpeed: store?.get('rollerResultTractionSpeed'),
       frameLengthMM: store?.get('frameLengthMMResult'),
       frameLengthPulse: store?.get('frameLengthPulseResult'),
+      mmPerPulse: store?.get('mmPerPulseResult'),
+      membraneWidthMm: store?.get('membraneWidthMmResult'),
       mutationWindowSize: store?.get('mutationWindowSizeResult'),
       upperMaxAngle: store?.get('upperResultMaxAngle'),
       upperDistance: store?.get('upperResultDistance'),
@@ -630,6 +634,8 @@ function registerIpcHandlers() {
         rollerTractionSpeed?: number
         frameLengthMM?: number
         frameLengthPulse?: number
+        mmPerPulse?: number
+        membraneWidthMm?: number
         mutationWindowSize?: number
         upperMaxAngle?: number
         upperDistance?: number
@@ -640,6 +646,10 @@ function registerIpcHandlers() {
         store?.set('frameLengthMMResult', p.frameLengthMM)
       if (p.frameLengthPulse !== undefined)
         store?.set('frameLengthPulseResult', p.frameLengthPulse)
+      if (p.mmPerPulse !== undefined)
+        store?.set('mmPerPulseResult', p.mmPerPulse)
+      if (p.membraneWidthMm !== undefined)
+        store?.set('membraneWidthMmResult', p.membraneWidthMm)
       if (p.mutationWindowSize !== undefined)
         store?.set('mutationWindowSizeResult', p.mutationWindowSize)
       if (p.upperMaxAngle !== undefined)

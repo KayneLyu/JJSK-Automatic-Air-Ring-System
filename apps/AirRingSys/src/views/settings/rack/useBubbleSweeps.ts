@@ -7,80 +7,13 @@ import {
   DEFAULT_PROCESS_DEFORMATION,
   SWEEP_PAGE_SIZE,
   type DataMode,
-  type ViewMode,
-  type MergedSweepResult,
-  type ChartSweepData,
 } from './bubbleRawThickness.constants'
-
-/**
- * 将相邻的正向/反向扫描两两配对，按 coverage 加权合并 profile
- * 扫描仪来回扫描，正/反自然交替，相邻异向即为一对
- */
-function pairAndMerge(sweeps: BubbleSweepResult[]): MergedSweepResult[] {
-  const results: MergedSweepResult[] = []
-  let i = 0
-  while (i < sweeps.length - 1) {
-    const a = sweeps[i]
-    const b = sweeps[i + 1]
-    if (a.direction !== b.direction && a.numBins === b.numBins) {
-      const forward = a.direction === 'forward' ? a : b
-      const reverse = a.direction === 'reverse' ? a : b
-      results.push(mergePair(forward, reverse))
-      i += 2
-    } else {
-      i += 1
-    }
-  }
-  return results
-}
-
-function mergePair(
-  forward: BubbleSweepResult,
-  reverse: BubbleSweepResult
-): MergedSweepResult {
-  const numBins = forward.numBins
-  const profile = new Array<number>(numBins)
-  const binCoverage = new Array<number>(numBins)
-
-  for (let j = 0; j < numBins; j++) {
-    const fc = forward.binCoverage[j] ?? 0
-    const rc = reverse.binCoverage[j] ?? 0
-    const totalCov = fc + rc
-    if (totalCov > 0) {
-      profile[j] =
-        (forward.profile[j] * fc + reverse.profile[j] * rc) / totalCov
-    } else {
-      profile[j] = (forward.profile[j] + reverse.profile[j]) / 2
-    }
-    binCoverage[j] = totalCov
-  }
-
-  const startTs = Math.min(forward.time, reverse.time)
-  const endTs = Math.max(
-    forward.time + forward.cycleDurationMs,
-    reverse.time + reverse.cycleDurationMs
-  )
-
-  return {
-    id: `merged-${forward.id}-${reverse.id}`,
-    time: startTs,
-    direction: 'merged',
-    cycleDurationMs: endTs - startTs,
-    profile,
-    numBins,
-    binWidthDeg: forward.binWidthDeg,
-    rmsError: (forward.rmsError + reverse.rmsError) / 2,
-    maxError: (forward.maxError + reverse.maxError) / 2,
-    numMeasurements: forward.numMeasurements + reverse.numMeasurements,
-    binCoverage,
-    forward,
-    reverse,
-  }
-}
 
 interface CalibrationResults {
   frameLengthMM?: number
   frameLengthPulse?: number
+  mmPerPulse?: number
+  membraneWidthMm?: number
   upperMaxAngle?: number
 }
 
@@ -97,12 +30,6 @@ export function useBubbleSweeps() {
   )
   const selectedIndex = ref(0)
 
-  const viewMode = ref<ViewMode>('single')
-
-  // 合并扫描：将相邻的正/反向扫描两两配对，加权合并 profile
-  const mergedSweeps = computed(() => pairAndMerge(sortedSweeps.value))
-  const selectedMergedIndex = ref(0)
-
   const dataMode = ref<DataMode>('live')
   const isRefreshing = ref(false)
   const autoRefresh = ref(true)
@@ -114,7 +41,6 @@ export function useBubbleSweeps() {
   // 记录当前选中的 sweep id，新数据进来时保持原选中
   // （sortedSweeps 重组不破坏 sweep 对象的 id 字段）
   const lastSelectedId = ref<string | null>(null)
-  const lastSelectedMergedId = ref<string | null>(null)
 
   const thicknessCfg = ref({ airAD: '50300', materialGain: '1.0' })
   const calResults = ref<CalibrationResults>({})
@@ -140,17 +66,31 @@ export function useBubbleSweeps() {
   }
 
   const params = computed(() => {
-    const { frameLengthMM, frameLengthPulse, upperMaxAngle } = calResults.value
+    const {
+      frameLengthMM,
+      frameLengthPulse,
+      mmPerPulse: storedMmPerPulse,
+      membraneWidthMm: storedMembraneWidthMm,
+      upperMaxAngle,
+    } = calResults.value
+    // mm/脉冲 优先用持久化值，否则用 frameLengthMM/frameLengthPulse 计算
     const mmPerPulse =
-      frameLengthMM && frameLengthPulse && frameLengthPulse > 0
-        ? frameLengthMM / frameLengthPulse
-        : 0.1
+      storedMmPerPulse !== undefined && Number.isFinite(storedMmPerPulse) && storedMmPerPulse > 0
+        ? storedMmPerPulse
+        : frameLengthMM && frameLengthPulse && frameLengthPulse > 0
+          ? frameLengthMM / frameLengthPulse
+          : 0.1
     const airADNum = Number(thicknessCfg.value.airAD) || 50300
     const gainNum = Number(thicknessCfg.value.materialGain) || 1.0
     return {
-      // 使用标定的扫描仪行程长度作为膜宽；未标定时才回退到默认值
+      // 膜宽优先级：寻边标定的膜宽 > 机架长度（mm）> 默认值
       membraneWidthMm:
-        frameLengthMM && frameLengthMM > 0 ? frameLengthMM : DEFAULT_MEMBRANE_WIDTH_MM,
+        storedMembraneWidthMm !== undefined &&
+        storedMembraneWidthMm > 0
+          ? storedMembraneWidthMm
+          : frameLengthMM && frameLengthMM > 0
+            ? frameLengthMM
+            : DEFAULT_MEMBRANE_WIDTH_MM,
       thetaMaxDeg: upperMaxAngle && upperMaxAngle > 0 ? upperMaxAngle : 300,
       mmPerPulse,
       airAD: airADNum,
@@ -164,51 +104,22 @@ export function useBubbleSweeps() {
     () => sortedSweeps.value[selectedIndex.value] ?? null
   )
 
-  const selectedMergedSweep = computed<MergedSweepResult | null>(
-    () => mergedSweeps.value[selectedMergedIndex.value] ?? null
-  )
-
-  /** 当前视图模式下的激活 sweep（单趟或合并） */
-  const activeSweep = computed<ChartSweepData | null>(() =>
-    viewMode.value === 'merged' ? selectedMergedSweep.value : selectedSweep.value
-  )
-
-  /** 合并模式下显示的正/反向淡色叠加 */
-  const overlaySweeps = computed<BubbleSweepResult[]>(() => {
-    if (viewMode.value !== 'merged') return []
-    const m = selectedMergedSweep.value
-    return m ? [m.forward, m.reverse] : []
-  })
-
-  const currentListLength = computed(() =>
-    viewMode.value === 'merged'
-      ? mergedSweeps.value.length
-      : sortedSweeps.value.length
-  )
-  const currentIndex = computed(() =>
-    viewMode.value === 'merged' ? selectedMergedIndex.value : selectedIndex.value
-  )
-
   const canGoPrev = computed(
     () =>
       !isRefreshing.value &&
-      currentListLength.value > 0 &&
-      (currentIndex.value > 0 || hasOlderData.value)
+      sortedSweeps.value.length > 0 &&
+      (selectedIndex.value > 0 || hasOlderData.value)
   )
   const canGoNext = computed(
     () =>
-      currentIndex.value < currentListLength.value - 1 &&
-      currentListLength.value > 0
+      selectedIndex.value < sortedSweeps.value.length - 1 &&
+      sortedSweeps.value.length > 0
   )
 
   // 记录当前选中的 sweep id，新数据进来时保持原选中
-  watch(activeSweep, (cur) => {
+  watch(selectedSweep, (cur) => {
     if (!cur) return
-    if (viewMode.value === 'merged') {
-      lastSelectedMergedId.value = cur.id
-    } else {
-      lastSelectedId.value = cur.id
-    }
+    lastSelectedId.value = cur.id
   })
 
   /**
@@ -242,7 +153,6 @@ export function useBubbleSweeps() {
       // 会同步触发并把 lastSelectedId 覆盖成第一条的 id（因为
       // 此时 index 还没被更新），那时再读就晚了
       const prevId = lastSelectedId.value
-      const prevMergedId = lastSelectedMergedId.value
       const result = await fetchSweeps(SWEEP_PAGE_SIZE)
       sweeps.value = result
       hasOlderData.value = true
@@ -253,23 +163,11 @@ export function useBubbleSweeps() {
             ? '无完整扫描（等待上旋方向变化）'
             : '数据库内尚无扫描'
       } else {
-        // 恢复单趟选中
         if (prevId) {
           const idx = result.findIndex((s) => s.id === prevId)
           selectedIndex.value = idx >= 0 ? idx : result.length - 1
         } else {
           selectedIndex.value = result.length - 1
-        }
-        // 恢复合并选中
-        const newMerged = pairAndMerge(
-          [...result].sort((a, b) => a.time - b.time)
-        )
-        if (prevMergedId) {
-          const mIdx = newMerged.findIndex((s) => s.id === prevMergedId)
-          selectedMergedIndex.value =
-            mIdx >= 0 ? mIdx : Math.max(0, newMerged.length - 1)
-        } else {
-          selectedMergedIndex.value = Math.max(0, newMerged.length - 1)
         }
       }
     } catch (err) {
@@ -311,18 +209,6 @@ export function useBubbleSweeps() {
       sweeps.value = dedup
       // 调整 selectedIndex（因为前面插了 older，索引要 +older.length）
       selectedIndex.value += older.length
-      // 同步调整 mergedIndex（合并对数可能增加，但保守做法是保持选中在可见范围）
-      const newMerged = pairAndMerge(
-        [...dedup].sort((a, b) => a.time - b.time)
-      )
-      const prevMergedId = lastSelectedMergedId.value
-      if (prevMergedId) {
-        const mIdx = newMerged.findIndex((s) => s.id === prevMergedId)
-        selectedMergedIndex.value =
-          mIdx >= 0 ? mIdx : Math.max(0, newMerged.length - 1)
-      } else {
-        selectedMergedIndex.value = Math.max(0, newMerged.length - 1)
-      }
       hasOlderData.value = true
       lastUpdatedAt.value = Date.now()
     } catch (err) {
@@ -333,30 +219,16 @@ export function useBubbleSweeps() {
   }
 
   function prevSweep() {
-    if (viewMode.value === 'merged') {
-      if (selectedMergedIndex.value > 0) {
-        selectedMergedIndex.value -= 1
-      } else {
-        void loadOlderSweeps()
-      }
+    if (selectedIndex.value > 0) {
+      selectedIndex.value -= 1
     } else {
-      if (selectedIndex.value > 0) {
-        selectedIndex.value -= 1
-      } else {
-        void loadOlderSweeps()
-      }
+      void loadOlderSweeps()
     }
   }
 
   function nextSweep() {
-    if (viewMode.value === 'merged') {
-      if (selectedMergedIndex.value < mergedSweeps.value.length - 1) {
-        selectedMergedIndex.value += 1
-      }
-    } else {
-      if (selectedIndex.value < sortedSweeps.value.length - 1) {
-        selectedIndex.value += 1
-      }
+    if (selectedIndex.value < sortedSweeps.value.length - 1) {
+      selectedIndex.value += 1
     }
   }
 
@@ -443,12 +315,6 @@ export function useBubbleSweeps() {
     sortedSweeps,
     selectedIndex,
     selectedSweep,
-    mergedSweeps,
-    selectedMergedIndex,
-    selectedMergedSweep,
-    activeSweep,
-    overlaySweeps,
-    viewMode,
     canGoPrev,
     canGoNext,
     dataMode,

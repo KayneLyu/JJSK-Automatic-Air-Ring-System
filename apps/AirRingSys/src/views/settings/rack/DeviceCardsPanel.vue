@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue'
 import type {
   AirRingConfig,
   RollerConfig,
@@ -11,7 +12,7 @@ import type {
 } from './useRackDeviceConfig'
 import type { IUpperRotationDebugData } from '@/types/ipc'
 
-defineProps<{
+const props = defineProps<{
   rollerConfig: RollerConfig
   rollerResult: RollerResult
   thicknessConfig: ThicknessConfig
@@ -25,14 +26,82 @@ defineProps<{
   isCalRoller: boolean
   isCalAngle: boolean
   isCalDistance: boolean
+  isCalMembraneWidth: boolean
   onConstantBlur: () => void
   onResultBlur: () => void
   onCalibrateRoller: () => void
   onCalibrateUpperAngle: () => void
   onCalibrateDistance: () => void
+  onCalibrateMembraneWidth: () => void
   formatUpperRotationBoolean: (v: boolean | undefined) => string
   formatUpperRotationMotorFrequency: (v: number | undefined) => string
 }>()
+
+// mm/脉冲 用本地字符串缓存：el-input v-model.number 在输入 0.1 / 0.0001 这类小数时光标会丢字符
+const mmPerPulseInput = ref<string>(
+  props.thicknessResult.mmPerPulse !== undefined
+    ? String(props.thicknessResult.mmPerPulse)
+    : ''
+)
+watch(
+  () => props.thicknessResult.mmPerPulse,
+  (v) => {
+    const next = v !== undefined ? String(v) : ''
+    if (mmPerPulseInput.value !== next) mmPerPulseInput.value = next
+  }
+)
+
+function onMmPerPulseBlur() {
+  const trimmed = mmPerPulseInput.value.trim()
+  if (trimmed === '') {
+    props.thicknessResult.mmPerPulse = undefined
+  } else {
+    const parsed = Number(trimmed)
+    if (Number.isFinite(parsed)) {
+      props.thicknessResult.mmPerPulse = parsed
+      mmPerPulseInput.value = String(parsed)
+    } else {
+      mmPerPulseInput.value =
+        props.thicknessResult.mmPerPulse !== undefined
+          ? String(props.thicknessResult.mmPerPulse)
+          : ''
+    }
+  }
+  props.onResultBlur()
+}
+
+// 膜宽 同样用本地字符串缓存：避免 v-model.number 在大数值 + 输入中段时的丢字符问题
+const membraneWidthMmInput = ref<string>(
+  props.thicknessResult.membraneWidthMm !== undefined
+    ? String(props.thicknessResult.membraneWidthMm)
+    : ''
+)
+watch(
+  () => props.thicknessResult.membraneWidthMm,
+  (v) => {
+    const next = v !== undefined ? String(v) : ''
+    if (membraneWidthMmInput.value !== next) membraneWidthMmInput.value = next
+  }
+)
+
+function onMembraneWidthMmBlur() {
+  const trimmed = membraneWidthMmInput.value.trim()
+  if (trimmed === '') {
+    props.thicknessResult.membraneWidthMm = undefined
+  } else {
+    const parsed = Number(trimmed)
+    if (Number.isFinite(parsed)) {
+      props.thicknessResult.membraneWidthMm = parsed
+      membraneWidthMmInput.value = String(parsed)
+    } else {
+      membraneWidthMmInput.value =
+        props.thicknessResult.membraneWidthMm !== undefined
+          ? String(props.thicknessResult.membraneWidthMm)
+          : ''
+    }
+  }
+  props.onResultBlur()
+}
 </script>
 
 <template>
@@ -120,6 +189,86 @@ defineProps<{
   </div>
 
   <div class="device-cards-row">
+    <!-- 测厚仪 -->
+    <el-card shadow="hover" class="device-card">
+      <template #header>
+        <div class="device-card-header">
+          <span>测厚仪</span>
+          <span
+            class="device-status"
+            :class="{ connected: isHardwareConnected }"
+          >
+            <span class="status-dot"></span>
+            数据
+          </span>
+        </div>
+      </template>
+      <div class="device-card-body">
+        <div class="device-constants">
+          <el-input
+            v-model="thicknessConfig.airAD"
+            size="small"
+            placeholder="空气 AD 值"
+            @blur="onConstantBlur"
+          >
+            <template #prepend>空气 AD</template>
+          </el-input>
+          <el-input
+            v-model="thicknessConfig.materialGain"
+            size="small"
+            placeholder="材料补偿倍率"
+            @blur="onConstantBlur"
+          >
+            <template #prepend>补偿倍率</template>
+          </el-input>
+        </div>
+        <div class="device-constants">
+          <el-input
+            v-model.number="thicknessResult.frameLengthPulse"
+            size="small"
+            placeholder="机架长度（脉冲量）"
+            @blur="onResultBlur"
+          >
+            <template #prepend>机架长度（脉冲量）</template>
+          </el-input>
+          <el-input
+            v-model="mmPerPulseInput"
+            size="small"
+            placeholder="mm/脉冲"
+            @blur="onMmPerPulseBlur"
+          >
+            <template #prepend>机架·mm/脉冲</template>
+          </el-input>
+          <el-input
+            v-model="membraneWidthMmInput"
+            size="small"
+            placeholder="膜宽"
+            @blur="onMembraneWidthMmBlur"
+          >
+            <template #prepend>膜宽</template>
+            <template #append>
+              <el-button
+                size="small"
+                type="primary"
+                link
+                :loading="isCalMembraneWidth"
+                @click="onCalibrateMembraneWidth"
+              >
+                标定
+              </el-button>
+            </template>
+          </el-input>
+        </div>
+        <div class="device-result">
+          <span class="result-label">机架长度（mm）</span>
+          <span class="result-value">{{
+            thicknessResult.frameLengthMM !== undefined
+              ? String(thicknessResult.frameLengthMM)
+              : '--'
+          }}</span>
+        </div>
+      </div>
+    </el-card>
     <!-- 收卷辊 -->
     <el-card shadow="hover" class="device-card">
       <template #header>
@@ -185,61 +334,6 @@ defineProps<{
         </div>
       </div>
     </el-card>
-
-    <!-- 测厚仪 -->
-    <el-card shadow="hover" class="device-card">
-      <template #header>
-        <div class="device-card-header">
-          <span>测厚仪</span>
-          <span
-            class="device-status"
-            :class="{ connected: isHardwareConnected }"
-          >
-            <span class="status-dot"></span>
-            数据
-          </span>
-        </div>
-      </template>
-      <div class="device-card-body">
-        <div class="device-constants">
-          <el-input
-            v-model="thicknessConfig.airAD"
-            size="small"
-            placeholder="空气 AD 值"
-            @blur="onConstantBlur"
-          >
-            <template #prepend>空气 AD</template>
-          </el-input>
-          <el-input
-            v-model="thicknessConfig.materialGain"
-            size="small"
-            placeholder="材料补偿倍率"
-            @blur="onConstantBlur"
-          >
-            <template #prepend>补偿倍率</template>
-          </el-input>
-        </div>
-        <div class="device-constants">
-          <el-input
-            v-model.number="thicknessResult.frameLengthPulse"
-            size="small"
-            placeholder="机架长度（脉冲量）"
-            @blur="onResultBlur"
-          >
-            <template #prepend>机架长度（脉冲量）</template>
-          </el-input>
-        </div>
-        <div class="device-result">
-          <span class="result-label">机架长度（mm）</span>
-          <span class="result-value">{{
-            thicknessResult.frameLengthMM !== undefined
-              ? String(thicknessResult.frameLengthMM)
-              : '--'
-          }}</span>
-        </div>
-      </div>
-    </el-card>
-
     <!-- 风环 -->
     <el-card shadow="hover" class="device-card">
       <template #header>

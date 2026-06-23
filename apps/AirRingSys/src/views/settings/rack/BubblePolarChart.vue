@@ -2,18 +2,13 @@
 import { toRef } from 'vue'
 import { useBubblePolarChart } from './useBubblePolarChart'
 import type { BubbleSweepResult } from '@/types/ipc'
-import type { ChartSweepData } from './bubbleRawThickness.constants'
 
 const props = defineProps<{
-  selectedSweep: ChartSweepData | null
-  overlaySweeps?: BubbleSweepResult[]
+  selectedSweep: BubbleSweepResult | null
   errorMessage: string | null
 }>()
 
-useBubblePolarChart(
-  toRef(props, 'selectedSweep'),
-  toRef(props, 'overlaySweeps')
-)
+useBubblePolarChart(toRef(props, 'selectedSweep'))
 </script>
 
 <template>

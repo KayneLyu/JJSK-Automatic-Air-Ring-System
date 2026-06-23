@@ -75,11 +75,13 @@ onMounted(() => {
               :is-cal-roller="calibration.isCalRoller.value"
               :is-cal-angle="calibration.isCalAngle.value"
               :is-cal-distance="calibration.isCalDistance.value"
+              :is-cal-membrane-width="calibration.isCalMembraneWidth.value"
               :on-constant-blur="deviceConfig.onConstantBlur"
               :on-result-blur="deviceConfig.onResultBlur"
               :on-calibrate-roller="calibration.calibrateRollerSpeed"
               :on-calibrate-upper-angle="calibration.calibrateUpperAngle"
               :on-calibrate-distance="calibration.calibrateDistance"
+              :on-calibrate-membrane-width="calibration.calibrateMembraneWidth"
               :format-upper-rotation-boolean="debug.formatUpperRotationBoolean"
               :format-upper-rotation-motor-frequency="
                 debug.formatUpperRotationMotorFrequency

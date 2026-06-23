@@ -4,16 +4,13 @@ import {
   directionLabel,
   formatTime,
   isInProgress,
-  MERGED_COLOR,
-  type ChartSweepData,
+  type BubbleSweepResult,
 } from './bubbleRawThickness.constants'
 
 const props = defineProps<{
-  selectedSweep: ChartSweepData | null
+  selectedSweep: BubbleSweepResult | null
   canGoPrev: boolean
   canGoNext: boolean
-  selectedIndex: number
-  totalCount: number
 }>()
 
 const emit = defineEmits<{
@@ -21,15 +18,8 @@ const emit = defineEmits<{
   (e: 'next'): void
 }>()
 
-function directionTagStyle(direction: ChartSweepData['direction']) {
+function directionTagStyle(direction: BubbleSweepResult['direction']) {
   const color = directionColor(direction)
-  if (direction === 'merged') {
-    return {
-      background: 'rgba(103, 194, 58, 0.15)',
-      color: MERGED_COLOR,
-      borderColor: MERGED_COLOR,
-    }
-  }
   return {
     background:
       direction === 'forward'
@@ -57,7 +47,7 @@ function directionTagStyle(direction: ChartSweepData['direction']) {
           class="direction-tag"
           :style="directionTagStyle(selectedSweep.direction)"
         >
-          {{ directionLabel(selectedSweep.direction) }}<template v-if="selectedSweep.direction !== 'merged'">向</template>
+          {{ directionLabel(selectedSweep.direction) }}向
         </span>
         <span class="nav-time">{{ formatTime(selectedSweep.time) }}</span>
         <span class="nav-meta">
@@ -72,9 +62,6 @@ function directionTagStyle(direction: ChartSweepData['direction']) {
       </template>
       <template v-else>无选中扫描</template>
     </div>
-    <span class="nav-counter" v-if="totalCount > 0">
-      {{ selectedIndex + 1 }} / {{ totalCount }}
-    </span>
     <button
       class="nav-btn"
       :disabled="!canGoNext"
@@ -146,13 +133,6 @@ function directionTagStyle(direction: ChartSweepData['direction']) {
 .nav-meta {
   color: #909399;
   font-size: 11px;
-}
-
-.nav-counter {
-  color: #606266;
-  font-size: 12px;
-  font-family: monospace;
-  white-space: nowrap;
 }
 
 .in-progress-badge {

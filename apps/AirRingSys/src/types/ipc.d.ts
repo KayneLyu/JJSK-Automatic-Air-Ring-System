@@ -105,6 +105,8 @@ export type ICalibrationResults = {
   rollerTractionSpeed?: number
   frameLengthMM?: number
   frameLengthPulse?: number
+  mmPerPulse?: number
+  membraneWidthMm?: number
   mutationWindowSize?: number
   upperMaxAngle?: number
   upperDistance?: number
@@ -270,6 +272,20 @@ export interface IpcChannelMap {
       deviation?: number
     }]
     output: { success: boolean; distance?: number; error?: string }
+  }
+  // 膜宽标定：测厚仪最近 10 趟扫描，每趟做 AD 寻边（双峰阈值 + 首末在膜 pulse 位置）取中位数
+  'calibration-run-membrane-width': {
+    args: [input: {
+      mmPerPulse: number
+    }]
+    output: {
+      success: boolean
+      membraneWidthMm?: number
+      sampleCount?: number
+      sweepCount?: number
+      edgeSweepCount?: number
+      error?: string
+    }
   }
   'ModBus-read': {
     args: [data: IPollingModBusData]

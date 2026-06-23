@@ -3,19 +3,18 @@ import {
   DEFAULT_NUM_BINS,
   DEFAULT_MEMBRANE_WIDTH_MM,
   type DataMode,
-  type ViewMode,
 } from './bubbleRawThickness.constants'
 
 interface CalibrationResults {
   frameLengthMM?: number
   frameLengthPulse?: number
+  mmPerPulse?: number
+  membraneWidthMm?: number
   upperMaxAngle?: number
 }
 
 const props = defineProps<{
   dataMode: DataMode
-  sweepsCount: number
-  mergedCount: number
   calResults: CalibrationResults
   thicknessCfg: { airAD: string; materialGain: string }
   lastUpdatedAt: number | null
@@ -23,16 +22,17 @@ const props = defineProps<{
   selectedMinCoverage: number
   hasSelectedSweep: boolean
   autoRefresh: boolean
-  viewMode: ViewMode
 }>()
 
 const emit = defineEmits<{
   (e: 'update:autoRefresh', value: boolean): void
-  (e: 'update:viewMode', value: ViewMode): void
 }>()
 
 function mmPerPulseLabel(): string {
-  const { frameLengthMM, frameLengthPulse } = props.calResults
+  const { frameLengthMM, frameLengthPulse, mmPerPulse } = props.calResults
+  if (mmPerPulse !== undefined && Number.isFinite(mmPerPulse)) {
+    return mmPerPulse.toFixed(4)
+  }
   if (frameLengthMM && frameLengthPulse) {
     return (frameLengthMM / frameLengthPulse).toFixed(4)
   }
@@ -42,6 +42,18 @@ function mmPerPulseLabel(): string {
 function formatClock(t: number): string {
   return new Date(t).toLocaleTimeString()
 }
+
+// 膜宽显示：寻边标定的膜宽 > 机架长度（mm）> 默认值（与 useBubbleSweeps.params 优先级保持一致）
+function membraneWidthMmLabel(): string {
+  const { membraneWidthMm, frameLengthMM } = props.calResults
+  if (membraneWidthMm !== undefined && membraneWidthMm > 0) {
+    return String(membraneWidthMm)
+  }
+  if (frameLengthMM && frameLengthMM > 0) {
+    return String(frameLengthMM)
+  }
+  return String(DEFAULT_MEMBRANE_WIDTH_MM)
+}
 </script>
 
 <template>
@@ -50,8 +62,7 @@ function formatClock(t: number): string {
       {{ dataMode === 'live' ? '实时' : '历史' }}
     </span>
     <span class="status-text">
-      算法：<code>reconstructBubbleThickness</code> · 分箱 {{ DEFAULT_NUM_BINS }} ·
-      膜宽 {{ DEFAULT_MEMBRANE_WIDTH_MM }} mm · 已加载 {{ sweepsCount }} 趟
+      分箱 {{ DEFAULT_NUM_BINS }} · 膜宽 {{ membraneWidthMmLabel() }} mm
     </span>
     <span class="param-text">
       θ<sub>max</sub> = {{ calResults.upperMaxAngle ?? '未标定' }}° ·
@@ -68,22 +79,6 @@ function formatClock(t: number): string {
       {{ selectedMinCoverage.toFixed(1) }}
     </span>
     <div class="actions">
-      <div class="view-toggle">
-        <button
-          :class="['toggle-btn', { active: viewMode === 'single' }]"
-          @click="emit('update:viewMode', 'single')"
-        >
-          单趟
-        </button>
-        <button
-          :class="['toggle-btn', { active: viewMode === 'merged' }]"
-          @click="emit('update:viewMode', 'merged')"
-          :disabled="mergedCount === 0"
-          :title="mergedCount === 0 ? '无可用合并对' : `共 ${mergedCount} 对`"
-        >
-          合并 ({{ mergedCount }})
-        </button>
-      </div>
       <label class="toggle" v-if="dataMode === 'live'">
         <input
           :checked="autoRefresh"
@@ -148,33 +143,6 @@ function formatClock(t: number): string {
   gap: 8px;
   align-items: center;
   margin-left: auto;
-}
-
-.view-toggle {
-  display: inline-flex;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.toggle-btn {
-  padding: 3px 12px;
-  border: none;
-  background: #fff;
-  color: #606266;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.toggle-btn.active {
-  background: #409eff;
-  color: #fff;
-}
-
-.toggle-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .toggle {
