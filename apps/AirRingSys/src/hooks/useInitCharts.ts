@@ -60,6 +60,7 @@ const useInitCharts = (
     try {
       console.log('[useInitCharts] initChart | size=' + el.clientWidth + 'x' + el.clientHeight)
       chartInstanceRef = echarts.init(el, store.isDark ? 'dark' : '')
+      console.log('[useInitCharts] echarts.init OK')
       chartInstanceRef.setOption(options)
       if (props && props.frameData) {
         chartInstanceRef.setOption({
@@ -79,6 +80,7 @@ const useInitCharts = (
 
       onReady?.(chartInstanceRef)
     } catch (error) {
+      console.error('[useInitCharts] initChart FAILED:', error)
       showNotification(
         t('notification.info'),
         t('notification.initError'),
