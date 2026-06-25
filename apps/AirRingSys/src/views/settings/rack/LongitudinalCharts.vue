@@ -214,7 +214,7 @@ function handleRealtimeData(_: unknown, payload: IPollingModBusData | PushData |
 
   for (var j = 0; j < data.pulses.length; j++) {
     var pulse = data.pulses[j]
-    if (pulse < 0 || pulse > 7000) continue
+    if (pulse < 0) continue
     var ad = data.adValues[j]
     var ts = data.timestamps[j] ?? Date.now()
 
