@@ -36,6 +36,7 @@ const selectedMeanCoverage = computed(() => {
 function onAutoRefreshChange(v: boolean) {
   autoRefresh.value = v
 }
+
 </script>
 
 <template>
@@ -52,8 +53,7 @@ function onAutoRefreshChange(v: boolean) {
       @update:auto-refresh="onAutoRefreshChange"
     />
 
-    <!-- 上一幅/下一幅：只历史模式显示，实时模式不显示
-         （参考 LongitudinalCharts:317 `v-if="!isConnected"`） -->
+    <!-- 上一幅/下一幅：只历史模式显示 -->
     <BubbleNavBar
       v-if="dataMode === 'historical'"
       :selected-sweep="selectedSweep"

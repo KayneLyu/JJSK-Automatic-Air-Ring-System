@@ -3,15 +3,29 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
-import { TooltipComponent, GridComponent, LegendComponent } from 'echarts/components'
+import {
+  TooltipComponent,
+  GridComponent,
+  LegendComponent,
+} from 'echarts/components'
 import VChart from 'vue-echarts'
 import { useConfigStore } from '@/store/config.ts'
 import { normalizeThicknessRealtimePayload, calcThickness } from './utiles'
 import type { ThicknessConfig } from './utiles'
 import type { PushData } from '@jjsk/adbox-sdk'
-import type { IPollingModBusData, SweepPoint, SweepSummaryRow } from '@/types/ipc'
+import type {
+  IPollingModBusData,
+  SweepPoint,
+  SweepSummaryRow,
+} from '@/types/ipc'
 
-use([TooltipComponent, GridComponent, LegendComponent, LineChart, CanvasRenderer])
+use([
+  TooltipComponent,
+  GridComponent,
+  LegendComponent,
+  LineChart,
+  CanvasRenderer,
+])
 
 interface SweepData {
   sweepId?: string
@@ -32,15 +46,24 @@ const thicknessCfg = ref<ThicknessConfig>({ airAD: 50300, gain: 1.0 })
 
 async function loadThicknessConfig() {
   try {
-    const result = (await window.ipcApi.invoke('config-get-device-constants')) as { airAD?: string; materialGain?: string }
-    if (result?.airAD) { const v = Number(result.airAD); if (v > 0) thicknessCfg.value.airAD = v }
-    if (result?.materialGain) { const v = Number(result.materialGain); if (v > 0) thicknessCfg.value.gain = v }
+    const result = (await window.ipcApi.invoke(
+      'config-get-device-constants'
+    )) as { airAD?: string; materialGain?: string }
+    if (result?.airAD) {
+      const v = Number(result.airAD)
+      if (v > 0) thicknessCfg.value.airAD = v
+    }
+    if (result?.materialGain) {
+      const v = Number(result.materialGain)
+      if (v > 0) thicknessCfg.value.gain = v
+    }
   } catch {}
 }
 
 const navIndex = computed(() => {
   if (sweeps.value.length === 0) return 0
-  if (displayMode.value === 'single') return sweeps.value.length - currentIndex.value
+  if (displayMode.value === 'single')
+    return sweeps.value.length - currentIndex.value
   return Math.floor((sweeps.value.length - 1 - currentIndex.value) / 2) + 1
 })
 
@@ -89,14 +112,16 @@ function getVisibleIndices(): number[] {
   return otherIdx >= 0 ? [idx, otherIdx] : [idx]
 }
 
-async function loadSweepPoints(summary: Pick<SweepData, 'startTs' | 'endTs'>): Promise<[number, number, number][]> {
+async function loadSweepPoints(
+  summary: Pick<SweepData, 'startTs' | 'endTs'>
+): Promise<[number, number, number][]> {
   if (!summary.startTs || !summary.endTs) return []
   const points = (await window.ipcApi.invoke(
     'db-get-sweep-points-by-range',
     summary.startTs,
     summary.endTs
   )) as SweepPoint[]
-  return points.map(function(p) {
+  return points.map(function (p) {
     return [p.pos, p.ad, p.ts] as [number, number, number]
   })
 }
@@ -143,18 +168,33 @@ const chartOption = computed(() => {
     tooltip: {
       trigger: 'axis' as const,
       formatter(params: unknown) {
-        const items = params as { seriesName: string; data: [number, number, number] | [number, number]; color: string }[]
+        const items = params as {
+          seriesName: string
+          data: [number, number, number] | [number, number]
+          color: string
+        }[]
         if (!items.length) return ''
         const pos = items[0].data[0]
-        var html = '<div style="font-weight:bold;margin-bottom:4px">位置 ' + pos + ' pulse</div>'
+        let html = `<div style="font-weight:bold;margin-bottom:4px">位置 ${pos}</div>`
         for (var i = 0; i < items.length; i++) {
-          var s = items[i], ad = s.data[1]
-          var ts = s.data.length > 2 ? s.data[2] : 0
+          var s = items[i],
+            ad = s.data[1]
+          var ts = s.data.length > 2 ? s.data[2] || 0 : 0
           var timeStr = ts > 0 ? new Date(ts).toLocaleString() : '—'
           var thick = calcThickness(ad, thicknessCfg.value)
-          html += '<div style="display:flex;align-items:center;gap:6px;margin:2px 0">'
-            + '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + s.color + '"></span> '
-            + s.seriesName + ' <span style="color:#909399;font-size:11px">' + timeStr + '</span> AD <b>' + ad + '</b> 厚度 <b>' + thick.toFixed(2) + 'μm</b></div>'
+
+          html += `<div style="font-weight:bold;margin-bottom:4px">AD ${Number(ad.toFixed(0))}</div>`
+          html +=
+            '<div style="display:flex;align-items:center;gap:6px;margin:2px 0">' +
+            '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' +
+            s.color +
+            '"></span> ' +
+            s.seriesName +
+            ' <span style="color:#909399;font-size:11px">' +
+            timeStr +
+            '</b> 厚度 <b>' +
+            thick.toFixed(2) +
+            'μm</b></div>'
         }
         return html
       },
@@ -164,8 +204,18 @@ const chartOption = computed(() => {
     xAxis: { type: 'value' as const, name: '位置(pulse)', min: 0 },
     yAxis: { type: 'value' as const, name: 'AD', splitLine: { show: true } },
     series: [
-      { name: '正程', type: 'line' as const, showSymbol: false, data: fwdPoints },
-      { name: '逆程', type: 'line' as const, showSymbol: false, data: bwdPoints },
+      {
+        name: '正程',
+        type: 'line' as const,
+        showSymbol: false,
+        data: fwdPoints,
+      },
+      {
+        name: '逆程',
+        type: 'line' as const,
+        showSymbol: false,
+        data: bwdPoints,
+      },
     ],
   }
 })
@@ -179,8 +229,9 @@ let rtBuffer: [number, number, number][] = []
 function buildLiveSweep(): SweepData | null {
   if (rtBuffer.length === 0) return null
 
-  const direction = rtDirection
-    ?? (rtBuffer.length >= 2 && rtBuffer[rtBuffer.length - 1][0] < rtBuffer[0][0]
+  const direction =
+    rtDirection ??
+    (rtBuffer.length >= 2 && rtBuffer[rtBuffer.length - 1][0] < rtBuffer[0][0]
       ? 'backward'
       : 'forward')
 
@@ -208,7 +259,10 @@ function getRealtimeDisplaySweeps(): SweepData[] {
     : [opposite, current]
 }
 
-function handleRealtimeData(_: unknown, payload: IPollingModBusData | PushData | PushData[]) {
+function handleRealtimeData(
+  _: unknown,
+  payload: IPollingModBusData | PushData | PushData[]
+) {
   const data = normalizeThicknessRealtimePayload(payload)
   if (!data) return
 
@@ -232,7 +286,8 @@ function handleRealtimeData(_: unknown, payload: IPollingModBusData | PushData |
             endTs: rtBuffer[rtBuffer.length - 1]?.[2] ?? ts,
             points: rtBuffer.slice(),
           })
-          if (sweeps.value.length > 20) sweeps.value.splice(0, sweeps.value.length - 20)
+          if (sweeps.value.length > 20)
+            sweeps.value.splice(0, sweeps.value.length - 20)
           currentIndex.value = sweeps.value.length - 1
         }
         rtBuffer = []
@@ -261,7 +316,7 @@ async function loadHistoricalData(beforeTs?: number) {
       HISTORY_PAGE_SIZE,
       beforeTs
     )) as SweepSummaryRow[]
-    const mapped = rows.map(function(r) {
+    const mapped = rows.map(function (r) {
       return {
         sweepId: r.sweepId,
         direction: r.direction,
@@ -280,7 +335,10 @@ async function loadHistoricalData(beforeTs?: number) {
       let start = 0
       const existingFirstTs = sweeps.value[0]?.startTs ?? 0
       while (start < mapped.length) {
-        if (existingFirstTs > 0 && (mapped[start].startTs ?? 0) >= existingFirstTs) {
+        if (
+          existingFirstTs > 0 &&
+          (mapped[start].startTs ?? 0) >= existingFirstTs
+        ) {
           start += 1
         } else {
           break
@@ -297,18 +355,22 @@ async function loadHistoricalData(beforeTs?: number) {
       currentIndex.value += append.length
       hasOlderData.value = true
     } else {
-      sweeps.value = mapped
+      sweeps.value = mapped.reverse()
       currentIndex.value = sweeps.value.length > 0 ? sweeps.value.length - 1 : 0
       hasOlderData.value = true
     }
     await ensureVisibleSweepsLoaded()
-  } catch { if (!beforeTs) sweeps.value = [] }
-  finally { loading.value = false }
+  } catch {
+    if (!beforeTs) sweeps.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
 async function loadOlderData() {
   if (isConnected.value) return
-  var first = sweeps.value[0]; if (!first?.startTs) return
+  var first = sweeps.value[0]
+  if (!first?.startTs) return
   if (first.startTs <= 0) return
   await loadHistoricalData(first.startTs + OVERLAP_MS)
 }
@@ -330,20 +392,25 @@ function nextSweep() {
 }
 
 async function checkConnection() {
-  try { isConnected.value = (await window.ipcApi.invoke('adbox-get-connection-status')) as boolean }
-  catch { isConnected.value = false }
+  try {
+    isConnected.value = (await window.ipcApi.invoke(
+      'adbox-get-connection-status'
+    )) as boolean
+  } catch {
+    isConnected.value = false
+  }
 }
 
 function handleStatus(_msg: unknown, payload: { connected: boolean }) {
-  var wasConnected = isConnected.value; isConnected.value = payload.connected
+  var wasConnected = isConnected.value
+  isConnected.value = payload.connected
   if (isConnected.value && !wasConnected) {
     sweeps.value = []
     liveSweep.value = null
     rtLastPulse = null
     rtDirection = null
     rtBuffer = []
-  }
-  else if (!isConnected.value && wasConnected) {
+  } else if (!isConnected.value && wasConnected) {
     liveSweep.value = null
     loadHistoricalData()
   }
@@ -361,44 +428,156 @@ onMounted(async () => {
   if (!isConnected.value) await loadHistoricalData()
 })
 
-onUnmounted(() => { window.ipcApi.off('adbox-status', handleStatus); window.ipcApi.off('adbox-data', handleRealtimeData) })
+onUnmounted(() => {
+  window.ipcApi.off('adbox-status', handleStatus)
+  window.ipcApi.off('adbox-data', handleRealtimeData)
+})
 </script>
 
 <template>
   <div class="longitudinal">
     <div class="status-bar">
       <span :class="['status-dot', isConnected ? 'online' : 'offline']"></span>
-      <span class="status-text">{{ isConnected ? '测厚仪已连接 — 实时数据' : '离线模式 — 历史数据' }}</span>
+      <span class="status-text">{{
+        isConnected ? '测厚仪已连接 — 实时数据' : '离线模式 — 历史数据'
+      }}</span>
       <span v-if="!isConnected" class="nav-controls">
-        <button :disabled="sweeps.length === 0 || (currentIndex < (displayMode === 'round' ? 2 : 1) && !hasOlderData)" @click="prevSweep">上一幅</button>
+        <button
+          :disabled="
+            sweeps.length === 0 ||
+            (currentIndex < (displayMode === 'round' ? 2 : 1) && !hasOlderData)
+          "
+          @click="prevSweep"
+        >
+          上一幅
+        </button>
         <span class="nav-info">{{ sweeps.length > 0 ? navIndex : 0 }}</span>
-        <button :disabled="currentIndex >= sweeps.length - (displayMode === 'round' ? 2 : 1)" @click="nextSweep">下一幅</button>
+        <button
+          :disabled="
+            currentIndex >= sweeps.length - (displayMode === 'round' ? 2 : 1)
+          "
+          @click="nextSweep"
+        >
+          下一幅
+        </button>
       </span>
       <span class="mode-controls">
-        <label :class="['mode-btn', { active: displayMode === 'single' }]" @click="displayMode = 'single'">单程</label>
-        <label :class="['mode-btn', { active: displayMode === 'round' }]" @click="displayMode = 'round'">来回</label>
+        <label
+          :class="['mode-btn', { active: displayMode === 'single' }]"
+          @click="displayMode = 'single'"
+          >单程</label
+        >
+        <label
+          :class="['mode-btn', { active: displayMode === 'round' }]"
+          @click="displayMode = 'round'"
+          >来回</label
+        >
       </span>
     </div>
-    <VChart class="chart-container" :option="chartOption" :theme="theme" autoresize />
+    <VChart
+      class="chart-container"
+      :option="chartOption"
+      :theme="theme"
+      autoresize
+    />
     <div v-if="loading" class="loading-overlay">加载中...</div>
-    <div v-else-if="!isConnected && sweeps.length === 0" class="loading-overlay">暂无历史数据</div>
+    <div
+      v-else-if="!isConnected && sweeps.length === 0"
+      class="loading-overlay"
+    >
+      暂无历史数据
+    </div>
   </div>
 </template>
 
 <style scoped>
-.longitudinal { display: flex; flex-direction: column; height: 100%; gap: 8px; position: relative; }
-.status-bar { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; flex-shrink: 0; }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.status-dot.online { background: #67c23a; }
-.status-dot.offline { background: #909399; }
-.status-text { color: #909399; }
-.nav-controls { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.nav-controls button { padding: 2px 8px; border: 1px solid #dcdfe6; border-radius: 4px; cursor: pointer; background: #fff; color: #606266; font-size: 12px; }
-.nav-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
-.nav-info { font-size: 12px; color: #909399; min-width: 50px; text-align: center; }
-.mode-controls { display: flex; gap: 2px; }
-.mode-btn { padding: 2px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; color: #909399; border: 1px solid #dcdfe6; background: #fff; }
-.mode-btn.active { color: #409eff; border-color: #409eff; background: #ecf5ff; }
-.chart-container { flex: 1; min-height: 100px; }
-.loading-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #909399; font-size: 14px; background: rgba(255,255,255,0.6); z-index: 1; pointer-events: none; }
+.longitudinal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 8px;
+  position: relative;
+}
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-dot.online {
+  background: #67c23a;
+}
+.status-dot.offline {
+  background: #909399;
+}
+.status-text {
+  color: #909399;
+}
+.nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.nav-controls button {
+  padding: 2px 8px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #fff;
+  color: #606266;
+  font-size: 12px;
+}
+.nav-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.nav-info {
+  font-size: 12px;
+  color: #909399;
+  min-width: 50px;
+  text-align: center;
+}
+.mode-controls {
+  display: flex;
+  gap: 2px;
+}
+.mode-btn {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #909399;
+  border: 1px solid #dcdfe6;
+  background: #fff;
+}
+.mode-btn.active {
+  color: #409eff;
+  border-color: #409eff;
+  background: #ecf5ff;
+}
+.chart-container {
+  flex: 1;
+  min-height: 100px;
+}
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #909399;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.6);
+  z-index: 1;
+  pointer-events: none;
+}
 </style>

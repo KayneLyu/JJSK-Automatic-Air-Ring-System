@@ -18,12 +18,12 @@
  *
  * 注：生产环境中，vite-plugin-electron 会自动编译 .ts worker 文件。
  */
-export { reconstructBubbleThickness } from './bubbleThicknessReconstruction'
+export { reconstructBubbleThickness } from './bubbleReconstruction'
 export type {
   MeasurementTriple,
   BubbleReconstructionOptions,
   BubbleReconstructionResult,
-} from './bubbleThicknessReconstruction'
+} from './bubbleReconstruction'
 export type {
   BubbleWorkerRequest,
   BubbleWorkerResponse,

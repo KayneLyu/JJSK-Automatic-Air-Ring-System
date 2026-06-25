@@ -2,8 +2,10 @@ import type { EChartsCoreOption } from 'echarts/core'
 
 export const REFRESH_INTERVAL_MS = 2000
 export const DEFAULT_MEMBRANE_WIDTH_MM = 1000
-export const DEFAULT_NUM_BINS = 120
+export const DEFAULT_NUM_BINS = 180
 export const DEFAULT_PROCESS_DEFORMATION = 1.02
+export const DEFAULT_NIP_TO_GAUGE_DISTANCE_MM = 2000
+export const DEFAULT_TRACTION_SPEED_MM_PER_S = 200
 // 首次加载扫描数：尽量多拉一些覆盖历史窗口（多趟 × 2000 点下采样 ≈ 30ms/趟）
 // 翻页时同样按这个数取更老的数据
 export const SWEEP_PAGE_SIZE = 20

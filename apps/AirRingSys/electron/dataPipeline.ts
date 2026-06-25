@@ -5,8 +5,10 @@ import type { PushData } from '@jjsk/adbox-sdk'
 import type { IUpperRotationDebugData, BubbleSweepResult } from '@/types/ipc'
 import { DataBatcher } from './data-batcher'
 import {
+  reconstructBubbleThickness,
   type BubbleReconstructionResult,
-} from '@jjsk/air-ring-server/algorithms/bubbleThicknessReconstruction.ts'
+  type MeasurementTriple,
+} from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
 import { trapezoidalPosition } from '@jjsk/air-ring-server/algorithms/upperRotation/upperRotation.evaluation.ts'
 
 /**
@@ -207,6 +209,7 @@ export class DataPipeline {
     gain: number
     numBins?: number
     processDeformationFactor?: number
+    transportDelayMs?: number
     startMs?: number
     endMs?: number
     useLatestWindowMs?: number
@@ -252,12 +255,14 @@ export class DataPipeline {
       params.mmPerPulse,
       params.airAD,
       params.gain,
-      numBins
+      numBins,
+      params.processDeformationFactor,
+      params.transportDelayMs
     )
   }
 
   /**
-   * 在 [startMs, endMs] 窗口内找所有趟的起止时刻
+   * 在 [startMs, endMs] 窗口內找所有趟的起止時刻
    */
   private findSweepsFromHistory(
     startMs: number,
@@ -322,6 +327,7 @@ export class DataPipeline {
     gain: number
     numBins?: number
     processDeformationFactor?: number
+    transportDelayMs?: number
     startMs?: number
     endMs?: number
     useLatestWindowMs?: number
@@ -366,7 +372,9 @@ export class DataPipeline {
         params.mmPerPulse,
         params.airAD,
         params.gain,
-        numBins
+        numBins,
+        params.processDeformationFactor,
+        params.transportDelayMs
       )
       if (!profile) continue
       results.push({
@@ -391,6 +399,7 @@ export class DataPipeline {
     gain: number
     numBins?: number
     processDeformationFactor?: number
+    transportDelayMs?: number
   }): BubbleSweepResult[] {
     if (params.membraneWidthMm <= 0 || params.thetaMaxDeg <= 0) return []
     if (params.mmPerPulse <= 0) return []
@@ -399,8 +408,12 @@ export class DataPipeline {
 
     const numBins = params.numBins ?? 48
     const MAX_POINTS_PER_SWEEP = 2000
-    const eventCount = params.count + 1
+    const MIN_SWEEP_MS = 30_000
 
+    // 多取方向变化事件以匹配 LongitudinalCharts 的趟数
+    // rotation_raw 记录可能比 thickness_raw 检测到的方向变化稀疏，
+    // 需要扩大采样窗口确保能凑满请求的 count 趟
+    const eventCount = Math.max(params.count * 8, 200)
     const rotRows = this.sqlite.queryLatestDirectionChanges(
       eventCount,
       params.beforeTs ?? 0
@@ -417,26 +430,14 @@ export class DataPipeline {
     }
     if (changes.length < 2) return []
 
-    const MIN_SWEEP_MS = 30_000
-    const sweepBounds: {
-      startTs: number
-      endTs: number
-      direction: 'forward' | 'reverse'
-    }[] = []
-    const pairCount = Math.min(params.count, changes.length - 1)
-    for (let i = 0; i < pairCount; i += 1) {
+    const results: BubbleSweepResult[] = []
+    const maxPairs = changes.length - 1
+    for (let i = 0; i < maxPairs && results.length < params.count; i += 1) {
       const start = changes[i + 1]
       const end = changes[i]
       if (end.ts - start.ts < MIN_SWEEP_MS) continue
-      sweepBounds.push({
-        startTs: start.ts,
-        endTs: end.ts,
-        direction: start.direction,
-      })
-    }
-    const results: BubbleSweepResult[] = []
-    for (const sweep of sweepBounds) {
-      const allRows = this.sqlite.queryThicknessRaw(sweep.startTs, sweep.endTs)
+
+      const allRows = this.sqlite.queryThicknessRaw(start.ts, end.ts)
       if (allRows.length < 100) continue
       const rows =
         allRows.length > MAX_POINTS_PER_SWEEP
@@ -445,24 +446,26 @@ export class DataPipeline {
       const profile = this.buildProfile(
         rows,
         {
-          startTs: sweep.startTs,
-          direction: sweep.direction,
-          durationMs: sweep.endTs - sweep.startTs,
+          startTs: start.ts,
+          direction: start.direction,
+          durationMs: end.ts - start.ts,
         },
         params.membraneWidthMm,
         params.thetaMaxDeg,
         params.mmPerPulse,
         params.airAD,
         params.gain,
-        numBins
+        numBins,
+        params.processDeformationFactor,
+        params.transportDelayMs
       )
       if (!profile) continue
       results.push({
         ...profile,
-        id: `sweep-${sweep.startTs}-${sweep.direction}`,
-        time: sweep.startTs,
-        direction: sweep.direction,
-        cycleDurationMs: sweep.endTs - sweep.startTs,
+        id: `sweep-${start.ts}-${start.direction}`,
+        time: start.ts,
+        direction: start.direction,
+        cycleDurationMs: end.ts - start.ts,
       })
     }
 
@@ -477,6 +480,7 @@ export class DataPipeline {
     gain: number
     numBins?: number
     processDeformationFactor?: number
+    transportDelayMs?: number
   }): BubbleSweepResult | null {
     if (params.membraneWidthMm <= 0 || params.thetaMaxDeg <= 0) return null
     if (params.mmPerPulse <= 0) return null
@@ -518,7 +522,9 @@ export class DataPipeline {
       params.mmPerPulse,
       params.airAD,
       params.gain,
-      numBins
+      numBins,
+      params.processDeformationFactor,
+      params.transportDelayMs
     )
     if (!profile) return null
 
@@ -544,8 +550,16 @@ export class DataPipeline {
     mmPerPulse: number,
     airAD: number,
     gain: number,
-    numBins: number
+    numBins: number,
+    processDeformationFactor: number = 1.02,
+    transportDelayMs?: number
   ): BubbleReconstructionResult | null {
+    if (transportDelayMs == null || transportDelayMs <= 0) {
+      console.warn(
+        '[buildProfile] 缺少运输延迟参数，请标定 测量点距离(upperDistance) 和 牵引速度(rollerTractionSpeed)'
+      )
+      return null
+    }
     if (data.length < 100) return null
 
     const prefiltered: Array<{
@@ -589,53 +603,89 @@ export class DataPipeline {
       prefiltered.map((p) => p.thickness)
     )
 
-    // ═══ 直接分箱统计（不做 f(α)+f(α+180°) 反卷积） ═══
-    //
-    // 每个测量点按膜泡角度 α 直接分箱取均值，不做反卷积重建。
-    // 这样保留了真实的圆周厚度分布形态，不会因为 T(α)=f(α)+f(α+180°)
-    // 正模型的零空间（反对称函数族）而强制输出对称 profile。
+    // ═══ 构建测量三元组 (delayedUpperAngle, scannerPosMm, thickness) ═══
+    // 测厚仪读数 = f(α₁) + f(α₂)，两层膜分别来自膜泡上对称于压合中心
+    // (delayedUpperAngle+90°)的两点：α₁=αC+δ, α₂=αC-δ。
+    // delayedUpperAngle 用 (timestamp - transportDelayMs) 推算，保证用的是
+    // 膜泡被压合时刻的上旋角度而非测量时刻。
     const binWidthDeg = 360 / numBins
-    const binThicknessSums: number[] = new Array(numBins).fill(0)
-    const binThicknessCounts: number[] = new Array(numBins).fill(0)
-    const binTimestampSums: number[] = new Array(numBins).fill(0)
-    const binTimestampCounts: number[] = new Array(numBins).fill(0)
-
     const tripDuration = Math.max(1, cycle.durationMs)
     const accelRatio = Math.min(20_000, tripDuration * 0.45) / tripDuration
 
+    const triples: MeasurementTriple[] = []
+    const allBin1: number[] = []
+    const allBin2: number[] = []
+    const allTimestamps: number[] = []
+    const allThicknesses: number[] = []
+    const binRawThicknessSums: number[] = new Array(numBins).fill(0)
+    const binRawThicknessCounts: number[] = new Array(numBins).fill(0)
+    const binTimestampSums: number[] = new Array(numBins).fill(0)
+    const binTimestampCounts: number[] = new Array(numBins).fill(0)
     let totalMeasurements = 0
+
     for (const item of prefiltered) {
       const centeredPos = item.scannerPosMm - centerMm
       if (Math.abs(centeredPos) > halfWidth) continue
       if (thicknessThreshold !== null && item.thickness > thicknessThreshold)
         continue
 
-      const elapsed = item.timestamp - cycle.startTs
-      const progress = Math.max(0, Math.min(1, elapsed / tripDuration))
-      const pos = trapezoidalPosition(progress, accelRatio)
-      const upperAngleDeg =
+      const delayedTs = item.timestamp - transportDelayMs
+      const delayedElapsed = delayedTs - cycle.startTs
+      const delayedProgress = Math.max(0, Math.min(1, delayedElapsed / tripDuration))
+      const delayedPos = trapezoidalPosition(delayedProgress, accelRatio)
+      const delayedUpperAngleDeg =
         cycle.direction === 'forward'
-          ? pos * thetaMaxDeg
-          : thetaMaxDeg - pos * thetaMaxDeg
+          ? delayedPos * thetaMaxDeg
+          : thetaMaxDeg - delayedPos * thetaMaxDeg
+
+      triples.push({
+        upperAngleDeg: delayedUpperAngleDeg,
+        scannerPosMm: centeredPos,
+        thickness: item.thickness,
+      })
 
       const scannerOffset = (centeredPos / effectiveWidthMm) * 180
-      const alpha = (((upperAngleDeg + scannerOffset) % 360) + 360) % 360
-      const binIdx = Math.floor(alpha / binWidthDeg) % numBins
-
-      binThicknessSums[binIdx] += item.thickness
-      binThicknessCounts[binIdx] += 1
-      binTimestampSums[binIdx] += item.timestamp
-      binTimestampCounts[binIdx] += 1
+      const alphaC = (((delayedUpperAngleDeg + 90) % 360) + 360) % 360
+      const alpha1 = ((alphaC + scannerOffset) % 360 + 360) % 360
+      const alpha2 = ((alphaC - scannerOffset) % 360 + 360) % 360
+      const bin1 = Math.floor(alpha1 / binWidthDeg) % numBins
+      const bin2 = Math.floor(alpha2 / binWidthDeg) % numBins
+      allBin1.push(bin1)
+      allBin2.push(bin2)
+      allTimestamps.push(item.timestamp)
+      allThicknesses.push(item.thickness)
+      binRawThicknessSums[bin1] += item.thickness
+      binRawThicknessCounts[bin1] += 1
+      binTimestampSums[bin1] += item.timestamp
+      binTimestampCounts[bin1] += 1
+      if (bin2 !== bin1) {
+        binRawThicknessSums[bin2] += item.thickness
+        binRawThicknessCounts[bin2] += 1
+        binTimestampSums[bin2] += item.timestamp
+        binTimestampCounts[bin2] += 1
+      }
       totalMeasurements += 1
     }
 
-    const profile: number[] = binThicknessSums.map((sum, i) =>
-      binThicknessCounts[i] > 0 ? sum / binThicknessCounts[i] : 0
+    if (triples.length < numBins * 2) {
+      console.warn(
+        `[buildProfile] 有效测量三元组不足: ${triples.length} < ${numBins * 2}`
+      )
+      return null
+    }
+
+    const result = reconstructBubbleThickness(
+      triples,
+      effectiveWidthMm,
+      {
+        numBins,
+        lambda: 1e-4,
+        mu: 0.1,
+        processDeformationFactor,
+      }
     )
 
-    const binCoverage: number[] = binThicknessCounts.map((c) => c)
-
-    const nonZeroProfile = profile.filter((v) => v > 0)
+    const nonZeroProfile = result.profile.filter((v) => v > 0)
     if (nonZeroProfile.length < Math.max(numBins * 0.3, 3)) {
       console.warn(
         `[buildProfile] 有效分箱不足: ${nonZeroProfile.length} < ${Math.max(numBins * 0.3, 3)}`
@@ -643,22 +693,41 @@ export class DataPipeline {
       return null
     }
 
-    if (!this.isProfilePlausible({ profile } as BubbleReconstructionResult))
-      return null
+    if (!this.isProfilePlausible(result)) return null
+
+    const profile = result.profile
+    const binPredictedSums: number[] = new Array(numBins).fill(0)
+    const binPredictedCounts: number[] = new Array(numBins).fill(0)
+    for (let k = 0; k < allBin1.length; k++) {
+      const b1 = allBin1[k]
+      const b2 = allBin2[k]
+      const predicted = (profile[b1] + profile[b2]) * processDeformationFactor
+      binPredictedSums[b1] += predicted
+      binPredictedCounts[b1] += 1
+      if (b2 !== b1) {
+        binPredictedSums[b2] += predicted
+        binPredictedCounts[b2] += 1
+      }
+    }
 
     const binTimestamps: number[] = binTimestampSums.map((sum, i) =>
       binTimestampCounts[i] > 0 ? sum / binTimestampCounts[i] : 0
     )
 
+    const rawThickness: number[] = binRawThicknessSums.map((sum, i) =>
+      binRawThicknessCounts[i] > 0 ? sum / binRawThicknessCounts[i] : 0
+    )
+
+    const predictedThickness: number[] = binPredictedSums.map((sum, i) =>
+      binPredictedCounts[i] > 0 ? sum / binPredictedCounts[i] : 0
+    )
+
     return {
-      profile,
-      numBins,
-      binWidthDeg,
-      rmsError: 0,
-      maxError: 0,
+      ...result,
       numMeasurements: totalMeasurements,
-      binCoverage,
       binTimestamps,
+      rawThickness,
+      predictedThickness,
     }
   }
 

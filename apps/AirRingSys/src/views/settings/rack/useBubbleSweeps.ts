@@ -1,5 +1,5 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import type { BubbleSweepResult } from '@/types/ipc'
+import type { BubbleSweepResult, ICalibrationResults } from '@/types/ipc'
 import {
   REFRESH_INTERVAL_MS,
   DEFAULT_MEMBRANE_WIDTH_MM,
@@ -8,14 +8,6 @@ import {
   SWEEP_PAGE_SIZE,
   type DataMode,
 } from './bubbleRawThickness.constants'
-
-interface CalibrationResults {
-  frameLengthMM?: number
-  frameLengthPulse?: number
-  mmPerPulse?: number
-  membraneWidthMm?: number
-  upperMaxAngle?: number
-}
 
 interface DeviceConstants {
   airAD?: string
@@ -44,7 +36,7 @@ export function useBubbleSweeps() {
   const lastSelectedId = ref<string | null>(null)
 
   const thicknessCfg = ref({ airAD: '50300', materialGain: '1.0' })
-  const calResults = ref<CalibrationResults>({})
+  const calResults = ref<ICalibrationResults>({})
 
   async function loadConfigs() {
     try {
@@ -59,7 +51,7 @@ export function useBubbleSweeps() {
     try {
       const cal = (await window.ipcApi.invoke(
         'config-get-calibration-results'
-      )) as CalibrationResults
+      )) as ICalibrationResults
       calResults.value = cal
     } catch {
       /* 默认值即可 */
@@ -85,6 +77,16 @@ export function useBubbleSweeps() {
           : 0.1
     const airADNum = Number(thicknessCfg.value.airAD) || 50300
     const gainNum = Number(thicknessCfg.value.materialGain) || 1.0
+
+    const { upperDistance, rollerTractionSpeed } = calResults.value
+    const transportDelayMs =
+      upperDistance != null &&
+      upperDistance > 0 &&
+      rollerTractionSpeed != null &&
+      rollerTractionSpeed > 0
+        ? (upperDistance / rollerTractionSpeed) * 1000
+        : undefined
+
     return {
       // 膜宽优先级：寻边标定的膜宽 > 机架长度（mm）> 默认值
       membraneWidthMm:
@@ -99,6 +101,7 @@ export function useBubbleSweeps() {
       gain: gainNum,
       numBins: DEFAULT_NUM_BINS,
       processDeformationFactor: DEFAULT_PROCESS_DEFORMATION,
+      transportDelayMs,
     }
   })
 
@@ -157,6 +160,13 @@ export function useBubbleSweeps() {
    */
   async function refresh() {
     if (isRefreshing.value) return
+    if (params.value.transportDelayMs == null) {
+      errorMessage.value =
+        '运输延迟参数缺失：需标定 测量点距离(upperDistance) 和 牵引速度(rollerTractionSpeed)'
+      sweeps.value = []
+      liveSweep.value = null
+      return
+    }
     isRefreshing.value = true
     errorMessage.value = null
     try {
@@ -204,6 +214,7 @@ export function useBubbleSweeps() {
    */
   async function loadOlderSweeps() {
     if (isRefreshing.value || !hasOlderData.value) return
+    if (params.value.transportDelayMs == null) return
     const first = sortedSweeps.value[0]
     if (!first) return
     // beforeTs 取最早一趟的起点 — 1ms 避免把已有那趟再拉回来

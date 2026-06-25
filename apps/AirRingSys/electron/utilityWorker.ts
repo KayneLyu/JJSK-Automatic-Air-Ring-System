@@ -577,6 +577,19 @@ function registerAllIpcHandlers(): void {
     if (!pipeline) return null
     return pipeline.getCurrentBubbleSweep(params as Parameters<typeof pipeline.getCurrentBubbleSweep>[0])
   })
+
+  // ── 膜泡重建 sweep 对比 ──
+  registerIpcHandler('bubble-compare-sweeps', async ([sweeps]: unknown[]) => {
+    const arr = sweeps as Array<{ profile: number[] }>
+    if (!arr || arr.length < 2) return null
+    const a = arr[0].profile
+    const b = arr[1].profile
+    if (!a || !b || a.length !== b.length) return null
+    let sumSq = 0
+    const n = a.length
+    for (let i = 0; i < n; i++) sumSq += (a[i] - b[i]) ** 2
+    return { rmse: Math.sqrt(sumSq / n) }
+  })
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -1,24 +1,32 @@
-import type { ThicknessData } from '../connections/thickness/types'
-/**
- * 膜泡原始厚度重建算法（Phase 1）
- *
- * 正模型：测厚仪读数是双层膜之和
- *   T_k = f(α_k) + f((α_k + 180) mod 360)
- *   其中 α_k = upperAngle_k + (scannerPos_k / membraneWidth) × 180°
- *
- * 反模型：收集足够多的 (α, T) 对，构建 N 元线性方程组求解 f(θ)
- *   → 稀疏线性系统 A·x = b，最小二乘求解
- *
- * 输入：
- *   measurements: (upperAngle, scannerPos, thickness) 三元组
- *   membraneWidthMm: 膜宽（mm），由扫描仪行程标定
- *   options.numBins: 角度分箱数（默认 = channelCount 对应的 N）
- *   options.lambda: L2 正则化系数（默认 1e-4）
- *   options.mu: 二阶差分平滑正则系数（默认 0.1，mu=0 关闭）
- *
- * 输出：
- *   profile[i]: 膜泡第 i 个分箱处的单层厚度（µm）
- */
+// ============================================================
+// 膜泡厚度重建算法
+//
+// 【几何模型】
+//   膜泡半径 R, 压平膜宽 W = πR (半周长)
+//   压合中心 αC = θ(t) + 90°
+//   扫描偏移 δ = (x / W) × 180°
+//   前层角 φ₁ = (αC + δ) mod 360°
+//   后层角 φ₂ = (αC − δ) mod 360°
+//
+//   φ₁ − φ₂ = 2δ, 仅在边缘 (|x|=W/2, δ=±90°) 时分离角 = 180°
+//   内点不满足 φ₂ = φ₁ + 180°  —— 旧简化模型是错误的
+//
+// 【测量模型】
+//   T_k = processFactor × (B(φ₁_k) + B(φ₂_k))
+//   B(φ) 离散为 N 个 bin, 线性插值
+//
+// 【重建方法】
+//   1. Batch 模式: (AᵀA + λI + μ·D₂ᵀD₂) x = Aᵀb, 高斯消元
+//   2. RLS 模式: 对角协方差递推最小二乘, 遗忘因子 λ_forget
+//
+// 【参数分类】
+//   物理确定: W=πR, δ=x/W×180°, φ=αC±δ
+//   标定参数: W (膜宽), τ (运输延迟)
+//   经验参数: processFactor=1.02, λ=1e-4, μ=0.1
+//   在线辨识: θ(t) — 上旋角
+// ============================================================
+
+// ---- 导出类型 ----
 
 export type MeasurementTriple = {
   upperAngleDeg: number
@@ -27,10 +35,20 @@ export type MeasurementTriple = {
 }
 
 export type BubbleReconstructionOptions = {
+  /** 角度分箱数 N (默认 360, 1°/bin) */
   numBins?: number
+  /** L2 正则化系数 (默认 1e-4) */
   lambda?: number
+  /** 二阶差分平滑系数 (Tikhonov D₂, 默认 0.1) */
   mu?: number
+  /** 工艺变形因子 (默认 1.02) */
   processDeformationFactor?: number
+  /** RLS 遗忘因子 λ ∈ (0,1] (默认 0.995) */
+  forgettingFactor?: number
+  /** RLS 二阶差分平滑系数 (默认 0.1, 每 200 步应用) */
+  smoothMu?: number
+  /** 求解模式 (默认 'batch') */
+  solverMode?: 'batch' | 'rls'
 }
 
 export type BubbleReconstructionResult = {
@@ -41,77 +59,273 @@ export type BubbleReconstructionResult = {
   maxError: number
   numMeasurements: number
   binCoverage: number[]
-  binTimestamps?: number[] // 每个 bin center 对应的采集时间戳 (ms)
+  predictedThickness?: number[]
 }
+
+// ---- 内部工具 ----
+
+const ZERO = 1e-14
 
 const normalizeAngle = (deg: number): number => {
-  let a = deg - Math.floor(deg / 360) * 360
-  if (a >= 360) a -= 360
-  if (a < 0) a += 360
-  return a
+  const a = ((deg % 360) + 360) % 360
+  return a >= 360 ? 0 : a
 }
 
-/**
- * 构建正向模型矩阵
- * 每个测量产生一行：T_k = w_α·f(bin_α) + w_α'·f(bin_α+1) + w_β·f(bin_β) + w_β'·f(bin_β'+1)
- * 使用线性插值，每行最多 4 个非零元素
- */
-const buildLinearSystem = (
+interface PhiPair {
+  phi1Deg: number
+  phi2Deg: number
+  deltaDeg: number
+  alphaCenterDeg: number
+}
+
+/** φ₁ = αC+δ, φ₂ = αC−δ, αC = θ+90°, δ = (x/W)×180° */
+const computePhiPair = (
+  upperAngleDeg: number,
+  scannerPosMm: number,
+  membraneWidthMm: number
+): PhiPair => {
+  const deltaDeg = (scannerPosMm / membraneWidthMm) * 180
+  const alphaCenterDeg = normalizeAngle(upperAngleDeg + 90)
+  const phi1Deg = normalizeAngle(alphaCenterDeg + deltaDeg)
+  const phi2Deg = normalizeAngle(alphaCenterDeg - deltaDeg)
+  return { phi1Deg, phi2Deg, deltaDeg, alphaCenterDeg }
+}
+
+// ---- CSR 稀疏矩阵 ----
+
+interface SparseSystem {
+  M: number
+  N: number
+  rowPtr: Int32Array
+  colInd: Int32Array
+  values: Float64Array
+  b: Float64Array
+  rawThickness: Float64Array
+}
+
+/** 从测量三元组构建 CSR 稀疏线性系统 A·x = b, b[k] = T_k / processFactor */
+const buildSparseSystem = (
   measurements: MeasurementTriple[],
   membraneWidthMm: number,
   numBins: number,
   processDeformationFactor: number
-): { A: number[][]; b: number[] } => {
+): SparseSystem => {
   const M = measurements.length
   const N = numBins
   const binWidth = 360 / N
 
-  const A: number[][] = Array.from({ length: M }, () => new Array(N).fill(0))
-  const b: number[] = new Array(M).fill(0)
+  const rows: Array<Map<number, number>> = []
+  const b = new Float64Array(M)
+  const rawThickness = new Float64Array(M)
 
   for (let k = 0; k < M; k++) {
     const { upperAngleDeg, scannerPosMm, thickness } = measurements[k]
+    const { phi1Deg, phi2Deg } = computePhiPair(upperAngleDeg, scannerPosMm, membraneWidthMm)
 
-    const scannerOffset = (scannerPosMm / membraneWidthMm) * 180
-    const alpha = normalizeAngle(upperAngleDeg + scannerOffset)
-    const beta = normalizeAngle(alpha + 180)
+    const row = new Map<number, number>()
+    const addPair = (phiDeg: number) => {
+      const idx = phiDeg / binWidth
+      const lo = Math.floor(idx) % N
+      const hi = (lo + 1) % N
+      const w = idx - Math.floor(idx)
+      row.set(lo, (row.get(lo) ?? 0) + (1 - w))
+      row.set(hi, (row.get(hi) ?? 0) + w)
+    }
+    addPair(phi1Deg)
+    addPair(phi2Deg)
 
-    const alphaIdx = alpha / binWidth
-    const betaIdx = beta / binWidth
-
-    const alphaLo = Math.floor(alphaIdx) % N
-    const alphaHi = (alphaLo + 1) % N
-    const betaLo = Math.floor(betaIdx) % N
-    const betaHi = (betaLo + 1) % N
-
-    const alphaWeight = alphaIdx - Math.floor(alphaIdx)
-    const betaWeight = betaIdx - Math.floor(betaIdx)
-
-    A[k][alphaLo] += 1 - alphaWeight
-    A[k][alphaHi] += alphaWeight
-    A[k][betaLo] += 1 - betaWeight
-    A[k][betaHi] += betaWeight
-
+    rows.push(row)
     b[k] = thickness / processDeformationFactor
+    rawThickness[k] = thickness
   }
 
-  return { A, b }
+  let nnz = 0
+  for (const row of rows) nnz += row.size
+
+  const rowPtr = new Int32Array(M + 1)
+  const colInd = new Int32Array(nnz)
+  const values = new Float64Array(nnz)
+
+  let offset = 0
+  for (let k = 0; k < M; k++) {
+    rowPtr[k] = offset
+    for (const [col, val] of rows[k]) {
+      colInd[offset] = col
+      values[offset] = val
+      offset++
+    }
+  }
+  rowPtr[M] = offset
+
+  return { M, N, rowPtr, colInd, values, b, rawThickness }
 }
 
+// ---- 前向预测 (µm 空间) ----
+
+const predictAll = (
+  profile: number[],
+  measurements: MeasurementTriple[],
+  membraneWidthMm: number,
+  processDeformationFactor: number
+): number[] => {
+  const N = profile.length
+  const binWidth = 360 / N
+  const predicted = new Array<number>(measurements.length)
+
+  for (let k = 0; k < measurements.length; k++) {
+    const { upperAngleDeg, scannerPosMm } = measurements[k]
+    const { phi1Deg, phi2Deg } = computePhiPair(upperAngleDeg, scannerPosMm, membraneWidthMm)
+
+    const interp = (phiDeg: number): number => {
+      const idx = phiDeg / binWidth
+      const lo = Math.floor(idx) % N
+      const hi = (lo + 1) % N
+      const w = idx - Math.floor(idx)
+      return profile[lo] * (1 - w) + profile[hi] * w
+    }
+    predicted[k] = (interp(phi1Deg) + interp(phi2Deg)) * processDeformationFactor
+  }
+
+  return predicted
+}
+
+// ---- Batch 求解: (AᵀA + λI + μ·D₂ᵀD₂) x = Aᵀb ----
+
+const solveBatch = (sparse: SparseSystem, lambda: number, mu: number): number[] => {
+  const { M, N, rowPtr, colInd, values, b } = sparse
+
+  const ATA: Float64Array[] = Array.from({ length: N }, () => new Float64Array(N))
+  const ATb = new Float64Array(N)
+
+  for (let k = 0; k < M; k++) {
+    const start = rowPtr[k]
+    const end = rowPtr[k + 1]
+    for (let p = start; p < end; p++) {
+      const colP = colInd[p]
+      const valP = values[p]
+      ATb[colP] += valP * b[k]
+      for (let q = p; q < end; q++) {
+        ATA[colP][colInd[q]] += valP * values[q]
+      }
+    }
+  }
+  for (let i = 0; i < N; i++) {
+    for (let j = i + 1; j < N; j++) ATA[j][i] = ATA[i][j]
+  }
+
+  for (let i = 0; i < N; i++) ATA[i][i] += lambda
+
+  if (mu > ZERO) {
+    for (let i = 0; i < N; i++) {
+      ATA[i][i] += mu * 6
+      ATA[i][(i + 1) % N] += mu * -4
+      ATA[i][(i - 1 + N) % N] += mu * -4
+      ATA[i][(i + 2) % N] += mu * 1
+      ATA[i][(i - 2 + N) % N] += mu * 1
+    }
+  }
+
+  const aug: Float64Array[] = Array.from({ length: N }, (_, i) => {
+    const row = new Float64Array(N + 1)
+    row.set(ATA[i])
+    row[N] = ATb[i]
+    return row
+  })
+
+  for (let col = 0; col < N; col++) {
+    let maxRow = col, maxVal = Math.abs(aug[col][col])
+    for (let row = col + 1; row < N; row++) {
+      const v = Math.abs(aug[row][col])
+      if (v > maxVal) { maxVal = v; maxRow = row }
+    }
+    if (maxVal < ZERO) continue
+    if (maxRow !== col) { const t = aug[col]; aug[col] = aug[maxRow]; aug[maxRow] = t }
+    const pivot = aug[col][col]
+    for (let row = col + 1; row < N; row++) {
+      const fac = aug[row][col] / pivot
+      for (let c = col; c <= N; c++) aug[row][c] -= fac * aug[col][c]
+    }
+  }
+
+  const x = new Array<number>(N).fill(0)
+  for (let i = N - 1; i >= 0; i--) {
+    if (Math.abs(aug[i][i]) < ZERO) continue
+    let sum = aug[i][N]
+    for (let j = i + 1; j < N; j++) sum -= aug[i][j] * x[j]
+    x[i] = sum / aug[i][i]
+  }
+  return x
+}
+
+// ---- RLS 在线求解 (对角协方差) ----
+
+const solveRLS = (
+  sparse: SparseSystem,
+  forgettingFactor: number,
+  smoothMu: number,
+  nominal: number = 50
+): number[] => {
+  const { M, N, rowPtr, colInd, values, b } = sparse
+  const B = new Float64Array(N)
+  for (let i = 0; i < N; i++) B[i] = nominal
+
+  const invStep = new Float64Array(N)
+  for (let i = 0; i < N; i++) invStep[i] = 1e-2
+
+  for (let k = 0; k < M; k++) {
+    const start = rowPtr[k], end = rowPtr[k + 1]
+
+    let predicted = 0
+    for (let p = start; p < end; p++) predicted += values[p] * B[colInd[p]]
+    const e = b[k] - predicted
+
+    for (let p = start; p < end; p++) {
+      const col = colInd[p], a = values[p]
+      invStep[col] = forgettingFactor * invStep[col] + a * a
+      B[col] += (1 / Math.max(1e-10, invStep[col])) * a * e
+    }
+
+    if (smoothMu > ZERO && (k + 1) % 200 === 0) {
+      const s = new Float64Array(N)
+      for (let i = 0; i < N; i++) {
+        const lap =
+          1 * B[(i - 2 + N) % N] + -4 * B[(i - 1 + N) % N] + 6 * B[i] +
+          -4 * B[(i + 1) % N] + 1 * B[(i + 2) % N]
+        s[i] = B[i] - smoothMu * 0.03 * lap
+      }
+      for (let i = 0; i < N; i++) B[i] = s[i]
+    }
+  }
+  return Array.from(B)
+}
+
+// ---- bin 覆盖统计 ----
+
+const computeBinCoverage = (
+  measurements: MeasurementTriple[],
+  membraneWidthMm: number,
+  numBins: number
+): number[] => {
+  const binWidth = 360 / numBins
+  const coverage = new Array<number>(numBins).fill(0)
+  for (const { upperAngleDeg, scannerPosMm } of measurements) {
+    const { phi1Deg, phi2Deg } = computePhiPair(upperAngleDeg, scannerPosMm, membraneWidthMm)
+    coverage[Math.floor(phi1Deg / binWidth) % numBins] += 0.5
+    coverage[Math.floor(phi2Deg / binWidth) % numBins] += 0.5
+  }
+  return coverage
+}
+
+// ============================================================
+// 公开 API
+// ============================================================
+
 /**
- * 给定重建后的单层厚度 profile，预测单个测量点的双层厚度 T_k
+ * 给定重建后的 profile B[N], 预测单个测量点的双层厚度 (µm)
  *
- * 物理模型：
- *   α_k = upperAngle_k + (scannerPos_k / membraneWidth) × 180°
- *   T_k = processDeformationFactor × (f(α_k) + f(α_k + 180°))
- *
- * 使用与 `buildLinearSystem` 一致的双线性插值，保证预测与内部残差计算一致。
- *
- * @param profile 重建出的 N 维单层厚度数组（已含非负投影）
- * @param measurement 单个测量三元组
- * @param membraneWidthMm 膜宽（mm）
- * @param processDeformationFactor 工艺变形因子（默认 1.02）
- * @returns 预测的双层厚度
+ * T_k = processFactor × (B(φ₁) + B(φ₂))
+ * φ₁ = upperAngle + 90° + δ,  φ₂ = upperAngle + 90° − δ
+ * δ  = (scannerPos / membraneWidth) × 180°
  */
 export const predictMeasuredThickness = (
   profile: number[],
@@ -121,310 +335,81 @@ export const predictMeasuredThickness = (
 ): number => {
   const numBins = profile.length
   const binWidth = 360 / numBins
-  const alpha = normalizeAngle(
-    measurement.upperAngleDeg + (measurement.scannerPosMm / membraneWidthMm) * 180
+  const { phi1Deg, phi2Deg } = computePhiPair(
+    measurement.upperAngleDeg, measurement.scannerPosMm, membraneWidthMm
   )
-  const beta = normalizeAngle(alpha + 180)
-
-  const alphaIdx = alpha / binWidth
-  const betaIdx = beta / binWidth
-  const alphaLo = Math.floor(alphaIdx) % numBins
-  const alphaHi = (alphaLo + 1) % numBins
-  const betaLo = Math.floor(betaIdx) % numBins
-  const betaHi = (betaLo + 1) % numBins
-  const alphaWeight = alphaIdx - Math.floor(alphaIdx)
-  const betaWeight = betaIdx - Math.floor(betaIdx)
-
-  const fAlpha =
-    profile[alphaLo] * (1 - alphaWeight) + profile[alphaHi] * alphaWeight
-  const fBeta =
-    profile[betaLo] * (1 - betaWeight) + profile[betaHi] * betaWeight
-
-  return (fAlpha + fBeta) * processDeformationFactor
+  const interp = (phiDeg: number): number => {
+    const idx = phiDeg / binWidth
+    const lo = Math.floor(idx) % numBins
+    const hi = (lo + 1) % numBins
+    const w = idx - Math.floor(idx)
+    return profile[lo] * (1 - w) + profile[hi] * w
+  }
+  return (interp(phi1Deg) + interp(phi2Deg)) * processDeformationFactor
 }
 
 /**
- * 求解稀疏线性系统最小二乘 (A^T A + λI + μ·D^T D) x = A^T b
+ * 从双层测厚数据重建膜泡圆周厚度分布 B(φ)
  *
- * - λI: L2 正则化，保证数值稳定
- * - μ·D^T D: 圆周方向二阶差分平滑，D 是循环三对角差分算子
- *   D[i][i-1]=1, D[i][i]=-2, D[i][i+1]=1 (mod N)
- *   D^T D 是循环五对角，模式 [1, -4, 6, -4, 1]
- *   对均匀 profile 零贡献，对相邻 bin 突变（高频噪声）强惩罚
+ * 正模型:
+ *   T_k = processFactor × (B(φ₁_k) + B(φ₂_k))
+ *   φ₁_k = upperAngle_k + 90° + δ_k   (前层)
+ *   φ₂_k = upperAngle_k + 90° − δ_k   (后层)
+ *   δ_k  = scannerPos_k / membraneWidth × 180°
  *
- * 使用高斯消元（部分主元选取）
- */
-const solveNormalEquations = (
-  A: number[][],
-  b: number[],
-  lambda: number,
-  mu: number
-): number[] => {
-  const M = A.length
-  const N = A[0].length
-
-  const ATA: number[][] = Array.from({ length: N }, () => new Array(N).fill(0))
-  const ATb: number[] = new Array(N).fill(0)
-
-  for (let i = 0; i < N; i++) {
-    for (let j = i; j < N; j++) {
-      let sum = 0
-      for (let k = 0; k < M; k++) {
-        sum += A[k][i] * A[k][j]
-      }
-      ATA[i][j] = sum
-      ATA[j][i] = sum
-    }
-    let sumB = 0
-    for (let k = 0; k < M; k++) {
-      sumB += A[k][i] * b[k]
-    }
-    ATb[i] = sumB
-  }
-
-  for (let i = 0; i < N; i++) {
-    ATA[i][i] += lambda
-  }
-
-  // 二阶差分平滑：D^T D 循环五对角 [1, -4, 6, -4, 1]
-  if (mu > 0) {
-    for (let i = 0; i < N; i++) {
-      ATA[i][i] += mu * 6
-      const i1 = (i + 1) % N
-      const im1 = (i - 1 + N) % N
-      const i2 = (i + 2) % N
-      const im2 = (i - 2 + N) % N
-      ATA[i][i1] += mu * -4
-      ATA[i][im1] += mu * -4
-      ATA[i][i2] += mu * 1
-      ATA[i][im2] += mu * 1
-    }
-  }
-
-  const aug: number[][] = Array.from({ length: N }, (_, i) => [
-    ...ATA[i],
-    ATb[i],
-  ])
-
-  for (let col = 0; col < N; col++) {
-    let maxRow = col
-    let maxVal = Math.abs(aug[col][col])
-    for (let row = col + 1; row < N; row++) {
-      const v = Math.abs(aug[row][col])
-      if (v > maxVal) {
-        maxVal = v
-        maxRow = row
-      }
-    }
-    if (maxVal < 1e-14) continue
-    if (maxRow !== col) {
-      const tmp = aug[col]
-      aug[col] = aug[maxRow]
-      aug[maxRow] = tmp
-    }
-    const pivot = aug[col][col]
-    for (let row = col + 1; row < N; row++) {
-      const factor = aug[row][col] / pivot
-      for (let c = col; c <= N; c++) {
-        aug[row][c] -= factor * aug[col][c]
-      }
-    }
-  }
-
-  const x = new Array(N).fill(0)
-  for (let i = N - 1; i >= 0; i--) {
-    if (Math.abs(aug[i][i]) < 1e-14) continue
-    let sum = aug[i][N]
-    for (let j = i + 1; j < N; j++) {
-      sum -= aug[i][j] * x[j]
-    }
-    x[i] = sum / aug[i][i]
-  }
-
-  return x
-}
-
-/** 统计每个分箱被测量覆盖的次数 */
-const computeBinCoverage = (
-  measurements: MeasurementTriple[],
-  membraneWidthMm: number,
-  numBins: number
-): number[] => {
-  const binWidth = 360 / numBins
-  const coverage = new Array(numBins).fill(0)
-
-  for (const { upperAngleDeg, scannerPosMm } of measurements) {
-    const alpha = normalizeAngle(
-      upperAngleDeg + (scannerPosMm / membraneWidthMm) * 180
-    )
-    const beta = normalizeAngle(alpha + 180)
-    coverage[Math.floor(alpha / binWidth) % numBins] += 0.5
-    coverage[Math.floor(beta / binWidth) % numBins] += 0.5
-  }
-
-  return coverage
-}
-
-/**
- * 从双层测厚数据重建膜泡圆周厚度分布
+ * 关键性质:
+ *   φ₁ − φ₂ = 2δ, 仅在边缘 (δ=±90°) 时差 180°
+ *   扫描仪覆盖不同 x 打破 φ₁=φ₂ 简并 → 系统满秩
  *
- * 工作原理：
- * 1. 每次测量 T_k = f(α_k) + f(α_k+180°) 是膜泡上两个相距 180° 位置的单层厚度之和
- * 2. 随着上旋旋转和扫描仪扫描，α_k 在 [0, 360°] 全范围变化
- * 3. 收集大量不同 α 值的测量后，N 元线性系统变为满秩，可唯一求解
- * 4. 最小二乘求解 f(θ) 的离散值（N 个角度分箱）
- *
- * 约束：
- * - 测量必须覆盖 α 的全范围（上旋行程越完整越好）
- * - 扫描仪位置变化提供 α 的多样性（单一 scannerPos 下系统欠定）
- * - 建议 numBins ≤ 测量数 / 5 以保证稳定求解
+ * @param measurements   (upperAngleDeg, scannerPosMm, thickness)
+ * @param membraneWidthMm 膜宽 W (mm)
  */
 export const reconstructBubbleThickness = (
   measurements: MeasurementTriple[],
   membraneWidthMm: number,
   options?: BubbleReconstructionOptions
 ): BubbleReconstructionResult => {
-  const numBins = options?.numBins ?? 48
+  const numBins = options?.numBins ?? 360
   const lambda = options?.lambda ?? 1e-4
   const mu = options?.mu ?? 0.1
   const processFactor = options?.processDeformationFactor ?? 1.02
+  const forgettingFactor = options?.forgettingFactor ?? 0.995
+  const smoothMu = options?.smoothMu ?? 0.1
+  const solverMode = options?.solverMode ?? 'batch'
   const binWidthDeg = 360 / numBins
 
   if (measurements.length < numBins * 2) {
     console.warn(
-      `[BubbleReconstruction] 测量数 ${measurements.length} 少于 2×N=${numBins * 2}，` +
-        `解可能不稳定`
+      `[BubbleReconstruction] 测量数 ${measurements.length} < 2×N=${numBins * 2}, 解可能不稳定`
     )
   }
 
-  const { A, b } = buildLinearSystem(
-    measurements,
-    membraneWidthMm,
-    numBins,
-    processFactor
-  )
-  const rawProfile = solveNormalEquations(A, b, lambda, mu)
+  const sparse = buildSparseSystem(measurements, membraneWidthMm, numBins, processFactor)
 
-  // 业务级非负投影：f(θ) 是单层膜厚，物理上不能为负
-  // L2 正则化不保证非负解（正定矩阵的逆可以有负元素），病态数据下原始解
-  // 可能用负值 bin 去"补偿"其他 bin 的偏差——物理上无意义
-  // 这里做一次非负投影 + 基于投影后的 profile 重算残差，残差才是诚实的
-  const profile: number[] = rawProfile.map((v) => (v > 0 ? v : 0))
+  const rawProfile =
+    solverMode === 'rls'
+      ? solveRLS(sparse, forgettingFactor, smoothMu)
+      : solveBatch(sparse, lambda, mu)
 
-  const residuals: number[] = new Array(measurements.length).fill(0)
-  let sumSq = 0
-  let maxErr = 0
+  const profile = rawProfile.map((v) => (v > 0 ? v : 0))
+
+  const predicted = predictAll(profile, measurements, membraneWidthMm, processFactor)
+
+  let sumSq = 0, maxErr = 0
   for (let k = 0; k < measurements.length; k++) {
-    let predicted = 0
-    for (let j = 0; j < numBins; j++) {
-      predicted += A[k][j] * profile[j]
-    }
-    const err = Math.abs(b[k] - predicted)
-    residuals[k] = err
+    const err = Math.abs(measurements[k].thickness - predicted[k])
     sumSq += err * err
     if (err > maxErr) maxErr = err
   }
-
-  const rmsError = Math.sqrt(sumSq / measurements.length)
-  const binCoverage = computeBinCoverage(
-    measurements,
-    membraneWidthMm,
-    numBins
-  )
 
   return {
     profile,
     numBins,
     binWidthDeg,
-    rmsError,
+    rmsError: Math.sqrt(sumSq / measurements.length),
     maxError: maxErr,
     numMeasurements: measurements.length,
-    binCoverage,
+    binCoverage: computeBinCoverage(measurements, membraneWidthMm, numBins),
+    predictedThickness: predicted,
   }
-}
-
-/**
- * 从实际采集数据构建测量三元组
- *
- * 将 ADBox 推送的 (timestamp, ProbeValue, HorizontalPulse) 与上旋方向信号
- * 结合，推算每个测量点的上旋角度和扫描仪位置。
- *
- * @param thicknessData 测厚数据列表
- * @param upperAngleDeg 每个测量点对应的上旋角度（由上层计算传入）
- * @param horizontalPulseToMm 脉冲到毫米转换系数
- * @param scannerCenterPulse 扫描仪中心位置脉冲值
- */
-export const buildMeasurementTriples = (
-  thicknessData: ThicknessData[],
-  upperAngleDeg: number[],
-  horizontalPulseToMm: number,
-  scannerCenterPulse: number
-): MeasurementTriple[] => {
-  const triples: MeasurementTriple[] = []
-
-  for (let i = 0; i < thicknessData.length; i++) {
-    const td = thicknessData[i]
-    if (td.ProbeValue == null || !Number.isFinite(td.ProbeValue)) continue
-    if (td.HorizontalPulse == null) continue
-    if (td.ProbeValue <= 0) continue
-
-    triples.push({
-      upperAngleDeg: upperAngleDeg[i],
-      scannerPosMm: (td.HorizontalPulse - scannerCenterPulse) * horizontalPulseToMm,
-      thickness: td.ProbeValue,
-    })
-  }
-
-  return triples
-}
-
-import type { TripSegment } from '../types'
-import { trapezoidalPosition } from './upperRotation/upperRotation.evaluation'
-
-/**
- * 从 TripSegment 数组提取测量三元组，用于真实数据重建。
- *
- * 利用上旋算法的梯形速度曲线将每段行程内的相对时间 t 映射到上旋角度，
- * 并利用 pulse 值换算出扫描仪位置（mm）。
- *
- * @param tripSegments 上旋行程片段（由 buildTripSegment 生成）
- * @param thetaMaxDeg  最大旋转角度（由 estimateThetaMaxWithPhaseCorrection 估计）
- * @param pulseToMm    脉冲到毫米的转换系数（如 0.1）
- * @param accelRatio   加速段占行程比例（默认与算法一致：duration*0.45 上限 20s）
- */
-export const extractTriplesFromSegments = (
-  tripSegments: TripSegment[],
-  thetaMaxDeg: number,
-  pulseToMm: number,
-  accelRatio?: number
-): MeasurementTriple[] => {
-  const triples: MeasurementTriple[] = []
-
-  for (const seg of tripSegments) {
-    if (seg.duration <= 0 || seg.measurements.length === 0) continue
-
-    const duration = seg.duration
-    const ar =
-      accelRatio ?? Math.min(20000, duration * 0.45) / duration
-
-    for (const p of seg.measurements) {
-      if (!Number.isFinite(p.y) || p.y <= 0) continue
-      if (p.pulse === undefined || !Number.isFinite(p.pulse)) continue
-
-      const progress = p.t / duration
-      const pos = trapezoidalPosition(Math.max(0, Math.min(1, progress)), ar)
-
-      const upperAngle = seg.isForward
-        ? pos * thetaMaxDeg
-        : thetaMaxDeg - pos * thetaMaxDeg
-
-      triples.push({
-        upperAngleDeg: upperAngle,
-        scannerPosMm: p.pulse! * pulseToMm,
-        thickness: p.y,
-      })
-    }
-  }
-
-  return triples
 }

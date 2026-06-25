@@ -1,21 +1,36 @@
 <script setup lang="ts">
-import { toRef } from 'vue'
+import { toRef, computed } from 'vue'
 import VChart from 'vue-echarts'
 import { useBubblePolarChart } from './useBubblePolarChart'
 import type { BubbleSweepResult } from '@/types/ipc'
+import { EMPTY_POLAR_OPTION } from './bubbleRawThickness.constants'
 
 const props = defineProps<{
   selectedSweep: BubbleSweepResult | null
   errorMessage: string | null
+  compareSweep?: BubbleSweepResult | null
 }>()
 
-const { chartOption } = useBubblePolarChart(toRef(props, 'selectedSweep'))
+const chart = useBubblePolarChart(toRef(props, 'selectedSweep'))
+
+const displayOption = computed(() => {
+  if (props.errorMessage) {
+    return {
+      ...EMPTY_POLAR_OPTION,
+      title: {
+        ...EMPTY_POLAR_OPTION.title,
+        text: props.errorMessage,
+        textStyle: { color: '#f56c6c', fontSize: 14, fontWeight: 'normal' },
+      },
+    }
+  }
+  return chart.chartOption.value
+})
 </script>
 
 <template>
   <div class="chart-pane">
-    <VChart class="chart-container" :option="chartOption" autoresize />
-    <div v-if="errorMessage" class="empty-overlay">{{ errorMessage }}</div>
+    <VChart class="chart-container" :option="displayOption" autoresize />
   </div>
 </template>
 
@@ -34,16 +49,5 @@ const { chartOption } = useBubblePolarChart(toRef(props, 'selectedSweep'))
 .chart-container {
   width: 100%;
   height: 100%;
-}
-
-.empty-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #c0c4cc;
-  font-size: 14px;
-  pointer-events: none;
 }
 </style>

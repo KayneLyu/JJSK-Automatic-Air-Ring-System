@@ -29,8 +29,10 @@
 
 ## 物理模型
 
-- 测量：T_k = f(α_k) + f(α_k + 180°)
-- α_k = upperAngle_k + (scannerPos_k / membraneWidth) × 180°
+- 测量：T_k = B(φ₁_k) + B(φ₂_k)
+  - φ₁_k = upperAngle_k + 90° + δ_k（前层），δ_k = (scannerPos_k / membraneWidth) × 180°
+  - φ₂_k = upperAngle_k + 90° − δ_k（后层）
+- 关键：φ₁−φ₂ = 2δ ≠ 180°（仅边缘 δ=±90° 时分离角=180°）
 - 仿真器正模型：`blowFilm.mock.ts:774-787`
 - 工艺变形因子：1.02（2% 压平变形）
 

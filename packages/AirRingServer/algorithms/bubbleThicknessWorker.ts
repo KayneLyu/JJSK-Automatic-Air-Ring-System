@@ -15,7 +15,7 @@ import {
   type MeasurementTriple,
   type BubbleReconstructionOptions,
   type BubbleReconstructionResult,
-} from './bubbleThicknessReconstruction'
+} from './bubbleReconstruction'
 
 export type BubbleWorkerRequest = {
   id: number

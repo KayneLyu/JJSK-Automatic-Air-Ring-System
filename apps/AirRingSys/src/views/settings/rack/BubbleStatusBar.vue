@@ -5,17 +5,11 @@ import {
   type DataMode,
 } from './bubbleRawThickness.constants'
 
-interface CalibrationResults {
-  frameLengthMM?: number
-  frameLengthPulse?: number
-  mmPerPulse?: number
-  membraneWidthMm?: number
-  upperMaxAngle?: number
-}
+import type { ICalibrationResults } from '@/types/ipc'
 
 const props = defineProps<{
   dataMode: DataMode
-  calResults: CalibrationResults
+  calResults: ICalibrationResults
   thicknessCfg: { airAD: string; materialGain: string }
   lastUpdatedAt: number | null
   selectedMeanCoverage: number

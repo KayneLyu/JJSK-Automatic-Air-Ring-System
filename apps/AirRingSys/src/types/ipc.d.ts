@@ -337,6 +337,7 @@ export interface IpcChannelMap {
         gain: number
         numBins?: number
         processDeformationFactor?: number
+        transportDelayMs?: number
         startMs?: number
         endMs?: number
         useLatestWindowMs?: number
@@ -356,6 +357,7 @@ export interface IpcChannelMap {
         gain: number
         numBins?: number
         processDeformationFactor?: number
+        transportDelayMs?: number
         startMs?: number
         endMs?: number
         useLatestWindowMs?: number
@@ -378,6 +380,7 @@ export interface IpcChannelMap {
         gain: number
         numBins?: number
         processDeformationFactor?: number
+        transportDelayMs?: number
       }
     ]
     output: BubbleSweepResult[]
@@ -393,6 +396,7 @@ export interface IpcChannelMap {
         gain: number
         numBins?: number
         processDeformationFactor?: number
+        transportDelayMs?: number
       }
     ]
     output: BubbleSweepResult | null
@@ -472,7 +476,9 @@ export interface BubbleReconstructionResult {
   maxError: number
   numMeasurements: number
   binCoverage: number[]
-  binTimestamps?: number[] // 每个 bin center 对应的采集时间戳 (ms)
+  binTimestamps?: number[]
+  rawThickness?: number[]
+  predictedThickness?: number[]
 }
 
 // ═══ 一趟扫描（forward 或 reverse）的完整重建结果 ═══
