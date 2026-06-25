@@ -121,7 +121,8 @@ const chartOption = computed<echarts.EChartsCoreOption>(() => {
     else bwdPoints.push(...s.points)
   }
   fwdPoints.sort((a, b) => a[0] - b[0])
-  bwdPoints.sort((a, b) => a[0] - b[0])
+  // 返程 pulse 逐渐减小，从右往左绘制：按 pulse 降序排列
+  bwdPoints.sort((a, b) => b[0] - a[0])
 
   const hasSweeps = fwdPoints.length > 0 || bwdPoints.length > 0
 
