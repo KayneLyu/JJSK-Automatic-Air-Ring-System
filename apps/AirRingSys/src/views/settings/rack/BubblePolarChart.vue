@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { toRef } from 'vue'
+import VChart from 'vue-echarts'
 import { useBubblePolarChart } from './useBubblePolarChart'
 import type { BubbleSweepResult } from '@/types/ipc'
 
@@ -8,12 +9,12 @@ const props = defineProps<{
   errorMessage: string | null
 }>()
 
-useBubblePolarChart(toRef(props, 'selectedSweep'))
+const { chartOption } = useBubblePolarChart(toRef(props, 'selectedSweep'))
 </script>
 
 <template>
   <div class="chart-pane">
-    <div ref="chartRef" class="chart-container"></div>
+    <VChart class="chart-container" :option="chartOption" autoresize />
     <div v-if="errorMessage" class="empty-overlay">{{ errorMessage }}</div>
   </div>
 </template>
