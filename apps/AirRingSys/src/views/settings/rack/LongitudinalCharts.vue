@@ -111,7 +111,9 @@ const displaySweeps = computed(() => {
 })
 
 // vue-echarts handles lifecycle, reactive updates, and resize automatically
+let optComputeCount = 0
 const chartOption = computed(() => {
+  optComputeCount++
   const fwdPoints: [number, number, number][] = []
   const bwdPoints: [number, number, number][] = []
   for (const s of displaySweeps.value) {
@@ -120,7 +122,7 @@ const chartOption = computed(() => {
   }
   fwdPoints.sort((a, b) => a[0] - b[0])
   bwdPoints.sort((a, b) => b[0] - a[0])
-
+  console.log('[Longitudinal] chartOption #' + optComputeCount + ' | sweeps=' + sweeps.value.length + ' display=' + displaySweeps.value.length + ' fwd=' + fwdPoints.length + ' bwd=' + bwdPoints.length)
   return {
     tooltip: {
       trigger: 'axis',
@@ -156,18 +158,25 @@ const theme = computed(() => (configStore.isDark ? 'dark' : ''))
 
 // ── Real-time ──
 let collector = createThicknessCollector()
+let rtCount = 0
 
 function handleRealtimeData(_: unknown, payload: IPollingModBusData | PushData | PushData[]) {
+  rtCount++
   const data = normalizeThicknessRealtimePayload(payload)
-  if (!data) return
+  if (!data) {
+    if (rtCount <= 3) console.log('[Longitudinal] rt #' + rtCount + ' normalize=null', typeof payload)
+    return
+  }
   const completed = collector.process(data.pulses, data.adValues)
+  if (rtCount <= 5 || completed) {
+    console.log('[Longitudinal] rt #' + rtCount + ' | pulses=' + data.pulses.length + ' completed=' + !!completed + ' sweeps=' + sweeps.value.length)
+  }
   if (completed && completed.length > 0) {
     const nowTs = Date.now()
-    const pts = completed
-      .filter((p) => p.ad !== null)
-      .map((p) => [p.pulse, p.ad!, nowTs] as [number, number, number])
+    const pts = completed.filter(function(p) { return p.ad !== null }).map(function(p) { return [p.pulse, p.ad, nowTs] as [number, number, number] })
     if (pts.length > 0) {
       const dir = detectDirection(pts)
+      console.log('[Longitudinal] SWEEP DONE! dir=' + dir + ' pts=' + pts.length)
       sweeps.value.push({ direction: dir, points: pts })
       if (sweeps.value.length > 20) sweeps.value.splice(0, sweeps.value.length - 20)
       currentIndex.value = sweeps.value.length - 1
@@ -251,10 +260,12 @@ function handleStatus(_msg: unknown, payload: { connected: boolean }) {
 }
 
 onMounted(async () => {
+  console.log('[Longitudinal] mounted')
   window.ipcApi.on('adbox-data', handleRealtimeData)
   window.ipcApi.on('adbox-status', handleStatus)
   await loadThicknessConfig()
   await checkConnection()
+  console.log('[Longitudinal] connected=' + isConnected.value + ' cfg=', thicknessCfg.value)
   if (!isConnected.value) { await loadHistoricalData() }
 })
 
