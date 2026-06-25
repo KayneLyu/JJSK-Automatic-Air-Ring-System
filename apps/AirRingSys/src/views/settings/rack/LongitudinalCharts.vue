@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
-import * as echarts from 'echarts/core'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { LineChart } from 'echarts/charts'
 import {
   TooltipComponent,
   GridComponent,
   LegendComponent,
 } from 'echarts/components'
-import { LineChart } from 'echarts/charts'
-import { CanvasRenderer } from 'echarts/renderers'
-import useChartsInit from '@/hooks/useInitCharts'
+import VChart from 'vue-echarts'
+import { useConfigStore } from '@/store/config.ts'
 import {
   normalizeThicknessRealtimePayload,
   createThicknessCollector,
@@ -18,18 +19,14 @@ import type { ThicknessConfig } from './utiles'
 import type { PushData } from '@jjsk/adbox-sdk'
 import type { IPollingModBusData, SweepRow } from '@/types/ipc'
 
-echarts.use([
-  TooltipComponent,
-  GridComponent,
-  LegendComponent,
-  LineChart,
-  CanvasRenderer,
-])
+use([TooltipComponent, GridComponent, LegendComponent, LineChart, CanvasRenderer])
 
 interface SweepData {
   direction: 'forward' | 'backward'
   points: [number, number, number][] // [pos, ad, ts]
 }
+
+const configStore = useConfigStore()
 
 const isConnected = ref(false)
 const loading = ref(false)
@@ -113,45 +110,8 @@ const displaySweeps = computed(() => {
     : ([other, cur].filter(Boolean) as SweepData[])
 })
 
-const chartOption = computed<echarts.EChartsCoreOption>(() => ({
-  tooltip: {
-    trigger: 'axis',
-    formatter(params: unknown) {
-      const items = params as {
-        seriesName: string
-        data: [number, number, number]
-        color: string
-      }[]
-      if (!items.length) return ''
-      const pos = items[0].data[0]
-      let html = `<div style="font-weight:bold;margin-bottom:4px">位置 ${pos} pulse</div>`
-      for (const s of items) {
-        const ad = s.data[1]
-        const ts = s.data[2]
-        const timeStr = ts > 0 ? new Date(ts).toLocaleString() : '—'
-        const thick = calcThickness(ad, thicknessCfg.value)
-        html += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0">
-          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color}"></span>
-          ${s.seriesName} <span style="color:#909399;font-size:11px">${timeStr}</span> AD <b>${ad}</b> 厚度 <b>${thick.toFixed(2)}μm</b>
-        </div>`
-      }
-      return html
-    },
-  },
-  legend: { data: ['正程', '逆程'] },
-  grid: { left: 50, right: 40, top: 40, bottom: 40 },
-  xAxis: { type: 'value', name: '位置(pulse)', min: 0 },
-  yAxis: { type: 'value', name: 'AD', splitLine: { show: true } },
-  series: [
-    { name: '正程', type: 'line', showSymbol: false, data: [] },
-    { name: '逆程', type: 'line', showSymbol: false, data: [] },
-  ],
-}))
-const { updateCharts } = useChartsInit('chartRef', chartOption.value)
-
-let buildSeriesCallCount = 0
-function buildSeries() {
-  buildSeriesCallCount++
+// vue-echarts handles lifecycle, reactive updates, and resize automatically
+const chartOption = computed(() => {
   const fwdPoints: [number, number, number][] = []
   const bwdPoints: [number, number, number][] = []
   for (const s of displaySweeps.value) {
@@ -159,41 +119,48 @@ function buildSeries() {
     else bwdPoints.push(...s.points)
   }
   fwdPoints.sort((a, b) => a[0] - b[0])
-  // 返程 pulse 逐渐减小，从右往左绘制：按 pulse 降序排列
   bwdPoints.sort((a, b) => b[0] - a[0])
-  console.log(`[Longitudinal] buildSeries #${buildSeriesCallCount} | sweeps=${sweeps.value.length} displaySweeps=${displaySweeps.value.length} | fwd=${fwdPoints.length} bwd=${bwdPoints.length}`)
-  updateCharts({ series: [{ data: fwdPoints }, { data: bwdPoints }] })
-}
 
-watch(
-  displaySweeps,
-  () => {
-    buildSeries()
-  },
-  { deep: true }
-)
-watch(displayMode, () => {
-  buildSeries()
+  return {
+    tooltip: {
+      trigger: 'axis',
+      formatter(params: unknown) {
+        const items = params as { seriesName: string; data: [number, number, number]; color: string }[]
+        if (!items.length) return ''
+        const pos = items[0].data[0]
+        let html = '<div style="font-weight:bold;margin-bottom:4px">位置 ' + pos + ' pulse</div>'
+        for (const s of items) {
+          const ad = s.data[1]
+          const ts = s.data[2]
+          const timeStr = ts > 0 ? new Date(ts).toLocaleString() : '—'
+          const thick = calcThickness(ad, thicknessCfg.value)
+          html += '<div style="display:flex;align-items:center;gap:6px;margin:2px 0">'
+            + '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + s.color + '"></span> '
+            + s.seriesName + ' <span style="color:#909399;font-size:11px">' + timeStr + '</span> AD <b>' + ad + '</b> 厚度 <b>' + thick.toFixed(2) + 'μm</b></div>'
+        }
+        return html
+      },
+    },
+    legend: { data: ['正程', '逆程'] },
+    grid: { left: 50, right: 40, top: 40, bottom: 40 },
+    xAxis: { type: 'value', name: '位置(pulse)', min: 0 },
+    yAxis: { type: 'value', name: 'AD', splitLine: { show: true } },
+    series: [
+      { name: '正程', type: 'line', showSymbol: false, data: fwdPoints },
+      { name: '逆程', type: 'line', showSymbol: false, data: bwdPoints },
+    ],
+  }
 })
+
+const theme = computed(() => (configStore.isDark ? 'dark' : ''))
 
 // ── Real-time ──
 let collector = createThicknessCollector()
-let realtimeCount = 0
 
-function handleRealtimeData(
-  _: unknown,
-  payload: IPollingModBusData | PushData | PushData[]
-) {
-  realtimeCount++
+function handleRealtimeData(_: unknown, payload: IPollingModBusData | PushData | PushData[]) {
   const data = normalizeThicknessRealtimePayload(payload)
-  if (!data) {
-    if (realtimeCount <= 3) console.log(`[Longitudinal] handleRealtimeData #${realtimeCount}: normalize returned null`, payload)
-    return
-  }
+  if (!data) return
   const completed = collector.process(data.pulses, data.adValues)
-  if (realtimeCount <= 3 || completed) {
-    console.log(`[Longitudinal] handleRealtimeData #${realtimeCount} | pulses=${data.pulses.length} completed=${!!completed} sweeps=${sweeps.value.length}`)
-  }
   if (completed && completed.length > 0) {
     const nowTs = Date.now()
     const pts = completed
@@ -201,40 +168,27 @@ function handleRealtimeData(
       .map((p) => [p.pulse, p.ad!, nowTs] as [number, number, number])
     if (pts.length > 0) {
       const dir = detectDirection(pts)
-      console.log(`[Longitudinal] sweep completed! dir=${dir} pts=${pts.length}`)
       sweeps.value.push({ direction: dir, points: pts })
-      if (sweeps.value.length > 20)
-        sweeps.value.splice(0, sweeps.value.length - 20)
+      if (sweeps.value.length > 20) sweeps.value.splice(0, sweeps.value.length - 20)
       currentIndex.value = sweeps.value.length - 1
-      console.log(`[Longitudinal] sweep added | total sweeps=${sweeps.value.length}`)
     }
   }
 }
 
 // ── Historical ──
 const HISTORY_PAGE_SIZE = 500000
-const OVERLAP_MS = 30000 // 30秒重叠缓冲，确保边界 sweep 完整
+const OVERLAP_MS = 30000
 
 async function loadHistoricalData(beforeTs?: number) {
   loading.value = true
   try {
-    const rows = (await window.ipcApi.invoke(
-      'db-get-latest-sweeps',
-      HISTORY_PAGE_SIZE,
-      beforeTs
-    )) as SweepRow[]
+    const rows = (await window.ipcApi.invoke('db-get-latest-sweeps', HISTORY_PAGE_SIZE, beforeTs)) as SweepRow[]
     const mapped = rows.map((r) => ({
       direction: r.direction,
-      points: r.points.map(
-        (p) => [p.pos, p.ad, p.ts] as [number, number, number]
-      ),
+      points: r.points.map((p) => [p.pos, p.ad, p.ts] as [number, number, number]),
     }))
     if (beforeTs && beforeTs > 0) {
-      if (mapped.length === 0) {
-        hasOlderData.value = false
-        return
-      }
-      // 跳过与已有数据重叠的 sweep（基于首个数据点时间戳去重）
+      if (mapped.length === 0) { hasOlderData.value = false; return }
       let start = 0
       const existingFirstTs = sweeps.value[0]?.points?.[0]?.[2] ?? 0
       while (start < mapped.length) {
@@ -242,10 +196,7 @@ async function loadHistoricalData(beforeTs?: number) {
         if (existingFirstTs > 0 && ts >= existingFirstTs) start++
         else break
       }
-      if (start >= mapped.length) {
-        hasOlderData.value = false
-        return
-      }
+      if (start >= mapped.length) { hasOlderData.value = false; return }
       const added = mapped.slice(start)
       sweeps.value.unshift(...added)
       currentIndex.value = currentIndex.value + added.length
@@ -273,61 +224,38 @@ async function loadOlderData() {
 
 function prevSweep() {
   const step = displayMode.value === 'round' ? 2 : 1
-  if (currentIndex.value >= step) {
-    currentIndex.value -= step
-  } else {
-    loadOlderData()
-  }
+  if (currentIndex.value >= step) { currentIndex.value -= step }
+  else { loadOlderData() }
 }
 
 function nextSweep() {
   const step = displayMode.value === 'round' ? 2 : 1
-  currentIndex.value = Math.min(
-    currentIndex.value + step,
-    sweeps.value.length - 1
-  )
+  currentIndex.value = Math.min(currentIndex.value + step, sweeps.value.length - 1)
 }
 
 // ── Connection ──
 async function checkConnection() {
-  try {
-    isConnected.value = (await window.ipcApi.invoke(
-      'adbox-get-connection-status'
-    )) as boolean
-  } catch {
-    isConnected.value = false
-  }
+  try { isConnected.value = (await window.ipcApi.invoke('adbox-get-connection-status')) as boolean }
+  catch { isConnected.value = false }
 }
 
 function handleStatus(_msg: unknown, payload: { connected: boolean }) {
   const wasConnected = isConnected.value
   isConnected.value = payload.connected
   if (isConnected.value && !wasConnected) {
-    // 从离线切换到在线：清空历史数据，开始接收实时数据
     collector = createThicknessCollector()
     sweeps.value = []
   } else if (!isConnected.value && wasConnected) {
-    // 从在线切换到离线：加载历史数据
     loadHistoricalData()
   }
 }
 
 onMounted(async () => {
-  console.log('[Longitudinal] onMounted')
-  // 始终立即注册 adbox-data（与 side.vue 一致），避免错过实时数据
   window.ipcApi.on('adbox-data', handleRealtimeData)
   window.ipcApi.on('adbox-status', handleStatus)
-  console.log('[Longitudinal] handlers registered')
-
   await loadThicknessConfig()
-  console.log('[Longitudinal] thicknessConfig loaded', thicknessCfg.value)
   await checkConnection()
-  console.log('[Longitudinal] isConnected =', isConnected.value)
-
-  if (!isConnected.value) {
-    await loadHistoricalData()
-    console.log('[Longitudinal] historical data loaded | sweeps=', sweeps.value.length)
-  }
+  if (!isConnected.value) { await loadHistoricalData() }
 })
 
 onUnmounted(() => {
@@ -340,141 +268,37 @@ onUnmounted(() => {
   <div class="longitudinal">
     <div class="status-bar">
       <span :class="['status-dot', isConnected ? 'online' : 'offline']"></span>
-      <span class="status-text">{{
-        isConnected ? '测厚仪已连接 — 实时数据' : '离线模式 — 历史数据'
-      }}</span>
+      <span class="status-text">{{ isConnected ? '测厚仪已连接 — 实时数据' : '离线模式 — 历史数据' }}</span>
       <span v-if="!isConnected" class="nav-controls">
-        <button
-          :disabled="
-            sweeps.length === 0 ||
-            (currentIndex < (displayMode === 'round' ? 2 : 1) && !hasOlderData)
-          "
-          @click="prevSweep"
-        >
-          上一幅
-        </button>
+        <button :disabled="sweeps.length === 0 || (currentIndex < (displayMode === 'round' ? 2 : 1) && !hasOlderData)" @click="prevSweep">上一幅</button>
         <span class="nav-info">{{ sweeps.length > 0 ? navIndex : 0 }}</span>
-        <button
-          :disabled="
-            currentIndex >= sweeps.length - (displayMode === 'round' ? 2 : 1)
-          "
-          @click="nextSweep"
-        >
-          下一幅
-        </button>
+        <button :disabled="currentIndex >= sweeps.length - (displayMode === 'round' ? 2 : 1)" @click="nextSweep">下一幅</button>
       </span>
       <span class="mode-controls">
-        <label
-          :class="['mode-btn', { active: displayMode === 'single' }]"
-          @click="displayMode = 'single'"
-          >单程</label
-        >
-        <label
-          :class="['mode-btn', { active: displayMode === 'round' }]"
-          @click="displayMode = 'round'"
-          >来回</label
-        >
+        <label :class="['mode-btn', { active: displayMode === 'single' }]" @click="displayMode = 'single'">单程</label>
+        <label :class="['mode-btn', { active: displayMode === 'round' }]" @click="displayMode = 'round'">来回</label>
       </span>
     </div>
-    <div ref="chartRef" class="chart-container"></div>
+    <VChart class="chart-container" :option="chartOption" :theme="theme" autoresize />
     <div v-if="loading" class="loading-overlay">加载中...</div>
-    <div
-      v-else-if="!isConnected && sweeps.length === 0"
-      class="loading-overlay"
-    >
-      暂无历史数据
-    </div>
+    <div v-else-if="!isConnected && sweeps.length === 0" class="loading-overlay">暂无历史数据</div>
   </div>
 </template>
 
 <style scoped>
-.longitudinal {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  gap: 8px;
-  position: relative;
-}
-.status-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  font-size: 13px;
-  flex-shrink: 0;
-}
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.status-dot.online {
-  background: #67c23a;
-}
-.status-dot.offline {
-  background: #909399;
-}
-.status-text {
-  color: #909399;
-}
-.nav-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-}
-.nav-controls button {
-  padding: 2px 8px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  cursor: pointer;
-  background: #fff;
-  color: #606266;
-  font-size: 12px;
-}
-.nav-controls button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.nav-info {
-  font-size: 12px;
-  color: #909399;
-  min-width: 50px;
-  text-align: center;
-}
-.mode-controls {
-  display: flex;
-  gap: 2px;
-}
-.mode-btn {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-  color: #909399;
-  border: 1px solid #dcdfe6;
-  background: #fff;
-}
-.mode-btn.active {
-  color: #409eff;
-  border-color: #409eff;
-  background: #ecf5ff;
-}
-.chart-container {
-  flex: 1;
-  min-height: 100px;
-}
-.loading-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #909399;
-  font-size: 14px;
-  background: rgba(255, 255, 255, 0.6);
-  z-index: 1;
-  pointer-events: none;
-}
+.longitudinal { display: flex; flex-direction: column; height: 100%; gap: 8px; position: relative; }
+.status-bar { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px; flex-shrink: 0; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.online { background: #67c23a; }
+.status-dot.offline { background: #909399; }
+.status-text { color: #909399; }
+.nav-controls { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.nav-controls button { padding: 2px 8px; border: 1px solid #dcdfe6; border-radius: 4px; cursor: pointer; background: #fff; color: #606266; font-size: 12px; }
+.nav-controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+.nav-info { font-size: 12px; color: #909399; min-width: 50px; text-align: center; }
+.mode-controls { display: flex; gap: 2px; }
+.mode-btn { padding: 2px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; color: #909399; border: 1px solid #dcdfe6; background: #fff; }
+.mode-btn.active { color: #409eff; border-color: #409eff; background: #ecf5ff; }
+.chart-container { flex: 1; min-height: 100px; }
+.loading-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #909399; font-size: 14px; background: rgba(255, 255, 255, 0.6); z-index: 1; pointer-events: none; }
 </style>
