@@ -4,7 +4,7 @@
 
 ## 项目类型
 
-- **语言**：TypeScript 5.x（严格模式）
+- **语言**：TypeScript 7.0.1-rc（typescript-go, 严格模式, 严格模式 + 严格 import attribute）
 - **框架**：Electron 30 + Vue 3 + Vite 7
 - **包管理**：pnpm monorepo（apps/ + packages/）
 - **测试框架**：vitest
@@ -96,6 +96,15 @@ pnpm dev
 cd apps/AirRingSys
 pnpm build
 
+# 运行 lint（oxlint + oxlint-tsgolint）
+pnpm lint
+
+# 运行 typecheck（TS 7.0.1-rc）
+pnpm exec tsc --noEmit -p apps/AirRingSys/tsconfig.json
+pnpm exec tsc --noEmit -p apps/AirRingSys/tsconfig.node.json
+pnpm exec tsc --noEmit -p packages/AirRingServer/tsconfig.json
+pnpm exec tsc --noEmit -p packages/Simulation/tsconfig.json
+
 # 运行上旋测试（全量）
 cd packages/AirRingServer
 pnpm exec vitest run algorithms/upperRotation/tests/*.test.ts
@@ -118,6 +127,6 @@ pnpm start
 ## 重要约束（代码未表达）
 
 - 不要自动执行测试（除非用户明确要求）
-- 不要手动修复 ESLint/Prettier（编辑器自动处理）
+- 不要手动修复 lint 问题（oxlint 是类型感知 linter, 真实 type-safety 警告请保留为 warning）
 - `.instructions/` 目录是历史遗留，已迁移到 `.agents/`
 - `.github/copilot-instructions.md` 已迁移到 `.agents/guide/`

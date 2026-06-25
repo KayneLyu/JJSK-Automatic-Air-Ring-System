@@ -159,3 +159,31 @@
 - 是否将 offset auto 从"全局 pulse 优先"升级为"按组质量动态切换"
 - 是否增强 buildTripSegment 的有效段筛选
 - 是否为真实数据引入轻量后验约束
+
+---
+
+## [2026-06-25 15:00] Linter 迁移：typescript-eslint → oxlint + oxlint-tsgolint
+
+**背景**：
+- typescript@^7.0.1-rc 是 typescript-go 的 RC 预览包,`package.json` 的 `exports` 字段只暴露 `./unstable/*`,无 `.` 入口与 `main`,作为库不可导入
+- `@typescript-eslint/typescript-estree@8.x` peerDependencies 限制 `typescript: '>=4.8.4 <6.1.0'`,整个 8.x 系列不兼容 TS 7
+- 上游 typescript-eslint 短期内不会支持 TS 7(typescript-go 的 unstable/* API 与 TS 5 API 不兼容)
+
+**结论**：
+- 移除 8 个 ESLint 相关 devDeps:`@eslint/compat`、`@eslint/js`、`@typescript-eslint/parser`、`eslint`、`eslint-config-prettier`、`eslint-plugin-neverthrow`、`eslint-plugin-prettier`、`typescript-eslint`
+- 新增 `oxlint@^1.71.0` + `oxlint-tsgolint@^0.23.0`(后者基于 typescript-go,原生支持 TS 7)
+- 配置改用 `.oxlintrc.json`(JSON 格式,不是 ESLint 的 JS flat config)
+- `pnpm run lint` 命令:`oxlint --type-aware`(无 `--type-check`,后者会触发实验性 TS 编译诊断)
+- Prettier 保留为独立格式化工具,`pnpm run format` / `pnpm run format:check` 单独调用
+- 删除 `eslint-plugin-neverthrow`(代码无 neverthrow 模式使用,影响为零)
+- 删除 `eslint-plugin-prettier`(oxlint 不支持,改用 prettier --write 独立)
+
+**原因**：
+- typescript-eslint 短期不支持 TS 7 是上游约束,无法绕过
+- oxlint-tsgolint 直接运行在 typescript-go 上,与 TS 7 同源,无版本错配
+- oxlint 性能 20-40x 优于 typescript-eslint
+- 保持原 ESLint `recommended` 的有效覆盖范围(默认 `correctness: error`),类型感知规则降为 warning 以匹配原 `recommended` 的实际覆盖
+- 详情:`.agents/tasks/migrate-oxlint-typescript7/`
+
+**遗留事项**:
+- `pnpm exec tsc --noEmit` 在 `packages/AirRingServer` 与 `packages/Simulation` 发现预存 typecheck 错误(TS 7 严格的 import attribute 语法要求 `with` 而非 `assert` 等),**与本次迁移无关**,需单独 task 修复

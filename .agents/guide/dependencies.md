@@ -44,8 +44,9 @@
 
 | 包 | 用途 |
 |----|------|
-| typescript | 类型系统 |
-| eslint + prettier | 代码规范 |
+| typescript@^7.0.1-rc | 类型系统（typescript-go RC，原生支持 TS 7） |
+| oxlint + oxlint-tsgolint | 代码规范（tsgolint 基于 typescript-go，支持类型感知 lint） |
+| prettier | 代码格式化（独立工具，不与 oxlint 联动） |
 | vitest | 测试框架 |
 | vite | 构建工具 |
 
