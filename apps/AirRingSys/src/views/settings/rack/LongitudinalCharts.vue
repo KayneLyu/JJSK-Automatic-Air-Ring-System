@@ -6,7 +6,7 @@ import {
   GridComponent,
   LegendComponent,
 } from 'echarts/components'
-import { LineChart, ScatterChart } from 'echarts/charts'
+import { LineChart } from 'echarts/charts'
 import { CanvasRenderer } from 'echarts/renderers'
 import useChartsInit from '@/hooks/useInitCharts'
 import {
@@ -23,7 +23,6 @@ echarts.use([
   GridComponent,
   LegendComponent,
   LineChart,
-  ScatterChart,
   CanvasRenderer,
 ])
 
@@ -127,10 +126,36 @@ const chartOption = computed<echarts.EChartsCoreOption>(() => {
   fwdPoints.sort((a, b) => a[0] - b[0])
   bwdPoints.sort((a, b) => a[0] - b[0])
 
-  // 实时预览数据（sweep 未完成时的散点）
-  const preview = previewPoints.value
+  // 实时预览数据：始终以浅色折线叠加显示
+  const preview = previewPoints.value.sort((a, b) => a[0] - b[0])
 
-  const hasSweeps = fwdPoints.length > 0 || bwdPoints.length > 0
+  const legendData = ['正程', '逆程']
+    const series: echarts.SeriesOption[] = [
+    {
+      name: '正程',
+      type: 'line',
+      showSymbol: false,
+      data: fwdPoints,
+    },
+    {
+      name: '逆程',
+      type: 'line',
+      showSymbol: false,
+      data: bwdPoints,
+    },
+    {
+      name: '实时采集',
+      type: 'line',
+      showSymbol: false,
+      lineStyle: { color: '#c0c4cc', width: 1, type: 'dashed' },
+      data: preview.length > 0 ? preview : [],
+    },
+  ]
+  // 有 sweep 时才在 legend 中显示正程/逆程，否则只显示实时采集
+  if (fwdPoints.length === 0 && bwdPoints.length === 0) {
+    legendData.length = 0
+    legendData.push('实时采集')
+  }
 
   return {
     tooltip: {
@@ -157,23 +182,11 @@ const chartOption = computed<echarts.EChartsCoreOption>(() => {
         return html
       },
     },
-    legend: { data: hasSweeps ? ['正程', '逆程'] : ['实时采集'] },
+    legend: { data: legendData },
     grid: { left: 50, right: 40, top: 40, bottom: 40 },
     xAxis: { type: 'value', name: '位置(pulse)', min: 0 },
     yAxis: { type: 'value', name: 'AD', splitLine: { show: true } },
-    series: hasSweeps
-      ? [
-          { name: '正程', type: 'line', showSymbol: false, data: fwdPoints },
-          { name: '逆程', type: 'line', showSymbol: false, data: bwdPoints },
-        ]
-      : [
-          {
-            name: '实时采集',
-            type: 'scatter',
-            symbolSize: 3,
-            data: preview,
-          },
-        ],
+    series,
   }
 })
 const { updateCharts } = useChartsInit('chartRef', chartOption.value)
