@@ -114,6 +114,9 @@ const displaySweeps = computed(() => {
     : ([other, cur].filter(Boolean) as SweepData[])
 })
 
+// 实时预览数据（sweep 完成前也有内容可看，须在 chartOption 前声明）
+const previewPoints = ref<[number, number][]>([])
+
 const chartOption = computed<echarts.EChartsCoreOption>(() => {
   const fwdPoints: [number, number, number][] = []
   const bwdPoints: [number, number, number][] = []
@@ -186,13 +189,10 @@ watch(
 // ── Real-time ──
 let collector = createThicknessCollector()
 
-// 实时预览数据（sweep 完成前也有内容可看）
-const previewPoints = ref<[number, number][]>([])
 let pendingRaf: number | null = null
 
 function flushPreview() {
   pendingRaf = null
-  // 强制触发 chartOption 重新计算（previewPoints 作为依赖）
   previewPoints.value = [...collector.getPreviewData() as [number, number][]]
 }
 
