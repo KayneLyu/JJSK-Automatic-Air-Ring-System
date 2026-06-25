@@ -43,7 +43,7 @@ export function useBubblePolarChart(
     const sweep = sweepRef.value
     if (!sweep) return EMPTY_POLAR_OPTION
 
-    const { profile, direction, time, cycleDurationMs, rmsError, maxError, numMeasurements } = sweep
+    const { profile, direction, time, cycleDurationMs, numMeasurements, binCoverage } = sweep
     const color = directionColor(direction)
     const inProgress = isInProgress(sweep, Date.now())
     const durMin = (cycleDurationMs / 60_000).toFixed(1)
@@ -58,7 +58,7 @@ export function useBubblePolarChart(
     return {
       title: {
         text: titleText,
-        subtext: 'RMS ' + rmsError.toFixed(2) + ' μm · Max ' + maxError.toFixed(2) + ' μm · 测量 ' + numMeasurements,
+        subtext: '测量 ' + numMeasurements + ' 点 · 各角度测厚仪平均读数',
         left: 'center',
         top: 10,
         textStyle: { fontSize: 14, fontWeight: 600 },
@@ -86,13 +86,9 @@ export function useBubblePolarChart(
             html += '<div>' + p.marker + ' ' + p.seriesName + '：<b>' + p.value[0].toFixed(2) + '</b> μm</div>'
           }
           const currentBin = Math.floor(angle / binWidth) % numBins
-          const oppositeBin = (currentBin + Math.floor(numBins / 2)) % numBins
-          const cur = sweep.profile[currentBin]
-          const opp = sweep.profile[oppositeBin]
-          if (cur !== undefined && opp !== undefined) {
-            const compressed = cur + opp
-            const oppositeAngle = (angle + 180) % 360
-            html += '<div style="color:#67c23a">压合厚度：<b>' + compressed.toFixed(2) + '</b> μm <span style="color:#909399;font-size:11px">(' + angle.toFixed(0) + '° / ' + oppositeAngle.toFixed(0) + '°)</span></div>'
+          if (binCoverage && binCoverage.length >= numBins) {
+            const count = binCoverage[currentBin]
+            html += '<div style="color:#909399;font-size:11px">该角度测量点数：' + count + '</div>'
           }
           const binTimestamps = sweep.binTimestamps
           if (binTimestamps && binTimestamps.length >= numBins) {

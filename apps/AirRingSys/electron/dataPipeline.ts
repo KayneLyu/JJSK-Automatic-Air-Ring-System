@@ -5,9 +5,7 @@ import type { PushData } from '@jjsk/adbox-sdk'
 import type { IUpperRotationDebugData, BubbleSweepResult } from '@/types/ipc'
 import { DataBatcher } from './data-batcher'
 import {
-  reconstructBubbleThickness,
   type BubbleReconstructionResult,
-  type MeasurementTriple,
 } from '@jjsk/air-ring-server/algorithms/bubbleThicknessReconstruction.ts'
 import { trapezoidalPosition } from '@jjsk/air-ring-server/algorithms/upperRotation/upperRotation.evaluation.ts'
 
@@ -218,7 +216,6 @@ export class DataPipeline {
     if (params.airAD <= 0) return null
 
     const numBins = params.numBins ?? 48
-    const processFactor = params.processDeformationFactor ?? 1.02
     const MAX_POINTS_PER_SWEEP = 2000
 
     let startMs = params.startMs ?? 0
@@ -255,8 +252,7 @@ export class DataPipeline {
       params.mmPerPulse,
       params.airAD,
       params.gain,
-      numBins,
-      processFactor
+      numBins
     )
   }
 
@@ -336,7 +332,6 @@ export class DataPipeline {
     if (params.airAD <= 0) return []
 
     const numBins = params.numBins ?? 48
-    const processFactor = params.processDeformationFactor ?? 1.02
     const MAX_POINTS_PER_SWEEP = 2000
 
     let startMs = params.startMs ?? 0
@@ -371,8 +366,7 @@ export class DataPipeline {
         params.mmPerPulse,
         params.airAD,
         params.gain,
-        numBins,
-        processFactor
+        numBins
       )
       if (!profile) continue
       results.push({
@@ -404,7 +398,6 @@ export class DataPipeline {
     if (params.count <= 0) return []
 
     const numBins = params.numBins ?? 48
-    const processFactor = params.processDeformationFactor ?? 1.02
     const MAX_POINTS_PER_SWEEP = 2000
     const eventCount = params.count + 1
 
@@ -461,8 +454,7 @@ export class DataPipeline {
         params.mmPerPulse,
         params.airAD,
         params.gain,
-        numBins,
-        processFactor
+        numBins
       )
       if (!profile) continue
       results.push({
@@ -491,7 +483,6 @@ export class DataPipeline {
     if (params.airAD <= 0) return null
 
     const numBins = params.numBins ?? 48
-    const processFactor = params.processDeformationFactor ?? 1.02
     const MAX_POINTS_PER_SWEEP = 2000
     const rotRows = this.sqlite.queryLatestDirectionChanges(1)
     if (rotRows.length === 0) return null
@@ -527,8 +518,7 @@ export class DataPipeline {
       params.mmPerPulse,
       params.airAD,
       params.gain,
-      numBins,
-      processFactor
+      numBins
     )
     if (!profile) return null
 
@@ -554,8 +544,7 @@ export class DataPipeline {
     mmPerPulse: number,
     airAD: number,
     gain: number,
-    numBins: number,
-    processFactor: number
+    numBins: number
   ): BubbleReconstructionResult | null {
     if (data.length < 100) return null
 
@@ -600,14 +589,21 @@ export class DataPipeline {
       prefiltered.map((p) => p.thickness)
     )
 
-    const triples: MeasurementTriple[] = []
+    // ═══ 直接分箱统计（不做 f(α)+f(α+180°) 反卷积） ═══
+    //
+    // 每个测量点按膜泡角度 α 直接分箱取均值，不做反卷积重建。
+    // 这样保留了真实的圆周厚度分布形态，不会因为 T(α)=f(α)+f(α+180°)
+    // 正模型的零空间（反对称函数族）而强制输出对称 profile。
     const binWidthDeg = 360 / numBins
-    const binTimestampSum: number[] = new Array(numBins).fill(0)
-    const binTimestampCount: number[] = new Array(numBins).fill(0)
+    const binThicknessSums: number[] = new Array(numBins).fill(0)
+    const binThicknessCounts: number[] = new Array(numBins).fill(0)
+    const binTimestampSums: number[] = new Array(numBins).fill(0)
+    const binTimestampCounts: number[] = new Array(numBins).fill(0)
 
     const tripDuration = Math.max(1, cycle.durationMs)
     const accelRatio = Math.min(20_000, tripDuration * 0.45) / tripDuration
 
+    let totalMeasurements = 0
     for (const item of prefiltered) {
       const centeredPos = item.scannerPosMm - centerMm
       if (Math.abs(centeredPos) > halfWidth) continue
@@ -622,40 +618,48 @@ export class DataPipeline {
           ? pos * thetaMaxDeg
           : thetaMaxDeg - pos * thetaMaxDeg
 
-      triples.push({
-        upperAngleDeg,
-        scannerPosMm: centeredPos,
-        thickness: item.thickness,
-      })
-
       const scannerOffset = (centeredPos / effectiveWidthMm) * 180
       const alpha = (((upperAngleDeg + scannerOffset) % 360) + 360) % 360
       const binIdx = Math.floor(alpha / binWidthDeg) % numBins
-      binTimestampSum[binIdx] += item.timestamp
-      binTimestampCount[binIdx] += 1
+
+      binThicknessSums[binIdx] += item.thickness
+      binThicknessCounts[binIdx] += 1
+      binTimestampSums[binIdx] += item.timestamp
+      binTimestampCounts[binIdx] += 1
+      totalMeasurements += 1
     }
 
-    if (triples.length < numBins) {
+    const profile: number[] = binThicknessSums.map((sum, i) =>
+      binThicknessCounts[i] > 0 ? sum / binThicknessCounts[i] : 0
+    )
+
+    const binCoverage: number[] = binThicknessCounts.map((c) => c)
+
+    const nonZeroProfile = profile.filter((v) => v > 0)
+    if (nonZeroProfile.length < Math.max(numBins * 0.3, 3)) {
       console.warn(
-        `[buildProfile] 过滤后三元组不足: ${triples.length} < ${numBins}`
+        `[buildProfile] 有效分箱不足: ${nonZeroProfile.length} < ${Math.max(numBins * 0.3, 3)}`
       )
       return null
     }
 
-    const result = reconstructBubbleThickness(triples, effectiveWidthMm, {
-      numBins,
-      processDeformationFactor: processFactor,
-      lambda: 0.01,
-    })
+    if (!this.isProfilePlausible({ profile } as BubbleReconstructionResult))
+      return null
 
-    if (!result) return null
-    if (!this.isProfilePlausible(result)) return null
-
-    const binTimestamps: number[] = binTimestampSum.map((sum, i) =>
-      binTimestampCount[i] > 0 ? sum / binTimestampCount[i] : 0
+    const binTimestamps: number[] = binTimestampSums.map((sum, i) =>
+      binTimestampCounts[i] > 0 ? sum / binTimestampCounts[i] : 0
     )
 
-    return { ...result, binTimestamps }
+    return {
+      profile,
+      numBins,
+      binWidthDeg,
+      rmsError: 0,
+      maxError: 0,
+      numMeasurements: totalMeasurements,
+      binCoverage,
+      binTimestamps,
+    }
   }
 
   private detectOutOfBoundsThreshold(values: number[]): number | null {
