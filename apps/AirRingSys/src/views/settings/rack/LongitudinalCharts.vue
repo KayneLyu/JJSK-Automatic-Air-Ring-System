@@ -178,9 +178,6 @@ function handleRealtimeData(
   _: unknown,
   payload: IPollingModBusData | PushData | PushData[]
 ) {
-  // 离线模式下忽略实时数据
-  if (!isConnected.value) return
-
   const data = normalizeThicknessRealtimePayload(payload)
   if (!data) return
   const completed = collector.process(data.pulses, data.adValues)
