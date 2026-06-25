@@ -58,6 +58,7 @@ const useInitCharts = (
       return
     }
     try {
+      console.log('[useInitCharts] initChart | size=' + el.clientWidth + 'x' + el.clientHeight)
       chartInstanceRef = echarts.init(el, store.isDark ? 'dark' : '')
       chartInstanceRef.setOption(options)
       if (props && props.frameData) {
@@ -68,6 +69,7 @@ const useInitCharts = (
 
       // 应用 initChart 完成前缓存的 updateCharts 调用
       if (pendingUpdate) {
+        console.log('[useInitCharts] applying pendingUpdate | notMerge=' + pendingUpdate.notMerge)
         chartInstanceRef.setOption(
           pendingUpdate.options,
           pendingUpdate.notMerge
@@ -95,11 +97,14 @@ const useInitCharts = (
   }
   const updateCharts = (newOptions: EChartsCoreOption, notMerge = false) => {
     if (chartInstanceRef) {
+      console.log('[useInitCharts] updateCharts | notMerge=' + notMerge + ' | hasChart=true')
       chartInstanceRef.setOption(newOptions, notMerge)
       pendingUpdate = null
     } else if (chartRef.value) {
-      // DOM 已存在但图表尚未初始化（可能在 RAF 重试中），缓存更新待 initChart 完成后应用
+      console.log('[useInitCharts] updateCharts PENDING | notMerge=' + notMerge + ' | dom exists, chart not ready')
       pendingUpdate = { options: newOptions, notMerge }
+    } else {
+      console.log('[useInitCharts] updateCharts SKIPPED | no dom ref')
     }
   }
 

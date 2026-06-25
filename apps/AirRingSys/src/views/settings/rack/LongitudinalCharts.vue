@@ -113,7 +113,9 @@ const displaySweeps = computed(() => {
     : ([other, cur].filter(Boolean) as SweepData[])
 })
 
-const chartOption = computed<echarts.EChartsCoreOption>(() => ({
+const chartOption = computed<echarts.EChartsCoreOption>(() => {
+  console.log('[Longitudinal] chartOption computed')
+  return ({
   tooltip: {
     trigger: 'axis',
     formatter(params: unknown) {
@@ -149,7 +151,9 @@ const chartOption = computed<echarts.EChartsCoreOption>(() => ({
 }))
 const { updateCharts } = useChartsInit('chartRef', chartOption.value)
 
+let buildSeriesCallCount = 0
 function buildSeries() {
+  buildSeriesCallCount++
   const fwdPoints: [number, number, number][] = []
   const bwdPoints: [number, number, number][] = []
   for (const s of displaySweeps.value) {
@@ -159,6 +163,7 @@ function buildSeries() {
   fwdPoints.sort((a, b) => a[0] - b[0])
   // 返程 pulse 逐渐减小，从右往左绘制：按 pulse 降序排列
   bwdPoints.sort((a, b) => b[0] - a[0])
+  console.log(`[Longitudinal] buildSeries #${buildSeriesCallCount} | sweeps=${sweeps.value.length} displaySweeps=${displaySweeps.value.length} | fwd=${fwdPoints.length} bwd=${bwdPoints.length}`)
   updateCharts({ series: [{ data: fwdPoints }, { data: bwdPoints }] })
 }
 
@@ -175,14 +180,22 @@ watch(displayMode, () => {
 
 // ── Real-time ──
 let collector = createThicknessCollector()
+let realtimeCount = 0
 
 function handleRealtimeData(
   _: unknown,
   payload: IPollingModBusData | PushData | PushData[]
 ) {
+  realtimeCount++
   const data = normalizeThicknessRealtimePayload(payload)
-  if (!data) return
+  if (!data) {
+    if (realtimeCount <= 3) console.log('[Longitudinal] handleRealtimeData #${realtimeCount}: normalize returned null', payload)
+    return
+  }
   const completed = collector.process(data.pulses, data.adValues)
+  if (realtimeCount <= 3 || completed) {
+    console.log(`[Longitudinal] handleRealtimeData #${realtimeCount} | pulses=${data.pulses.length} completed=${!!completed} sweeps=${sweeps.value.length}`)
+  }
   if (completed && completed.length > 0) {
     const nowTs = Date.now()
     const pts = completed
@@ -190,10 +203,12 @@ function handleRealtimeData(
       .map((p) => [p.pulse, p.ad!, nowTs] as [number, number, number])
     if (pts.length > 0) {
       const dir = detectDirection(pts)
+      console.log(`[Longitudinal] sweep completed! dir=${dir} pts=${pts.length}`)
       sweeps.value.push({ direction: dir, points: pts })
       if (sweeps.value.length > 20)
         sweeps.value.splice(0, sweeps.value.length - 20)
       currentIndex.value = sweeps.value.length - 1
+      console.log(`[Longitudinal] sweep added | total sweeps=${sweeps.value.length}`)
     }
   }
 }
@@ -300,15 +315,20 @@ function handleStatus(_msg: unknown, payload: { connected: boolean }) {
 }
 
 onMounted(async () => {
+  console.log('[Longitudinal] onMounted')
   // 始终立即注册 adbox-data（与 side.vue 一致），避免错过实时数据
   window.ipcApi.on('adbox-data', handleRealtimeData)
   window.ipcApi.on('adbox-status', handleStatus)
+  console.log('[Longitudinal] handlers registered')
 
   await loadThicknessConfig()
+  console.log('[Longitudinal] thicknessConfig loaded', thicknessCfg.value)
   await checkConnection()
+  console.log('[Longitudinal] isConnected =', isConnected.value)
 
   if (!isConnected.value) {
     await loadHistoricalData()
+    console.log('[Longitudinal] historical data loaded | sweeps=', sweeps.value.length)
   }
 })
 
