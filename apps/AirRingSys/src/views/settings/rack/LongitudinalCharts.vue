@@ -26,6 +26,7 @@ const isConnected = ref(false)
 const loading = ref(false)
 const displayMode = ref<'single' | 'round'>('single')
 const sweeps = ref<SweepData[]>([])
+const liveSweep = ref<SweepData | null>(null)
 const currentIndex = ref(0)
 const thicknessCfg = ref<ThicknessConfig>({ airAD: 50300, gain: 1.0 })
 
@@ -193,7 +194,7 @@ function buildLiveSweep(): SweepData | null {
 }
 
 function getRealtimeDisplaySweeps(): SweepData[] {
-  const current = buildLiveSweep()
+  const current = liveSweep.value
   if (!current) return []
   if (displayMode.value === 'single') return [current]
 
@@ -235,13 +236,18 @@ function handleRealtimeData(_: unknown, payload: IPollingModBusData | PushData |
           currentIndex.value = sweeps.value.length - 1
         }
         rtBuffer = []
+        liveSweep.value = null
       }
       rtDirection = newDir
     }
     rtBuffer.push([pulse, ad, ts])
+    liveSweep.value = buildLiveSweep()
     rtLastPulse = pulse
   }
-  if (rtBuffer.length > 8000) rtBuffer = rtBuffer.slice(-8000)
+  if (rtBuffer.length > 8000) {
+    rtBuffer = rtBuffer.slice(-8000)
+    liveSweep.value = buildLiveSweep()
+  }
 }
 
 const HISTORY_PAGE_SIZE = 500000
@@ -330,8 +336,17 @@ async function checkConnection() {
 
 function handleStatus(_msg: unknown, payload: { connected: boolean }) {
   var wasConnected = isConnected.value; isConnected.value = payload.connected
-  if (isConnected.value && !wasConnected) { sweeps.value = []; rtLastPulse = null; rtDirection = null; rtBuffer = [] }
-  else if (!isConnected.value && wasConnected) { loadHistoricalData() }
+  if (isConnected.value && !wasConnected) {
+    sweeps.value = []
+    liveSweep.value = null
+    rtLastPulse = null
+    rtDirection = null
+    rtBuffer = []
+  }
+  else if (!isConnected.value && wasConnected) {
+    liveSweep.value = null
+    loadHistoricalData()
+  }
 }
 
 watch(displayMode, () => {
