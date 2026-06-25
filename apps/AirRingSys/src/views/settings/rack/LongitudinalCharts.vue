@@ -6,7 +6,7 @@ import {
   GridComponent,
   LegendComponent,
 } from 'echarts/components'
-import { LineChart } from 'echarts/charts'
+import { LineChart, ScatterChart } from 'echarts/charts'
 import { CanvasRenderer } from 'echarts/renderers'
 import useChartsInit from '@/hooks/useInitCharts'
 import {
@@ -23,6 +23,7 @@ echarts.use([
   GridComponent,
   LegendComponent,
   LineChart,
+  ScatterChart,
   CanvasRenderer,
 ])
 
@@ -122,13 +123,19 @@ const chartOption = computed<echarts.EChartsCoreOption>(() => {
   }
   fwdPoints.sort((a, b) => a[0] - b[0])
   bwdPoints.sort((a, b) => a[0] - b[0])
+
+  // 实时预览数据（sweep 未完成时的散点）
+  const preview = previewPoints.value
+
+  const hasSweeps = fwdPoints.length > 0 || bwdPoints.length > 0
+
   return {
     tooltip: {
       trigger: 'axis',
       formatter(params: unknown) {
         const items = params as {
           seriesName: string
-          data: [number, number, number]
+          data: [number, number, number] | [number, number]
           color: string
         }[]
         if (!items.length) return ''
@@ -136,7 +143,7 @@ const chartOption = computed<echarts.EChartsCoreOption>(() => {
         let html = `<div style="font-weight:bold;margin-bottom:4px">位置 ${pos} pulse</div>`
         for (const s of items) {
           const ad = s.data[1]
-          const ts = s.data[2]
+          const ts = s.data.length > 2 ? s.data[2] : 0
           const timeStr = ts > 0 ? new Date(ts).toLocaleString() : '—'
           const thick = calcThickness(ad, thicknessCfg.value)
           html += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0">
@@ -147,14 +154,23 @@ const chartOption = computed<echarts.EChartsCoreOption>(() => {
         return html
       },
     },
-    legend: { data: ['正程', '逆程'] },
+    legend: { data: hasSweeps ? ['正程', '逆程'] : ['实时采集'] },
     grid: { left: 50, right: 40, top: 40, bottom: 40 },
     xAxis: { type: 'value', name: '位置(pulse)', min: 0 },
     yAxis: { type: 'value', name: 'AD', splitLine: { show: true } },
-    series: [
-      { name: '正程', type: 'line', showSymbol: false, data: fwdPoints },
-      { name: '逆程', type: 'line', showSymbol: false, data: bwdPoints },
-    ],
+    series: hasSweeps
+      ? [
+          { name: '正程', type: 'line', showSymbol: false, data: fwdPoints },
+          { name: '逆程', type: 'line', showSymbol: false, data: bwdPoints },
+        ]
+      : [
+          {
+            name: '实时采集',
+            type: 'scatter',
+            symbolSize: 3,
+            data: preview,
+          },
+        ],
   }
 })
 const { updateCharts } = useChartsInit('chartRef', chartOption.value)
@@ -170,10 +186,23 @@ watch(
 // ── Real-time ──
 let collector = createThicknessCollector()
 
+// 实时预览数据（sweep 完成前也有内容可看）
+const previewPoints = ref<[number, number][]>([])
+let pendingRaf: number | null = null
+
+function flushPreview() {
+  pendingRaf = null
+  // 强制触发 chartOption 重新计算（previewPoints 作为依赖）
+  previewPoints.value = [...collector.getPreviewData() as [number, number][]]
+}
+
 function handleRealtimeData(
   _: unknown,
   payload: IPollingModBusData | PushData | PushData[]
 ) {
+  // 离线模式下忽略实时数据
+  if (!isConnected.value) return
+
   const data = normalizeThicknessRealtimePayload(payload)
   if (!data) return
   const completed = collector.process(data.pulses, data.adValues)
@@ -189,6 +218,11 @@ function handleRealtimeData(
         sweeps.value.splice(0, sweeps.value.length - 20)
       currentIndex.value = sweeps.value.length - 1
     }
+  }
+
+  // 每帧最多更新一次预览数据
+  if (pendingRaf === null) {
+    pendingRaf = requestAnimationFrame(flushPreview)
   }
 }
 
@@ -281,28 +315,38 @@ async function checkConnection() {
 }
 
 function handleStatus(_msg: unknown, payload: { connected: boolean }) {
+  const wasConnected = isConnected.value
   isConnected.value = payload.connected
-  if (isConnected.value) {
-    window.ipcApi.on('adbox-data', handleRealtimeData)
+  if (isConnected.value && !wasConnected) {
+    // 从离线切换到在线：清空历史数据，开始接收实时数据
+    collector = createThicknessCollector()
     sweeps.value = []
-  } else {
-    window.ipcApi.off('adbox-data', handleRealtimeData)
+    previewPoints.value = []
+    pendingRaf = null
+  } else if (!isConnected.value && wasConnected) {
+    // 从在线切换到离线：加载历史数据
     loadHistoricalData()
   }
 }
 
 onMounted(async () => {
-  await checkConnection()
-  await loadThicknessConfig()
+  // 始终立即注册 adbox-data（与 side.vue 一致），避免错过实时数据
+  window.ipcApi.on('adbox-data', handleRealtimeData)
   window.ipcApi.on('adbox-status', handleStatus)
-  if (isConnected.value) {
-    window.ipcApi.on('adbox-data', handleRealtimeData)
-  } else {
+
+  await loadThicknessConfig()
+  await checkConnection()
+
+  if (!isConnected.value) {
     await loadHistoricalData()
   }
 })
 
 onUnmounted(() => {
+  if (pendingRaf !== null) {
+    cancelAnimationFrame(pendingRaf)
+    pendingRaf = null
+  }
   window.ipcApi.off('adbox-status', handleStatus)
   window.ipcApi.off('adbox-data', handleRealtimeData)
 })
