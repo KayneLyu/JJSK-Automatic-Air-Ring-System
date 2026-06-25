@@ -159,6 +159,7 @@ const theme = computed(() => (configStore.isDark ? 'dark' : ''))
 // ── Real-time ──
 let collector = createThicknessCollector()
 let rtCount = 0
+let lastMapSizeLog = 0
 
 function handleRealtimeData(_: unknown, payload: IPollingModBusData | PushData | PushData[]) {
   rtCount++
@@ -168,8 +169,10 @@ function handleRealtimeData(_: unknown, payload: IPollingModBusData | PushData |
     return
   }
   const completed = collector.process(data.pulses, data.adValues)
-  if (rtCount <= 5 || completed) {
-    console.log('[Longitudinal] rt #' + rtCount + ' | pulses=' + data.pulses.length + ' completed=' + !!completed + ' sweeps=' + sweeps.value.length)
+  const mapSize = (collector as any).getPreviewData?.()?.length ?? 0
+  if (rtCount <= 10 || completed || mapSize - lastMapSizeLog > 100) {
+    lastMapSizeLog = mapSize
+    console.log('[Longitudinal] rt #' + rtCount + ' | pulses=' + data.pulses.length + ' mapSize=' + mapSize + ' completed=' + !!completed + ' sweeps=' + sweeps.value.length)
   }
   if (completed && completed.length > 0) {
     const nowTs = Date.now()
