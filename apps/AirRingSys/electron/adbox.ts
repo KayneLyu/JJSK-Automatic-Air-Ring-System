@@ -160,7 +160,7 @@ export async function initMotionControl(win: BrowserWindow) {
     },
   })
 
-  const dbDir = app.getPath('userData')
+  const dbDir = join(app.getPath('userData'), 'db')
   await utilityHost.init({
     dbDir,
     maxPulse: currentMaxPulse,

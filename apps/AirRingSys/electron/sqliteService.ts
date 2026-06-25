@@ -1,7 +1,6 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { and, gte, lt, desc, sql } from 'drizzle-orm'
-import { app } from 'electron'
 import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import * as schema from './db/schema'
@@ -32,8 +31,7 @@ export class SQLiteService {
     }
   }
 
-  init(): void {
-    const dbDir = join(app.getPath('userData'), 'db')
+  init(dbDir: string): void {
     mkdirSync(dbDir, { recursive: true })
     this.dbPath = join(dbDir, 'jjsk.db')
 

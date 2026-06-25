@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron'
+import type { BrowserWindow } from 'electron'
 import { RingBuffer, ThicknessRingItem, RotationRingItem } from './ringBuffer'
 import { SQLiteService } from './sqliteService'
 import type { PushData } from '@jjsk/adbox-sdk'

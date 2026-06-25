@@ -61,7 +61,7 @@ export default defineConfig({
             outDir: 'dist-electron',
             lib: {
               entry: 'electron/calibrationWorker.ts',
-              formats: ['cjs'],
+              formats: ['es'],
               fileName: () => 'calibrationWorker.js',
             },
             rollupOptions: {
@@ -79,11 +79,11 @@ export default defineConfig({
             outDir: 'dist-electron',
             lib: {
               entry: 'electron/utilityWorker.ts',
-              formats: ['cjs'],
+              formats: ['es'],
               fileName: () => 'utilityWorker.js',
             },
             rollupOptions: {
-              external: ['electron'],
+              external: ['electron', 'better-sqlite3'],
             },
           },
         },

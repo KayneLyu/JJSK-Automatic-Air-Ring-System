@@ -2,7 +2,7 @@ import type { IPollingModBusData } from '@/types/ipc'
 import type { PushData } from '@jjsk/adbox-sdk'
 import { Worker } from 'node:worker_threads'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   createCalibrationSession,
   type CalibrateResult,
@@ -64,7 +64,7 @@ const moduleDirname = dirname(fileURLToPath(import.meta.url))
  * 解析 Worker 脚本路径。
  * 主进程以 ESM 运行时仍需稳定定位到与当前模块同目录的 worker 输出。
  */
-const resolveWorkerPath = () => join(moduleDirname, 'calibrationWorker.js')
+const resolveWorkerPath = () => pathToFileURL(join(moduleDirname, 'calibrationWorker.js'))
 
 /** 互斥锁：同一时刻只允许一个 Worker 在运行 */
 let workerBusy = false

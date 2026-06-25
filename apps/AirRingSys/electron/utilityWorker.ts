@@ -589,7 +589,7 @@ function doInit(payload: MainToUtilityMsg & { type: 'init' }): void {
 
   console.log('[UtilityWorker] 初始化数据库:', dbDir)
   sqliteDb = new SQLiteService()
-  sqliteDb.init()
+  sqliteDb.init(dbDir)
 
   console.log('[UtilityWorker] 初始化标定桥...')
   initCalibrationBridge()

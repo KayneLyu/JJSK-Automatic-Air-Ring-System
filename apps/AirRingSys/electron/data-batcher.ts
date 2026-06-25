@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import type { BrowserWindow } from 'electron';
 
 export interface BatcherOptions {
   /** 批量大小（帧数），与 interval 互斥 */
