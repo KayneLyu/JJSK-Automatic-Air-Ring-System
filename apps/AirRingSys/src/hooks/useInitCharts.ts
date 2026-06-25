@@ -32,13 +32,29 @@ const useInitCharts = (
     null
 
   // 初始化图表
+  let initRetryCount = 0
+  const MAX_RAF_RETRIES = 10
+
   const initChart = () => {
     if (!chartRef.value) return
     const el = chartRef.value
     // flex 子元素 onMounted 时父容器可能还没算完尺寸 → 0×0
     // 等 nextTick + RAF 拿到真实布局后再 init
     if (el.clientWidth === 0 || el.clientHeight === 0) {
-      requestAnimationFrame(() => initChart())
+      initRetryCount++
+      if (initRetryCount <= MAX_RAF_RETRIES) {
+        requestAnimationFrame(() => initChart())
+      } else {
+        // RAF 重试耗尽，改用 ResizeObserver 等待尺寸就绪
+        const sizeObserver = new ResizeObserver(() => {
+          if (el.clientWidth > 0 && el.clientHeight > 0) {
+            sizeObserver.disconnect()
+            initRetryCount = 0
+            initChart()
+          }
+        })
+        sizeObserver.observe(el)
+      }
       return
     }
     try {
