@@ -4,8 +4,8 @@ import {
   directionLabel,
   formatTime,
   isInProgress,
-  type BubbleSweepResult,
 } from './bubbleRawThickness.constants'
+import type { BubbleSweepResult } from '@/types/ipc'
 
 const props = defineProps<{
   selectedSweep: BubbleSweepResult | null

@@ -687,29 +687,47 @@ function registerIpcHandlers() {
   )
 
   ipcMain.handle(
-    'db-get-latest-sweeps',
+    'db-get-sweep-summaries',
     async (_event, count: number, beforeTs?: number) => {
       const maxPulse = store?.get('maxPulse') || 7000
-      return sqliteDb?.queryLatestSweeps(count, maxPulse, beforeTs ?? 0) ?? []
+      return (
+        sqliteDb?.queryLatestSweepSummaries(count, maxPulse, beforeTs ?? 0) ??
+        []
+      )
     }
   )
 
   ipcMain.handle(
-    'db-get-latest-sweeps-count',
+    'db-get-sweep-points-by-range',
+    async (_event, startTs: number, endTs: number) => {
+      return sqliteDb?.querySweepPointsByRange(startTs, endTs) ?? []
+    }
+  )
+
+  ipcMain.handle(
+    'db-get-sweep-count-by-mode',
     async (_event, mode: 'single' | 'round') => {
-      const maxPulse = store?.get('maxPulse') || 7000
-      return sqliteDb?.queryLatestSweepsCount(mode, maxPulse) ?? 0
+      return sqliteDb?.querySweepCountByMode(mode) ?? 0
+    }
+  )
+
+  ipcMain.handle(
+    'db-get-sweep-ids-by-mode',
+    async (_event, mode: 'single' | 'round') => {
+      return sqliteDb?.querySweepIdsByMode(mode) ?? []
+    }
+  )
+
+  ipcMain.handle(
+    'db-get-sweep-by-index',
+    async (_event, mode: 'single' | 'round', index: number) => {
+      return sqliteDb?.querySweepByIndex(mode, index) ?? null
     }
   )
 
   ipcMain.handle(
     'db-get-frames',
-    async (
-      _event,
-      startMs: number,
-      endMs: number,
-      count?: number
-    ) => {
+    async (_event, startMs: number, endMs: number, count?: number) => {
       const maxPulse = store?.get('maxPulse') || 7000
       return (
         sqliteDb?.queryFramesByTimeRange(
@@ -827,6 +845,25 @@ function registerIpcHandlers() {
     ) => {
       if (!pipeline) return []
       return pipeline.getLatestBubbleSweeps(params)
+    }
+  )
+
+  ipcMain.handle(
+    'bubble-get-current-sweep',
+    async (
+      _event,
+      params: {
+        membraneWidthMm: number
+        thetaMaxDeg: number
+        mmPerPulse: number
+        airAD: number
+        gain: number
+        numBins?: number
+        processDeformationFactor?: number
+      }
+    ) => {
+      if (!pipeline) return null
+      return pipeline.getCurrentBubbleSweep(params)
     }
   )
 }

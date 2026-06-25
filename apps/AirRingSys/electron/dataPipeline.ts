@@ -85,6 +85,10 @@ export class DataPipeline {
 
   /** 启动定时 flush + cleanup */
   start(): void {
+    // cleanup 暂时关闭，但保留配置常量便于后续恢复。
+    void this.CLEANUP_INTERVAL_MS
+    void this.RETENTION_THICKNESS_MS
+
     this.flushTimer = setInterval(() => {
       const counts = this.sqlite.flush()
       if (counts.thickness > 0 || counts.rotation > 0) {
@@ -114,6 +118,8 @@ export class DataPipeline {
 
   /** ADBox 测厚数据入口 */
   receiveThickness(push: PushData, timestamp: number): void {
+    if (typeof push.pos0 !== 'number' || !Number.isFinite(push.pos0)) return
+
     // 1. RingBuffer 写入
     this.thicknessRing.push({
       timestamp,
@@ -190,7 +196,6 @@ export class DataPipeline {
       thicknessTimeRange: this.thicknessRing.getTimeRange(),
     }
   }
-
 
   // ═══════════════════════════════════════════════════════════════
   // 膜泡原始厚度重建（Bubble Thickness Reconstruction）
@@ -436,7 +441,6 @@ export class DataPipeline {
         direction: start.direction,
       })
     }
-
     const results: BubbleSweepResult[] = []
     for (const sweep of sweepBounds) {
       const allRows = this.sqlite.queryThicknessRaw(sweep.startTs, sweep.endTs)
@@ -471,6 +475,71 @@ export class DataPipeline {
     }
 
     return results.sort((a, b) => a.time - b.time)
+  }
+
+  getCurrentBubbleSweep(params: {
+    membraneWidthMm: number
+    thetaMaxDeg: number
+    mmPerPulse: number
+    airAD: number
+    gain: number
+    numBins?: number
+    processDeformationFactor?: number
+  }): BubbleSweepResult | null {
+    if (params.membraneWidthMm <= 0 || params.thetaMaxDeg <= 0) return null
+    if (params.mmPerPulse <= 0) return null
+    if (params.airAD <= 0) return null
+
+    const numBins = params.numBins ?? 48
+    const processFactor = params.processDeformationFactor ?? 1.02
+    const MAX_POINTS_PER_SWEEP = 2000
+    const rotRows = this.sqlite.queryLatestDirectionChanges(1)
+    if (rotRows.length === 0) return null
+
+    const latest = rotRows[0]
+    const currentDirection = latest.forwardDirChange
+      ? 'forward'
+      : latest.reverseDirChange
+        ? 'reverse'
+        : null
+    if (!currentDirection) return null
+
+    const startTs = latest.timestamp
+    const endTs = Date.now()
+    if (endTs <= startTs) return null
+
+    const allRows = this.sqlite.queryThicknessRaw(startTs, endTs)
+    if (allRows.length < 100) return null
+    const rows =
+      allRows.length > MAX_POINTS_PER_SWEEP
+        ? downsampleUniform(allRows, MAX_POINTS_PER_SWEEP)
+        : allRows
+
+    const profile = this.buildProfile(
+      rows,
+      {
+        startTs,
+        direction: currentDirection,
+        durationMs: endTs - startTs,
+      },
+      params.membraneWidthMm,
+      params.thetaMaxDeg,
+      params.mmPerPulse,
+      params.airAD,
+      params.gain,
+      numBins,
+      processFactor
+    )
+    if (!profile) return null
+
+    return {
+      ...profile,
+      id: `live-${startTs}-${currentDirection}`,
+      time: startTs,
+      direction: currentDirection,
+      cycleDurationMs: endTs - startTs,
+      inProgress: true,
+    }
   }
 
   private buildProfile(

@@ -1,7 +1,5 @@
 const ascii = (s: string) => Buffer.from(s, 'ascii');
 const u16le = (v: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(v); return b; };
-const u32le = (v: number) => { const b = Buffer.alloc(4); b.writeUInt32LE(v); return b; };
-const i32le = (v: number) => { const b = Buffer.alloc(4); b.writeInt32LE(v); return b; };
 
 export interface CommandDef {
   prefix: Buffer;               // 发送时的命令前缀

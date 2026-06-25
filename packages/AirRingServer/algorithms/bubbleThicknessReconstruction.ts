@@ -1,6 +1,4 @@
 import type { ThicknessData } from '../connections/thickness/types'
-import type { RingData } from '../connections/airRing/types'
-
 /**
  * 膜泡原始厚度重建算法（Phase 1）
  *

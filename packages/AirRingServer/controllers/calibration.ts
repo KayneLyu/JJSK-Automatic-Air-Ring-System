@@ -332,12 +332,15 @@ export function calibrateMutationWindowSize(
     alpha?: number
   }
 ): { fastSize: number | undefined; size: number | undefined } {
-  const { next } = calibrateMutationWindowSize({
+  const { next } = algoCalibrateMutationWindowSize({
     CHANNEL_COUNT: config.channelCount,
     alpha: config.alpha,
   })
 
-  let result: { fastSize: number | undefined; size: number | undefined } = {}
+  let result: { fastSize: number | undefined; size: number | undefined } = {
+    fastSize: undefined,
+    size: undefined,
+  }
   // 按时间戳交错喂入
   const events: {
     ts: number

@@ -19,15 +19,14 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "baseUrl": "./",
     "paths": {
-      "@/*": ["src/*"],
+      "@/*": ["./src/*"],
       "@jjsk/air-ring-server": ["../../packages/AirRingServer/index.ts"],
       "@jjsk/air-ring-server/*": ["../../packages/AirRingServer/*"],
       "@jjsk/core": ["../../packages/core/index.ts"],
       "@jjsk/core/*": ["../../packages/core/*"],
       "@jjsk/ad-box": ["../../packages/Adbox-sdk/index"],
-      "@jjsk/ad-box/*": ["../../packages/Adbox-sdk/*"],
+      "@jjsk/ad-box/*": ["../../packages/Adbox-sdk/*"]
     },
     "types": ["element-plus/global"]
   },

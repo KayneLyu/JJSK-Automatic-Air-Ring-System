@@ -621,13 +621,10 @@ export function initCalibrationIpc(options: InitCalibrationIpcOptions) {
   )
 
   // 膜宽标定：取测厚仪最近 10 趟扫描，按 AD 寻边算法算出每趟的膜内 pulse 区间，取中位数
-  // 趟的切分复用 sqliteService.queryLatestSweeps（与 LongitudinalCharts 同源）：
-  // 基于 pulse 方向反转 + 同 pulse 处 AD 取均值，并丢弃首趟不完整扫描
+  // 趟的切分复用 sqliteService 的 SQL 分段索引（与 LongitudinalCharts 同源）。
   // 寻边直接用 AD：测厚仪在膜上 AD 较低（材料吸收多），出膜 AD 升高（接近 airAD）
   // 双峰阈值就是 AD 在膜内/膜外的分界
   const MEMBRANE_CAL_SWEEP_COUNT = 10
-  const MEMBRANE_CAL_HISTORY_POINTS = 500_000
-  const DEFAULT_MAX_PULSE = 7000
 
   ipcMain.handle(
     'calibration-run-membrane-width',
@@ -646,18 +643,26 @@ export function initCalibrationIpc(options: InitCalibrationIpcOptions) {
       if (!Number.isFinite(mmPerPulse) || mmPerPulse <= 0) {
         return { success: false, error: 'mm/脉冲无效，请先填写' }
       }
-      // 与 LongitudinalCharts.vue:202 同源：从 sqlite 取最新 N 个 raw 点，
-      // 由 #groupSweeps 基于 pulse 方向反转切趟并丢弃首趟不完整扫描
-      const allSweeps = sqliteDb.queryLatestSweeps(
-        MEMBRANE_CAL_HISTORY_POINTS,
-        DEFAULT_MAX_PULSE,
-        0
-      )
-      if (allSweeps.length === 0) {
+      const totalSweeps = sqliteDb.querySweepCountByMode('single')
+      if (totalSweeps <= 0) {
         return { success: false, error: '没有可用的历史扫描数据' }
       }
-      // 取最新 N 趟（数组按时间正序，末段为最新）
-      const recentSweeps = allSweeps.slice(-MEMBRANE_CAL_SWEEP_COUNT)
+
+      const targetCount = Math.min(MEMBRANE_CAL_SWEEP_COUNT, totalSweeps)
+      const recentSweeps: Array<{
+        points: { pos: number; ad: number; ts: number }[]
+      }> = []
+      for (let idx = 0; idx < targetCount; idx += 1) {
+        const result = sqliteDb.querySweepByIndex('single', idx)
+        if (!result || result.sweeps.length === 0) continue
+        const firstSweep = result.sweeps[0]
+        if (firstSweep.points.length === 0) continue
+        recentSweeps.push({ points: firstSweep.points })
+      }
+
+      if (recentSweeps.length === 0) {
+        return { success: false, error: '没有可用的历史扫描数据' }
+      }
 
       // 每趟独立做寻边：AD → detectBimodalThreshold → 首/末 in-membrane pulse
       // AD <= threshold 表示在膜（AD 较低 = 在膜材料内）

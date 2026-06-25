@@ -5,6 +5,11 @@ import { app } from 'electron'
 import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import * as schema from './db/schema'
+import {
+  querySweepPointsByRangeWithOrm,
+  type SweepIndexedResult,
+  type SweepSummaryResult,
+} from './sqlite/sweepHistory'
 import migrationSql from './db/migrations/0000_glossy_bloodstrike.sql?raw'
 
 export class SQLiteService {
@@ -324,99 +329,197 @@ export class SQLiteService {
       .all(...params) as RotationRawRow[]
   }
 
-  queryLatestSweeps(
+  querySweepCountByMode(mode: 'single' | 'round'): number {
+    if (!this.ready) return 0
+    const summaries = this.#querySweepSummaryRowsSql()
+    if (mode === 'single') return summaries.length
+    return Math.ceil(summaries.length / 2)
+  }
+
+  querySweepIdsByMode(mode: 'single' | 'round'): string[] {
+    if (!this.ready) return []
+    const summaries = this.#querySweepSummaryRowsSql()
+    if (mode === 'single') {
+      return summaries.map((s) => s.sweepId)
+    }
+
+    const ids: string[] = []
+    for (let i = 0; i < summaries.length; i += 2) {
+      const first = summaries[i]
+      const second = summaries[i + 1]
+      ids.push(second ? `${first.sweepId}|${second.sweepId}` : first.sweepId)
+    }
+    return ids
+  }
+
+  querySweepByIndex(
+    mode: 'single' | 'round',
+    index: number
+  ): SweepIndexedResult | null {
+    if (!this.ready) return null
+    if (!Number.isInteger(index) || index < 0) return null
+
+    const summaries = this.#querySweepSummaryRowsSql()
+    if (summaries.length === 0) return null
+
+    if (mode === 'single') {
+      const summary = summaries[index]
+      if (!summary) return null
+      return {
+        id: summary.sweepId,
+        mode,
+        sweeps: [
+          {
+            direction: summary.direction,
+            points: querySweepPointsByRangeWithOrm(
+              this.db,
+              summary.startTs,
+              summary.endTs
+            ),
+          },
+        ],
+      }
+    }
+
+    const start = index * 2
+    const first = summaries[start]
+    if (!first) return null
+    const second = summaries[start + 1]
+    const selected = second ? [first, second] : [first]
+    return {
+      id: second ? `${first.sweepId}|${second.sweepId}` : first.sweepId,
+      mode,
+      sweeps: selected.map((s) => ({
+        direction: s.direction,
+        points: querySweepPointsByRangeWithOrm(this.db, s.startTs, s.endTs),
+      })),
+    }
+  }
+
+  queryLatestSweepSummaries(
     limit: number,
     maxPulse: number,
     beforeTs = 0
-  ): SweepResult[] {
+  ): SweepSummaryResult[] {
     if (!this.ready) return []
-    const raw = (
-      this.db
-        .select({
-          pos: schema.thicknessRaw.pulse,
-          ad: schema.thicknessRaw.ad,
-          ts: schema.thicknessRaw.timestamp,
-        })
-        .from(schema.thicknessRaw)
-        .where(
-          beforeTs > 0 ? lt(schema.thicknessRaw.timestamp, beforeTs) : undefined
-        )
-        .orderBy(desc(schema.thicknessRaw.timestamp))
-        .limit(limit)
-        .all() as { pos: number; ad: number; ts: number }[]
-    ).reverse()
-
-    return this.#groupSweeps(raw, maxPulse, beforeTs > 0)
+    const _ = maxPulse
+    void _
+    return this.#querySweepSummaryRowsSql(limit, beforeTs)
   }
 
-  queryLatestSweepsCount(mode: 'single' | 'round', maxPulse: number): number {
-    if (!this.ready) return 0
-    const raw = (
-      this.db
-        .select({
-          pos: schema.thicknessRaw.pulse,
-          ad: schema.thicknessRaw.ad,
-          ts: schema.thicknessRaw.timestamp,
-        })
-        .from(schema.thicknessRaw)
-        .orderBy(desc(schema.thicknessRaw.timestamp))
-        .limit(1000000)
-        .all() as { pos: number; ad: number; ts: number }[]
-    ).reverse()
+  #querySweepSummaryRowsSql(limitRows = 0, beforeTs = 0): SweepSummaryResult[] {
+    const hasLimit = limitRows > 0
+    const whereTs = beforeTs > 0 ? 'WHERE timestamp < ?' : ''
+    const limitClause = hasLimit ? 'LIMIT ?' : ''
+    const query = `
+WITH source AS (
+  SELECT id, timestamp AS ts, pulse AS pos
+  FROM thickness_raw
+  ${whereTs}
+  ORDER BY timestamp DESC, id DESC
+  ${limitClause}
+),
+ordered AS (
+  SELECT id, ts, pos
+  FROM source
+  ORDER BY ts ASC, id ASC
+),
+dedup AS (
+  SELECT id, ts, pos
+  FROM (
+    SELECT
+      id,
+      ts,
+      pos,
+      LAG(pos) OVER (ORDER BY ts, id) AS prev_pos
+    FROM ordered
+  ) t
+  WHERE prev_pos IS NULL OR pos <> prev_pos
+),
+dir_calc AS (
+  SELECT
+    id,
+    ts,
+    pos,
+    CASE
+      WHEN LAG(pos) OVER (ORDER BY ts, id) IS NULL THEN NULL
+      WHEN pos > LAG(pos) OVER (ORDER BY ts, id) THEN 1
+      WHEN pos < LAG(pos) OVER (ORDER BY ts, id) THEN -1
+      ELSE NULL
+    END AS dir
+  FROM dedup
+),
+trip_seed AS (
+  SELECT
+    id,
+    ts,
+    pos,
+    dir,
+    LAG(dir) OVER (ORDER BY ts, id) AS prev_dir
+  FROM dir_calc
+),
+trip_rows AS (
+  SELECT
+    id,
+    ts,
+    pos,
+    dir,
+    SUM(
+      CASE
+        WHEN dir IS NOT NULL AND prev_dir IS NOT NULL AND dir <> prev_dir THEN 1
+        ELSE 0
+      END
+    ) OVER (ORDER BY ts, id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) + 1 AS trip_id
+  FROM trip_seed
+  WHERE dir IS NOT NULL
+),
+trip_stats AS (
+  SELECT
+    trip_id,
+    CASE WHEN MIN(dir) >= 0 THEN 'forward' ELSE 'backward' END AS direction,
+    MIN(ts) AS start_ts,
+    MAX(ts) AS end_ts,
+    COUNT(*) AS point_count,
+    MAX(trip_id) OVER () AS max_trip_id
+  FROM trip_rows
+  GROUP BY trip_id
+)
+SELECT
+  direction AS direction,
+  start_ts AS startTs,
+  end_ts AS endTs,
+  point_count AS pointCount
+FROM trip_stats
+WHERE point_count >= 3 AND trip_id < max_trip_id
+ORDER BY trip_id DESC
+`
 
-    const sweeps = this.#groupSweeps(raw, maxPulse)
-    if (mode === 'single') return sweeps.length
-    return Math.ceil(sweeps.length / 2)
+    const params: number[] = []
+    if (beforeTs > 0) params.push(beforeTs)
+    if (hasLimit) params.push(limitRows)
+
+    const rows = this.sqliteDb.prepare(query).all(...params) as {
+      direction: 'forward' | 'backward'
+      startTs: number
+      endTs: number
+      pointCount: number
+    }[]
+
+    return rows.map((row) => ({
+      sweepId: `${row.direction}-${row.startTs}-${row.endTs}`,
+      direction: row.direction,
+      startTs: row.startTs,
+      endTs: row.endTs,
+      pointCount: row.pointCount,
+    }))
   }
 
-  #groupSweeps(
-    rows: { pos: number; ad: number; ts: number }[],
-    maxPulse: number,
-    keepFirst = false
-  ): SweepResult[] {
-    if (rows.length < 3) return []
-
-    // 全局压缩相邻相同 pulse：AD 取平均值，时间戳取最后一条
-    const compacted: { pos: number; ad: number; ts: number }[] = [
-      { pos: rows[0].pos, ad: rows[0].ad, ts: rows[0].ts },
-    ]
-    let count = 1
-    for (let i = 1; i < rows.length; i++) {
-      const last = compacted[compacted.length - 1]
-      if (last.pos === rows[i].pos) {
-        last.ad = (last.ad * count + rows[i].ad) / (count + 1)
-        last.ts = rows[i].ts
-        count++
-      } else {
-        compacted.push({ pos: rows[i].pos, ad: rows[i].ad, ts: rows[i].ts })
-        count = 1
-      }
-    }
-
-    const sweeps: SweepResult[] = []
-    let buf: { pos: number; ad: number; ts: number }[] = []
-
-    for (let i = 0; i < compacted.length; i++) {
-      buf.push(compacted[i])
-      if (buf.length < 3) continue
-      const d0 = buf[buf.length - 1].pos - buf[buf.length - 2].pos
-      const d1 = buf[buf.length - 2].pos - buf[buf.length - 3].pos
-      if ((d1 < 0 && d0 > 0) || (d1 > 0 && d0 < 0)) {
-        const pts = buf.slice(0, -1)
-        const dir =
-          pts[pts.length - 1].pos > pts[0].pos ? 'forward' : 'backward'
-        sweeps.push({ direction: dir, points: pts })
-        buf = buf.slice(-1)
-      }
-    }
-
-    if (!keepFirst && sweeps.length > 0) {
-      const s = sweeps[0]
-      const span = Math.abs(s.points[s.points.length - 1].pos - s.points[0].pos)
-      if (span < maxPulse * 0.85) sweeps.shift()
-    }
-
-    return sweeps
+  querySweepPointsByRange(
+    startTs: number,
+    endTs: number
+  ): { pos: number; ad: number; ts: number }[] {
+    if (!this.ready) return []
+    return querySweepPointsByRangeWithOrm(this.db, startTs, endTs)
   }
 
   importSweep(
@@ -603,11 +706,6 @@ export class SQLiteService {
 }
 
 // ══ 类型定义 ══
-
-export interface SweepResult {
-  direction: 'forward' | 'backward'
-  points: { pos: number; ad: number; ts: number }[]
-}
 
 export interface RotationRawRow {
   id: number

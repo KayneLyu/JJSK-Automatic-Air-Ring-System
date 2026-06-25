@@ -14,6 +14,15 @@ import { showNotification } from '@/utils/common.ts'
 type IPropsDta = {
   frameData: Array<[string | number, number]> | number[]
 }
+
+type BrushSelectedPayload = {
+  batch?: Array<{
+    selected?: Array<{
+      dataIndex?: number[]
+    }>
+  }>
+}
+
 const useInitCharts = (
   containerName: string,
   options: EChartsCoreOption,
@@ -126,8 +135,10 @@ const useInitCharts = (
         },
       })
       chartInstanceRef.off('brushSelected')
-      chartInstanceRef.on('brushSelected', (params: any) => {
-        brushList.value = params.batch[0].selected[0].dataIndex
+      chartInstanceRef.on('brushSelected', (params: unknown) => {
+        const batch = (params as BrushSelectedPayload).batch
+        const indices = batch?.[0]?.selected?.[0]?.dataIndex
+        brushList.value = Array.isArray(indices) ? indices : []
       })
     }
   }
@@ -151,7 +162,7 @@ const useInitCharts = (
   // 切换主题
   watch(
     () => store.isDark,
-    (newTheme) => {
+    () => {
       dropCharts()
       initChart()
     }

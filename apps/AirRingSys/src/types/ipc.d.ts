@@ -301,13 +301,13 @@ export interface IpcChannelMap {
     args: [count: number]
     output: ThicknessRawRow[]
   }
-  'db-get-latest-sweeps': {
+  'db-get-sweep-summaries': {
     args: [count: number, beforeTs?: number]
-    output: SweepRow[]
+    output: SweepSummaryRow[]
   }
-  'db-get-latest-sweeps-count': {
-    args: [mode: 'single' | 'round']
-    output: number
+  'db-get-sweep-points-by-range': {
+    args: [startTs: number, endTs: number]
+    output: SweepPoint[]
   }
   'db-get-frames': {
     args: [startMs: number, endMs: number, count?: number]
@@ -382,6 +382,21 @@ export interface IpcChannelMap {
     ]
     output: BubbleSweepResult[]
   }
+
+  'bubble-get-current-sweep': {
+    args: [
+      params: {
+        membraneWidthMm: number
+        thetaMaxDeg: number
+        mmPerPulse: number
+        airAD: number
+        gain: number
+        numBins?: number
+        processDeformationFactor?: number
+      }
+    ]
+    output: BubbleSweepResult | null
+  }
 }
 
 // IPC 通道名
@@ -411,9 +426,12 @@ export interface SweepPoint {
   ts: number
 }
 
-export interface SweepRow {
+export interface SweepSummaryRow {
+  sweepId: string
   direction: 'forward' | 'backward'
-  points: SweepPoint[]
+  startTs: number
+  endTs: number
+  pointCount: number
 }
 
 export interface FrameRow {
@@ -463,4 +481,5 @@ export interface BubbleSweepResult extends BubbleReconstructionResult {
   time: number // 这一趟的起点时间戳 (ms)
   direction: 'forward' | 'reverse'
   cycleDurationMs: number // 这一趟的实测时长
+  inProgress?: boolean
 }

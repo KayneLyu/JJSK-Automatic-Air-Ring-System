@@ -195,7 +195,7 @@ const estimateWithScannerExpansion = (
   tripSegments: TripSegment[],
   min: number,
   max: number,
-  step: number,
+  _step: number,
   segments: number,
   accelDecelMs?: number,
   debugOptions: UpperRotationDebugOptions = {},

@@ -34,8 +34,9 @@ export function directionLabel(direction: SweepDirection): string {
 }
 
 export function isInProgress(
-  sweep: { time: number; cycleDurationMs: number },
+  sweep: { time: number; cycleDurationMs: number; inProgress?: boolean },
   now: number
 ): boolean {
+  if (sweep.inProgress !== undefined) return sweep.inProgress
   return now - (sweep.time + sweep.cycleDurationMs) < IN_PROGRESS_GRACE_MS
 }

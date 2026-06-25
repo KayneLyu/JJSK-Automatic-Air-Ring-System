@@ -215,6 +215,10 @@ export const createModbusCalibrationBridge = (
     const pulse = sample.HorizontalPulse
     const timestamp = sample.timestamp ?? Date.now()
 
+    if (pulse === undefined) {
+      return null
+    }
+
     if (
       !Number.isFinite(probeValue) ||
       !Number.isFinite(pulse) ||

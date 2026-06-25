@@ -98,12 +98,18 @@ let adb: ADBoxClient
  * 初始化ADBOX
  */
 export function initADBox(win: BrowserWindow) {
-  adb = new ADBoxClient('192.168.251.12', 20021)
+  adb = new ADBoxClient({
+    host: '192.168.251.12',
+    port: 20021,
+    pushTimeout: 1000,
+    commandTimeout: 1000,
+    maxRetries: 2,
+  })
 
   adb.on('connected', async () => {
     console.log('AD Box connect')
     // 连接后同步一次编码器，确保 32 位扩展准确
-    await adb.syncAllPos()
+    await adb.syncPos0().catch(() => {})
     // 通知渲染进程已连接
     win.webContents.send('adbox-connected')
   })
@@ -126,37 +132,29 @@ export function initADBox(win: BrowserWindow) {
   /**
    * 前进
    */
-  useIpcHandle('adbox-forward', async () => {
-    try {
-      await adb.moveForward(1)
-    } catch (error) {}
+  useIpcHandle('adbox-forward', () => {
+    adb.moveForward(1)
   })
 
   /**
    * 后退
    */
-  useIpcHandle('adbox-backward', async () => {
-    try {
-      await adb.moveBackward(1)
-    } catch (error) {}
+  useIpcHandle('adbox-backward', () => {
+    adb.moveBackward(1)
   })
 
   /**
    * 停止
    */
-  useIpcHandle('adbox-stop', async () => {
-    try {
-      await adb.stopDecel()
-    } catch (error) {}
+  useIpcHandle('adbox-stop', () => {
+    adb.stopDecel()
   })
 
   /**
    * 归零
    */
-  useIpcHandle('adbox-home', async () => {
-    try {
-      await adb.home()
-    } catch (error) {}
+  useIpcHandle('adbox-home', () => {
+    adb.home()
   })
 }
 
