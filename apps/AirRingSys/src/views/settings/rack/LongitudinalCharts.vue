@@ -113,7 +113,43 @@ const displaySweeps = computed(() => {
     : ([other, cur].filter(Boolean) as SweepData[])
 })
 
-const chartOption = computed<echarts.EChartsCoreOption>(() => {
+const chartOption = computed<echarts.EChartsCoreOption>(() => ({
+  tooltip: {
+    trigger: 'axis',
+    formatter(params: unknown) {
+      const items = params as {
+        seriesName: string
+        data: [number, number, number]
+        color: string
+      }[]
+      if (!items.length) return ''
+      const pos = items[0].data[0]
+      let html = `<div style="font-weight:bold;margin-bottom:4px">位置 ${pos} pulse</div>`
+      for (const s of items) {
+        const ad = s.data[1]
+        const ts = s.data[2]
+        const timeStr = ts > 0 ? new Date(ts).toLocaleString() : '—'
+        const thick = calcThickness(ad, thicknessCfg.value)
+        html += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color}"></span>
+          ${s.seriesName} <span style="color:#909399;font-size:11px">${timeStr}</span> AD <b>${ad}</b> 厚度 <b>${thick.toFixed(2)}μm</b>
+        </div>`
+      }
+      return html
+    },
+  },
+  legend: { data: ['正程', '逆程'] },
+  grid: { left: 50, right: 40, top: 40, bottom: 40 },
+  xAxis: { type: 'value', name: '位置(pulse)', min: 0 },
+  yAxis: { type: 'value', name: 'AD', splitLine: { show: true } },
+  series: [
+    { name: '正程', type: 'line', showSymbol: false, data: [] },
+    { name: '逆程', type: 'line', showSymbol: false, data: [] },
+  ],
+}))
+const { updateCharts } = useChartsInit('chartRef', chartOption.value)
+
+function buildSeries() {
   const fwdPoints: [number, number, number][] = []
   const bwdPoints: [number, number, number][] = []
   for (const s of displaySweeps.value) {
@@ -123,53 +159,19 @@ const chartOption = computed<echarts.EChartsCoreOption>(() => {
   fwdPoints.sort((a, b) => a[0] - b[0])
   // 返程 pulse 逐渐减小，从右往左绘制：按 pulse 降序排列
   bwdPoints.sort((a, b) => b[0] - a[0])
-
-  const hasSweeps = fwdPoints.length > 0 || bwdPoints.length > 0
-
-  return {
-    tooltip: {
-      trigger: 'axis',
-      formatter(params: unknown) {
-        const items = params as {
-          seriesName: string
-          data: [number, number, number] | [number, number]
-          color: string
-        }[]
-        if (!items.length) return ''
-        const pos = items[0].data[0]
-        let html = `<div style="font-weight:bold;margin-bottom:4px">位置 ${pos} pulse</div>`
-        for (const s of items) {
-          const ad = s.data[1]
-          const ts = s.data.length > 2 ? s.data[2] : 0
-          const timeStr = ts > 0 ? new Date(ts).toLocaleString() : '—'
-          const thick = calcThickness(ad, thicknessCfg.value)
-          html += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0">
-            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color}"></span>
-            ${s.seriesName} <span style="color:#909399;font-size:11px">${timeStr}</span> AD <b>${ad}</b> 厚度 <b>${thick.toFixed(2)}μm</b>
-          </div>`
-        }
-        return html
-      },
-    },
-    legend: { data: hasSweeps ? ['正程', '逆程'] : [] },
-    grid: { left: 50, right: 40, top: 40, bottom: 40 },
-    xAxis: { type: 'value', name: '位置(pulse)', min: 0 },
-    yAxis: { type: 'value', name: 'AD', splitLine: { show: true } },
-    series: [
-      { name: '正程', type: 'line', showSymbol: false, data: fwdPoints },
-      { name: '逆程', type: 'line', showSymbol: false, data: bwdPoints },
-    ],
-  }
-})
-const { updateCharts } = useChartsInit('chartRef', chartOption.value)
+  updateCharts({ series: [{ data: fwdPoints }, { data: bwdPoints }] })
+}
 
 watch(
-  chartOption,
-  (val) => {
-    updateCharts(val)
+  displaySweeps,
+  () => {
+    buildSeries()
   },
   { deep: true }
 )
+watch(displayMode, () => {
+  buildSeries()
+})
 
 // ── Real-time ──
 let collector = createThicknessCollector()
