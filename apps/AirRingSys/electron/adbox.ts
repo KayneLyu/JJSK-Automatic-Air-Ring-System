@@ -2,14 +2,9 @@ import { BrowserWindow, ipcMain, app } from 'electron'
 import { join } from 'node:path'
 import { ADBoxClient } from '@jjsk/adbox-sdk'
 import type { PushData, RunResult } from '@jjsk/adbox-sdk'
-import type { ICalibrationResult, IUpperRotationDebugData } from '@/types/ipc'
 import { createUpperRotationS7Connection } from '@jjsk/air-ring-server/electron'
 import Store from 'electron-store'
-import { DataBatcher } from './data-batcher'
-import { createModbusCalibrationBridge } from './calibrationBridge'
-import { initCalibrationIpc } from './calibrationIpc'
-import { SQLiteService } from './sqliteService'
-import { DataPipeline } from './dataPipeline'
+import { UtilityHost, type RendererSendFn } from './utilityHost'
 
 // ==================== 类型定义 ====================
 type MotionState =
@@ -51,20 +46,14 @@ interface AppConfig {
 }
 
 // ==================== 全局状态 (模块级私有) ====================
-let mainWindow: BrowserWindow | null = null // 保存引用供内部使用
-let dataBatcher: DataBatcher<PushData> | null = null
-let pipeline: DataPipeline | null = null
-let sqliteDb: SQLiteService | null = null
+let mainWindow: BrowserWindow | null = null
 let adb: ADBoxClient | null = null
 let store: Store<AppConfig> | null = null
+let utilityHost: UtilityHost | null = null
 let upperRotationConnection: ReturnType<
   typeof createUpperRotationS7Connection
 > | null = null
 let upperRotationPollInterval: NodeJS.Timeout | null = null
-let sysTickBaseWallTime: number | undefined
-let sysTickBaseExpanded: number | undefined
-let previousSysTickRaw: number | undefined
-let previousSysTickExpanded: number | undefined
 
 // 运动状态
 let motionState: MotionState = 'idle'
@@ -78,12 +67,6 @@ const END_PAUSE_MS = 200
 const getConnectionLogDir = (device: string) =>
   join(app.getPath('userData'), 'logs', 'connections', device)
 
-const calibrationBridge = createModbusCalibrationBridge({
-  onResult: (result) => {
-    emitCalibrationResult(result as ICalibrationResult)
-  },
-})
-
 const getUpperRotationConnection = () => {
   if (!upperRotationConnection) {
     upperRotationConnection = createUpperRotationS7Connection({
@@ -95,65 +78,8 @@ const getUpperRotationConnection = () => {
   return upperRotationConnection
 }
 
-const emitCalibrationResult = (result: ICalibrationResult) => {
-  mainWindow?.webContents.send('calibration-result', result)
-}
-
-const emitUpperRotationData = (data: IUpperRotationDebugData) => {
-  mainWindow?.webContents.send('upperRotation-read', data)
-}
-
-const resetSysTickClock = () => {
-  sysTickBaseWallTime = undefined
-  sysTickBaseExpanded = undefined
-  previousSysTickRaw = undefined
-  previousSysTickExpanded = undefined
-}
-
-const resolvePushTimestamp = (push: PushData, receivedAt: number) => {
-  const rawSysTick = push.sysTick
-
-  if (!Number.isFinite(rawSysTick)) {
-    return receivedAt
-  }
-
-  if (
-    push.reset ||
-    previousSysTickRaw === undefined ||
-    previousSysTickExpanded === undefined ||
-    sysTickBaseWallTime === undefined ||
-    sysTickBaseExpanded === undefined
-  ) {
-    previousSysTickRaw = rawSysTick
-    previousSysTickExpanded = rawSysTick
-    sysTickBaseWallTime = receivedAt
-    sysTickBaseExpanded = rawSysTick
-    return receivedAt
-  }
-
-  let expandedSysTick = previousSysTickExpanded
-
-  if (rawSysTick >= previousSysTickRaw) {
-    expandedSysTick += rawSysTick - previousSysTickRaw
-  } else {
-    const backwardDelta = previousSysTickRaw - rawSysTick
-
-    // 协议中的 PN/sysTick 是 1ms 的 7 位计数器，超过 127 后会回绕到 0。
-    if (backwardDelta > 64) {
-      expandedSysTick += 128 - backwardDelta
-    } else {
-      previousSysTickRaw = rawSysTick
-      previousSysTickExpanded = rawSysTick
-      sysTickBaseWallTime = receivedAt
-      sysTickBaseExpanded = rawSysTick
-      return receivedAt
-    }
-  }
-
-  previousSysTickRaw = rawSysTick
-  previousSysTickExpanded = expandedSysTick
-
-  return sysTickBaseWallTime + (expandedSysTick - sysTickBaseExpanded)
+const rendererSend: RendererSendFn = (channel, data) => {
+  mainWindow?.webContents.send(channel, data)
 }
 
 async function startUpperRotationPolling() {
@@ -175,24 +101,11 @@ async function startUpperRotationPolling() {
         return
       }
 
-      pipeline?.receiveRotation(upperRotationData)
+      utilityHost?.pushRotation(upperRotationData)
     } catch (error) {
       console.error('上旋 S7 读取失败:', error)
     }
   }, 400)
-}
-
-const handleThicknessPush = (push: PushData) => {
-  if (typeof push.ad0 !== 'number' || typeof push.pos0 !== 'number') return
-
-  const receivedAt = Date.now()
-  const timestamp = resolvePushTimestamp(push, receivedAt)
-
-  calibrationBridge.feedThicknessSample({
-    timestamp,
-    ProbeValue: push.ad0,
-    HorizontalPulse: push.pos0,
-  })
 }
 
 function stopUpperRotationPolling() {
@@ -208,6 +121,10 @@ function stopUpperRotationPolling() {
 // ==================== 导出初始化函数 ====================
 /**
  * 初始化运动控制模块
+ *
+ * 架构：主进程仅保留设备 I/O（ADBox TCP、S7 TCP）与运动控制指令，
+ * 全部 CPU 密集型/IO 阻塞型业务逻辑（DataPipeline、SQLite、标定）运行在 utilityProcess 中。
+ *
  * @param win Electron 主窗口实例
  */
 export async function initMotionControl(win: BrowserWindow) {
@@ -232,47 +149,38 @@ export async function initMotionControl(win: BrowserWindow) {
   })
   currentMaxPulse = store.get('maxPulse')
 
-  // ---------- 数据管道 (RingBuffer + SQLite + 三路分离) ----------
-  if (!mainWindow) throw new Error('Main window not set')
-  sqliteDb = new SQLiteService()
-
-  sqliteDb.init()
-
-  pipeline = new DataPipeline(mainWindow, sqliteDb)
-  pipeline.registerComputation({
-    feedThicknessSample: (sample) =>
-      calibrationBridge.feedThicknessSample(sample),
-    feedUpperRotationData: (data) =>
-      calibrationBridge.feedUpperRotationData(data),
-    emitUpperRotationData: (data) => emitUpperRotationData(data),
+  // ---------- utilityProcess: 承载全部业务逻辑 ----------
+  utilityHost = new UtilityHost({
+    onRendererSend: rendererSend,
+    onCalibrationResult: (result) => {
+      rendererSend('calibration-result', result)
+    },
+    onError: (message) => {
+      console.error('[MotionControl] utility 错误:', message)
+    },
   })
-  pipeline.start()
 
-  // pipeline内部的 batcher 用于渲染，替代原来的 dataBatcher
-  dataBatcher = pipeline['batcher'] as unknown as DataBatcher<PushData>
+  const dbDir = app.getPath('userData')
+  await utilityHost.init({
+    dbDir,
+    maxPulse: currentMaxPulse,
+    margin: store.get('margin'),
+    config: {}, // 配置由主进程管理，utility 无需
+  })
 
-  // ---------- AD盒初始化 ----------
+  // AD盒初始化（utilityProcess 已就绪，可以接收数据）
   initADBox()
   void startUpperRotationPolling()
 
   // ---------- IPC 注册 ----------
   registerIpcHandlers()
-  initCalibrationIpc({
-    bridge: calibrationBridge,
-    sqliteDb: sqliteDb!,
-    sendToWindow: (channel, data) => {
-      mainWindow?.webContents.send(channel, data)
-    },
-  })
+  registerProxiedIpcHandlers()
 
   // ---------- 应用退出清理 ----------
   app.on('before-quit', () => {
     stopUpperRotationPolling()
-    resetSysTickClock()
-    pipeline?.stop()
-    sqliteDb?.close()
+    utilityHost?.destroy()
     adb?.disconnect()
-    dataBatcher?.destroy()
   })
 }
 
@@ -296,13 +204,13 @@ async function initADBox() {
 
   adb.on('firstFrame', async () => {
     console.log('First frame received')
-    resetSysTickClock()
     await adb?.syncPos0().catch(() => {})
   })
 
   adb.on('data', (push: PushData) => {
-    handleThicknessPush(push)
-    pipeline?.receiveThickness(push, Date.now())
+    // 将原始数据直接推送到 utilityProcess 处理
+    // utility 内部负责：时间戳解析、RingBuffer、SQLite、标定、渲染批推
+    utilityHost?.pushThickness(push, Date.now())
   })
 
   adb.on('runResult', (result: RunResult) => {
@@ -314,7 +222,6 @@ async function initADBox() {
   adb.on('disconnected', () => {
     console.log('ADBox disconnected')
     mainWindow?.webContents.send('adbox-status', { connected: false })
-    resetSysTickClock()
     stopScanInternal(false)
     motionState = 'idle'
     mainWindow?.webContents.send('motion-state', 'idle')
@@ -543,7 +450,7 @@ function registerIpcHandlers() {
     'config-set-scan-range': async (_event: unknown, webWidth: unknown) =>
       setScanRangeByWebWidth(Number(webWidth)),
 
-    // 手动标定参数
+    // 手动标定参数（主进程管理 store）
     'calibration-get-manual-params': async () => ({
       tractionSpeed: store?.get('manualTractionSpeed'),
       distance: store?.get('manualDistance'),
@@ -670,200 +577,57 @@ function registerIpcHandlers() {
       }
     })
   }
+}
 
-  // ═══ SQLite 历史数据查询 ═══
-  ipcMain.handle(
+/**
+ * 注册代理 IPC 处理器
+ *
+ * 将标定计算、SQLite 查询、膜泡重建等 CPU/IO 密集型请求
+ * 透明代理到 utilityProcess，主线程事件循环不被阻塞。
+ */
+function registerProxiedIpcHandlers(): void {
+  // 需要代理到 utilityProcess 的 IPC 通道列表
+  const PROXIED_CHANNELS = [
+    // 标定控制
+    'calibration-set-manual-traction-speed',
+    'calibration-get-state',
+    'calibration-reset',
+    'calibration-feed-historical',
+
+    // 标定单参数计算
+    'calibration-run-traction-speed',
+    'calibration-auto-traction-speed',
+    'calibration-run-mutation-window',
+    'calibration-run-distance',
+
+    // SQLite 历史数据查询
     'db-get-thickness-raw',
-    async (_event, startMs: number, endMs: number) => {
-      return sqliteDb?.queryThicknessRaw(startMs, endMs) ?? []
-    }
-  )
-
-  ipcMain.handle(
     'db-get-latest-thickness-raw',
-    async (_event, count: number) => {
-      return sqliteDb?.queryLatestThicknessRaw(count) ?? []
-    }
-  )
-
-  ipcMain.handle(
     'db-get-sweep-summaries',
-    async (_event, count: number, beforeTs?: number) => {
-      const maxPulse = store?.get('maxPulse') || 7000
-      return (
-        sqliteDb?.queryLatestSweepSummaries(count, maxPulse, beforeTs ?? 0) ??
-        []
-      )
-    }
-  )
-
-  ipcMain.handle(
     'db-get-sweep-points-by-range',
-    async (_event, startTs: number, endTs: number) => {
-      return sqliteDb?.querySweepPointsByRange(startTs, endTs) ?? []
-    }
-  )
-
-  ipcMain.handle(
     'db-get-sweep-count-by-mode',
-    async (_event, mode: 'single' | 'round') => {
-      return sqliteDb?.querySweepCountByMode(mode) ?? 0
-    }
-  )
-
-  ipcMain.handle(
     'db-get-sweep-ids-by-mode',
-    async (_event, mode: 'single' | 'round') => {
-      return sqliteDb?.querySweepIdsByMode(mode) ?? []
-    }
-  )
-
-  ipcMain.handle(
     'db-get-sweep-by-index',
-    async (_event, mode: 'single' | 'round', index: number) => {
-      return sqliteDb?.querySweepByIndex(mode, index) ?? null
-    }
-  )
-
-  ipcMain.handle(
     'db-get-frames',
-    async (_event, startMs: number, endMs: number, count?: number) => {
-      const maxPulse = store?.get('maxPulse') || 7000
-      return (
-        sqliteDb?.queryFramesByTimeRange(
-          startMs,
-          endMs,
-          count ?? 100,
-          maxPulse
-        ) ?? []
-      )
-    }
-  )
-
-  ipcMain.handle('db-get-latest-frame', async () => {
-    return null
-  })
-
-  ipcMain.handle('db-get-latest-frames', async () => {
-    return []
-  })
-
-  ipcMain.handle('db-get-frames-by-id', async () => {
-    return []
-  })
-
-  ipcMain.handle('db-get-pipeline-stats', async () => {
-    return pipeline?.getStats() ?? null
-  })
-
-  ipcMain.handle(
+    'db-get-latest-frame',
+    'db-get-latest-frames',
+    'db-get-frames-by-id',
+    'db-get-pipeline-stats',
     'db-import-sweep',
-    async (
-      _event,
-      sweep: {
-        pulses: number[]
-        adValues: number[]
-        airAD: number
-        gain: number
-        source: string
-      }
-    ) => {
-      if (!sqliteDb) return 0
-      return sqliteDb.importSweep(
-        sweep.pulses,
-        sweep.adValues,
-        sweep.airAD,
-        sweep.gain,
-        sweep.source
-      )
-    }
-  )
 
-  // ═══ 膜泡原始厚度重建（reconstructBubbleThickness）═══
-  ipcMain.handle(
+    // 膜泡原始厚度重建
     'bubble-reconstruct',
-    async (
-      _event,
-      params: {
-        membraneWidthMm: number
-        thetaMaxDeg: number
-        mmPerPulse: number
-        airAD: number
-        gain: number
-        numBins?: number
-        processDeformationFactor?: number
-        startMs?: number
-        endMs?: number
-        useLatestWindowMs?: number
-      }
-    ) => {
-      if (!pipeline) return null
-      return pipeline.getBubbleProfile(params)
-    }
-  )
-
-  // ═══ 膜泡厚度：按趟重建（每趟扫描 = 一幅 profile）═══
-  ipcMain.handle(
     'bubble-get-sweeps',
-    async (
-      _event,
-      params: {
-        membraneWidthMm: number
-        thetaMaxDeg: number
-        mmPerPulse: number
-        airAD: number
-        gain: number
-        numBins?: number
-        processDeformationFactor?: number
-        startMs?: number
-        endMs?: number
-        useLatestWindowMs?: number
-        limit?: number
-      }
-    ) => {
-      if (!pipeline) return []
-      return pipeline.getBubbleSweeps(params)
-    }
-  )
-
-  // ═══ 膜泡厚度：最近 N 趟（分页模式，参考 LongitudinalCharts）═══
-  ipcMain.handle(
     'bubble-get-latest-sweeps',
-    async (
-      _event,
-      params: {
-        count: number
-        beforeTs?: number
-        membraneWidthMm: number
-        thetaMaxDeg: number
-        mmPerPulse: number
-        airAD: number
-        gain: number
-        numBins?: number
-        processDeformationFactor?: number
-      }
-    ) => {
-      if (!pipeline) return []
-      return pipeline.getLatestBubbleSweeps(params)
-    }
-  )
-
-  ipcMain.handle(
     'bubble-get-current-sweep',
-    async (
-      _event,
-      params: {
-        membraneWidthMm: number
-        thetaMaxDeg: number
-        mmPerPulse: number
-        airAD: number
-        gain: number
-        numBins?: number
-        processDeformationFactor?: number
+  ]
+
+  for (const channel of PROXIED_CHANNELS) {
+    ipcMain.handle(channel, async (_event, ...args: unknown[]) => {
+      if (!utilityHost?.isReady) {
+        throw new Error('数据处理服务未就绪，请稍后重试')
       }
-    ) => {
-      if (!pipeline) return null
-      return pipeline.getCurrentBubbleSweep(params)
-    }
-  )
+      return utilityHost.ipcRequest(channel, ...args)
+    })
+  }
 }

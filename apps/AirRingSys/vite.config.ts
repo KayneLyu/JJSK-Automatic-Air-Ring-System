@@ -70,6 +70,24 @@ export default defineConfig({
           },
         },
       },
+      // utilityProcess 脚本独立打包，输出到 dist-electron/utilityWorker.js
+      {
+        entry: 'electron/utilityWorker.ts',
+        vite: {
+          resolve: { alias: sharedAlias },
+          build: {
+            outDir: 'dist-electron',
+            lib: {
+              entry: 'electron/utilityWorker.ts',
+              formats: ['cjs'],
+              fileName: () => 'utilityWorker.js',
+            },
+            rollupOptions: {
+              external: ['electron'],
+            },
+          },
+        },
+      },
     ]),
   ],
 })
