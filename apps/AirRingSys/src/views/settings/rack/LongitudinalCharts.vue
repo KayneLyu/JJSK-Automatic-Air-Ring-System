@@ -113,9 +113,7 @@ const displaySweeps = computed(() => {
     : ([other, cur].filter(Boolean) as SweepData[])
 })
 
-const chartOption = computed<echarts.EChartsCoreOption>(() => {
-  console.log('[Longitudinal] chartOption computed')
-  return ({
+const chartOption = computed<echarts.EChartsCoreOption>(() => ({
   tooltip: {
     trigger: 'axis',
     formatter(params: unknown) {
@@ -189,7 +187,7 @@ function handleRealtimeData(
   realtimeCount++
   const data = normalizeThicknessRealtimePayload(payload)
   if (!data) {
-    if (realtimeCount <= 3) console.log('[Longitudinal] handleRealtimeData #${realtimeCount}: normalize returned null', payload)
+    if (realtimeCount <= 3) console.log(`[Longitudinal] handleRealtimeData #${realtimeCount}: normalize returned null`, payload)
     return
   }
   const completed = collector.process(data.pulses, data.adValues)
