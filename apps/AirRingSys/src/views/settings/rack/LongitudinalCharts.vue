@@ -113,9 +113,6 @@ const displaySweeps = computed(() => {
     : ([other, cur].filter(Boolean) as SweepData[])
 })
 
-// 实时预览数据（sweep 完成前也有内容可看，须在 chartOption 前声明）
-const previewPoints = ref<[number, number][]>([])
-
 const chartOption = computed<echarts.EChartsCoreOption>(() => {
   const fwdPoints: [number, number, number][] = []
   const bwdPoints: [number, number, number][] = []
@@ -126,36 +123,7 @@ const chartOption = computed<echarts.EChartsCoreOption>(() => {
   fwdPoints.sort((a, b) => a[0] - b[0])
   bwdPoints.sort((a, b) => a[0] - b[0])
 
-  // 实时预览数据：始终以浅色折线叠加显示
-  const preview = previewPoints.value.sort((a, b) => a[0] - b[0])
-
-  const legendData = ['正程', '逆程']
-    const series: echarts.SeriesOption[] = [
-    {
-      name: '正程',
-      type: 'line',
-      showSymbol: false,
-      data: fwdPoints,
-    },
-    {
-      name: '逆程',
-      type: 'line',
-      showSymbol: false,
-      data: bwdPoints,
-    },
-    {
-      name: '实时采集',
-      type: 'line',
-      showSymbol: false,
-      lineStyle: { color: '#c0c4cc', width: 1, type: 'dashed' },
-      data: preview.length > 0 ? preview : [],
-    },
-  ]
-  // 有 sweep 时才在 legend 中显示正程/逆程，否则只显示实时采集
-  if (fwdPoints.length === 0 && bwdPoints.length === 0) {
-    legendData.length = 0
-    legendData.push('实时采集')
-  }
+  const hasSweeps = fwdPoints.length > 0 || bwdPoints.length > 0
 
   return {
     tooltip: {
@@ -182,11 +150,14 @@ const chartOption = computed<echarts.EChartsCoreOption>(() => {
         return html
       },
     },
-    legend: { data: legendData },
+    legend: { data: hasSweeps ? ['正程', '逆程'] : [] },
     grid: { left: 50, right: 40, top: 40, bottom: 40 },
     xAxis: { type: 'value', name: '位置(pulse)', min: 0 },
     yAxis: { type: 'value', name: 'AD', splitLine: { show: true } },
-    series,
+    series: [
+      { name: '正程', type: 'line', showSymbol: false, data: fwdPoints },
+      { name: '逆程', type: 'line', showSymbol: false, data: bwdPoints },
+    ],
   }
 })
 const { updateCharts } = useChartsInit('chartRef', chartOption.value)
@@ -194,20 +165,13 @@ const { updateCharts } = useChartsInit('chartRef', chartOption.value)
 watch(
   chartOption,
   (val) => {
-    updateCharts(val, true)
+    updateCharts(val)
   },
   { deep: true }
 )
 
 // ── Real-time ──
 let collector = createThicknessCollector()
-
-let pendingRaf: number | null = null
-
-function flushPreview() {
-  pendingRaf = null
-  previewPoints.value = [...collector.getPreviewData() as [number, number][]]
-}
 
 function handleRealtimeData(
   _: unknown,
@@ -231,11 +195,6 @@ function handleRealtimeData(
         sweeps.value.splice(0, sweeps.value.length - 20)
       currentIndex.value = sweeps.value.length - 1
     }
-  }
-
-  // 每帧最多更新一次预览数据
-  if (pendingRaf === null) {
-    pendingRaf = requestAnimationFrame(flushPreview)
   }
 }
 
@@ -334,8 +293,6 @@ function handleStatus(_msg: unknown, payload: { connected: boolean }) {
     // 从离线切换到在线：清空历史数据，开始接收实时数据
     collector = createThicknessCollector()
     sweeps.value = []
-    previewPoints.value = []
-    pendingRaf = null
   } else if (!isConnected.value && wasConnected) {
     // 从在线切换到离线：加载历史数据
     loadHistoricalData()
@@ -356,10 +313,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  if (pendingRaf !== null) {
-    cancelAnimationFrame(pendingRaf)
-    pendingRaf = null
-  }
   window.ipcApi.off('adbox-status', handleStatus)
   window.ipcApi.off('adbox-data', handleRealtimeData)
 })
