@@ -320,9 +320,14 @@ watch(
           max: Number((thickMax + 2).toFixed(0)),
         },
       ],
-      xAxis: {
-        data: newValue.map((item) => item[0]),
-      },
+      xAxis: [
+        {
+          data: newValue.map((item) => item[0]),
+        },
+        {
+          data: newValue.map((item) => item[0]),
+        },
+      ],
       series: [
         {
           data: newValue,

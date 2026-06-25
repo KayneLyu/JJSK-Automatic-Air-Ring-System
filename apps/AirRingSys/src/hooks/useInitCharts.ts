@@ -26,6 +26,11 @@ const useInitCharts = (
   let chartInstanceRef: echarts.ECharts | null = null
   let observer: ResizeObserver | null = null
   const store = useConfigStore()
+
+  // 缓存 initChart 完成前到达的 updateCharts 调用
+  let pendingUpdate: { options: EChartsCoreOption; notMerge: boolean } | null =
+    null
+
   // 初始化图表
   const initChart = () => {
     if (!chartRef.value) return
@@ -44,6 +49,16 @@ const useInitCharts = (
           series: [{ data: props.frameData }],
         })
       }
+
+      // 应用 initChart 完成前缓存的 updateCharts 调用
+      if (pendingUpdate) {
+        chartInstanceRef.setOption(
+          pendingUpdate.options,
+          pendingUpdate.notMerge
+        )
+        pendingUpdate = null
+      }
+
       onReady?.(chartInstanceRef)
     } catch (error) {
       showNotification(
@@ -63,8 +78,12 @@ const useInitCharts = (
     }
   }
   const updateCharts = (newOptions: EChartsCoreOption, notMerge = false) => {
-    if (chartRef.value) {
-      chartInstanceRef?.setOption(newOptions, notMerge)
+    if (chartInstanceRef) {
+      chartInstanceRef.setOption(newOptions, notMerge)
+      pendingUpdate = null
+    } else if (chartRef.value) {
+      // DOM 已存在但图表尚未初始化（可能在 RAF 重试中），缓存更新待 initChart 完成后应用
+      pendingUpdate = { options: newOptions, notMerge }
     }
   }
 
@@ -102,6 +121,7 @@ const useInitCharts = (
   }
 
   const dropCharts = () => {
+    pendingUpdate = null
     if (observer) {
       observer.disconnect()
       observer = null
