@@ -405,6 +405,33 @@ export class SQLiteService {
     return this.#querySweepSummaryRowsSql(limit, beforeTs)
   }
 
+  /**
+   * 按时间区间查询单趟扫描的全部采样点
+   *
+   * 适用于已知 summary 范围、需要拉点数据做二次计算的场景
+   * （如膜宽标定的寻边算法）。与 querySweepByIndex 不同，此方法
+   * 不做 trip 切分计算，直接按时间戳范围拉点，性能与时间范围大小成正比。
+   */
+  querySweepPointsByTimeRange(
+    startTs: number,
+    endTs: number
+  ): { pos: number; ad: number; ts: number }[] {
+    if (!this.ready) return []
+    return querySweepPointsByRangeWithOrm(this.db, startTs, endTs)
+  }
+
+  /**
+   * 返回全部 trip summary（按时间正序）。
+   *
+   * 内部走全表 6-CTE trip 切分流水线，单次调用代价较高（O(N)）。
+   * 调用方应避免在同一请求中重复调用 — 拿到结果后基于本地缓存自行切片。
+   * 用于替代循环调用 querySweepByIndex 造成的 N×O(N) 重复扫描。
+   */
+  queryAllSweepSummaries(): SweepSummaryResult[] {
+    if (!this.ready) return []
+    return this.#querySweepSummaryRowsSql()
+  }
+
   #querySweepSummaryRowsSql(limitRows = 0, beforeTs = 0): SweepSummaryResult[] {
     const hasLimit = limitRows > 0
     const whereTs = beforeTs > 0 ? 'WHERE timestamp < ?' : ''

@@ -599,6 +599,7 @@ function registerProxiedIpcHandlers(): void {
     'calibration-auto-traction-speed',
     'calibration-run-mutation-window',
     'calibration-run-distance',
+    'calibration-run-membrane-width',
 
     // SQLite 历史数据查询
     'db-get-thickness-raw',

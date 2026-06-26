@@ -20,6 +20,7 @@ import {
   calibrateMutationWindowSize,
   calibrateDistance,
   detectMutation,
+  detectBimodalThreshold,
   estimateThetaMaxWithPhaseCorrection,
   type CalibrationConfig,
   type Scalar,
@@ -501,6 +502,110 @@ function registerAllIpcHandlers(): void {
       return {
         success: true,
         distance: Math.round(distance * 100) / 100,
+      }
+    }
+  )
+
+  // 膜宽标定：取测厚仪最近 10 趟扫描，按 AD 寻边算法算出每趟的膜内 pulse 区间，取中位数
+  // 寻边直接用 AD：测厚仪在膜上 AD 较低（材料吸收多），出膜 AD 升高（接近 airAD）
+  // 双峰阈值就是 AD 在膜内/膜外的分界
+  const MEMBRANE_CAL_SWEEP_COUNT = 10
+
+  registerIpcHandler(
+    'calibration-run-membrane-width',
+    async ([input]: unknown[]) => {
+      const { mmPerPulse } = input as { mmPerPulse: number }
+      if (!sqliteDb) return { success: false, error: '数据库未初始化' }
+      if (!Number.isFinite(mmPerPulse) || mmPerPulse <= 0) {
+        return { success: false, error: 'mm/脉冲无效，请先填写' }
+      }
+
+      // 优化：原实现循环 10 次调用 querySweepByIndex，每次都触发一次
+      // 全表 6-CTE trip 切分流水线 — 在大数据库上 N×O(N) 远超 60s 超时。
+      // 改为：1 次全表扫描拿到所有 trip summary（保留原 ASC 顺序语义，
+      // 即原 querySweepByIndex('single', 0..9) 的 idx 0..9 取法），
+      // 然后按时间区间分别拉点数据。
+      const allSummaries = sqliteDb.queryAllSweepSummaries()
+      if (allSummaries.length === 0) {
+        return { success: false, error: '没有可用的历史扫描数据' }
+      }
+
+      const targetCount = Math.min(MEMBRANE_CAL_SWEEP_COUNT, allSummaries.length)
+      const recentSweeps: Array<{
+        points: { pos: number; ad: number; ts: number }[]
+      }> = []
+      for (let idx = 0; idx < targetCount; idx += 1) {
+        const s = allSummaries[idx]
+        const points = sqliteDb.querySweepPointsByTimeRange(s.startTs, s.endTs)
+        if (points.length > 0) recentSweeps.push({ points })
+      }
+
+      if (recentSweeps.length === 0) {
+        return { success: false, error: '没有可用的历史扫描数据' }
+      }
+
+      // 每趟独立做寻边：AD → detectBimodalThreshold → 首/末 in-membrane pulse
+      // AD <= threshold 表示在膜（AD 较低 = 在膜材料内）
+      const sweepWidthsPulses: number[] = []
+      let totalSamples = 0
+      for (const sweep of recentSweeps) {
+        if (sweep.points.length < 100) continue
+        totalSamples += sweep.points.length
+        const ads: number[] = []
+        const pulses: number[] = []
+        for (const p of sweep.points) {
+          pulses.push(p.pos)
+          ads.push(p.ad)
+        }
+
+        const threshold = detectBimodalThreshold(ads)
+        if (threshold === null) continue
+        // 寻边：AD <= threshold 表示在膜
+        // 取首/末仍在膜内的 pulse 位置 = 膜物理边界
+        let leadingPulse: number | null = null
+        let trailingPulse: number | null = null
+        for (let i = 0; i < ads.length; i++) {
+          if (ads[i] <= threshold) {
+            leadingPulse = pulses[i]
+            break
+          }
+        }
+        for (let i = ads.length - 1; i >= 0; i--) {
+          if (ads[i] <= threshold) {
+            trailingPulse = pulses[i]
+            break
+          }
+        }
+        if (
+          leadingPulse === null ||
+          trailingPulse === null ||
+          trailingPulse <= leadingPulse
+        ) {
+          continue
+        }
+        sweepWidthsPulses.push(trailingPulse - leadingPulse)
+      }
+
+      if (sweepWidthsPulses.length === 0) {
+        return {
+          success: false,
+          error:
+            '最近 10 趟中没有一趟能通过寻边判定膜边界（检查 airAD 是否正确，或最近扫描是否覆盖膜边界）',
+        }
+      }
+
+      // 中位数（比均值更抗单趟异常）
+      const sortedWidths = [...sweepWidthsPulses].sort((a, b) => a - b)
+      const medianWidthPulses =
+        sortedWidths[Math.floor(sortedWidths.length / 2)]
+      const membraneWidthMm = medianWidthPulses * mmPerPulse
+
+      return {
+        success: true,
+        membraneWidthMm: Math.round(membraneWidthMm * 10) / 10,
+        sampleCount: totalSamples,
+        sweepCount: recentSweeps.length,
+        edgeSweepCount: sweepWidthsPulses.length,
       }
     }
   )
