@@ -119,11 +119,19 @@ export class DataPipeline {
       this.rotationTripStartTs !== null &&
       this.rotationTripDirection !== null
     ) {
-      this.sqlite.insertRotationTrip({
+      const now = Date.now()
+      const tripId = this.sqlite.insertRotationTrip({
         startTs: this.rotationTripStartTs,
-        endTs: Date.now(),
+        endTs: now,
         direction: this.rotationTripDirection,
       })
+      if (tripId > 0) {
+        this.sqlite.backfillScanPassRotationTrip(
+          tripId,
+          this.rotationTripStartTs,
+          now
+        )
+      }
     }
 
     this.sqlite.flush()
@@ -221,11 +229,19 @@ export class DataPipeline {
         this.rotationTripDirection !== null &&
         ts > this.rotationTripStartTs
       ) {
-        this.sqlite.insertRotationTrip({
+        const tripId = this.sqlite.insertRotationTrip({
           startTs: this.rotationTripStartTs,
           endTs: ts,
           direction: this.rotationTripDirection,
         })
+        // 回填该上旋趟时间范围内的 scan_pass
+        if (tripId > 0) {
+          this.sqlite.backfillScanPassRotationTrip(
+            tripId,
+            this.rotationTripStartTs,
+            ts
+          )
+        }
       }
       // 新一趟开始
       this.rotationTripStartTs = ts

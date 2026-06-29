@@ -40,6 +40,7 @@ import {
   queryLatestDirectionChanges,
 } from './rawQueries'
 import migrationSql from './migrations/0000_glossy_bloodstrike.sql?raw'
+import migrationSqlV1 from './migrations/0001_double_trip_model.sql?raw'
 import { FrameRow, RotationRawRow, ThicknessRawRow } from './types'
 
 export class SQLiteService {
@@ -80,6 +81,14 @@ export class SQLiteService {
       }
     }
 
+    // v1 迁移：双趟模型表（IF NOT EXISTS，对存量数据库透明）
+    for (const chunk of migrationSqlV1.split('--> statement-breakpoint\n')) {
+      const trimmed = chunk.trim()
+      if (trimmed && !trimmed.startsWith('--')) {
+        try { this.sqliteDb.exec(trimmed) } catch { /* ok */ }
+      }
+    }
+
     this.db = drizzle(this.sqliteDb, { schema })
     this.ready = true
   }
@@ -89,6 +98,14 @@ export class SQLiteService {
     this.ready = false
     try { this.flush() } catch (err) { console.error('[SQLite] flush on close error:', err) }
     this.sqliteDb.close()
+  }
+
+  /** 获取最近一次 INSERT 的 rowid（用于关联插入后的 ID） */
+  private getLastInsertId(): number {
+    const row = this.sqliteDb.prepare('SELECT last_insert_rowid() as id').get() as
+      | { id: number }
+      | undefined
+    return row?.id ?? 0
   }
 
   // ══ 批量缓冲写入 ══
@@ -238,18 +255,47 @@ export class SQLiteService {
   /**
    * 写入一个已完成的上旋旋转趟（~6-8min）。
    * 由 DataPipeline 在接收到 ForwardDirectionChange / ReverseDirectionChange 时调用。
+   *
+   * @returns 新插入行的 ID，失败返回 0
    */
   insertRotationTrip(rt: {
     startTs: number; endTs: number; direction: number
     estimatedThetaMax?: number | null; status?: string
-  }): void {
-    if (!this.ready) return
+  }): number {
+    if (!this.ready) return 0
     const now = Date.now()
     this.db.insert(schema.rotationTrip).values({
       startTs: rt.startTs, endTs: rt.endTs, direction: rt.direction,
       estimatedThetaMax: rt.estimatedThetaMax ?? null,
       status: rt.status ?? 'pending', createdAt: now,
     }).run()
+    return this.getLastInsertId()
+  }
+
+  /**
+   * 回填 scan_pass 的 rotation_trip_id。
+   *
+   * 上旋趟关闭后，将时间范围内的 scan_pass 行关联到该 rotation_trip。
+   * 用于存量数据的后补关联：scan_pass 发生时 rotation_trip 尚未创建，
+   * 需在上旋转向后通过时间区间匹配回填。
+   *
+   * @param rotationTripId 上旋趟 ID
+   * @param startTs        上旋趟起始时间
+   * @param endTs          上旋趟结束时间
+   * @returns 更新的行数
+   */
+  backfillScanPassRotationTrip(
+    rotationTripId: number,
+    startTs: number,
+    endTs: number
+  ): number {
+    if (!this.ready) return 0
+    const result = this.sqliteDb
+      .prepare(
+        `UPDATE scan_pass SET rotation_trip_id = ? WHERE rotation_trip_id IS NULL AND start_ts >= ? AND end_ts <= ?`
+      )
+      .run(rotationTripId, startTs, endTs)
+    return result.changes
   }
 }
 
