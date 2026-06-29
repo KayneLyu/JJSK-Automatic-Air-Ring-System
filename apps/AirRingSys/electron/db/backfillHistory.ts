@@ -15,7 +15,7 @@ WITH source AS (
 ),
 dedup AS (
   SELECT id, ts, pos FROM (
-    SELECT id, ts, pos, LAG(pos) OVER (ORDER BY ts, id) AS prev_pos FROM ordered
+    SELECT id, ts, pos, LAG(pos) OVER (ORDER BY ts, id) AS prev_pos FROM source
   ) t WHERE prev_pos IS NULL OR pos <> prev_pos
 ),
 dir_calc AS (
