@@ -67,7 +67,7 @@ export class SQLiteService {
    * 初始化数据库：
    * 1. 创建目录 + 打开 SQLite
    * 2. 执行 v0 + v1 迁移（IF NOT EXISTS，幂等）
-   * 3. 首次启动时从 thickness_raw 回填历史 scan_pass 数据
+   * 3. 首次启动时从 thickness_raw 回填历史 scan_pass 数据（setImmediate 异步）
    */
   init(dbDir: string): void {
     mkdirSync(dbDir, { recursive: true })
@@ -94,8 +94,18 @@ export class SQLiteService {
     this.db = drizzle(this.sqliteDb, { schema })
     this.ready = true
 
-    // 首次启动：回填历史 scan_pass
-    backfillScanPassesHistory(this.sqliteDb)
+    // 首次启动：回填历史 scan_pass — 异步执行，不阻塞 init 完成
+    // 6-CTE 在大数据库上可能耗时 20+ 秒，会撑爆主进程 15s init 超时窗口。
+    // 推迟到下一个事件循环 tick 执行：init() 立即返回，worker 可立即发 Phase 2 ready
+    // 清掉主进程 15s 定时器；回填在后台跑完后写入 scan_pass。
+    // backfillScanPassesHistory 自身幂等（scan_pass 非空时立即返回 0）。
+    setImmediate(() => {
+      try {
+        backfillScanPassesHistory(this.sqliteDb)
+      } catch (e) {
+        console.error('[Backfill] 历史回填失败:', e)
+      }
+    })
   }
 
   /** 关闭数据库：先 flush 缓冲区，再关闭连接 */
