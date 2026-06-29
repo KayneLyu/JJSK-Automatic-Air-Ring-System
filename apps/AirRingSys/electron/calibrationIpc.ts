@@ -21,7 +21,7 @@ import {
   type PendingAngleEstimate,
 } from '@jjsk/air-ring-server/electron'
 import type { ICalibrationBridge } from './calibrationBridge'
-import type { SQLiteService } from './sqliteService'
+import type { SQLiteService } from './db/service'
 
 export type { ICalibrationBridge }
 

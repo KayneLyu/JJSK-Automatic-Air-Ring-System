@@ -1,6 +1,6 @@
 import type { BrowserWindow } from 'electron'
 import { RingBuffer, ThicknessRingItem, RotationRingItem } from './ringBuffer'
-import { SQLiteService } from './sqliteService'
+import { SQLiteService } from './db/service'
 import type { PushData } from '@jjsk/adbox-sdk'
 import type { IUpperRotationDebugData, BubbleSweepResult } from '@/types/ipc'
 import { DataBatcher } from './data-batcher'
@@ -10,10 +10,10 @@ import type {
 import {
   findSweepsFromHistory,
   buildProfile,
-} from './sweepProfileBuilder'
+} from './db/sweepProfileBuilder'
 import {
   downsampleUniform,
-} from './sweepHelpers'
+} from './db/sweepHelpers'
 
 
 /**

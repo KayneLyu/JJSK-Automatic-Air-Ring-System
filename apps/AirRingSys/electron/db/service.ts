@@ -3,13 +3,13 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { and, gte, lt, desc, sql } from 'drizzle-orm'
 import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
-import * as schema from './db/schema'
+import * as schema from './schema'
 import {
   querySweepPointsByRangeWithOrm,
   type SweepIndexedResult,
   type SweepSummaryResult,
-} from './sqlite/sweepHistory'
-import migrationSql from './db/migrations/0000_glossy_bloodstrike.sql?raw'
+} from './sweepHistory'
+import migrationSql from './migrations/0000_glossy_bloodstrike.sql?raw'
 
 export class SQLiteService {
   private db!: ReturnType<typeof drizzle<typeof schema>>

@@ -12,7 +12,7 @@
  *
  * 所有函数均为纯函数，通过参数传入依赖（SQLiteService 等）。
  */
-import type { SQLiteService } from './sqliteService'
+import type { SQLiteService } from './service'
 import {
   reconstructBubbleThickness,
   type MeasurementTriple,

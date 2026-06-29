@@ -1,6 +1,6 @@
 import { and, gte, lte } from 'drizzle-orm'
 import type { drizzle } from 'drizzle-orm/better-sqlite3'
-import * as schema from '../db/schema'
+import * as schema from './schema'
 
 export interface SweepResult {
   direction: 'forward' | 'backward'

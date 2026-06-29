@@ -11,7 +11,7 @@
  *   - 全部标定/查询 IPC 处理逻辑
  */
 
-import { SQLiteService } from './sqliteService'
+import { SQLiteService } from './db/service'
 import { DataPipeline } from './dataPipeline'
 import { createModbusCalibrationBridge, type ICalibrationBridge } from './calibrationBridge'
 import {
