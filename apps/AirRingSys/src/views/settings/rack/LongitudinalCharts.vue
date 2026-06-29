@@ -355,7 +355,10 @@ async function loadHistoricalData(beforeTs?: number) {
       currentIndex.value += append.length
       hasOlderData.value = true
     } else {
-      sweeps.value = mapped.reverse()
+      // IPC 返回的 rows 已经是 startTs 升序(旧→新),保持原序
+      // sweeps[0] = 最早, sweeps[length-1] = 最新
+      // currentIndex 默认指到最新,与"打开页面就看到最新"的预期一致
+      sweeps.value = mapped
       currentIndex.value = sweeps.value.length > 0 ? sweeps.value.length - 1 : 0
       hasOlderData.value = true
     }
