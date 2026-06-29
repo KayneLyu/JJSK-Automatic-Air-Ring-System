@@ -4,8 +4,9 @@
  * 职责：
  * - 初始化 SQLite 数据库 + Drizzle ORM + 自动迁移
  * - 批量缓冲写入（500ms flush 间隔）thickness_raw / rotation_raw / airRing_raw
- * - 原始数据查询委托给 rawQueries、扫描趟查询委托给 sweepQueries
+ * - 原始数据查询委托给 rawQueries、扫描趟查询委托给 scanPassQueries
  * - 双趟模型写入：scan_pass（约 30s/趟）、rotation_trip（约 6-8min/趟）
+ * - 首次启动自动回填历史 scan_pass 数据（6-CTE → scan_pass 一次性迁移）
  *
  * 运行在 Electron utilityProcess 中，不阻塞 UI 线程。
  */
@@ -25,8 +26,9 @@ import {
   querySweepByIndex,
   queryLatestSweepSummaries,
   queryAllSweepSummaries,
-} from './sweepQueries'
+} from './scanPassQueries'
 import { importSweep, cleanup, queryFramesByTimeRange } from './sweepExport'
+import { backfillScanPassesHistory } from './backfillHistory'
 import {
   queryThicknessRaw,
   countThicknessRawInRange,
@@ -62,9 +64,10 @@ export class SQLiteService {
   // ══ 生命周期 ══
 
   /**
-   * 初始化数据库：创建目录 → 打开 SQLite → 执行迁移 → 创建 Drizzle 实例。
-   *
-   * SQLite 配置为 WAL 模式关闭（journal_mode=OFF）以最大化写入吞吐。
+   * 初始化数据库：
+   * 1. 创建目录 + 打开 SQLite
+   * 2. 执行 v0 + v1 迁移（IF NOT EXISTS，幂等）
+   * 3. 首次启动时从 thickness_raw 回填历史 scan_pass 数据
    */
   init(dbDir: string): void {
     mkdirSync(dbDir, { recursive: true })
@@ -81,7 +84,6 @@ export class SQLiteService {
       }
     }
 
-    // v1 迁移：双趟模型表（IF NOT EXISTS，对存量数据库透明）
     for (const chunk of migrationSqlV1.split('--> statement-breakpoint\n')) {
       const trimmed = chunk.trim()
       if (trimmed && !trimmed.startsWith('--')) {
@@ -91,6 +93,9 @@ export class SQLiteService {
 
     this.db = drizzle(this.sqliteDb, { schema })
     this.ready = true
+
+    // 首次启动：回填历史 scan_pass
+    backfillScanPassesHistory(this.sqliteDb)
   }
 
   /** 关闭数据库：先 flush 缓冲区，再关闭连接 */
@@ -100,7 +105,7 @@ export class SQLiteService {
     this.sqliteDb.close()
   }
 
-  /** 获取最近一次 INSERT 的 rowid（用于关联插入后的 ID） */
+  /** 获取最近一次 INSERT 的 rowid */
   private getLastInsertId(): number {
     const row = this.sqliteDb.prepare('SELECT last_insert_rowid() as id').get() as
       | { id: number }
@@ -197,25 +202,26 @@ export class SQLiteService {
     return this.ready ? queryLatestDirectionChanges(this.sqliteDb, count, beforeTs) : []
   }
 
-  // ══ 扫描趟查询（委托 sweepQueries） ══
+  // ══ 扫描趟查询（委托 scanPassQueries — 基于 scan_pass 物化表） ══
 
   querySweepCountByMode(mode: 'single' | 'round'): number {
-    return this.ready ? querySweepCountByMode(this.sqliteDb, mode) : 0
+    return this.ready ? querySweepCountByMode(this.db, mode) : 0
   }
   querySweepIdsByMode(mode: 'single' | 'round'): string[] {
-    return this.ready ? querySweepIdsByMode(this.sqliteDb, mode) : []
+    return this.ready ? querySweepIdsByMode(this.db, mode) : []
   }
   querySweepByIndex(mode: 'single' | 'round', index: number): SweepIndexedResult | null {
-    return this.ready ? querySweepByIndex(this.db, this.sqliteDb, mode, index) : null
+    return this.ready ? querySweepByIndex(this.db, mode, index) : null
   }
-  queryLatestSweepSummaries(limit: number, maxPulse: number, beforeTs = 0): SweepSummaryResult[] {
-    return this.ready ? queryLatestSweepSummaries(this.sqliteDb, limit, maxPulse, beforeTs) : []
+  queryLatestSweepSummaries(limit: number, _maxPulse: number, beforeTs = 0): SweepSummaryResult[] {
+    void _maxPulse
+    return this.ready ? queryLatestSweepSummaries(this.db, limit, beforeTs) : []
   }
   querySweepPointsByTimeRange(startTs: number, endTs: number): { pos: number; ad: number; ts: number }[] {
     return this.ready ? querySweepPointsByRangeWithOrm(this.db, startTs, endTs) : []
   }
   queryAllSweepSummaries(): SweepSummaryResult[] {
-    return this.ready ? queryAllSweepSummaries(this.sqliteDb) : []
+    return this.ready ? queryAllSweepSummaries(this.db) : []
   }
   querySweepPointsByRange(startTs: number, endTs: number): { pos: number; ad: number; ts: number }[] {
     return this.ready ? querySweepPointsByRangeWithOrm(this.db, startTs, endTs) : []
@@ -274,15 +280,6 @@ export class SQLiteService {
 
   /**
    * 回填 scan_pass 的 rotation_trip_id。
-   *
-   * 上旋趟关闭后，将时间范围内的 scan_pass 行关联到该 rotation_trip。
-   * 用于存量数据的后补关联：scan_pass 发生时 rotation_trip 尚未创建，
-   * 需在上旋转向后通过时间区间匹配回填。
-   *
-   * @param rotationTripId 上旋趟 ID
-   * @param startTs        上旋趟起始时间
-   * @param endTs          上旋趟结束时间
-   * @returns 更新的行数
    */
   backfillScanPassRotationTrip(
     rotationTripId: number,
