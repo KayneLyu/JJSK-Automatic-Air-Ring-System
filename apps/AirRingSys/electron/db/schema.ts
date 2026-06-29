@@ -69,3 +69,64 @@ export const rollerRaw = sqliteTable(
     tsIdx: index('idx_roller_raw_ts').on(t.timestamp),
   })
 )
+
+// ── 双趟模型：上旋旋转趟 ──
+export const rotationTrip = sqliteTable(
+  'rotation_trip',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    startTs: integer('start_ts').notNull(),
+    endTs: integer('end_ts').notNull(),
+    direction: integer('direction').notNull(), // 1=正向旋转, 0=反向旋转
+    estimatedThetaMax: real('estimated_theta_max'),
+    status: text('status').notNull().default('pending'), // pending | estimated | failed
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    tsIdx: index('idx_rotation_trip_ts').on(t.startTs, t.endTs),
+  })
+)
+
+// ── 双趟模型：测厚仪扫描趟 ──
+export const scanPass = sqliteTable(
+  'scan_pass',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    rotationTripId: integer('rotation_trip_id').references(
+      () => rotationTrip.id
+    ),
+    startTs: integer('start_ts').notNull(),
+    endTs: integer('end_ts').notNull(),
+    scannerDirection: integer('scanner_direction').notNull(), // 1=正向扫描, 0=反向扫描
+    pulseMin: integer('pulse_min').notNull(),
+    pulseMax: integer('pulse_max').notNull(),
+    validRatio: real('valid_ratio').notNull().default(0), // 有效测点占比
+    status: text('status').notNull().default('pending'), // pending | complete | rejected
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    tsIdx: index('idx_scan_pass_ts').on(t.startTs, t.endTs),
+    rtIdx: index('idx_scan_pass_rt').on(t.rotationTripId),
+  })
+)
+
+// ── 双趟模型：扫描趟摘要 ──
+export const scanPassSummary = sqliteTable(
+  'scan_pass_summary',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    scanPassId: integer('scan_pass_id')
+      .notNull()
+      .references(() => scanPass.id),
+    profileBinsJson: text('profile_bins_json').notNull().default('[]'),
+    // JSON: { offsetDeg: number, avgThickness: number }[]
+    qualityScore: real('quality_score').notNull().default(0), // 0-1 综合质量分
+    candidateFanIndicesJson: text('candidate_fan_indices_json')
+      .notNull()
+      .default('[]'), // number[] 候选风道索引
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    spIdx: index('idx_scan_pass_summary_sp').on(t.scanPassId),
+  })
+)
