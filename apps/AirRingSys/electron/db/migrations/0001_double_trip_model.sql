@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS `scan_pass` (
 );
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `idx_scan_pass_ts` ON `scan_pass` (`start_ts`,`end_ts`);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `idx_scan_pass_status` ON `scan_pass` (`status`);--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `idx_scan_pass_rt` ON `scan_pass` (`rotation_trip_id`);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `scan_pass_summary` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,

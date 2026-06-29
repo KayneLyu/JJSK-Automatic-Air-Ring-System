@@ -94,17 +94,15 @@ export function querySweepByIndex(
 ): SweepIndexedResult | null {
   if (!Number.isInteger(index) || index < 0) return null
 
-  const rows = db
-    .select()
-    .from(schema.scanPass)
-    .where(sql`${schema.scanPass.status} = 'complete'`)
-    .orderBy(schema.scanPass.startTs)
-    .all()
-
-  if (rows.length === 0) return null
-
   if (mode === 'single') {
-    const row = rows[index]
+    const [row] = db
+      .select()
+      .from(schema.scanPass)
+      .where(sql`${schema.scanPass.status} = 'complete'`)
+      .orderBy(schema.scanPass.startTs)
+      .limit(1)
+      .offset(index)
+      .all()
     if (!row) return null
     return {
       id: `${row.scannerDirection === 1 ? 'forward' : 'backward'}-${row.startTs}-${row.endTs}`,
@@ -118,10 +116,19 @@ export function querySweepByIndex(
     }
   }
 
-  const start = index * 2
-  const first = rows[start]
+  // round mode: 取 index * 2 位置开始的 2 趟
+  const rows = db
+    .select()
+    .from(schema.scanPass)
+    .where(sql`${schema.scanPass.status} = 'complete'`)
+    .orderBy(schema.scanPass.startTs)
+    .limit(2)
+    .offset(index * 2)
+    .all()
+
+  const first = rows[0]
   if (!first) return null
-  const second = rows[start + 1]
+  const second = rows[1]
   const selected = second ? [first, second] : [first]
   return {
     id: second

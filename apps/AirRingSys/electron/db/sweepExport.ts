@@ -16,6 +16,9 @@ import type { ThicknessRawRow, FrameRow } from './types'
  * 适用于从外部数据源（文件导入、回放）批量写入测厚原始数据。
  * 使用 SQL 事务保证原子性。
  *
+ * 注意：时间戳使用 `Date.now() + i`，原始时间信息会丢失。
+ * 如需保留原始时间戳，请在调用侧修改 timestamp 逻辑。
+ *
  * @param db        Drizzle 实例
  * @param sqliteDb  原生 better-sqlite3 实例
  * @param pulses    横向脉冲数组
@@ -72,32 +75,25 @@ export function cleanup(
   sqliteDb: Database.Database,
   beforeMs: number
 ): { thickness: number; rotation: number; airRing: number } {
-  const changes = (): number => {
-    const row = sqliteDb.prepare('SELECT changes() as cnt').get() as
-      | { cnt: number }
-      | undefined
-    return Number(row?.cnt ?? 0)
-  }
-
   sqliteDb.exec('BEGIN')
   try {
-    db
+    const resultT = db
       .delete(schema.thicknessRaw)
       .where(lt(schema.thicknessRaw.timestamp, beforeMs))
       .run()
-    const t = changes()
+    const t = resultT.changes
 
-    db
+    const resultR = db
       .delete(schema.rotationRaw)
       .where(lt(schema.rotationRaw.timestamp, beforeMs))
       .run()
-    const r = changes()
+    const r = resultR.changes
 
-    db
+    const resultA = db
       .delete(schema.airRingRaw)
       .where(lt(schema.airRingRaw.timestamp, beforeMs))
       .run()
-    const a = changes()
+    const a = resultA.changes
 
     sqliteDb.exec('COMMIT')
     return { thickness: t, rotation: r, airRing: a }

@@ -106,6 +106,7 @@ export const scanPass = sqliteTable(
   },
   (t) => [
     index('idx_scan_pass_ts').on(t.startTs, t.endTs),
+    index('idx_scan_pass_status').on(t.status),
     index('idx_scan_pass_rt').on(t.rotationTripId),
   ]
 )

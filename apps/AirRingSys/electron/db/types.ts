@@ -47,8 +47,14 @@ export interface AirRingRawRow {
   id: number
   /** 时间戳 (ms) */
   timestamp: number
-  pct: number
-  open: number
+  /** 各风道热量 JSON 数组 */
+  channelHeats: string
+  /** 是否自动模式 */
+  isAuto: number
+  /** 标准差 sigma */
+  sigma: number
+  /** 相关系数 */
+  corrR: number
 }
 
 /** frame 表行（扫描趟统计导出） */

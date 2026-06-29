@@ -6,8 +6,9 @@
  * 路径上，无需等待 flush 或事后扫描。
  *
  * 方向约定：
- * - scannerDirection = 0: 反向扫描（脉冲递减）
- * - scannerDirection = 1: 正向扫描（脉冲递增）
+ * - 内部 CurrentScan.direction = 1 | -1（ScannerDirection，与数学符号一致）
+ * - 外部 ClosedScanPass.scannerDirection = 0 | 1（对应 scan_pass 表列，0=反向）
+ * - 转换：closeCurrentScan 中 direction === 1 ? 1 : 0
  *
  * 物理背景：
  * - 测厚仪约 30 秒完成一次往返扫描，期间 ADBox 约产生 30,000 帧

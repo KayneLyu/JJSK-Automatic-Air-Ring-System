@@ -80,14 +80,14 @@ export class SQLiteService {
     for (const chunk of migrationSql.split('--> statement-breakpoint\n')) {
       const trimmed = chunk.trim()
       if (trimmed && !trimmed.startsWith('--')) {
-        try { this.sqliteDb.exec(trimmed) } catch { /* ok */ }
+        try { this.sqliteDb.exec(trimmed) } catch (e) { console.error('[SQLite] v0 migration error:', e) }
       }
     }
 
     for (const chunk of migrationSqlV1.split('--> statement-breakpoint\n')) {
       const trimmed = chunk.trim()
       if (trimmed && !trimmed.startsWith('--')) {
-        try { this.sqliteDb.exec(trimmed) } catch { /* ok */ }
+        try { this.sqliteDb.exec(trimmed) } catch (e) { console.error('[SQLite] v1 migration error:', e) }
       }
     }
 
@@ -213,8 +213,7 @@ export class SQLiteService {
   querySweepByIndex(mode: 'single' | 'round', index: number): SweepIndexedResult | null {
     return this.ready ? querySweepByIndex(this.db, mode, index) : null
   }
-  queryLatestSweepSummaries(limit: number, _maxPulse: number, beforeTs = 0): SweepSummaryResult[] {
-    void _maxPulse
+  queryLatestSweepSummaries(limit: number, beforeTs = 0): SweepSummaryResult[] {
     return this.ready ? queryLatestSweepSummaries(this.db, limit, beforeTs) : []
   }
   querySweepPointsByTimeRange(startTs: number, endTs: number): { pos: number; ad: number; ts: number }[] {

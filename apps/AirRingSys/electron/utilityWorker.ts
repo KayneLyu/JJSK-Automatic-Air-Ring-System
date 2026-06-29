@@ -620,7 +620,7 @@ function registerAllIpcHandlers(): void {
   })
 
   registerIpcHandler('db-get-sweep-summaries', async ([count, beforeTs]: unknown[]) => {
-    return sqliteDb?.queryLatestSweepSummaries(count as number, maxPulse, (beforeTs as number) ?? 0) ?? []
+    return sqliteDb?.queryLatestSweepSummaries(count as number, (beforeTs as number) ?? 0) ?? []
   })
 
   registerIpcHandler('db-get-sweep-points-by-range', async ([startTs, endTs]: unknown[]) => {

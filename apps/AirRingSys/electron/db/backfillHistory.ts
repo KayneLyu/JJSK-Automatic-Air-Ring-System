@@ -11,10 +11,7 @@ import type Database from 'better-sqlite3'
 /** 扫描趟切分 6-CTE — 用于历史数据一次性回填，回填完成后不再使用 */
 const BACKFILL_CTE = `
 WITH source AS (
-  SELECT id, timestamp AS ts, pulse AS pos FROM thickness_raw ORDER BY timestamp DESC, id DESC
-),
-ordered AS (
-  SELECT id, ts, pos FROM source ORDER BY ts ASC, id ASC
+  SELECT id, timestamp AS ts, pulse AS pos FROM thickness_raw ORDER BY timestamp ASC, id ASC
 ),
 dedup AS (
   SELECT id, ts, pos FROM (
@@ -104,16 +101,19 @@ export function backfillScanPassesHistory(sqliteDb: Database.Database): number {
     throw e
   }
 
-  // 关联已有 rotation_trip
+  // 关联已有 rotation_trip — 使用单条 correlated UPDATE 替代 N 条逐行 UPDATE
   const rotationTrips = sqliteDb
-    .prepare('SELECT id, start_ts, end_ts FROM rotation_trip ORDER BY start_ts')
-    .all() as { id: number; start_ts: number; end_ts: number }[]
-  for (const rt of rotationTrips) {
-    sqliteDb
-      .prepare(
-        'UPDATE scan_pass SET rotation_trip_id = ? WHERE rotation_trip_id IS NULL AND start_ts >= ? AND end_ts <= ?'
+    .prepare('SELECT id FROM rotation_trip LIMIT 1')
+    .all() as { id: number }[]
+  if (rotationTrips.length > 0) {
+    sqliteDb.exec(`
+      UPDATE scan_pass SET rotation_trip_id = (
+        SELECT rt.id FROM rotation_trip rt
+        WHERE scan_pass.start_ts >= rt.start_ts AND scan_pass.end_ts <= rt.end_ts
+        ORDER BY rt.start_ts ASC LIMIT 1
       )
-      .run(rt.id, rt.start_ts, rt.end_ts)
+      WHERE rotation_trip_id IS NULL
+    `)
   }
 
   const elapsed = performance.now() - startTime
