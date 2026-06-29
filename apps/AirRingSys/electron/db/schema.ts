@@ -75,12 +75,12 @@ export const rotationTrip = sqliteTable(
   'rotation_trip',
   {
     id: integer().primaryKey({ autoIncrement: true }),
-    startTs: integer().notNull(),
-    endTs: integer().notNull(),
+    startTs: integer('start_ts').notNull(),
+    endTs: integer('end_ts').notNull(),
     direction: integer().notNull(), // 1=正向旋转, 0=反向旋转
-    estimatedThetaMax: real(),
+    estimatedThetaMax: real('estimated_theta_max'),
     status: text().notNull().default('pending'), // pending | estimated | failed
-    createdAt: integer().notNull(),
+    createdAt: integer('created_at').notNull(),
   },
   (t) => [
     index('idx_rotation_trip_ts').on(t.startTs, t.endTs),
@@ -95,14 +95,14 @@ export const scanPass = sqliteTable(
     rotationTripId: integer('rotation_trip_id').references(
       () => rotationTrip.id
     ),
-    startTs: integer().notNull(),
-    endTs: integer().notNull(),
-    scannerDirection: integer().notNull(), // 1=正向扫描, 0=反向扫描
-    pulseMin: integer().notNull(),
-    pulseMax: integer().notNull(),
-    validRatio: real().notNull().default(0), // 有效测点占比
+    startTs: integer('start_ts').notNull(),
+    endTs: integer('end_ts').notNull(),
+    scannerDirection: integer('scanner_direction').notNull(), // 1=正向扫描, 0=反向扫描
+    pulseMin: integer('pulse_min').notNull(),
+    pulseMax: integer('pulse_max').notNull(),
+    validRatio: real('valid_ratio').notNull().default(0), // 有效测点占比
     status: text().notNull().default('pending'), // pending | complete | rejected
-    createdAt: integer().notNull(),
+    createdAt: integer('created_at').notNull(),
   },
   (t) => [
     index('idx_scan_pass_ts').on(t.startTs, t.endTs),
@@ -119,13 +119,13 @@ export const scanPassSummary = sqliteTable(
     scanPassId: integer('scan_pass_id')
       .notNull()
       .references(() => scanPass.id),
-    profileBinsJson: text().notNull().default('[]'),
+    profileBinsJson: text('profile_bins_json').notNull().default('[]'),
     // JSON: { offsetDeg: number, avgThickness: number }[]
-    qualityScore: real().notNull().default(0), // 0-1 综合质量分
-    candidateFanIndicesJson: text()
+    qualityScore: real('quality_score').notNull().default(0), // 0-1 综合质量分
+    candidateFanIndicesJson: text('candidate_fan_indices_json')
       .notNull()
       .default('[]'), // number[] 候选风道索引
-    createdAt: integer().notNull(),
+    createdAt: integer('created_at').notNull(),
   },
   (t) => [
     index('idx_scan_pass_summary_sp').on(t.scanPassId),
