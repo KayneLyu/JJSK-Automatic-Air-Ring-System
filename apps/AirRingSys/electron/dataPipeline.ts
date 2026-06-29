@@ -14,6 +14,9 @@ import {
 import {
   downsampleUniform,
 } from './db/sweepHelpers'
+import {
+  createScanPassDetector,
+} from './db/scanPassDetector'
 
 
 /**
@@ -34,6 +37,13 @@ export class DataPipeline {
   private cleanupTimer: NodeJS.Timeout | null = null
   private readonly CLEANUP_INTERVAL_MS = 60_000 // 每分钟
   private readonly RETENTION_THICKNESS_MS = 2 * 3600_000 // 2小时
+
+  // ── 扫描趟实时检测 ──
+  private readonly scanPassDetector = createScanPassDetector()
+
+  // ── 上旋旋转趟实时检测 ──
+  private rotationTripStartTs: number | null = null
+  private rotationTripDirection: number | null = null
 
   // 计算回调
   private feedThicknessSample?: (sample: {
@@ -97,6 +107,25 @@ export class DataPipeline {
   stop(): void {
     if (this.flushTimer) clearInterval(this.flushTimer)
     if (this.cleanupTimer) clearInterval(this.cleanupTimer)
+
+    // 关闭当前扫描趟
+    const closed = this.scanPassDetector.close(Date.now())
+    if (closed) {
+      this.sqlite.insertScanPass(closed)
+    }
+
+    // 关闭当前上旋趟
+    if (
+      this.rotationTripStartTs !== null &&
+      this.rotationTripDirection !== null
+    ) {
+      this.sqlite.insertRotationTrip({
+        startTs: this.rotationTripStartTs,
+        endTs: Date.now(),
+        direction: this.rotationTripDirection,
+      })
+    }
+
     this.sqlite.flush()
     this.batcher.destroy()
   }
@@ -127,6 +156,12 @@ export class DataPipeline {
 
     // 4. 持久化 (批量缓冲)
     this.sqlite.pushThickness(timestamp, push.pos0, push.ad0, 'adbox', 0, 1.0)
+
+    // 5. 扫描趟实时检测
+    const closed = this.scanPassDetector.feed(timestamp, push.pos0, push.ad0)
+    if (closed) {
+      this.sqlite.insertScanPass(closed)
+    }
   }
 
   /** 上旋/风环数据入口 */
@@ -163,6 +198,38 @@ export class DataPipeline {
     // 5. 风环通道数据
     if (data.Heats && data.Heats.length > 0) {
       this.sqlite.pushAirRing(ts, data.Heats, 0, 0, 0)
+    }
+
+    // 6. 上旋旋转趟实时检测
+    if (data.Reset) {
+      this.rotationTripStartTs = null
+      this.rotationTripDirection = null
+      return
+    }
+
+    const directionSignal =
+      data.ForwardDirectionChange
+        ? 1
+        : data.ReverseDirectionChange
+          ? 0
+          : null
+
+    if (directionSignal !== null) {
+      // 前一趟结束
+      if (
+        this.rotationTripStartTs !== null &&
+        this.rotationTripDirection !== null &&
+        ts > this.rotationTripStartTs
+      ) {
+        this.sqlite.insertRotationTrip({
+          startTs: this.rotationTripStartTs,
+          endTs: ts,
+          direction: this.rotationTripDirection,
+        })
+      }
+      // 新一趟开始
+      this.rotationTripStartTs = ts
+      this.rotationTripDirection = directionSignal
     }
   }
 
