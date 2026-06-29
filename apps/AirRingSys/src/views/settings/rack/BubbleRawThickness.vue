@@ -1,42 +1,60 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useBubbleSweeps } from './useBubbleSweeps'
+import { useScannerTripReconstruction } from './useScannerTripReconstruction'
 import BubbleStatusBar from './BubbleStatusBar.vue'
 import BubbleNavBar from './BubbleNavBar.vue'
 import BubblePolarChart from './BubblePolarChart.vue'
+import type { BubbleSweepResult } from '@/types/ipc'
 
 const {
-  sortedSweeps,
-  selectedIndex,
-  selectedSweep,
+  selectedBaseline,
+  currentReconstruction,
   canGoPrev,
   canGoNext,
   dataMode,
   autoRefresh,
   lastUpdatedAt,
   errorMessage,
+  isReconstructing,
   calResults,
   thicknessCfg,
-  prevSweep,
-  nextSweep,
-} = useBubbleSweeps()
+  prevTrip,
+  nextTrip,
+} = useScannerTripReconstruction()
 
-const selectedMinCoverage = computed(() => {
-  const s = selectedSweep.value
-  if (!s) return 0
-  return Math.min(...s.binCoverage)
+/**
+ * 把重构结果打包成 BubbleSweepResult 形状,
+ * 喂给 BubbleNavBar / BubbleStatusBar / BubblePolarChart(它们接口不变)
+ */
+const syntheticSweep = computed<BubbleSweepResult | null>(() => {
+  const r = currentReconstruction.value
+  const b = selectedBaseline.value
+  if (!r || !b) return null
+  return {
+    ...r.result,
+    id: b.sweepId,
+    time: b.startTs,
+    direction: b.direction === 'forward' ? 'forward' : 'reverse',
+    cycleDurationMs: b.endTs - b.startTs,
+    inProgress: false,
+  }
 })
 
 const selectedMeanCoverage = computed(() => {
-  const s = selectedSweep.value
+  const s = syntheticSweep.value
   if (!s || s.binCoverage.length === 0) return 0
   return s.binCoverage.reduce((a, b) => a + b, 0) / s.binCoverage.length
+})
+
+const selectedMinCoverage = computed(() => {
+  const s = syntheticSweep.value
+  if (!s) return 0
+  return Math.min(...s.binCoverage)
 })
 
 function onAutoRefreshChange(v: boolean) {
   autoRefresh.value = v
 }
-
 </script>
 
 <template>
@@ -48,25 +66,27 @@ function onAutoRefreshChange(v: boolean) {
       :last-updated-at="lastUpdatedAt"
       :selected-mean-coverage="selectedMeanCoverage"
       :selected-min-coverage="selectedMinCoverage"
-      :has-selected-sweep="selectedSweep !== null"
+      :has-selected-sweep="syntheticSweep !== null"
       :auto-refresh="autoRefresh"
       @update:auto-refresh="onAutoRefreshChange"
     />
 
-    <!-- 上一幅/下一幅：只历史模式显示 -->
     <BubbleNavBar
-      v-if="dataMode === 'historical'"
-      :selected-sweep="selectedSweep"
+      :selected-sweep="syntheticSweep"
       :can-go-prev="canGoPrev"
       :can-go-next="canGoNext"
-      @prev="prevSweep"
-      @next="nextSweep"
+      @prev="prevTrip"
+      @next="nextTrip"
     />
 
     <BubblePolarChart
-      :selected-sweep="selectedSweep"
+      :selected-sweep="syntheticSweep"
       :error-message="errorMessage"
     />
+
+    <div v-if="isReconstructing" class="reconstructing-hint">
+      正在重构 B(φ)…
+    </div>
   </div>
 </template>
 
@@ -77,5 +97,16 @@ function onAutoRefreshChange(v: boolean) {
   height: 100%;
   gap: 8px;
   position: relative;
+}
+.reconstructing-hint {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #fff;
+  background: rgba(64, 158, 255, 0.85);
+  border-radius: 10px;
+  z-index: 5;
 }
 </style>

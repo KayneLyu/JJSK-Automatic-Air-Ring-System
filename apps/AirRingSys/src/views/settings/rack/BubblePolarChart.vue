@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { toRef, computed } from 'vue'
 import VChart from 'vue-echarts'
-import { useBubblePolarChart } from './useBubblePolarChart'
-import type { BubbleSweepResult } from '@/types/ipc'
+import { useBubblePolarChart, type ExtendedBubbleSweepResult } from './useBubblePolarChart'
 import { EMPTY_POLAR_OPTION } from './bubbleRawThickness.constants'
 
 const props = defineProps<{
-  selectedSweep: BubbleSweepResult | null
+  selectedSweep: ExtendedBubbleSweepResult | null
   errorMessage: string | null
-  compareSweep?: BubbleSweepResult | null
+  compareSweep?: ExtendedBubbleSweepResult | null
 }>()
 
 const chart = useBubblePolarChart(toRef(props, 'selectedSweep'))

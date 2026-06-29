@@ -11,6 +11,12 @@ export const DEFAULT_TRACTION_SPEED_MM_PER_S = 200
 export const SWEEP_PAGE_SIZE = 20
 export const IN_PROGRESS_GRACE_MS = 5_000
 
+// 极坐标图 B(φ) 采用最近 N 趟上旋扫描的滑动平均
+export const SLIDING_WINDOW_TRIPS = 5
+
+// timeToAngle 的角度分段数（沿用 packages/AirRingServer 的默认值）
+export const TIME_TO_ANGLE_SEGMENTS = 10
+
 export const EMPTY_POLAR_OPTION: EChartsCoreOption = {
   title: {
     text: '等待扫描数据…',
