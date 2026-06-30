@@ -22,7 +22,7 @@
 // 【参数分类】
 //   物理确定: W=πR, δ=x/W×180°, φ=αC±δ
 //   标定参数: W (膜宽), τ (运输延迟)
-//   经验参数: processFactor=1.02, λ=1e-4, μ=0.1
+//   经验参数: processFactor=1, λ=1e-4, μ=0.1
 //   在线辨识: θ(t) — 上旋角
 // ============================================================
 
@@ -41,7 +41,7 @@ export type BubbleReconstructionOptions = {
   lambda?: number
   /** 二阶差分平滑系数 (Tikhonov D₂, 默认 0.1) */
   mu?: number
-  /** 工艺变形因子 (默认 1.02) */
+  /** 工艺变形因子 (默认 1) */
   processDeformationFactor?: number
   /** RLS 遗忘因子 λ ∈ (0,1] (默认 0.995) */
   forgettingFactor?: number
@@ -331,7 +331,7 @@ export const predictMeasuredThickness = (
   profile: number[],
   measurement: MeasurementTriple,
   membraneWidthMm: number,
-  processDeformationFactor: number = 1.02
+  processDeformationFactor: number = 1
 ): number => {
   const numBins = profile.length
   const binWidth = 360 / numBins
@@ -372,7 +372,7 @@ export const reconstructBubbleThickness = (
   const numBins = options?.numBins ?? 360
   const lambda = options?.lambda ?? 1e-4
   const mu = options?.mu ?? 0.1
-  const processFactor = options?.processDeformationFactor ?? 1.02
+  const processFactor = options?.processDeformationFactor ?? 1
   const forgettingFactor = options?.forgettingFactor ?? 0.995
   const smoothMu = options?.smoothMu ?? 0.1
   const solverMode = options?.solverMode ?? 'batch'
