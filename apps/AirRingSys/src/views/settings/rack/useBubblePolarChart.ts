@@ -9,7 +9,10 @@ import { LineChart } from 'echarts/charts'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsCoreOption } from 'echarts/core'
 import type { BubbleSweepResult } from '@/types/ipc'
-import type { BinDecomposition } from './utils/bubbleReconstruction'
+import type {
+  BinDecomposition,
+  SampleDecomposition,
+} from './utils/bubbleReconstruction'
 import {
   EMPTY_POLAR_OPTION,
   directionColor,
@@ -21,6 +24,7 @@ import {
 /** 前端重建时携带的 binDecompositions 字段不在 IPC 类型里,本地扩展 */
 export type ExtendedBubbleSweepResult = BubbleSweepResult & {
   binDecompositions?: BinDecomposition[]
+  sampleDecompositions?: SampleDecomposition[]
 }
 
 use([
@@ -41,11 +45,9 @@ interface AxisPointerLabelParam {
   value: number
 }
 
-/** 残差 → 散点颜色 */
-function residColorFn(residAbs: number): string {
-  if (residAbs < 2) return '#67c23a'
-  if (residAbs < 5) return '#e6a23c'
-  return '#f56c6c'
+function angularDistance(a: number, b: number): number {
+  const d = Math.abs(a - b) % 360
+  return Math.min(d, 360 - d)
 }
 
 export function useBubblePolarChart(
@@ -66,18 +68,10 @@ export function useBubblePolarChart(
       : (ref(compareSweep) as unknown as Ref<ExtendedBubbleSweepResult | null>)
     : ref(null)
 
-  const selectedMaxRadius = computed(() => {
-    const s = sweepRef.value
-    const c = compareRef.value
-    let max = 0
-    if (s && s.profile.length > 0) max = Math.max(max, ...s.profile)
-    if (c && c.profile.length > 0) max = Math.max(max, ...c.profile)
-    if (max <= 0) return 200
-    return Math.max(50, Math.ceil((max * 1.2) / 50) * 50)
-  })
-
   /** 构建一组 profile 的极坐标线数据(纯折线,无散点) */
-  function buildPolarLineData(sweep: ExtendedBubbleSweepResult): [number, number][] {
+  function buildPolarLineData(
+    sweep: ExtendedBubbleSweepResult
+  ): [number, number][] {
     const { profile } = sweep
     const numBins = profile.length
     const binWidth = 360 / numBins
@@ -135,7 +129,10 @@ export function useBubblePolarChart(
     // coverage subtext
     const meanCov =
       sweep.binCoverage.length > 0
-        ? (sweep.binCoverage.reduce((a, b) => a + b, 0) / sweep.binCoverage.length).toFixed(1)
+        ? (
+            sweep.binCoverage.reduce((a, b) => a + b, 0) /
+            sweep.binCoverage.length
+          ).toFixed(1)
         : '?'
     const minCov =
       sweep.binCoverage.length > 0
@@ -145,6 +142,7 @@ export function useBubblePolarChart(
     const lineData = buildPolarLineData(sweep)
     const compareData = compareRef.value
     const hasCompare = !!(compareData && compareData.profile.length > 0)
+    const sampleDecomps = sweep.sampleDecompositions ?? []
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const series: any[] = [
@@ -180,8 +178,16 @@ export function useBubblePolarChart(
         subtext:
           '测量 ' +
           numMeasurements +
-          ' 点 · RMS ' + (rmsError ?? 0).toFixed(2) + 'μm (max ' + (maxError ?? 0).toFixed(2) + 'μm) · ' +
-          '覆盖率 ' + meanCov + '/bin (最少 ' + minCov + ') · ' +
+          ' 点 · RMS ' +
+          (rmsError ?? 0).toFixed(2) +
+          'μm (max ' +
+          (maxError ?? 0).toFixed(2) +
+          'μm) · ' +
+          '覆盖率 ' +
+          meanCov +
+          '/bin (最少 ' +
+          minCov +
+          ') · ' +
           '单层原始膜厚 (f(αC+δ) + f(αC-δ) , αC=上旋角+90°)',
         left: 'center',
         top: 10,
@@ -208,8 +214,25 @@ export function useBubblePolarChart(
           const angle = arr[0].value[1]
           const currentBin = Math.floor(angle / binWidth) % numBins
 
-          // 直接读算法预计算的 per-bin 代表样本反解
-          const decomp = sweep.binDecompositions?.[currentBin]
+          // 优先按角度动态匹配样本级反解，确保 (φ1, φ2) 是同一次测量
+          let decomp: SampleDecomposition | BinDecomposition | undefined
+          if (sampleDecomps.length > 0) {
+            let bestIdx = 0
+            let bestDist = Infinity
+            for (let i = 0; i < sampleDecomps.length; i++) {
+              const d1 = angularDistance(angle, sampleDecomps[i].phi1)
+              const d2 = angularDistance(angle, sampleDecomps[i].phi2)
+              const d = d1 < d2 ? d1 : d2
+              if (d < bestDist) {
+                bestDist = d
+                bestIdx = i
+              }
+            }
+            decomp = sampleDecomps[bestIdx]
+          } else {
+            // 回退: 旧的 per-bin 代表样本反解
+            decomp = sweep.binDecompositions?.[currentBin]
+          }
 
           let html =
             '<div style="font-weight:600;margin-bottom:4px">角度 ' +
@@ -221,27 +244,15 @@ export function useBubblePolarChart(
               '<div style="color:#c0c4cc;font-size:11px">测厚时间 ' +
               formatTime(decomp.ts) +
               '</div>'
-            const sum = decomp.b1 + decomp.b2
-            const resid = decomp.tMeasured - decomp.tPredicted
-            const residColor = residColorFn(Math.abs(resid))
             html +=
               '<div style="margin-top:6px;padding-top:4px;border-top:1px solid #ebeef5;font-size:11px">' +
-              '<b>压合厚度</b> = η·(B₁+B₂)<br/>' +
-              '  φ₁=<b>' + decomp.phi1.toFixed(1) + '°</b>  B₁=' +
-              decomp.b1.toFixed(2) + ' μm<br/>' +
-              '  φ₂=<b>' + decomp.phi2.toFixed(1) + '°</b>  B₂=' +
-              decomp.b2.toFixed(2) + ' μm<br/>' +
-              '  合计 <b>' + sum.toFixed(2) + ' μm</b>' +
+              '厚度: <b>' +
+              decomp.tMeasured.toFixed(2) +
+              ' μm</b><br/>' +
+              '压合厚度: <b>' +
+              decomp.tPredicted.toFixed(2) +
+              ' μm</b>' +
               '</div>'
-            html +=
-              '<div style="font-size:11px;margin-top:2px">' +
-              'η·(B₁+B₂) = <b>' + decomp.tPredicted.toFixed(2) +
-              '</b> μm  vs  T<sub>meas</sub>=<b>' +
-              decomp.tMeasured.toFixed(2) + '</b> μm' +
-              '</div>'
-            html +=
-              '<div style="font-size:11px;color:' + residColor + '">残差 ' +
-              (resid >= 0 ? '+' : '') + resid.toFixed(2) + ' μm</div>'
           }
 
           // 对比扫描趟插值
@@ -258,8 +269,11 @@ export function useBubblePolarChart(
               const cVal = cProfile[cLo] * (1 - cW) + cProfile[cHi] * cW
               html +=
                 '<div style="margin-top:8px;padding-top:4px;border-top:1px dashed #dcdfe6;font-size:11px;color:#909399">' +
-                '对比(' + directionLabel(cSweep.direction) + '): <b>' +
-                cVal.toFixed(2) + ' μm</b></div>'
+                '对比(' +
+                directionLabel(cSweep.direction) +
+                '): <b>' +
+                cVal.toFixed(2) +
+                ' μm</b></div>'
             }
           }
 
@@ -287,7 +301,6 @@ export function useBubblePolarChart(
       radiusAxis: {
         type: 'value',
         min: 0,
-        max: selectedMaxRadius.value,
         axisLabel: {
           fontSize: 10,
           color: '#909399',

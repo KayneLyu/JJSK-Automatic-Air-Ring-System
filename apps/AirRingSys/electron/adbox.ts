@@ -160,6 +160,10 @@ export async function initMotionControl(win: BrowserWindow) {
     },
   })
 
+  // 提前注册 IPC 处理器，前端加载后可立即调用（返回"未就绪"直到 utility 初始化完成）
+  registerIpcHandlers()
+  registerProxiedIpcHandlers()
+
   const dbDir = join(app.getPath('userData'), 'db')
   await utilityHost.init({
     dbDir,
@@ -171,10 +175,6 @@ export async function initMotionControl(win: BrowserWindow) {
   // AD盒初始化（utilityProcess 已就绪，可以接收数据）
   initADBox()
   void startUpperRotationPolling()
-
-  // ---------- IPC 注册 ----------
-  registerIpcHandlers()
-  registerProxiedIpcHandlers()
 
   // ---------- 应用退出清理 ----------
   app.on('before-quit', () => {
@@ -623,12 +623,21 @@ function registerProxiedIpcHandlers(): void {
     'bubble-get-current-sweep',
   ]
 
+  /** 轮询等待 utilityProcess 就绪，最长 2 分钟 */
+  const waitForReady = async (): Promise<void> => {
+    const deadline = Date.now() + 120_000
+    while (!utilityHost?.isReady) {
+      if (Date.now() > deadline) {
+        throw new Error('数据处理服务初始化超时')
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+  }
+
   for (const channel of PROXIED_CHANNELS) {
     ipcMain.handle(channel, async (_event, ...args: unknown[]) => {
-      if (!utilityHost?.isReady) {
-        throw new Error('数据处理服务未就绪，请稍后重试')
-      }
-      return utilityHost.ipcRequest(channel, ...args)
+      await waitForReady()
+      return utilityHost!.ipcRequest(channel, ...args)
     })
   }
 }

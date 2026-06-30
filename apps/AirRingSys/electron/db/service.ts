@@ -46,6 +46,32 @@ import migrationSqlV1 from './migrations/0001_double_trip_model.sql?raw'
 import migrationSqlV2 from './migrations/0002_pos1_remove_calib.sql?raw'
 import { FrameRow, RotationRawRow, ThicknessRawRow } from './types'
 
+/**
+ * Check whether a v2 migration chunk should be skipped because
+ * the operation is already applied or not applicable (v0 was modified in-place).
+ */
+function shouldSkipV2Chunk(db: Database.Database, sql: string): boolean {
+  // ADD COLUMN: skip if column already exists
+  const addMatch = sql.match(/ALTER TABLE\s+`?(\w+)`?\s+ADD COLUMN\s+`?(\w+)`?/i)
+  if (addMatch) {
+    const [, table, column] = addMatch
+    return !!db
+      .prepare(`SELECT 1 FROM pragma_table_info('${table}') WHERE name = ?`)
+      .get(column)
+  }
+
+  // DROP COLUMN: skip if column doesn't exist
+  const dropMatch = sql.match(/ALTER TABLE\s+`?(\w+)`?\s+DROP COLUMN\s+`?(\w+)`?/i)
+  if (dropMatch) {
+    const [, table, column] = dropMatch
+    return !db
+      .prepare(`SELECT 1 FROM pragma_table_info('${table}') WHERE name = ?`)
+      .get(column)
+  }
+
+  return false // DROP TABLE IF EXISTS etc. — safe to run
+}
+
 export class SQLiteService {
   private db!: ReturnType<typeof drizzle<typeof schema>>
   private sqliteDb!: Database.Database
@@ -95,6 +121,7 @@ export class SQLiteService {
     for (const chunk of migrationSqlV2.split('--> statement-breakpoint\n')) {
       const trimmed = chunk.trim()
       if (trimmed && !trimmed.startsWith('--')) {
+        if (shouldSkipV2Chunk(this.sqliteDb, trimmed)) continue
         try { this.sqliteDb.exec(trimmed) } catch (e) { console.error('[SQLite] v2 migration error:', e) }
       }
     }
@@ -102,18 +129,13 @@ export class SQLiteService {
     this.db = drizzle(this.sqliteDb, { schema })
     this.ready = true
 
-    // 首次启动：回填历史 scan_pass — 异步执行，不阻塞 init 完成
-    // 6-CTE 在大数据库上可能耗时 20+ 秒，会撑爆主进程 15s init 超时窗口。
-    // 推迟到下一个事件循环 tick 执行：init() 立即返回，worker 可立即发 Phase 2 ready
-    // 清掉主进程 15s 定时器；回填在后台跑完后写入 scan_pass。
+    // 首次启动：回填历史 scan_pass 数据
     // backfillScanPassesHistory 自身幂等（scan_pass 非空时立即返回 0）。
-    setImmediate(() => {
-      try {
-        backfillScanPassesHistory(this.sqliteDb)
-      } catch (e) {
-        console.error('[Backfill] 历史回填失败:', e)
-      }
-    })
+    try {
+      backfillScanPassesHistory(this.sqliteDb)
+    } catch (e) {
+      console.error('[Backfill] 历史回填失败:', e)
+    }
   }
 
   /** 关闭数据库：先 flush 缓冲区，再关闭连接 */

@@ -41,11 +41,24 @@ export type BubbleReconstructionResult = {
   binTimestamps: number[]
   /** 每个 bin 的代表样本反解 — 真正压合该 bin 的 (φ₁, φ₂, B₁, B₂, T_pred, T_meas, ts) */
   binDecompositions: BinDecomposition[]
+  /** 样本级反解列表：每个测量样本对应一组(φ₁, φ₂, B₁, B₂, T_pred, T_meas, ts) */
+  sampleDecompositions: SampleDecomposition[]
   predictedThickness?: number[]
 }
 
 /** 单个 bin 的代表样本反解 — 用于 tooltip */
 export interface BinDecomposition {
+  ts: number
+  phi1: number
+  phi2: number
+  b1: number
+  b2: number
+  tMeasured: number
+  tPredicted: number
+}
+
+/** 单个测量样本的完整反解 */
+export interface SampleDecomposition {
   ts: number
   phi1: number
   phi2: number
@@ -414,6 +427,39 @@ function buildBinDecompositions(
 }
 
 /**
+ * 样本级反解：用于 tooltip 按任意角度动态匹配最近样本对
+ */
+function buildSampleDecompositions(
+  measurements: MeasurementTriple[],
+  profile: number[],
+  membraneWidthMm: number,
+  processDeformationFactor: number
+): SampleDecomposition[] {
+  if (measurements.length === 0) return []
+  const result: SampleDecomposition[] = new Array(measurements.length)
+  for (let k = 0; k < measurements.length; k++) {
+    const m = measurements[k]
+    const { phi1Deg, phi2Deg } = computePhiPair(
+      m.upperAngleDeg,
+      m.scannerPosMm,
+      membraneWidthMm
+    )
+    const b1 = interpolateB(profile, phi1Deg)
+    const b2 = interpolateB(profile, phi2Deg)
+    result[k] = {
+      ts: m.timestamp,
+      phi1: phi1Deg,
+      phi2: phi2Deg,
+      b1,
+      b2,
+      tMeasured: m.thickness,
+      tPredicted: processDeformationFactor * (b1 + b2),
+    }
+  }
+  return result
+}
+
+/**
  * 主入口:从 (θ, x, T) 三元组重建 B(φ)
  */
 export function reconstructBubbleThickness(
@@ -539,6 +585,12 @@ export function reconstructBubbleThickness(
       numBins,
       processFactor,
       preferAfterTs
+    ),
+    sampleDecompositions: buildSampleDecompositions(
+      valid,
+      profile,
+      membraneWidthMm,
+      processFactor
     ),
     predictedThickness: predicted,
   }

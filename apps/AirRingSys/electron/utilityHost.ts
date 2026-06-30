@@ -104,8 +104,8 @@ export class UtilityHost {
       let internalReady = false
 
       const readyTimeout = setTimeout(() => {
-        reject(new Error('[UtilityHost] utilityProcess 初始化超时 (15s)'))
-      }, 15_000)
+        reject(new Error('[UtilityHost] utilityProcess 初始化超时 (60s)'))
+      }, 60_000)
 
       this.child.on('message', (msg: UtilityToMainMsg) => {
         // 第一阶段：进程启动就绪

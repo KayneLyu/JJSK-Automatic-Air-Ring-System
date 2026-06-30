@@ -40,16 +40,20 @@ async function createWindow() {
   // 与渲染进程通信.
   if (win) {
     setupRendererCommunicator(win)
-    // 初始化ADBOX
-    await initMotionControl(win)
-    // initADBox(win)
   }
 
+  // 启动后端初始化（立即注册 IPC 处理器，后台执行慢速 init）
+  const backendReady = initMotionControl(win)
+
+  // 加载前端页面 — IPC 处理器已注册，前端查询立即得到响应
   if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL)
+    await win.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    win.loadFile(path.join(RENDERER_DIST, 'index.html'))
+    await win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
+
+  // 等待后端完全就绪（utilityProcess + 回填 + ADBox）
+  await backendReady
 }
 // 防止重复点击软件
 const getLock = app.requestSingleInstanceLock()
