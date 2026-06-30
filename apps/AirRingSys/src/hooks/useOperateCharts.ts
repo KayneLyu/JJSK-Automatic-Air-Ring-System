@@ -23,8 +23,6 @@ function toIFrameThickData(row: any): IFrameThickData {
     datalist: row.datalist ? JSON.parse(row.datalist) : [],
     rawDatalist: row.rawDatalist ? JSON.parse(row.rawDatalist) : [],
     source: row.source as IFrameThickData['source'],
-    airAD: row.airAD,
-    gain: row.gain,
   }
 }
 

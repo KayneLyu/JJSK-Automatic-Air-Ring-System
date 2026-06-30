@@ -76,7 +76,7 @@ export function useReplayBuffer() {
     buffer.value.push({ adValues: batch.adValues, pulses: batch.pulses })
   }
 
-  const flushReplayBuffer = async (airAD: number, gain: number) => {
+  const flushReplayBuffer = async () => {
     const batches = buffer.value
     if (batches.length === 0 || isProcessing.value) return
 
@@ -99,8 +99,6 @@ export function useReplayBuffer() {
         const frameId = await window.ipcApi.invoke('db-import-sweep', {
           pulses: sweep.pulses,
           adValues: sweep.adValues,
-          airAD,
-          gain,
           source: 'log-import',
         })
         if (frameId > lastFrameId) lastFrameId = frameId

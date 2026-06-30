@@ -10,15 +10,6 @@ CREATE TABLE IF NOT EXISTS `air_ring_raw` (
 );
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `idx_air_ring_raw_ts` ON `air_ring_raw` (`timestamp`);--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS `roller_raw` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`timestamp` integer NOT NULL,
-	`speed` real DEFAULT 0 NOT NULL,
-	`position` real DEFAULT 0 NOT NULL,
-	`direction` integer DEFAULT 1 NOT NULL
-);
---> statement-breakpoint
-CREATE INDEX IF NOT EXISTS `idx_roller_raw_ts` ON `roller_raw` (`timestamp`);--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `rotation_raw` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`timestamp` integer NOT NULL,
@@ -38,8 +29,7 @@ CREATE TABLE IF NOT EXISTS `thickness_raw` (
 	`pulse` integer NOT NULL,
 	`ad` real NOT NULL,
 	`source` text DEFAULT 'adbox' NOT NULL,
-	`airAD` real DEFAULT 0 NOT NULL,
-	`gain` real DEFAULT 1 NOT NULL
+	`pos1` integer DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `idx_thickness_raw_ts` ON `thickness_raw` (`timestamp`);--> statement-breakpoint

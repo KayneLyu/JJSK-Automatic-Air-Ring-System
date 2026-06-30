@@ -163,7 +163,7 @@ export class DataPipeline {
     })
 
     // 4. 持久化 (批量缓冲)
-    this.sqlite.pushThickness(timestamp, push.pos0, push.ad0, 'adbox', 0, 1.0)
+    this.sqlite.pushThickness(timestamp, push.pos0, push.ad0, 'adbox', push.pos1 ?? 0)
 
     // 5. 扫描趟实时检测
     const closed = this.scanPassDetector.feed(timestamp, push.pos0, push.ad0)

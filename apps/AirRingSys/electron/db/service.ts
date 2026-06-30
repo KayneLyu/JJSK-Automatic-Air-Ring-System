@@ -43,6 +43,7 @@ import {
 } from './rawQueries'
 import migrationSql from './migrations/0000_glossy_bloodstrike.sql?raw'
 import migrationSqlV1 from './migrations/0001_double_trip_model.sql?raw'
+import migrationSqlV2 from './migrations/0002_pos1_remove_calib.sql?raw'
 import { FrameRow, RotationRawRow, ThicknessRawRow } from './types'
 
 export class SQLiteService {
@@ -91,6 +92,13 @@ export class SQLiteService {
       }
     }
 
+    for (const chunk of migrationSqlV2.split('--> statement-breakpoint\n')) {
+      const trimmed = chunk.trim()
+      if (trimmed && !trimmed.startsWith('--')) {
+        try { this.sqliteDb.exec(trimmed) } catch (e) { console.error('[SQLite] v2 migration error:', e) }
+      }
+    }
+
     this.db = drizzle(this.sqliteDb, { schema })
     this.ready = true
 
@@ -126,9 +134,9 @@ export class SQLiteService {
   // ══ 批量缓冲写入 ══
 
   /** 向写缓冲区追加一条测厚原始数据 */
-  pushThickness(ts: number, pulse: number, ad: number, source: string, airAD = 0, gain = 1.0): void {
+  pushThickness(ts: number, pulse: number, ad: number, source: string, pos1 = 0): void {
     if (!this.ready) return
-    this.batchBuffer.thickness.push({ timestamp: ts, pulse, ad, source, airAD, gain })
+    this.batchBuffer.thickness.push({ timestamp: ts, pulse, ad, source, pos1 })
   }
 
   /** 向写缓冲区追加一条上旋原始数据 */
@@ -238,8 +246,8 @@ export class SQLiteService {
 
   // ══ 扫描趟导入/导出/清理（委托 sweepExport） ══
 
-  importSweep(pulses: number[], adValues: number[], airAD: number, gain: number, source: string): number {
-    return this.ready ? importSweep(this.db, this.sqliteDb, pulses, adValues, airAD, gain, source) : 0
+  importSweep(pulses: number[], adValues: number[], source: string): number {
+    return this.ready ? importSweep(this.db, this.sqliteDb, pulses, adValues, source) : 0
   }
   cleanup(beforeMs: number): { thickness: number; rotation: number; airRing: number } {
     return this.ready ? cleanup(this.db, this.sqliteDb, beforeMs) : { thickness: 0, rotation: 0, airRing: 0 }

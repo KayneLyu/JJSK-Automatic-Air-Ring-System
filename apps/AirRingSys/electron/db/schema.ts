@@ -14,8 +14,8 @@ export const thicknessRaw = sqliteTable(
     pulse: integer().notNull(),
     ad: real().notNull(),
     source: text().notNull().default('adbox'),
-    airAD: real().notNull().default(0),
-    gain: real().notNull().default(1.0),
+    /** 辊编码器计数，每转+1 */
+    pos1: integer().notNull().default(0),
   },
   (t) => [
     index('idx_thickness_raw_ts').on(t.timestamp),
@@ -56,19 +56,6 @@ export const airRingRaw = sqliteTable(
   ]
 )
 
-export const rollerRaw = sqliteTable(
-  'roller_raw',
-  {
-    id: integer().primaryKey({ autoIncrement: true }),
-    timestamp: integer().notNull(),
-    speed: real().notNull().default(0),
-    position: real().notNull().default(0),
-    direction: integer().notNull().default(1),
-  },
-  (t) => [
-    index('idx_roller_raw_ts').on(t.timestamp),
-  ]
-)
 
 // ── 双趟模型：上旋旋转趟 ──
 export const rotationTrip = sqliteTable(

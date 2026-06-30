@@ -658,8 +658,8 @@ function registerAllIpcHandlers(): void {
 
   registerIpcHandler('db-import-sweep', async ([sweep]: unknown[]) => {
     if (!sqliteDb) return 0
-    const s = sweep as { pulses: number[]; adValues: number[]; airAD: number; gain: number; source: string }
-    return sqliteDb.importSweep(s.pulses, s.adValues, s.airAD, s.gain, s.source)
+    const s = sweep as { pulses: number[]; adValues: number[]; source: string }
+    return sqliteDb.importSweep(s.pulses, s.adValues, s.source)
   })
 
   // ── 膜泡重建 ──

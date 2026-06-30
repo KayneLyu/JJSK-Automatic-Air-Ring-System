@@ -36,10 +36,8 @@ export interface ThicknessRawRow {
   ad: number
   /** 数据来源：adbox | opcua | modbus | file */
   source: string
-  /** 空载基准 AD */
-  airAD: number
-  /** 标定增益 */
-  gain: number
+  /** 辊编码器计数，每转+1 */
+  pos1: number
 }
 
 /** air_ring_raw 表行 */
@@ -88,6 +86,4 @@ export interface FrameRow {
   /** AD 值 JSON 数组（原始） */
   rawDatalist: string
   source: string
-  airAD: number
-  gain: number
 }

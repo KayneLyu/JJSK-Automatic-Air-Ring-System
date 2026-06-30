@@ -59,8 +59,6 @@ interface IFrameThickData {
   datalist: number[]
   rawDatalist: number[]
   source: 'modbus' | 'adbox' | 'log-import'
-  airAD: number
-  gain: number
 }
 
 interface IAlarmsData {
@@ -154,8 +152,7 @@ interface IThicknessRawPoint {
   pos: number             // pulse position (0-6999)
   ad: number              // raw AD value
   source: 'adbox' | 'modbus' | 'log-import'
-  airAD: number           // 空气 AD 基准值 (用于 calcThickness)
-  gain: number            // 厚度放大倍数 (用于 calcThickness)
+  pos1: number            // 辊编码器计数，每转+1
 }
 
 // 上旋状态数据点 — S7 PLC 读取的旋转状态快照

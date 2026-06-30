@@ -23,8 +23,6 @@ import type { ThicknessRawRow, FrameRow } from './types'
  * @param sqliteDb  原生 better-sqlite3 实例
  * @param pulses    横向脉冲数组
  * @param adValues  AD 值数组，与 pulses 一一对应
- * @param airAD     空载基准 AD 值
- * @param gain      标定增益
  * @param source    数据来源标识（'adbox' | 'opcua' | 'modbus' | 'file'）
  * @returns 成功返回 1，无有效数据返回 0
  */
@@ -33,8 +31,6 @@ export function importSweep(
   sqliteDb: Database.Database,
   pulses: number[],
   adValues: number[],
-  airAD: number,
-  gain: number,
   source: string
 ): number {
   const ts = Date.now()
@@ -48,7 +44,7 @@ export function importSweep(
       if (pulse < 0 || ad <= 0) continue
       db
         .insert(schema.thicknessRaw)
-        .values({ timestamp: ts + i, pulse, ad, source, airAD, gain })
+        .values({ timestamp: ts + i, pulse, ad, source })
         .run()
       count++
     }
@@ -219,8 +215,6 @@ export function queryFramesByTimeRange(
       datalist: JSON.stringify(adValues),
       rawDatalist: JSON.stringify(adValues),
       source: firstRow.source,
-      airAD: firstRow.airAD,
-      gain: firstRow.gain,
     }
   })
 }

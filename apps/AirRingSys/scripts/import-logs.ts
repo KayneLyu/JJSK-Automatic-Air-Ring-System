@@ -15,8 +15,6 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 // ── Configuration ──
-const DEFAULT_AIR_AD = 50300
-const DEFAULT_GAIN = 1.0
 
 const DOWNLOAD_LOG_DIRS = [
   join(homedir(), 'Downloads', 'logs', 'thickness'),
@@ -31,16 +29,12 @@ const MIGRATION_SQL_PATH = resolve(
 )
 
 // ── Command line ──
-let airAD = DEFAULT_AIR_AD
-let gain = DEFAULT_GAIN
 let customDir: string | null = null
 let skipExisting = true
 
 for (let i = 2; i < process.argv.length; i++) {
   const arg = process.argv[i]
-  if (arg === '--air-ad') airAD = parseInt(process.argv[++i])
-  else if (arg === '--gain') gain = parseFloat(process.argv[++i])
-  else if (arg === '--dir') customDir = resolve(process.argv[++i])
+  if (arg === '--dir') customDir = resolve(process.argv[++i])
   else if (arg === '--no-skip') skipExisting = false
   else if (arg === '--help' || arg === '-h') {
     console.log(`
@@ -49,8 +43,6 @@ Usage: pnpm exec tsx scripts/import-logs.ts [options]
 Import historical thickness log files into SQLite database.
 
 Options:
-  --air-ad <num>    Air AD value (default: ${DEFAULT_AIR_AD})
-  --gain <num>      Gain multiplier (default: ${DEFAULT_GAIN})
   --dir <path>      Custom log directory to scan
   --no-skip         Re-import data even if timestamps overlap
   --help, -h        Show this help
@@ -265,7 +257,7 @@ function importBatch(line: string): { rows: number } | 'skipped' | null {
   }
 
   const insertThickness = db.prepare(
-    "INSERT INTO thickness_raw (timestamp, pulse, ad, source, airAD, gain) VALUES (?, ?, ?, 'adbox', ?, ?)"
+    "INSERT INTO thickness_raw (timestamp, pulse, ad, source) VALUES (?, ?, ?, 'adbox')"
   )
   db.exec('BEGIN')
   try {
@@ -274,7 +266,7 @@ function importBatch(line: string): { rows: number } | 'skipped' | null {
       const pulse = pulses[i]
       const ad = adValues[i]
       if (pulse < 0 || ad <= 0) continue
-      insertThickness.run(absoluteTimestamps[i], pulse, ad, airAD, gain)
+      insertThickness.run(absoluteTimestamps[i], pulse, ad)
       inserted++
     }
     db.exec('COMMIT')

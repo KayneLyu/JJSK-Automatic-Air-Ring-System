@@ -322,7 +322,7 @@ export interface IpcChannelMap {
     }
   }
   'db-import-sweep': {
-    args: [sweep: { pulses: number[]; adValues: number[]; airAD: number; gain: number; source: string }]
+    args: [sweep: { pulses: number[]; adValues: number[]; source: string }]
     output: number
   }
 
@@ -420,8 +420,8 @@ export interface ThicknessRawRow {
   pulse: number
   ad: number
   source: string
-  airAD: number
-  gain: number
+  /** 辊编码器计数，每转+1 */
+  pos1: number
 }
 
 export interface SweepPoint {
@@ -458,8 +458,6 @@ export interface FrameRow {
   datalist: string
   rawDatalist: string
   source: string
-  airAD: number
-  gain: number
 }
 
 export interface IHistoricalCalibrationProgress {
