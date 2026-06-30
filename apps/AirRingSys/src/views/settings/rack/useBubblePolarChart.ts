@@ -193,34 +193,56 @@ export function useBubblePolarChart(
         formatter: function (params: TooltipParam | TooltipParam[]) {
           const arr = Array.isArray(params) ? params : [params]
           if (arr.length === 0) return ''
-          const angle = arr[0].value[1]
-          const currentBin = Math.floor(angle / binWidth) % numBins
+          const rawAngle = Number(arr[0].value[1].toFixed())
+          const currentBin = Math.floor(rawAngle / binWidth) % numBins
 
-          // 优先按角度动态匹配样本级反解，确保 (φ1, φ2) 是同一次测量
-          let decomp: SampleDecomposition | BinDecomposition | undefined
+          // profile 插值: 保证 cursorB 与 matchedB 同源
+          const interpB = (angleDeg: number): number => {
+            const a = ((angleDeg % 360) + 360) % 360
+            const idx = a / binWidth
+            const lo = Math.floor(idx) % numBins
+            const hi = (lo + 1) % numBins
+            const w = idx - Math.floor(idx)
+            return profile[lo] * (1 - w) + profile[hi] * w
+          }
+          const cursorB = interpB(rawAngle)
+
+          // 按角度动态匹配样本级反解，取游标所在侧对侧的 φ (压合 = B₁ + B₂)
+          // matchedPhi = 2·αC − cursorAngle; B 从 profile 插值, 保证正反方向对称
+          let matchedPhi = 0
+          let matchedB = 0
+          let matchTs = 0
           if (sampleDecomps.length > 0) {
             let bestIdx = 0
             let bestDist = Infinity
             for (let i = 0; i < sampleDecomps.length; i++) {
-              const d1 = angularDistance(angle, sampleDecomps[i].phi1)
-              const d2 = angularDistance(angle, sampleDecomps[i].phi2)
+              const d1 = angularDistance(rawAngle, sampleDecomps[i].phi1)
+              const d2 = angularDistance(rawAngle, sampleDecomps[i].phi2)
               const d = d1 < d2 ? d1 : d2
-              if (d < bestDist) {
-                bestDist = d
-                bestIdx = i
-              }
+              if (d < bestDist) { bestDist = d; bestIdx = i }
             }
-            decomp = sampleDecomps[bestIdx]
+            const s = sampleDecomps[bestIdx]
+            matchTs = s.ts
+            const alphaCenter = ((s.phi1 + s.phi2) / 2 + 360) % 360
+            matchedPhi = ((2 * alphaCenter - rawAngle) % 360 + 360) % 360
+            matchedB = interpB(matchedPhi)
           } else {
             // 回退: 旧的 per-bin 代表样本反解
-            decomp = sweep.binDecompositions?.[currentBin]
+            const decomp = sweep.binDecompositions?.[currentBin]
+            if (decomp && decomp.ts > 0) {
+              matchTs = decomp.ts
+              const alphaCenter = ((decomp.phi1 + decomp.phi2) / 2 + 360) % 360
+              matchedPhi = ((2 * alphaCenter - rawAngle) % 360 + 360) % 360
+              matchedB = interpB(matchedPhi)
+            }
           }
 
-          let html = `<div style="font-weight:600;margin-bottom:4px">角度 ${angle.toFixed(1)}°</div>`
+          let html = `<div style="font-weight:600;margin-bottom:4px">角度：${rawAngle}° ｜ 厚度：${Number(cursorB.toFixed(2))} μm</div>`
 
-          if (decomp && decomp.ts > 0) {
-            html += `<div style="color:#c0c4cc;font-size:11px">测厚时间 ${formatTime(decomp.ts)}</div>`
-            html += `<div style="margin-top:6px;padding-top:4px;border-top:1px solid #ebeef5;font-size:11px">厚度: <b>${decomp.tMeasured.toFixed(2)} μm</b><br/>压合厚度: <b>${decomp.tPredicted.toFixed(2)} μm</b></div>`
+          if (matchTs > 0) {
+            const pressing_thickness = Number((cursorB + matchedB).toFixed(2))
+            html += `<div style="color:#c0c4cc;font-size:11px">测厚时间 ${formatTime(matchTs)}</div>`
+            html += `<div style="margin-top:6px;padding-top:4px;border-top:1px solid #ebeef5;font-size:11px">压合厚度: ${Number(cursorB.toFixed(2))} + ${Number(matchedB.toFixed(2))}(${matchedPhi.toFixed()}°) = <b>${pressing_thickness} μm</b></div>`
           }
 
           // 对比扫描趟插值
@@ -230,7 +252,7 @@ export function useBubblePolarChart(
             const cNumBins = cProfile.length
             if (cNumBins > 0) {
               const cBinWidth = 360 / cNumBins
-              const cIdx = angle / cBinWidth
+              const cIdx = rawAngle / cBinWidth
               const cLo = Math.floor(cIdx) % cNumBins
               const cHi = (cLo + 1) % cNumBins
               const cW = cIdx - Math.floor(cIdx)
