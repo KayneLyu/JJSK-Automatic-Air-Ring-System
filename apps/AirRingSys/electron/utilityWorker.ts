@@ -349,12 +349,18 @@ function registerAllIpcHandlers(): void {
       const thickness = sqliteDb.queryThicknessRaw(startMs, endMs)
       if (thickness.length < 10) return { success: false, error: '数据不足' }
 
-      const data = thickness.map((r) => ({
-        timestamp: r.timestamp,
-        ProbeValue: r.ad,
-        HorizontalPulse: r.pulse,
-        MotionDirection: true,
-      }))
+      let prevPos1: number | undefined
+      const data = thickness.map((r) => {
+        const rollSignal = prevPos1 !== undefined && r.pos1 !== prevPos1
+        prevPos1 = r.pos1
+        return {
+          timestamp: r.timestamp,
+          ProbeValue: r.ad,
+          HorizontalPulse: r.pulse,
+          MotionDirection: true,
+          RollSpeedSignal: rollSignal || undefined,
+        }
+      })
       const speed = calibrateTractionSpeed(data, { circumference, numCycles })
       if (speed === null) {
         return { success: false, error: '历史数据中未检测到辊速信号' }
@@ -391,12 +397,18 @@ function registerAllIpcHandlers(): void {
       if (thickness.length < 10) {
         return { success: false, error: '数据不足', source: 'historical' }
       }
-      const data = thickness.map((r) => ({
-        timestamp: r.timestamp,
-        ProbeValue: r.ad,
-        HorizontalPulse: r.pulse,
-        MotionDirection: true,
-      }))
+      let prevPos1: number | undefined
+      const data = thickness.map((r) => {
+        const rollSignal = prevPos1 !== undefined && r.pos1 !== prevPos1
+        prevPos1 = r.pos1
+        return {
+          timestamp: r.timestamp,
+          ProbeValue: r.ad,
+          HorizontalPulse: r.pulse,
+          MotionDirection: true,
+          RollSpeedSignal: rollSignal || undefined,
+        }
+      })
       const speed = calibrateTractionSpeed(data, { circumference, numCycles })
       if (speed === null) {
         return { success: false, error: '未检测到辊速信号', source: 'historical' }

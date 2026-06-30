@@ -56,7 +56,7 @@ export type CreateModbusCalibrationBridgeOptions = {
 type FeedThicknessSampleInput = Pick<
   ThicknessData,
   'timestamp' | 'ProbeValue' | 'HorizontalPulse'
->
+> & { pos1?: number }
 
 const moduleDirname = dirname(fileURLToPath(import.meta.url))
 
@@ -136,6 +136,7 @@ export const createModbusCalibrationBridge = (
   })
 
   let previousPulse: number | undefined
+  let previousPos1: number | undefined
   let previousMotionDirection = true
   let latestThicknessTimestamp: number | undefined
 
@@ -213,6 +214,7 @@ export const createModbusCalibrationBridge = (
   ): ThicknessData | null => {
     const probeValue = sample.ProbeValue
     const pulse = sample.HorizontalPulse
+    const pos1 = sample.pos1
     const timestamp = sample.timestamp ?? Date.now()
 
     if (pulse === undefined) {
@@ -236,11 +238,19 @@ export const createModbusCalibrationBridge = (
     previousMotionDirection = motionDirection
     latestThicknessTimestamp = timestamp
 
+    // 辊编码器计数变化 → RollSpeedSignal 上升沿
+    const rollSpeedSignal =
+      pos1 !== undefined && previousPos1 !== undefined && pos1 !== previousPos1
+    if (pos1 !== undefined) {
+      previousPos1 = pos1
+    }
+
     return {
       timestamp,
       ProbeValue: probeValue,
       HorizontalPulse: pulse,
       MotionDirection: motionDirection,
+      RollSpeedSignal: rollSpeedSignal || undefined,
     }
   }
 
@@ -344,11 +354,20 @@ export const createModbusCalibrationBridge = (
     previousMotionDirection = motionDirection
     latestThicknessTimestamp = timestamp
 
+    // 辊编码器计数变化 → RollSpeedSignal 上升沿
+    const pos1 = push.pos1
+    const rollSpeedSignal =
+      pos1 !== undefined && previousPos1 !== undefined && pos1 !== previousPos1
+    if (pos1 !== undefined) {
+      previousPos1 = pos1
+    }
+
     const thicknessSample: ThicknessData = {
       timestamp,
       ProbeValue: probeValue,
       HorizontalPulse: pulse,
       MotionDirection: motionDirection,
+      RollSpeedSignal: rollSpeedSignal || undefined,
     }
 
     const { calibrateResult, pendingAngleEstimate } = session.feedThickness(thicknessSample)
@@ -361,6 +380,7 @@ export const createModbusCalibrationBridge = (
 
   const reset = (disturbanceTs: number = Date.now()) => {
     previousPulse = undefined
+    previousPos1 = undefined
     previousMotionDirection = true
     latestThicknessTimestamp = undefined
     session.reset(disturbanceTs)
@@ -371,6 +391,7 @@ export const createModbusCalibrationBridge = (
     disturbanceTs: number = Date.now()
   ) => {
     previousPulse = undefined
+    previousPos1 = undefined
     previousMotionDirection = true
     latestThicknessTimestamp = undefined
     session.setManualTractionSpeed(manualTractionSpeed, disturbanceTs)

@@ -50,6 +50,7 @@ export class DataPipeline {
     timestamp: number
     ProbeValue: number
     HorizontalPulse: number
+    pos1: number
   }) => void
   private feedUpperRotationData?: (data: IUpperRotationDebugData) => void
   private emitUpperRotationData?: (data: IUpperRotationDebugData) => void
@@ -71,6 +72,7 @@ export class DataPipeline {
       timestamp: number
       ProbeValue: number
       HorizontalPulse: number
+      pos1: number
     }) => void
     feedUpperRotationData: (data: IUpperRotationDebugData) => void
     emitUpperRotationData: (data: IUpperRotationDebugData) => void
@@ -160,6 +162,7 @@ export class DataPipeline {
       timestamp,
       ProbeValue: push.ad0,
       HorizontalPulse: push.pos0,
+      pos1: push.pos1 ?? 0,
     })
 
     // 4. 持久化 (批量缓冲)
