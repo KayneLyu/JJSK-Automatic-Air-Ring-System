@@ -114,14 +114,7 @@ export function useBubblePolarChart(
     const color = directionColor(direction)
     const inProgress = isInProgress(sweep, Date.now())
     const durMin = (cycleDurationMs / 60_000).toFixed(1)
-    const titleText =
-      directionLabel(direction) +
-      '向扫描 · ' +
-      formatTime(time) +
-      ' · ' +
-      durMin +
-      ' min' +
-      (inProgress ? ' · 进行中' : '')
+    const titleText = `${directionLabel(direction)}向扫描 · ${formatTime(time)} · ${durMin} min${inProgress ? ' · 进行中' : ''}`
 
     const numBins = profile.length
     const binWidth = 360 / numBins
@@ -148,7 +141,7 @@ export function useBubblePolarChart(
     const series: any[] = [
       {
         type: 'line',
-        name: directionLabel(direction) + '向扫描',
+        name: `${directionLabel(direction)}向扫描`,
         coordinateSystem: 'polar',
         z: 10,
         data: lineData,
@@ -162,7 +155,7 @@ export function useBubblePolarChart(
       const cColor = directionColor(cSweep.direction)
       series.push({
         type: 'line',
-        name: directionLabel(cSweep.direction) + '向扫描(对比)',
+        name: `${directionLabel(cSweep.direction)}向扫描(对比)`,
         coordinateSystem: 'polar',
         z: 5,
         data: buildCompareLineData(cSweep),
@@ -175,20 +168,9 @@ export function useBubblePolarChart(
     return {
       title: {
         text: titleText,
-        subtext:
-          '测量 ' +
-          numMeasurements +
-          ' 点 · RMS ' +
-          (rmsError ?? 0).toFixed(2) +
-          'μm (max ' +
-          (maxError ?? 0).toFixed(2) +
-          'μm) · ' +
-          '覆盖率 ' +
-          meanCov +
-          '/bin (最少 ' +
-          minCov +
-          ') · ' +
-          '单层原始膜厚 (f(αC+δ) + f(αC-δ) , αC=上旋角+90°)',
+        subtext: `测量 ${numMeasurements} 点 · RMS ${(rmsError ?? 0).toFixed(2)}μm (max ${(maxError ?? 0).toFixed(2)}μm) · 
+覆盖率 ${meanCov}/bin (最少 ${minCov}) · 
+单层原始膜厚 (f(αC+δ) + f(αC-δ) , αC=上旋角+90°)`,
         left: 'center',
         top: 10,
         textStyle: { fontSize: 14, fontWeight: 600 },
@@ -203,8 +185,8 @@ export function useBubblePolarChart(
           label: {
             formatter: function (p: AxisPointerLabelParam) {
               return p.axisDimension === 'angle'
-                ? p.value.toFixed(0) + '°'
-                : p.value.toFixed(1) + ' μm'
+                ? `${p.value.toFixed(0)}°`
+                : `${p.value.toFixed(1)} μm`
             },
           },
         },
@@ -234,25 +216,11 @@ export function useBubblePolarChart(
             decomp = sweep.binDecompositions?.[currentBin]
           }
 
-          let html =
-            '<div style="font-weight:600;margin-bottom:4px">角度 ' +
-            angle.toFixed(1) +
-            '°</div>'
+          let html = `<div style="font-weight:600;margin-bottom:4px">角度 ${angle.toFixed(1)}°</div>`
 
           if (decomp && decomp.ts > 0) {
-            html +=
-              '<div style="color:#c0c4cc;font-size:11px">测厚时间 ' +
-              formatTime(decomp.ts) +
-              '</div>'
-            html +=
-              '<div style="margin-top:6px;padding-top:4px;border-top:1px solid #ebeef5;font-size:11px">' +
-              '厚度: <b>' +
-              decomp.tMeasured.toFixed(2) +
-              ' μm</b><br/>' +
-              '压合厚度: <b>' +
-              decomp.tPredicted.toFixed(2) +
-              ' μm</b>' +
-              '</div>'
+            html += `<div style="color:#c0c4cc;font-size:11px">测厚时间 ${formatTime(decomp.ts)}</div>`
+            html += `<div style="margin-top:6px;padding-top:4px;border-top:1px solid #ebeef5;font-size:11px">厚度: <b>${decomp.tMeasured.toFixed(2)} μm</b><br/>压合厚度: <b>${decomp.tPredicted.toFixed(2)} μm</b></div>`
           }
 
           // 对比扫描趟插值
@@ -267,13 +235,7 @@ export function useBubblePolarChart(
               const cHi = (cLo + 1) % cNumBins
               const cW = cIdx - Math.floor(cIdx)
               const cVal = cProfile[cLo] * (1 - cW) + cProfile[cHi] * cW
-              html +=
-                '<div style="margin-top:8px;padding-top:4px;border-top:1px dashed #dcdfe6;font-size:11px;color:#909399">' +
-                '对比(' +
-                directionLabel(cSweep.direction) +
-                '): <b>' +
-                cVal.toFixed(2) +
-                ' μm</b></div>'
+              html += `<div style="margin-top:8px;padding-top:4px;border-top:1px dashed #dcdfe6;font-size:11px;color:#909399">对比(${directionLabel(cSweep.direction)}): <b>${cVal.toFixed(2)} μm</b></div>`
             }
           }
 
@@ -289,7 +251,7 @@ export function useBubblePolarChart(
         clockwise: true,
         axisLabel: {
           formatter: function (v: number) {
-            return v % 30 === 0 ? v.toFixed(0) + '°' : ''
+            return v % 30 === 0 ? `${v.toFixed(0)}°` : ''
           },
           fontSize: 11,
           color: '#303133',
@@ -305,7 +267,7 @@ export function useBubblePolarChart(
           fontSize: 10,
           color: '#909399',
           formatter: function (v: number) {
-            return '' + v
+            return `${v}`
           },
         },
         splitLine: { lineStyle: { color: '#ebeef5' } },

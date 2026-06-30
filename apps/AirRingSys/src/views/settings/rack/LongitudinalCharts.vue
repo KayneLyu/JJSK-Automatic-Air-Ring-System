@@ -184,17 +184,7 @@ const chartOption = computed(() => {
           var thick = calcThickness(ad, thicknessCfg.value)
 
           html += `<div style="font-weight:bold;margin-bottom:4px">AD ${Number(ad.toFixed(0))}</div>`
-          html +=
-            '<div style="display:flex;align-items:center;gap:6px;margin:2px 0">' +
-            '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' +
-            s.color +
-            '"></span> ' +
-            s.seriesName +
-            ' <span style="color:#909399;font-size:11px">' +
-            timeStr +
-            '</b> 厚度 <b>' +
-            thick.toFixed(2) +
-            'μm</b></div>'
+          html += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color}"></span> ${s.seriesName} <span style="color:#909399;font-size:11px">${timeStr}</b> 厚度 <b>${thick.toFixed(2)}μm</b></div>`
         }
         return html
       },

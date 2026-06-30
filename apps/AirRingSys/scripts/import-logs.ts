@@ -366,9 +366,7 @@ for (let fi = 0; fi < uniqueThicknessFiles.length; fi++) {
   const pct = ((fi + 1) / uniqueThicknessFiles.length) * 100
   const filled = Math.round(((fi + 1) / uniqueThicknessFiles.length) * barLen)
   console.log(
-    `[${'#'.repeat(filled)}${'.'.repeat(barLen - filled)}] ${pct.toFixed(0)}%  ${fileName}: ${fileBatches} batches, ${fileRows} rows` +
-      (fileSkipped ? `, ${fileSkipped} skipped` : '') +
-      (fileErrors ? `, ${fileErrors} errors` : '')
+    `[${'#'.repeat(filled)}${'.'.repeat(barLen - filled)}] ${pct.toFixed(0)}%  ${fileName}: ${fileBatches} batches, ${fileRows} rows${fileSkipped ? `, ${fileSkipped} skipped` : ''}${fileErrors ? `, ${fileErrors} errors` : ''}`
   )
 }
 
@@ -406,10 +404,7 @@ db.exec('COMMIT')
 totalRotationRows += rotationFileRows
 
 console.log(
-  `\nDone. Total: ${totalBatches} batches, ${totalRows} thickness rows` +
-    (totalRotationRows > 0 ? `, ${totalRotationRows} rotation rows` : '') +
-    (totalSkipped ? `, ${totalSkipped} skipped` : '') +
-    (totalErrors ? `, ${totalErrors} errors` : '')
+  `\nDone. Total: ${totalBatches} batches, ${totalRows} thickness rows${totalRotationRows > 0 ? `, ${totalRotationRows} rotation rows` : ''}${totalSkipped ? `, ${totalSkipped} skipped` : ''}${totalErrors ? `, ${totalErrors} errors` : ''}`
 )
 console.log(`Database saved to: ${DB_PATH}`)
 

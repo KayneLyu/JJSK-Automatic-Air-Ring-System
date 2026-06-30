@@ -122,7 +122,7 @@ export const renderAsciiHeatmap = (
         line += chars[idx]
       }
     }
-    output += line + '\n'
+    output += `${line}\n`
   }
 
   return output
@@ -188,6 +188,5 @@ export const renderHtmlHeatmap = (
  * 导出 CSV 格式的测量数据
  */
 export const exportMeasurementsCsv = (measurements: MeasurementTriple[]): string => {
-  return 'time_idx,upperAngle_deg,scannerPos_mm,thickness_um\n' +
-    measurements.map((m, i) => `${i},${m.upperAngleDeg.toFixed(2)},${m.scannerPosMm.toFixed(2)},${m.thickness.toFixed(2)}`).join('\n')
+  return `time_idx,upperAngle_deg,scannerPos_mm,thickness_um\n${measurements.map((m, i) => `${i},${m.upperAngleDeg.toFixed(2)},${m.scannerPosMm.toFixed(2)},${m.thickness.toFixed(2)}`).join('\n')}`
 }

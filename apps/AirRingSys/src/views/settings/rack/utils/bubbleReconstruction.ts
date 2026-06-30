@@ -500,9 +500,7 @@ export function reconstructBubbleThickness(
     (coverageRatio < 0.95 ? 0.95 / Math.max(coverageRatio, 0.3) : 1.0)
 
   console.log(
-    `[bubbleReconstruction] N=${numBins} M=${valid.length} ` +
-    `density=${measPerBin.toFixed(0)}/bin covered=${coveredBins}/${numBins} ` +
-    `mu=${mu.toFixed(2)}(base ${muBase}) lambda=${lambda}`
+    `[bubbleReconstruction] N=${numBins} M=${valid.length} density=${measPerBin.toFixed(0)}/bin covered=${coveredBins}/${numBins} mu=${mu.toFixed(2)}(base ${muBase}) lambda=${lambda}`
   )
 
   const sparse = buildSparseSystem(
@@ -520,8 +518,7 @@ export function reconstructBubbleThickness(
   const rawMean = rawProfile.reduce((a, b) => a + b, 0) / rawProfile.length
   if (negCount > 0 || rawMin < -1) {
     console.warn(
-      `[bubbleReconstruction] 求解器异常: ${negCount}/${rawProfile.length} 个负值 ` +
-      `raw∈[${rawMin.toFixed(1)},${rawMax.toFixed(1)}] mean=${rawMean.toFixed(1)}`
+      `[bubbleReconstruction] 求解器异常: ${negCount}/${rawProfile.length} 个负值 raw∈[${rawMin.toFixed(1)},${rawMax.toFixed(1)}] mean=${rawMean.toFixed(1)}`
     )
   }
 
@@ -533,9 +530,7 @@ export function reconstructBubbleThickness(
   if (autoScale > 0.5 && autoScale < 2.0 && Math.abs(autoScale - 1.0) > 0.05) {
     profile = rawProfile.map((v) => Math.max(0, v * autoScale))
     console.log(
-      `[bubbleReconstruction] 自动缩放 ×${autoScale.toFixed(3)}: ` +
-      `B_avg ${rawMean.toFixed(1)}→${(rawMean * autoScale).toFixed(1)}μm ` +
-      `(T_avg=${tMean.toFixed(1)} 目标 B_avg=${bTarget.toFixed(1)})`
+      `[bubbleReconstruction] 自动缩放 ×${autoScale.toFixed(3)}: B_avg ${rawMean.toFixed(1)}→${(rawMean * autoScale).toFixed(1)}μm (T_avg=${tMean.toFixed(1)} 目标 B_avg=${bTarget.toFixed(1)})`
     )
   } else {
     profile = rawProfile.map((v) => (v > 0 ? v : 0))

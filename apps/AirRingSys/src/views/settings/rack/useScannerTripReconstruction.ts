@@ -192,16 +192,16 @@ export function useScannerTripReconstruction() {
       if (lastGapAfterEndWarned !== candidate.time) {
         lastGapAfterEndWarned = candidate.time
         console.warn(
-          `[findUpperSweepAt] 测厚时间 ${ts} 落在上旋趟之后(趟结束 ${end}), ` +
-          `存在 ${(ts - end).toFixed(0)}ms 间隙,使用最近趟推算角度可能不准`
+          `[findUpperSweepAt] 测厚时间 ${ts} 落在上旋趟之后(趟结束 ${end}), 
+存在 ${(ts - end).toFixed(0)}ms 间隙,使用最近趟推算角度可能不准`
         )
       }
     } else if (!gapWarnedBeforeFirst && upperSweeps.value.length > 0) {
       // ts 在所有上旋趟之前
       gapWarnedBeforeFirst = true
       console.warn(
-        `[findUpperSweepAt] 测厚时间 ${ts} 早于首个上旋趟(${upperSweeps.value[0].time}), ` +
-        `缺口 ${(upperSweeps.value[0].time - ts).toFixed(0)}ms,推算角度可能不准`
+        `[findUpperSweepAt] 测厚时间 ${ts} 早于首个上旋趟(${upperSweeps.value[0].time}), 
+缺口 ${(upperSweeps.value[0].time - ts).toFixed(0)}ms,推算角度可能不准`
       )
     }
     // 不在任何一趟内, 退回用最近的
@@ -306,8 +306,8 @@ export function useScannerTripReconstruction() {
       Math.abs(deltas[deltas.length - 1] - deltaCenter)
     )
     console.log(
-      `[buildMeasurements] δ 中位数=${deltaCenter.toFixed(1)}° 半跨=${halfSpan.toFixed(1)}° ` +
-      `(${deltas[0].toFixed(0)}~${deltas[deltas.length - 1].toFixed(0)})`
+      `[buildMeasurements] δ 中位数=${deltaCenter.toFixed(1)}° 半跨=${halfSpan.toFixed(1)}° 
+(${deltas[0].toFixed(0)}~${deltas[deltas.length - 1].toFixed(0)})`
     )
 
     // 第二遍: δ 居中后过滤 |δ| > 90° (膜边外)
@@ -378,23 +378,23 @@ export function useScannerTripReconstruction() {
         result.profile.reduce((a, b) => a + b, 0) / result.profile.length
       const coveredBins = result.binCoverage.filter((c) => c > 0).length
       console.log(
-        `[B(φ)] trip=${baseline.sweepId.slice(-8)} ` +
-        `window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) / 60_000).toFixed(1)}min) ` +
-        `samples=${allSamples.length}→meas=${measurements.length}`
+        `[B(φ)] trip=${baseline.sweepId.slice(-8)} 
+window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) / 60_000).toFixed(1)}min) 
+samples=${allSamples.length}→meas=${measurements.length}`
       )
       console.log(
-        `[B(φ)] 标定: W=${p.membraneWidthMm.toFixed(0)}mm θmax=${p.thetaMaxDeg.toFixed(0)}° ` +
-        `mm/pls=${p.mmPerPulse.toFixed(4)} airAD=${p.airAD} gain=${p.gain.toFixed(3)}`
+        `[B(φ)] 标定: W=${p.membraneWidthMm.toFixed(0)}mm θmax=${p.thetaMaxDeg.toFixed(0)}° 
+mm/pls=${p.mmPerPulse.toFixed(4)} airAD=${p.airAD} gain=${p.gain.toFixed(3)}`
       )
       console.log(
-        `[B(φ)] 测量: mean=${mMean.toFixed(2)}μm σ=${mStd.toFixed(2)}μm ` +
-        `范围[${Math.min(...mThick).toFixed(1)},${Math.max(...mThick).toFixed(1)}]`
+        `[B(φ)] 测量: mean=${mMean.toFixed(2)}μm σ=${mStd.toFixed(2)}μm 
+范围[${Math.min(...mThick).toFixed(1)},${Math.max(...mThick).toFixed(1)}]`
       )
       console.log(
-        `[B(φ)] 剖面: mean=${pMean.toFixed(2)}μm 范围[${pMin.toFixed(1)},${pMax.toFixed(1)}] ` +
-        `波动=${pRange.toFixed(1)}μm(${((pRange / pMean) * 100).toFixed(1)}%) ` +
-        `RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm ` +
-        `覆盖=${coveredBins}/${result.numBins}bin`
+        `[B(φ)] 剖面: mean=${pMean.toFixed(2)}μm 范围[${pMin.toFixed(1)},${pMax.toFixed(1)}] 
+波动=${pRange.toFixed(1)}μm(${((pRange / pMean) * 100).toFixed(1)}%) 
+RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm 
+覆盖=${coveredBins}/${result.numBins}bin`
       )
 
       // ---- φ₁/φ₂ 分布诊断: 采样 100 个测量看几何映射 ----
@@ -420,9 +420,9 @@ export function useScannerTripReconstruction() {
         return Math.min(diff, 360 - diff)
       })
       console.log(
-        `[B(φ)] 几何: θ∈[${Math.min(...thetas).toFixed(0)},${Math.max(...thetas).toFixed(0)}]° ` +
-        `δ∈[${Math.min(...deltas).toFixed(0)},${Math.max(...deltas).toFixed(0)}]° ` +
-        `|φ₁-φ₂|∈[${Math.min(...separations).toFixed(0)},${Math.max(...separations).toFixed(0)}]°`
+        `[B(φ)] 几何: θ∈[${Math.min(...thetas).toFixed(0)},${Math.max(...thetas).toFixed(0)}]° 
+δ∈[${Math.min(...deltas).toFixed(0)},${Math.max(...deltas).toFixed(0)}]° 
+|φ₁-φ₂|∈[${Math.min(...separations).toFixed(0)},${Math.max(...separations).toFixed(0)}]°`
       )
       const entry: ReconstructedSweep = {
         baseline,
