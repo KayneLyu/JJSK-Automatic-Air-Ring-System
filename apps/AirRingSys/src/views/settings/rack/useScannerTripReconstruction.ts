@@ -54,7 +54,10 @@ export interface ReconstructedSweep {
   numSamples: number
 }
 
+/** 滑动窗口最大包含的扫描趟数 */
 export const SCANNER_SLIDING_WINDOW = 640
+/** 滑动窗口最大时间跨度 (ms)：超出此范围的趟不参与重构，防止跨工艺状态数据混杂 */
+export const WINDOW_MAX_TIME_SPAN_MS = 10 * 60_000
 
 export function useScannerTripReconstruction() {
   // 上旋趟(用于 θ_max / 起始时间)
@@ -166,6 +169,10 @@ export function useScannerTripReconstruction() {
     () => selectedIndex.value < sortedScannerTrips.value.length - 1
   )
 
+  // 边界间隙告警节流: 每个间隙场景只告警一次(按扫周期重置)
+  let gapWarnedBeforeFirst = false
+  let lastGapAfterEndWarned = 0
+
   /** 给定 ts, 找出包含它的上旋趟(用于 timeToAngle 算 θ) */
   function findUpperSweepAt(ts: number): BubbleSweepResult | null {
     // 上旋趟按 time 升序, 选包含 ts 的最后一个
@@ -176,7 +183,26 @@ export function useScannerTripReconstruction() {
     }
     if (candidate) {
       const end = candidate.time + candidate.cycleDurationMs
-      if (ts <= end) return candidate
+      if (ts <= end) {
+        // 正常命中,重置告警状态
+        gapWarnedBeforeFirst = false
+        return candidate
+      }
+      // ts 落在候补趟结束之后 → 间隙
+      if (lastGapAfterEndWarned !== candidate.time) {
+        lastGapAfterEndWarned = candidate.time
+        console.warn(
+          `[findUpperSweepAt] 测厚时间 ${ts} 落在上旋趟之后(趟结束 ${end}), ` +
+          `存在 ${(ts - end).toFixed(0)}ms 间隙,使用最近趟推算角度可能不准`
+        )
+      }
+    } else if (!gapWarnedBeforeFirst && upperSweeps.value.length > 0) {
+      // ts 在所有上旋趟之前
+      gapWarnedBeforeFirst = true
+      console.warn(
+        `[findUpperSweepAt] 测厚时间 ${ts} 早于首个上旋趟(${upperSweeps.value[0].time}), ` +
+        `缺口 ${(upperSweeps.value[0].time - ts).toFixed(0)}ms,推算角度可能不准`
+      )
     }
     // 不在任何一趟内, 退回用最近的
     return candidate
@@ -209,25 +235,44 @@ export function useScannerTripReconstruction() {
     return promise
   }
 
-  /** 滑动窗口: baseline + 前 N-1 趟 */
+  /** 滑动窗口: baseline + 前 N-1 趟,受时间跨度约束 */
   function getWindowTrips(
     baseline: SweepSummaryRow
   ): SweepSummaryRow[] {
     const all = sortedScannerTrips.value
     const idx = all.findIndex((s) => s.sweepId === baseline.sweepId)
     if (idx < 0) return [baseline]
-    const start = Math.max(0, idx - (SCANNER_SLIDING_WINDOW - 1))
-    return all.slice(start, idx + 1)
+    // 趟数约束
+    const countStart = Math.max(0, idx - (SCANNER_SLIDING_WINDOW - 1))
+    // 时间约束: 不取早于 baseline.startTs - WINDOW_MAX_TIME_SPAN_MS 的趟
+    const baselineStart = baseline.startTs
+    let timeStart = countStart
+    while (
+      timeStart < idx &&
+      baselineStart - all[timeStart].startTs > WINDOW_MAX_TIME_SPAN_MS
+    ) {
+      timeStart++
+    }
+    // 取两者中更严格的上限
+    const start = Math.max(countStart, timeStart)
+    const trips = all.slice(start, idx + 1)
+    if (trips.length < 2 && idx > 0) {
+      // 至少保底 2 趟（含 baseline），避免样本太少无法求解
+      return all.slice(Math.max(0, idx - 1), idx + 1)
+    }
+    return trips
   }
 
-  /** 用 (pos, ad, ts) + 上旋趟信息 构造测量三元组 */
+  /** 用 (pos, ad, ts) + 上旋趟信息 构造测量三元组,δ 居中 + 边外过滤 */
   function buildMeasurements(
     samples: SweepPoint[],
     airAD: number,
     gain: number
   ): MeasurementTriple[] {
     const p = params.value
-    const triples: MeasurementTriple[] = []
+
+    // 第一遍: 构建所有三元组
+    const all: MeasurementTriple[] = []
     for (const s of samples) {
       if (s.ad <= 0 || s.ad >= airAD) continue
       const upper = findUpperSweepAt(s.ts)
@@ -244,12 +289,44 @@ export function useScannerTripReconstruction() {
       const x = s.pos * p.mmPerPulse
       const T = calcThickness(s.ad, { airAD, gain })
       if (T <= 0) continue
-      triples.push({
-        upperAngleDeg: theta,
-        scannerPosMm: x,
-        thickness: T,
-        timestamp: s.ts,
-      })
+      all.push({ upperAngleDeg: theta, scannerPosMm: x, thickness: T, timestamp: s.ts })
+    }
+
+    if (all.length === 0) return []
+
+    // 计算 δ 分布,找扫描中心偏移
+    // δ = x/W × 180° — 对于对称扫描,δ 应分布在 [-90°,90°] 附近
+    // 若零点偏移,δ 中位数即为偏移量
+    const W = p.membraneWidthMm
+    const deltas = all.map((m) => (m.scannerPosMm / W) * 180)
+    deltas.sort((a, b) => a - b)
+    const deltaCenter = deltas[Math.floor(deltas.length / 2)] // 中位数
+    const halfSpan = Math.max(
+      Math.abs(deltas[0] - deltaCenter),
+      Math.abs(deltas[deltas.length - 1] - deltaCenter)
+    )
+    console.log(
+      `[buildMeasurements] δ 中位数=${deltaCenter.toFixed(1)}° 半跨=${halfSpan.toFixed(1)}° ` +
+      `(${deltas[0].toFixed(0)}~${deltas[deltas.length - 1].toFixed(0)})`
+    )
+
+    // 第二遍: δ 居中后过滤 |δ| > 90° (膜边外)
+    const triples: MeasurementTriple[] = []
+    let edgeRejected = 0
+    for (const m of all) {
+      const deltaCentered = (m.scannerPosMm / W) * 180 - deltaCenter
+      if (Math.abs(deltaCentered) > 90) {
+        edgeRejected++
+        continue
+      }
+      // 更新 scannerPosMm 为居中后的值,使下游 computePhiPair 直接得到正确的 δ
+      const centeredX = (deltaCentered / 180) * W
+      triples.push({ ...m, scannerPosMm: centeredX })
+    }
+    if (edgeRejected > 0) {
+      console.log(
+        `[buildMeasurements] δ 居中后过滤 ${edgeRejected} 条边外测量(|δ|>90°)`
+      )
     }
     return triples
   }
@@ -284,7 +361,68 @@ export function useScannerTripReconstruction() {
         {
           numBins: p.numBins,
           processDeformationFactor: p.processDeformationFactor,
+          preferAfterTs: baseline.startTs,
         }
+      )
+
+      // ---- 诊断日志 ----
+      const mThick = measurements.map((m) => m.thickness)
+      const mMean = mThick.reduce((a, b) => a + b, 0) / mThick.length
+      const mStd = Math.sqrt(
+        mThick.reduce((s, v) => s + (v - mMean) ** 2, 0) / mThick.length
+      )
+      const pMin = Math.min(...result.profile)
+      const pMax = Math.max(...result.profile)
+      const pRange = pMax - pMin
+      const pMean =
+        result.profile.reduce((a, b) => a + b, 0) / result.profile.length
+      const coveredBins = result.binCoverage.filter((c) => c > 0).length
+      console.log(
+        `[B(φ)] trip=${baseline.sweepId.slice(-8)} ` +
+        `window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) / 60_000).toFixed(1)}min) ` +
+        `samples=${allSamples.length}→meas=${measurements.length}`
+      )
+      console.log(
+        `[B(φ)] 标定: W=${p.membraneWidthMm.toFixed(0)}mm θmax=${p.thetaMaxDeg.toFixed(0)}° ` +
+        `mm/pls=${p.mmPerPulse.toFixed(4)} airAD=${p.airAD} gain=${p.gain.toFixed(3)}`
+      )
+      console.log(
+        `[B(φ)] 测量: mean=${mMean.toFixed(2)}μm σ=${mStd.toFixed(2)}μm ` +
+        `范围[${Math.min(...mThick).toFixed(1)},${Math.max(...mThick).toFixed(1)}]`
+      )
+      console.log(
+        `[B(φ)] 剖面: mean=${pMean.toFixed(2)}μm 范围[${pMin.toFixed(1)},${pMax.toFixed(1)}] ` +
+        `波动=${pRange.toFixed(1)}μm(${((pRange / pMean) * 100).toFixed(1)}%) ` +
+        `RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm ` +
+        `覆盖=${coveredBins}/${result.numBins}bin`
+      )
+
+      // ---- φ₁/φ₂ 分布诊断: 采样 100 个测量看几何映射 ----
+      const sampleN = Math.min(100, measurements.length)
+      const step = Math.max(1, Math.floor(measurements.length / sampleN))
+      const phiDist: { theta: number; x: number; delta: number; phi1: number; phi2: number; T: number }[] = []
+      for (let i = 0; i < measurements.length; i += step) {
+        const m = measurements[i]
+        const delta = (m.scannerPosMm / p.membraneWidthMm) * 180
+        phiDist.push({
+          theta: m.upperAngleDeg,
+          x: m.scannerPosMm,
+          delta,
+          phi1: ((m.upperAngleDeg + 90 + delta) % 360 + 360) % 360,
+          phi2: ((m.upperAngleDeg + 90 - delta) % 360 + 360) % 360,
+          T: m.thickness,
+        })
+      }
+      const thetas = phiDist.map((d) => d.theta)
+      const deltas = phiDist.map((d) => d.delta)
+      const separations = phiDist.map((d) => {
+        const diff = Math.abs(d.phi1 - d.phi2) % 360
+        return Math.min(diff, 360 - diff)
+      })
+      console.log(
+        `[B(φ)] 几何: θ∈[${Math.min(...thetas).toFixed(0)},${Math.max(...thetas).toFixed(0)}]° ` +
+        `δ∈[${Math.min(...deltas).toFixed(0)},${Math.max(...deltas).toFixed(0)}]° ` +
+        `|φ₁-φ₂|∈[${Math.min(...separations).toFixed(0)},${Math.max(...separations).toFixed(0)}]°`
       )
       const entry: ReconstructedSweep = {
         baseline,
@@ -575,8 +713,10 @@ export function useScannerTripReconstruction() {
 
   return {
     // state
+    dataMode,
     scannerTrips,
     sortedScannerTrips,
+    upperSweeps,
     selectedIndex,
     selectedBaseline,
     currentReconstruction,

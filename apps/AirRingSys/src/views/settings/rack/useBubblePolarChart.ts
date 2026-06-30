@@ -41,8 +41,18 @@ interface AxisPointerLabelParam {
   value: number
 }
 
+/** 残差 → 散点颜色 */
+function residColorFn(residAbs: number): string {
+  if (residAbs < 2) return '#67c23a'
+  if (residAbs < 5) return '#e6a23c'
+  return '#f56c6c'
+}
+
 export function useBubblePolarChart(
   selectedSweep:
+    | Ref<ExtendedBubbleSweepResult | null>
+    | (() => ExtendedBubbleSweepResult | null),
+  compareSweep?:
     | Ref<ExtendedBubbleSweepResult | null>
     | (() => ExtendedBubbleSweepResult | null)
 ) {
@@ -50,12 +60,49 @@ export function useBubblePolarChart(
     ? selectedSweep
     : (ref(selectedSweep) as unknown as Ref<ExtendedBubbleSweepResult | null>)
 
+  const compareRef: Ref<ExtendedBubbleSweepResult | null> = compareSweep
+    ? isRef(compareSweep)
+      ? compareSweep
+      : (ref(compareSweep) as unknown as Ref<ExtendedBubbleSweepResult | null>)
+    : ref(null)
+
   const selectedMaxRadius = computed(() => {
     const s = sweepRef.value
-    if (!s) return 200
-    const max = Math.max(...s.profile)
+    const c = compareRef.value
+    let max = 0
+    if (s && s.profile.length > 0) max = Math.max(max, ...s.profile)
+    if (c && c.profile.length > 0) max = Math.max(max, ...c.profile)
+    if (max <= 0) return 200
     return Math.max(50, Math.ceil((max * 1.2) / 50) * 50)
   })
+
+  /** 构建一组 profile 的极坐标线数据(纯折线,无散点) */
+  function buildPolarLineData(sweep: ExtendedBubbleSweepResult): [number, number][] {
+    const { profile } = sweep
+    const numBins = profile.length
+    const binWidth = 360 / numBins
+    const dataAt = (i: number) => i * binWidth + binWidth / 2
+    const data: [number, number][] = profile.map(function (v, i) {
+      return [v, dataAt(i)]
+    })
+    data.push([profile[0], dataAt(0)])
+    return data
+  }
+
+  /** 构建对比扫描趟的纯线数据(无散点) */
+  function buildCompareLineData(
+    sweep: ExtendedBubbleSweepResult
+  ): [number, number][] {
+    const { profile } = sweep
+    const numBins = profile.length
+    const binWidth = 360 / numBins
+    const dataAt = (i: number) => i * binWidth + binWidth / 2
+    const data: [number, number][] = profile.map(function (v, i) {
+      return [v, dataAt(i)]
+    })
+    data.push([profile[0], dataAt(0)])
+    return data
+  }
 
   const chartOption = computed<EChartsCoreOption>(() => {
     const sweep = sweepRef.value
@@ -67,6 +114,8 @@ export function useBubblePolarChart(
       time,
       cycleDurationMs,
       numMeasurements,
+      rmsError,
+      maxError,
     } = sweep
     const color = directionColor(direction)
     const inProgress = isInProgress(sweep, Date.now())
@@ -82,13 +131,48 @@ export function useBubblePolarChart(
 
     const numBins = profile.length
     const binWidth = 360 / numBins
-    const dataAt = function (i: number) {
-      return i * binWidth + binWidth / 2
+
+    // coverage subtext
+    const meanCov =
+      sweep.binCoverage.length > 0
+        ? (sweep.binCoverage.reduce((a, b) => a + b, 0) / sweep.binCoverage.length).toFixed(1)
+        : '?'
+    const minCov =
+      sweep.binCoverage.length > 0
+        ? Math.min(...sweep.binCoverage).toFixed(1)
+        : '?'
+
+    const lineData = buildPolarLineData(sweep)
+    const compareData = compareRef.value
+    const hasCompare = !!(compareData && compareData.profile.length > 0)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const series: any[] = [
+      {
+        type: 'line',
+        name: directionLabel(direction) + '向扫描',
+        coordinateSystem: 'polar',
+        z: 10,
+        data: lineData,
+        lineStyle: { width: 2, color },
+        showSymbol: false,
+      },
+    ]
+
+    if (hasCompare) {
+      const cSweep = compareData!
+      const cColor = directionColor(cSweep.direction)
+      series.push({
+        type: 'line',
+        name: directionLabel(cSweep.direction) + '向扫描(对比)',
+        coordinateSystem: 'polar',
+        z: 5,
+        data: buildCompareLineData(cSweep),
+        lineStyle: { width: 2, color: cColor, type: 'dashed', opacity: 0.6 },
+        showSymbol: false,
+        emphasis: { focus: 'series' },
+      })
     }
-    const lineData: [number, number][] = profile.map(function (v, i) {
-      return [v, dataAt(i)]
-    })
-    lineData.push([profile[0], dataAt(0)])
 
     return {
       title: {
@@ -96,7 +180,9 @@ export function useBubblePolarChart(
         subtext:
           '测量 ' +
           numMeasurements +
-          ' 点 · 单层原始膜厚 (f(αC+δ) + f(αC-δ) , αC=上旋角+90°)',
+          ' 点 · RMS ' + (rmsError ?? 0).toFixed(2) + 'μm (max ' + (maxError ?? 0).toFixed(2) + 'μm) · ' +
+          '覆盖率 ' + meanCov + '/bin (最少 ' + minCov + ') · ' +
+          '单层原始膜厚 (f(αC+δ) + f(αC-δ) , αC=上旋角+90°)',
         left: 'center',
         top: 10,
         textStyle: { fontSize: 14, fontWeight: 600 },
@@ -137,12 +223,7 @@ export function useBubblePolarChart(
               '</div>'
             const sum = decomp.b1 + decomp.b2
             const resid = decomp.tMeasured - decomp.tPredicted
-            const residColor =
-              Math.abs(resid) < 2
-                ? '#67c23a'
-                : Math.abs(resid) < 5
-                  ? '#e6a23c'
-                  : '#f56c6c'
+            const residColor = residColorFn(Math.abs(resid))
             html +=
               '<div style="margin-top:6px;padding-top:4px;border-top:1px solid #ebeef5;font-size:11px">' +
               '<b>压合厚度</b> = η·(B₁+B₂)<br/>' +
@@ -162,6 +243,26 @@ export function useBubblePolarChart(
               '<div style="font-size:11px;color:' + residColor + '">残差 ' +
               (resid >= 0 ? '+' : '') + resid.toFixed(2) + ' μm</div>'
           }
+
+          // 对比扫描趟插值
+          if (hasCompare) {
+            const cSweep = compareData!
+            const cProfile = cSweep.profile
+            const cNumBins = cProfile.length
+            if (cNumBins > 0) {
+              const cBinWidth = 360 / cNumBins
+              const cIdx = angle / cBinWidth
+              const cLo = Math.floor(cIdx) % cNumBins
+              const cHi = (cLo + 1) % cNumBins
+              const cW = cIdx - Math.floor(cIdx)
+              const cVal = cProfile[cLo] * (1 - cW) + cProfile[cHi] * cW
+              html +=
+                '<div style="margin-top:8px;padding-top:4px;border-top:1px dashed #dcdfe6;font-size:11px;color:#909399">' +
+                '对比(' + directionLabel(cSweep.direction) + '): <b>' +
+                cVal.toFixed(2) + ' μm</b></div>'
+            }
+          }
+
           return html
         },
       },
@@ -197,17 +298,7 @@ export function useBubblePolarChart(
         splitLine: { lineStyle: { color: '#ebeef5' } },
         splitArea: { show: false },
       },
-      series: [
-        {
-          type: 'line',
-          name: directionLabel(direction) + '向扫描',
-          coordinateSystem: 'polar',
-          z: 10,
-          data: lineData,
-          lineStyle: { width: 2, color },
-          showSymbol: false,
-        },
-      ],
+      series,
     }
   })
 

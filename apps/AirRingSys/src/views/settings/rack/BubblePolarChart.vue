@@ -2,7 +2,6 @@
 import { toRef, computed } from 'vue'
 import VChart from 'vue-echarts'
 import { useBubblePolarChart, type ExtendedBubbleSweepResult } from './useBubblePolarChart'
-import { EMPTY_POLAR_OPTION } from './bubbleRawThickness.constants'
 
 const props = defineProps<{
   selectedSweep: ExtendedBubbleSweepResult | null
@@ -10,15 +9,20 @@ const props = defineProps<{
   compareSweep?: ExtendedBubbleSweepResult | null
 }>()
 
-const chart = useBubblePolarChart(toRef(props, 'selectedSweep'))
+const compareSweepNonNull = computed(() => props.compareSweep ?? null)
+
+const chart = useBubblePolarChart(
+  toRef(props, 'selectedSweep'),
+  compareSweepNonNull
+)
 
 const displayOption = computed(() => {
   if (props.errorMessage) {
     return {
-      ...EMPTY_POLAR_OPTION,
       title: {
-        ...EMPTY_POLAR_OPTION.title,
         text: props.errorMessage,
+        left: 'center',
+        top: 'middle',
         textStyle: { color: '#f56c6c', fontSize: 14, fontWeight: 'normal' },
       },
     }

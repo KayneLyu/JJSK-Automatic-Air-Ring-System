@@ -18,6 +18,8 @@ const {
   isReconstructing,
   calResults,
   thicknessCfg,
+  scannerTrips,
+  upperSweeps,
   prevTrip,
   nextTrip,
 } = useScannerTripReconstruction()
@@ -38,6 +40,28 @@ const syntheticSweep = computed<BubbleSweepResult | null>(() => {
     cycleDurationMs: b.endTs - b.startTs,
     inProgress: false,
   }
+})
+
+/**
+ * 诊断: 为什么极坐标图显示空状态
+ * 返回 null 表示正常(有数据), 否则返回原因描述
+ */
+const chartDiagnostic = computed<string | null>(() => {
+  if (errorMessage.value) return errorMessage.value
+  if (syntheticSweep.value) return null // 有数据,正常
+  if (isReconstructing.value) return '正在重构 B(φ)…'
+  if (scannerTrips.value.length === 0) {
+    if (calResults.value && Object.keys(calResults.value).length === 0)
+      return '缺少标定参数 (airAD / membraneWidth / upperMaxAngle)，无法加载扫描趟'
+    return '无测厚仪扫描趟数据 — 请确认 ADBox 已连接且正在采集'
+  }
+  if (upperSweeps.value.length === 0)
+    return '无上旋趟数据 — 请确认上旋参数 (upperDistance / rollerTractionSpeed) 已标定'
+  if (!selectedBaseline.value)
+    return '无法选择基线扫描趟'
+  if (!currentReconstruction.value)
+    return '重构尚未完成，请稍候…'
+  return null
 })
 
 const selectedMeanCoverage = computed(() => {
@@ -81,7 +105,7 @@ function onAutoRefreshChange(v: boolean) {
 
     <BubblePolarChart
       :selected-sweep="syntheticSweep"
-      :error-message="errorMessage"
+      :error-message="chartDiagnostic"
     />
 
     <div v-if="isReconstructing" class="reconstructing-hint">

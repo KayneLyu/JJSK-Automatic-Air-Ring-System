@@ -25,6 +25,8 @@ export type BubbleReconstructionOptions = {
   lambda?: number
   mu?: number
   processDeformationFactor?: number
+  /** tooltip 反解时优先选择 ts >= 此值的样本,防止显示远早于 baseline 的过时数据 */
+  preferAfterTs?: number
 }
 
 export type BubbleReconstructionResult = {
@@ -341,7 +343,9 @@ function buildBinDecompositions(
   profile: number[],
   membraneWidthMm: number,
   numBins: number,
-  processDeformationFactor: number
+  processDeformationFactor: number,
+  /** 优先选择 ts >= 此值的样本 (通常为 baseline 起始时间),避免 tooltip 显示老旧数据 */
+  preferAfterTs?: number
 ): BinDecomposition[] {
   const N = numBins
   const binWidth = 360 / N
@@ -384,8 +388,9 @@ function buildBinDecompositions(
     }
   }
 
-  // 对每个 bin 找最近样本
+  // 对每个 bin 找最近样本,优先选择 preferAfterTs 之后的
   const result: BinDecomposition[] = new Array(N)
+  const timePenaltyDeg = preferAfterTs !== undefined ? 3 : 0
   for (let i = 0; i < N; i++) {
     const binAngle = i * binWidth + binWidth / 2
     let bestIdx = 0
@@ -393,7 +398,11 @@ function buildBinDecompositions(
     for (let k = 0; k < perM.length; k++) {
       const d1 = angularDistance(perM[k].phi1, binAngle)
       const d2 = angularDistance(perM[k].phi2, binAngle)
-      const d = d1 < d2 ? d1 : d2
+      let d = d1 < d2 ? d1 : d2
+      // 时间惩罚: 对早于 preferAfterTs 的样本增加角度距离,优先选近期数据
+      if (timePenaltyDeg > 0 && preferAfterTs !== undefined && perM[k].ts < preferAfterTs) {
+        d += timePenaltyDeg
+      }
       if (d < bestDist) {
         bestDist = d
         bestIdx = k
@@ -414,8 +423,9 @@ export function reconstructBubbleThickness(
 ): BubbleReconstructionResult {
   const numBins = options?.numBins ?? 360
   const lambda = options?.lambda ?? 1e-4
-  const mu = options?.mu ?? 0.1
+  const muBase = options?.mu ?? 0.5
   const processFactor = options?.processDeformationFactor ?? 1.02
+  const preferAfterTs = options?.preferAfterTs
   const binWidthDeg = 360 / numBins
 
   if (measurements.length < numBins * 2) {
@@ -424,26 +434,91 @@ export function reconstructBubbleThickness(
     )
   }
 
+  // 过滤极小厚度: calcThickness 可能返回近 0 值,这些异常点会拉偏整体系数矩阵
+  const valid = measurements.filter((m) => m.thickness >= 1.0)
+  if (valid.length < measurements.length) {
+    console.warn(
+      `[bubbleReconstruction] 过滤 ${measurements.length - valid.length} 条厚度<1μm 的异常测量`
+    )
+  }
+
+  // 正则化自适应缩放
+  // 原则: 密度高需要更强正则化,但用 sqrt 避免过度平滑
+  const measPerBin = valid.length / numBins
+  const preCoverage = computeBinCoverage(valid, membraneWidthMm, numBins)
+  const coveredBins = preCoverage.filter((c) => c > 0).length
+  const coverageRatio = coveredBins / numBins
+  const mu =
+    muBase *
+    Math.sqrt(Math.max(1.0, measPerBin / 50)) *
+    (coverageRatio < 0.95 ? 0.95 / Math.max(coverageRatio, 0.3) : 1.0)
+
+  console.log(
+    `[bubbleReconstruction] N=${numBins} M=${valid.length} ` +
+    `density=${measPerBin.toFixed(0)}/bin covered=${coveredBins}/${numBins} ` +
+    `mu=${mu.toFixed(2)}(base ${muBase}) lambda=${lambda}`
+  )
+
   const sparse = buildSparseSystem(
-    measurements,
+    valid,
     membraneWidthMm,
     numBins,
     processFactor
   )
   const rawProfile = solveBatch(sparse, lambda, mu)
-  const profile = rawProfile.map((v) => (v > 0 ? v : 0))
+
+  // 诊断: 检查求解器是否产生了负值
+  const negCount = rawProfile.filter((v) => v < 0).length
+  const rawMin = Math.min(...rawProfile)
+  const rawMax = Math.max(...rawProfile)
+  const rawMean = rawProfile.reduce((a, b) => a + b, 0) / rawProfile.length
+  if (negCount > 0 || rawMin < -1) {
+    console.warn(
+      `[bubbleReconstruction] 求解器异常: ${negCount}/${rawProfile.length} 个负值 ` +
+      `raw∈[${rawMin.toFixed(1)},${rawMax.toFixed(1)}] mean=${rawMean.toFixed(1)}`
+    )
+  }
+
+  // 自动缩放: 确保 B 的均值与测量均值一致 (T_avg ≈ 2η·B_avg)
+  const tMean = valid.reduce((s, m) => s + m.thickness, 0) / valid.length
+  const bTarget = tMean / (2 * processFactor)
+  const autoScale = bTarget / Math.max(rawMean, 1e-6)
+  let profile: number[]
+  if (autoScale > 0.5 && autoScale < 2.0 && Math.abs(autoScale - 1.0) > 0.05) {
+    profile = rawProfile.map((v) => Math.max(0, v * autoScale))
+    console.log(
+      `[bubbleReconstruction] 自动缩放 ×${autoScale.toFixed(3)}: ` +
+      `B_avg ${rawMean.toFixed(1)}→${(rawMean * autoScale).toFixed(1)}μm ` +
+      `(T_avg=${tMean.toFixed(1)} 目标 B_avg=${bTarget.toFixed(1)})`
+    )
+  } else {
+    profile = rawProfile.map((v) => (v > 0 ? v : 0))
+  }
+
+  // 后处理: 5 点环形加权平均去毛刺,权重中心对称
+  const N = profile.length
+  const smoothed = new Array<number>(N)
+  for (let i = 0; i < N; i++) {
+    const m2 = profile[(i - 2 + N) % N]
+    const m1 = profile[(i - 1 + N) % N]
+    const curr = profile[i]
+    const p1 = profile[(i + 1) % N]
+    const p2 = profile[(i + 2) % N]
+    smoothed[i] = 0.1 * m2 + 0.2 * m1 + 0.4 * curr + 0.2 * p1 + 0.1 * p2
+  }
+  profile = smoothed
 
   const predicted = predictAll(
     profile,
-    measurements,
+    valid,
     membraneWidthMm,
     processFactor
   )
 
   let sumSq = 0,
     maxErr = 0
-  for (let k = 0; k < measurements.length; k++) {
-    const err = Math.abs(measurements[k].thickness - predicted[k])
+  for (let k = 0; k < valid.length; k++) {
+    const err = Math.abs(valid[k].thickness - predicted[k])
     sumSq += err * err
     if (err > maxErr) maxErr = err
   }
@@ -452,17 +527,18 @@ export function reconstructBubbleThickness(
     profile,
     numBins,
     binWidthDeg,
-    rmsError: Math.sqrt(sumSq / measurements.length),
+    rmsError: Math.sqrt(sumSq / (valid.length || 1)),
     maxError: maxErr,
-    numMeasurements: measurements.length,
-    binCoverage: computeBinCoverage(measurements, membraneWidthMm, numBins),
-    binTimestamps: computeBinTimestamps(measurements, membraneWidthMm, numBins),
+    numMeasurements: valid.length,
+    binCoverage: computeBinCoverage(valid, membraneWidthMm, numBins),
+    binTimestamps: computeBinTimestamps(valid, membraneWidthMm, numBins),
     binDecompositions: buildBinDecompositions(
-      measurements,
+      valid,
       profile,
       membraneWidthMm,
       numBins,
-      processFactor
+      processFactor,
+      preferAfterTs
     ),
     predictedThickness: predicted,
   }
