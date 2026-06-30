@@ -108,7 +108,7 @@ export const renderSvgPolar = (
     const rad = (angle * Math.PI) / 180
     const x = cx + r * Math.cos(rad)
     const y = cy - r * Math.sin(rad)
-    pathD += (i === 0 ? 'M' : 'L') + ` ${x.toFixed(1)},${y.toFixed(1)}`
+    pathD += `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`
   }
   pathD += ' Z'
 
@@ -125,8 +125,7 @@ export const renderSvgPolar = (
  * 数据导出为 CSV
  */
 export const exportProfileCsv = (profile: number[]): string => {
-  return 'angle_deg,thickness_um\n' +
-    profile.map((val, i) => `${i},${val.toFixed(2)}`).join('\n')
+  return `angle_deg,thickness_um\n${profile.map((val, i) => `${i},${val.toFixed(2)}`).join('\n')}`
 }
 
 /**

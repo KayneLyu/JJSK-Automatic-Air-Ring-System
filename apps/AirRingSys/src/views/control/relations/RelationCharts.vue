@@ -225,7 +225,7 @@ let option: EChartsOption = {
                     if (index == 0) {
                         return `{special|${Number(value) * 3}°}`
                     }
-                    return Number(value) * 3 + "°";
+                    return `${Number(value) * 3}°`;
                 },
                 rich: {
                     special: {
@@ -263,7 +263,7 @@ let option: EChartsOption = {
                         const meanDeg = 120 / configStore.apiAirRingConfig.ChannelCnt
                         const arrIndex = (meanDeg * (value.value - 1)).toFixed(0)
                         const currentValue = aAxisFormatArr[Number(arrIndex)] * 3
-                        return currentValue + '°'
+                        return `${currentValue}°`
                     }
                 },
                 handle: {

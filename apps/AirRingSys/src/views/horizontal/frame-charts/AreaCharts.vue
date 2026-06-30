@@ -74,7 +74,7 @@ let option: ECOption = {
         axisLabel: {
             show: true,
             formatter: function (value) {
-                return value * 3 + "°";
+                return `${value * 3}°`;
             },
         },
     },

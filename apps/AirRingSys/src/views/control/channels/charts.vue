@@ -147,7 +147,7 @@ let option: EChartsOption = {
                     if (index == 0) {
                         return `{special|${Number(value) * 3}°}`
                     }
-                    return Number(value) * 3 + "°";
+                    return `${Number(value) * 3}°`;
                 },
                 rich: {
                     special: {

@@ -13,6 +13,6 @@ export const printNodeTree = (node: BaseNode, indent = '') => {
   const organizesRefs = node.findReferences('Organizes', true)
   const childRefs = [...hasComponentRefs, ...organizesRefs]
   for (const ref of childRefs) {
-    printNodeTree(ref.node!, indent + '│  ')
+    printNodeTree(ref.node!, `${indent}│  `)
   }
 }

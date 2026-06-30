@@ -93,7 +93,7 @@ onMounted(() => {
                     <el-option
                         v-for="item in options"
                         :key="item.value"
-                        :label="item.label + `${$t('alarm.items')}`"
+                        :label="`${item.label}${$t('alarm.items')}`"
                         :value="item.value"
                     />
                 </el-select>

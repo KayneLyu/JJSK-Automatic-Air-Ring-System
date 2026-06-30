@@ -65,8 +65,8 @@ function useOperateChartsHooks() {
     let result: IFrameThickData[] = []
     try {
       if (pickDate) {
-        const startMs = new Date(pickDate + ' 00:00:00').getTime()
-        const endMs = new Date(pickDate + ' 23:59:59').getTime()
+        const startMs = new Date(`${pickDate} 00:00:00`).getTime()
+        const endMs = new Date(`${pickDate} 23:59:59`).getTime()
         const rows = await (window.ipcApi as any).invoke(
           'db-get-frames',
           startMs,
