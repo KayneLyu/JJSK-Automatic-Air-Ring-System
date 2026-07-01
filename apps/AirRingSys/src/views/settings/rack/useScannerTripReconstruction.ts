@@ -100,6 +100,7 @@ export function useScannerTripReconstruction() {
   const autoRefresh = ref(true)
   const lastUpdatedAt = ref<number | null>(null)
   const errorMessage = ref<string | null>(null)
+  const reconstructionHint = ref<string | null>(null)
   const isConnected = ref(false)
   const hasOlderData = ref(true)
   const lastUpperSweepsRefreshAt = ref(0)
@@ -520,8 +521,15 @@ export function useScannerTripReconstruction() {
     baseline: SweepSummaryRow
   ): Promise<ReconstructedSweep | null> {
     const cached = reconstructionCache.value.get(baseline.sweepId)
-    if (cached) return cached
-    if (params.value.membraneWidthMm <= 0) return null
+    if (cached) {
+      reconstructionHint.value = null
+      return cached
+    }
+    if (params.value.membraneWidthMm <= 0) {
+      reconstructionHint.value = '膜宽参数无效，无法重构'
+      return null
+    }
+    reconstructionHint.value = null
     isReconstructing.value = true
     try {
       const windowTrips = getWindowTrips(baseline)
@@ -547,6 +555,7 @@ export function useScannerTripReconstruction() {
       const measurements = buildMeasurements(samplesForReconstruction, p.airAD, p.gain)
       if (measurements.length < 50) {
         // 数据太少,放弃
+        reconstructionHint.value = `有效测量点不足（${measurements.length}/50）`
         return null
       }
       const baseCoverage = estimateCoverageRatio(
@@ -582,7 +591,12 @@ export function useScannerTripReconstruction() {
           preferAfterTs: baseline.startTs,
         }
       )) as BubbleWindowReconstructionResult | null
-      if (!result) return null
+      if (!result) {
+        reconstructionHint.value =
+          `重构求解无结果（samples=${samplesForReconstruction.length}, meas=${measurements.length}）`
+        return null
+      }
+      reconstructionHint.value = null
 
       // ---- 诊断日志 ----
       const mThick = measurements.map((m) => m.thickness)
@@ -653,6 +667,8 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
       return entry
     } catch (err) {
       console.error('[reconstructForBaseline] failed', err)
+      reconstructionHint.value =
+        err instanceof Error ? `重构异常：${err.message}` : '重构异常：未知错误'
       return null
     } finally {
       isReconstructing.value = false
@@ -734,11 +750,15 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
     (id) => {
       if (!id) {
         currentReconstruction.value = null
+        reconstructionHint.value = null
         return
       }
       // 立即拿缓存填充, 不让 chart 闪空
       currentReconstruction.value =
         reconstructionCache.value.get(id) ?? null
+      if (currentReconstruction.value) {
+        reconstructionHint.value = null
+      }
       // 调度真重建(防抖)
       scheduleReconstruction(id)
     },
@@ -973,6 +993,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
     canGoNext,
     isRefreshing,
     isReconstructing,
+    reconstructionHint,
     autoRefresh,
     lastUpdatedAt,
     errorMessage,

@@ -16,6 +16,7 @@ const {
   lastUpdatedAt,
   errorMessage,
   isReconstructing,
+  reconstructionHint,
   calResults,
   thicknessCfg,
   scannerTrips,
@@ -83,7 +84,7 @@ const chartDiagnostic = computed<string | null>(() => {
   if (!selectedBaseline.value)
     return '无法选择基线扫描趟'
   if (!currentReconstruction.value)
-    return '重构尚未完成，请稍候…'
+    return reconstructionHint.value ?? '当前基线暂无可用重构结果（可能覆盖不足或样本过少）'
   return null
 })
 
