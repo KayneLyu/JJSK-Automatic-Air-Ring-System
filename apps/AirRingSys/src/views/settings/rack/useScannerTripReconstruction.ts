@@ -562,6 +562,8 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
   const RECON_DEBOUNCE_MS = 150
   let pendingBaselineId: string | null = null
   let debounceTimer: number | null = null
+  let queuedReconstructionId: string | null = null
+  let isReconstructionQueueRunning = false
 
   function scheduleReconstruction(id: string) {
     if (pendingBaselineId === id) return
@@ -571,8 +573,30 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
       const targetId = pendingBaselineId
       pendingBaselineId = null
       debounceTimer = null
-      if (targetId) void runReconstruction(targetId)
+      if (targetId) enqueueReconstruction(targetId)
     }, RECON_DEBOUNCE_MS)
+  }
+
+  function enqueueReconstruction(id: string) {
+    // 仅保留最新目标：慢重建期间新请求会覆盖旧请求，避免并发打满 CPU。
+    queuedReconstructionId = id
+    if (!isReconstructionQueueRunning) {
+      void drainReconstructionQueue()
+    }
+  }
+
+  async function drainReconstructionQueue() {
+    if (isReconstructionQueueRunning) return
+    isReconstructionQueueRunning = true
+    try {
+      while (queuedReconstructionId) {
+        const id = queuedReconstructionId
+        queuedReconstructionId = null
+        await runReconstruction(id)
+      }
+    } finally {
+      isReconstructionQueueRunning = false
+    }
   }
 
   async function runReconstruction(id: string) {
