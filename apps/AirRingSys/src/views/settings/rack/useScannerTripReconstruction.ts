@@ -188,10 +188,15 @@ export function useScannerTripReconstruction() {
   )
 
   const canGoPrev = computed(
-    () => !isRefreshing.value && selectedIndex.value > 0
+    () =>
+      dataMode.value === 'historical' &&
+      !isRefreshing.value &&
+      selectedIndex.value > 0
   )
   const canGoNext = computed(
-    () => selectedIndex.value < sortedScannerTrips.value.length - 1
+    () =>
+      dataMode.value === 'historical' &&
+      selectedIndex.value < sortedScannerTrips.value.length - 1
   )
 
   let lastGapSummaryWarnAt = 0
@@ -298,7 +303,6 @@ export function useScannerTripReconstruction() {
     windowStartTs: number,
     windowEndTs: number
   ): Promise<void> {
-    if (params.value.transportDelayMs == null) return
     const transportDelayMs = getEffectiveTransportDelayMs()
     const targetStartTs = windowStartTs - transportDelayMs
     const targetEndTs = windowEndTs - transportDelayMs
@@ -310,13 +314,28 @@ export function useScannerTripReconstruction() {
     ) {
       return
     }
-    const result = (await window.ipcApi.invoke(
-      'db-get-latest-rotation-trips',
-      UPPER_SWEEPS_FETCH_COUNT,
-      targetEndTs + 1
-    )) as RotationTripSummaryRow[]
+    const result = await fetchUpperSweeps(targetEndTs + 1)
     upperSweeps.value = [...result].sort((a, b) => a.time - b.time)
     lastUpperSweepsRefreshAt.value = Date.now()
+  }
+
+  async function fetchUpperSweeps(beforeTs?: number): Promise<RotationTripSummaryRow[]> {
+    const fromTripTable = (await window.ipcApi.invoke(
+      'db-get-latest-rotation-trips',
+      UPPER_SWEEPS_FETCH_COUNT,
+      beforeTs
+    )) as RotationTripSummaryRow[]
+    if (fromTripTable.length > 0) return fromTripTable
+
+    const fromFallback = (await window.ipcApi.invoke(
+      'db-get-latest-rotation-trips-fallback',
+      UPPER_SWEEPS_FETCH_COUNT,
+      beforeTs
+    )) as RotationTripSummaryRow[]
+    if (fromFallback.length > 0) {
+      console.warn('[loadUpperSweeps] rotation_trip 为空，已回退到 rotation_raw 方向变化构建上旋趟')
+    }
+    return fromFallback
   }
 
   /** 加载指定扫描趟的 samples — 带 in-flight dedup,避免并发重复查询 */
@@ -766,13 +785,6 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
 
   /** 加载上旋趟(用于 timeToAngle 算 θ) */
   async function loadUpperSweeps(): Promise<void> {
-    if (params.value.transportDelayMs == null) {
-      // 缺标定参数,后端的 buildProfile 会反复 warn,所以这里直接短路
-      upperSweeps.value = []
-      errorMessage.value =
-        '运输延迟参数缺失：需标定 测量点距离(upperDistance) 和 牵引速度(rollerTractionSpeed)'
-      return
-    }
     try {
       const now = Date.now()
       if (
@@ -781,10 +793,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
       ) {
         return
       }
-      const result = (await window.ipcApi.invoke(
-        'db-get-latest-rotation-trips',
-        UPPER_SWEEPS_FETCH_COUNT
-      )) as RotationTripSummaryRow[]
+      const result = await fetchUpperSweeps()
       upperSweeps.value = [...result].sort((a, b) => a.time - b.time)
       lastUpperSweepsRefreshAt.value = now
     } catch (err) {
@@ -861,6 +870,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
   }
 
   function prevTrip() {
+    if (dataMode.value !== 'historical') return
     if (selectedIndex.value > 0) {
       selectedIndex.value -= 1
     } else {
@@ -868,11 +878,13 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
     }
   }
   function nextTrip() {
+    if (dataMode.value !== 'historical') return
     if (selectedIndex.value < sortedScannerTrips.value.length - 1) {
       selectedIndex.value += 1
     }
   }
   async function loadOlderTrips() {
+    if (dataMode.value !== 'historical') return
     if (isRefreshing.value || !hasOlderData.value) return
     const first = sortedScannerTrips.value[0]
     if (!first) return

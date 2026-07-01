@@ -79,7 +79,7 @@ const chartDiagnostic = computed<string | null>(() => {
     return '无测厚仪扫描趟数据 — 请确认 ADBox 已连接且正在采集'
   }
   if (upperSweeps.value.length === 0)
-    return '无上旋趟数据 — 请确认上旋参数 (upperDistance / rollerTractionSpeed) 已标定'
+    return '无上旋趟数据 — 请确认 rotation_trip 历史数据是否存在（历史模式下可不依赖 upperDistance/rollerTractionSpeed）'
   if (!selectedBaseline.value)
     return '无法选择基线扫描趟'
   if (!currentReconstruction.value)
@@ -99,6 +99,34 @@ const selectedMinCoverage = computed(() => {
   return Math.min(...s.binCoverage)
 })
 
+const thetaCoverageText = computed(() => {
+  const thetaMax = calResults.value.upperMaxAngle
+  if (thetaMax == null || !Number.isFinite(thetaMax) || thetaMax <= 0) return '--'
+  return `0~${thetaMax.toFixed(0)}°`
+})
+
+const deltaBandwidthText = computed(() => {
+  const s = syntheticSweep.value
+  const samples = s?.sampleDecompositions
+  if (!samples || samples.length === 0) return '--'
+  let maxAbsDelta = 0
+  for (const item of samples) {
+    const diff = Math.abs(item.phi1 - item.phi2) % 360
+    const separation = Math.min(diff, 360 - diff)
+    const absDelta = separation / 2
+    if (absDelta > maxAbsDelta) maxAbsDelta = absDelta
+  }
+  if (!Number.isFinite(maxAbsDelta)) return '--'
+  return `±${maxAbsDelta.toFixed(1)}°`
+})
+
+const effectiveConstraintBinRatio = computed(() => {
+  const s = syntheticSweep.value
+  if (!s || s.binCoverage.length === 0) return 0
+  const covered = s.binCoverage.filter((c) => c > 0).length
+  return covered / s.binCoverage.length
+})
+
 function onAutoRefreshChange(v: boolean) {
   autoRefresh.value = v
 }
@@ -113,6 +141,9 @@ function onAutoRefreshChange(v: boolean) {
       :last-updated-at="lastUpdatedAt"
       :selected-mean-coverage="selectedMeanCoverage"
       :selected-min-coverage="selectedMinCoverage"
+      :theta-coverage-text="thetaCoverageText"
+      :delta-bandwidth-text="deltaBandwidthText"
+      :effective-constraint-bin-ratio="effectiveConstraintBinRatio"
       :has-selected-sweep="syntheticSweep !== null"
       :auto-refresh="autoRefresh"
       @update:auto-refresh="onAutoRefreshChange"

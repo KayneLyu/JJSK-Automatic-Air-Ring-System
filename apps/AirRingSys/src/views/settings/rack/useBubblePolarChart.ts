@@ -191,9 +191,8 @@ export function useBubblePolarChart(
         ? Math.min(...sweep.binCoverage).toFixed(1)
         : '?'
 
-    const lineData = buildPolarLineData(
-      buildDisplayProfile(profile, sweep.binCoverage)
-    )
+    const displayProfile = buildDisplayProfile(profile, sweep.binCoverage)
+    const lineData = buildPolarLineData(displayProfile)
     const compareData = compareRef.value
     const hasCompare = !!(compareData && compareData.profile.length > 0)
     const sampleDecomps = sweep.sampleDecompositions ?? []
@@ -267,25 +266,25 @@ export function useBubblePolarChart(
             return coverage[i] ?? 0
           }
 
-          // profile 插值: 保证 cursorB 与 matchedB 同源
-          const interpB = (angleDeg: number): number | null => {
+          const interpDisplay = (angleDeg: number): number | null => {
             const a = ((angleDeg % 360) + 360) % 360
             const idx = a / binWidth
             const lo = Math.floor(idx) % numBins
             const hi = (lo + 1) % numBins
             const w = idx - Math.floor(idx)
-            const covLo = coverageAt(lo)
-            const covHi = coverageAt(hi)
-            // 可靠性策略：两个相邻 bin 任意一个覆盖不足，则该角度视为不可靠。
-            if (
-              covLo < MIN_RELIABLE_BIN_COVERAGE ||
-              covHi < MIN_RELIABLE_BIN_COVERAGE
-            ) {
-              return null
-            }
-            return profile[lo] * (1 - w) + profile[hi] * w
+            const loVal = displayProfile[lo]
+            const hiVal = displayProfile[hi]
+            if (loVal == null || hiVal == null) return null
+            return loVal * (1 - w) + hiVal * w
+          }
+
+          // profile 插值: 保证 cursorB 与 matchedB 同源
+          const interpB = (angleDeg: number): number | null => {
+            return interpDisplay(angleDeg)
           }
           const cursorB = interpB(rawAngle)
+          const cursorCovered =
+            coverageAt(currentBin) >= MIN_RELIABLE_BIN_COVERAGE
 
           // 按角度动态匹配样本级反解，取游标所在侧对侧的 φ (压合 = B₁ + B₂)
           // matchedPhi = 2·αC − cursorAngle; B 从 profile 插值, 保证正反方向对称
@@ -322,6 +321,8 @@ export function useBubblePolarChart(
           if (cursorB == null) {
             html += '<div style="color:#e6a23c;font-size:11px">当前角度覆盖不足，显示值不可靠</div>'
             html += `<div style="color:#c0c4cc;font-size:11px">覆盖阈值: 每 bin ≥ ${MIN_RELIABLE_BIN_COVERAGE.toFixed(0)}</div>`
+          } else if (!cursorCovered) {
+            html += '<div style="color:#e6a23c;font-size:11px">当前角度来自短缺口桥接估计，请谨慎参考</div>'
           }
 
           if (matchTs > 0 && cursorB != null && matchedB != null) {

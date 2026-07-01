@@ -309,6 +309,10 @@ export interface IpcChannelMap {
     args: [count: number, beforeTs?: number]
     output: RotationTripSummaryRow[]
   }
+  'db-get-latest-rotation-trips-fallback': {
+    args: [count: number, beforeTs?: number]
+    output: RotationTripSummaryRow[]
+  }
   'db-get-sweep-points-by-range': {
     args: [startTs: number, endTs: number]
     output: SweepPoint[]

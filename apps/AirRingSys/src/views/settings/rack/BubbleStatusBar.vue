@@ -14,6 +14,9 @@ const props = defineProps<{
   lastUpdatedAt: number | null
   selectedMeanCoverage: number
   selectedMinCoverage: number
+  thetaCoverageText: string
+  deltaBandwidthText: string
+  effectiveConstraintBinRatio: number
   hasSelectedSweep: boolean
   autoRefresh: boolean
 }>()
@@ -71,6 +74,10 @@ function membraneWidthMmLabel(): string {
     <span class="param-text" v-if="hasSelectedSweep" style="color: #67c23a">
       当前：覆盖均 {{ selectedMeanCoverage.toFixed(1) }} / 最小
       {{ selectedMinCoverage.toFixed(1) }}
+    </span>
+    <span class="param-text" v-if="hasSelectedSweep" style="color: #e6a23c">
+      可观测性：θ覆盖 {{ thetaCoverageText }} · δ带宽 {{ deltaBandwidthText }} ·
+      约束bin {{ (effectiveConstraintBinRatio * 100).toFixed(1) }}%
     </span>
     <div class="actions">
       <label class="toggle" v-if="dataMode === 'live'">

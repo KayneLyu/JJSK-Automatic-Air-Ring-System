@@ -41,6 +41,7 @@ import {
   queryLatestRotationRaw,
   queryLatestDirectionChanges,
 } from './rawQueries'
+import { detectBimodalThreshold } from '@jjsk/air-ring-server/electron'
 import migrationSql from './migrations/0000_glossy_bloodstrike.sql?raw'
 import migrationSqlV1 from './migrations/0001_double_trip_model.sql?raw'
 import migrationSqlV2 from './migrations/0002_pos1_remove_calib.sql?raw'
@@ -162,6 +163,18 @@ export class SQLiteService {
     } catch (e) {
       console.error('[Backfill] 历史回填失败:', e)
     }
+
+    try {
+      this.revalidateBackfilledScanPassesByBimodal()
+    } catch (e) {
+      console.error('[Backfill] scan_pass 双峰复核失败:', e)
+    }
+
+    try {
+      this.backfillRotationTripsFromDirectionChanges()
+    } catch (e) {
+      console.error('[Backfill] rotation_trip 回填失败:', e)
+    }
   }
 
   /** 关闭数据库：先 flush 缓冲区，再关闭连接 */
@@ -177,6 +190,67 @@ export class SQLiteService {
       | { id: number }
       | undefined
     return row?.id ?? 0
+  }
+
+  /**
+   * 若 rotation_trip 为空，则从 rotation_raw 的方向变化事件回填上旋趟。
+   *
+   * 适配历史导入场景：旧导入链路仅写 rotation_raw，不会落 rotation_trip。
+   */
+  private backfillRotationTripsFromDirectionChanges(): number {
+    const rtCount = (this.sqliteDb
+      .prepare('SELECT COUNT(*) AS cnt FROM rotation_trip')
+      .get() as { cnt: number } | undefined)?.cnt ?? 0
+    if (rtCount > 0) return 0
+
+    const dirChangeCount = (this.sqliteDb
+      .prepare(
+        'SELECT COUNT(*) AS cnt FROM rotation_raw WHERE forwardDirChange > 0 OR reverseDirChange > 0'
+      )
+      .get() as { cnt: number } | undefined)?.cnt ?? 0
+    if (dirChangeCount < 2) return 0
+
+    const now = Date.now()
+    this.sqliteDb
+      .prepare(
+        `
+        WITH direction_changes AS (
+          SELECT
+            id,
+            timestamp AS ts,
+            CASE
+              WHEN forwardDirChange > 0 THEN 1
+              WHEN reverseDirChange > 0 THEN 0
+              ELSE NULL
+            END AS direction,
+            LEAD(timestamp) OVER (ORDER BY timestamp ASC, id ASC) AS next_ts
+          FROM rotation_raw
+          WHERE forwardDirChange > 0 OR reverseDirChange > 0
+        )
+        INSERT INTO rotation_trip (start_ts, end_ts, direction, status, created_at)
+        SELECT ts, next_ts, direction, 'estimated', ?
+        FROM direction_changes
+        WHERE direction IS NOT NULL AND next_ts IS NOT NULL AND next_ts > ts
+        `
+      )
+      .run(now)
+
+    const inserted = (this.sqliteDb
+      .prepare('SELECT COUNT(*) AS cnt FROM rotation_trip')
+      .get() as { cnt: number } | undefined)?.cnt ?? 0
+    if (inserted > 0) {
+      this.sqliteDb.exec(`
+        UPDATE scan_pass SET rotation_trip_id = (
+          SELECT rt.id FROM rotation_trip rt
+          WHERE scan_pass.start_ts >= rt.start_ts AND scan_pass.end_ts <= rt.end_ts
+          ORDER BY rt.start_ts ASC LIMIT 1
+        )
+        WHERE rotation_trip_id IS NULL
+      `)
+      console.log(`[Backfill] 从 rotation_raw 方向变化回填 rotation_trip: ${inserted} 条`)
+    }
+
+    return inserted
   }
 
   // ══ 批量缓冲写入 ══
@@ -345,14 +419,93 @@ export class SQLiteService {
   insertScanPass(sp: {
     startTs: number; endTs: number; scannerDirection: number
     pulseMin: number; pulseMax: number; validRatio: number
+    status?: 'complete' | 'rejected'
   }): void {
     if (!this.ready) return
     const now = Date.now()
     this.db.insert(schema.scanPass).values({
       startTs: sp.startTs, endTs: sp.endTs, scannerDirection: sp.scannerDirection,
       pulseMin: sp.pulseMin, pulseMax: sp.pulseMax, validRatio: sp.validRatio,
-      status: 'complete', createdAt: now,
+      status: sp.status ?? 'complete', createdAt: now,
     }).run()
+  }
+
+  /**
+   * 对历史/导入得到的 scan_pass 做双峰完整性复核，不满足则标记为 rejected。
+   *
+   * 仅复核 status=complete 且 valid_ratio=0 的行（典型历史回填），避免影响实时写入。
+   */
+  private revalidateBackfilledScanPassesByBimodal(): number {
+    const candidates = this.sqliteDb
+      .prepare(
+        `SELECT id, start_ts, end_ts
+         FROM scan_pass
+         WHERE status = 'complete' AND valid_ratio = 0
+         ORDER BY start_ts ASC`
+      )
+      .all() as Array<{ id: number; start_ts: number; end_ts: number }>
+    if (candidates.length === 0) return 0
+
+    const queryPoints = this.sqliteDb.prepare(
+      'SELECT pulse, ad FROM thickness_raw WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC'
+    )
+    const markRejected = this.sqliteDb.prepare(
+      "UPDATE scan_pass SET status = 'rejected' WHERE id = ?"
+    )
+
+    let rejected = 0
+    this.sqliteDb.exec('BEGIN')
+    try {
+      for (const row of candidates) {
+        const points = queryPoints.all(row.start_ts, row.end_ts) as Array<{
+          pulse: number
+          ad: number
+        }>
+        if (points.length < 100) {
+          markRejected.run(row.id)
+          rejected += 1
+          continue
+        }
+        const ads = points.map((p) => p.ad)
+        const threshold = detectBimodalThreshold(ads)
+        if (threshold === null) {
+          markRejected.run(row.id)
+          rejected += 1
+          continue
+        }
+        let leadingPulse: number | null = null
+        let trailingPulse: number | null = null
+        for (let i = 0; i < points.length; i++) {
+          if (points[i].ad <= threshold) {
+            leadingPulse = points[i].pulse
+            break
+          }
+        }
+        for (let i = points.length - 1; i >= 0; i--) {
+          if (points[i].ad <= threshold) {
+            trailingPulse = points[i].pulse
+            break
+          }
+        }
+        if (
+          leadingPulse === null ||
+          trailingPulse === null ||
+          trailingPulse <= leadingPulse
+        ) {
+          markRejected.run(row.id)
+          rejected += 1
+        }
+      }
+      this.sqliteDb.exec('COMMIT')
+    } catch (e) {
+      this.sqliteDb.exec('ROLLBACK')
+      throw e
+    }
+
+    if (rejected > 0) {
+      console.log(`[Backfill] scan_pass 双峰复核: rejected=${rejected}/${candidates.length}`)
+    }
+    return rejected
   }
 
   /**

@@ -38,6 +38,7 @@ import type {
   ICalibrationControlResult,
   ICalibrationBridgeState,
   IHistoricalCalibrationProgress,
+  RotationTripSummaryRow,
 } from '@/types/ipc'
 import { reconstructBubbleThickness } from '@/views/settings/rack/utils/bubbleReconstruction'
 
@@ -639,6 +640,33 @@ function registerAllIpcHandlers(): void {
 
   registerIpcHandler('db-get-latest-rotation-trips', async ([count, beforeTs]: unknown[]) => {
     return sqliteDb?.queryLatestRotationTripSummaries(count as number, (beforeTs as number) ?? 0) ?? []
+  })
+
+  registerIpcHandler('db-get-latest-rotation-trips-fallback', async ([count, beforeTs]: unknown[]) => {
+    if (!sqliteDb) return []
+    const limit = Math.max(1, Number(count) || 1)
+    const changes = sqliteDb.queryLatestDirectionChanges(limit + 1, (beforeTs as number) ?? 0)
+    if (changes.length < 2) return []
+
+    const asc = [...changes].sort((a, b) => a.timestamp - b.timestamp)
+    const trips: RotationTripSummaryRow[] = []
+    for (let i = 0; i < asc.length - 1; i++) {
+      const cur = asc[i]
+      const next = asc[i + 1]
+      const isForward = cur.forwardDirChange > 0 && cur.reverseDirChange <= 0
+      const isReverse = cur.reverseDirChange > 0 && cur.forwardDirChange <= 0
+      if (!isForward && !isReverse) continue
+      if (next.timestamp <= cur.timestamp) continue
+      trips.push({
+        id: `rotation-fallback-${cur.id}`,
+        time: cur.timestamp,
+        direction: isForward ? 'forward' : 'reverse',
+        cycleDurationMs: next.timestamp - cur.timestamp,
+      })
+    }
+
+    if (trips.length <= limit) return trips
+    return trips.slice(trips.length - limit)
   })
 
   registerIpcHandler('db-get-sweep-points-by-range', async ([startTs, endTs]: unknown[]) => {

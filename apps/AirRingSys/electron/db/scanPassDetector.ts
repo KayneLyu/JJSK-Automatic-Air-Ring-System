@@ -15,6 +15,8 @@
  * - 扫描换向时 pos0 变化方向反转（递增 ↔ 递减）
  */
 
+import { detectBimodalThreshold } from '@jjsk/air-ring-server/electron'
+
 /** 扫描趟方向：1 = 正向（脉冲递增），-1 = 反向（脉冲递减） */
 export type ScannerDirection = 1 | -1
 
@@ -27,6 +29,10 @@ interface CurrentScan {
   validCount: number
   /** 总采样点数 */
   totalCount: number
+  /** 原始脉冲序列（用于双峰完整性判定） */
+  pulses: number[]
+  /** 原始 AD 序列（用于双峰完整性判定） */
+  ads: number[]
 }
 
 /** 一个已完成的扫描趟 */
@@ -45,6 +51,8 @@ export interface ClosedScanPass {
   validRatio: number
   /** 总采样点数 */
   totalCount: number
+  /** 扫描趟状态：complete=完整趟，rejected=不满足双峰完整性 */
+  status: 'complete' | 'rejected'
 }
 
 const isAdValid = (ad: number): boolean => {
@@ -72,7 +80,35 @@ const createCurrentScan = (
   pulseMax: pulse,
   validCount: isAdValid(ad) ? 1 : 0,
   totalCount: 1,
+  pulses: [pulse],
+  ads: [ad],
 })
+
+const isCompleteByBimodal = (scan: CurrentScan): boolean => {
+  if (scan.ads.length < 100 || scan.pulses.length < 100) return false
+  const threshold = detectBimodalThreshold(scan.ads)
+  if (threshold === null) return false
+
+  let leadingPulse: number | null = null
+  let trailingPulse: number | null = null
+  for (let i = 0; i < scan.ads.length; i++) {
+    if (scan.ads[i] <= threshold) {
+      leadingPulse = scan.pulses[i]
+      break
+    }
+  }
+  for (let i = scan.ads.length - 1; i >= 0; i--) {
+    if (scan.ads[i] <= threshold) {
+      trailingPulse = scan.pulses[i]
+      break
+    }
+  }
+  return (
+    leadingPulse !== null &&
+    trailingPulse !== null &&
+    trailingPulse > leadingPulse
+  )
+}
 
 const closeCurrentScan = (scan: CurrentScan, endTs: number): ClosedScanPass => ({
   scannerDirection: scan.direction === 1 ? 1 : 0,
@@ -82,6 +118,7 @@ const closeCurrentScan = (scan: CurrentScan, endTs: number): ClosedScanPass => (
   pulseMax: scan.pulseMax,
   validRatio: scan.totalCount > 0 ? scan.validCount / scan.totalCount : 0,
   totalCount: scan.totalCount,
+  status: isCompleteByBimodal(scan) ? 'complete' : 'rejected',
 })
 
 /**
@@ -129,6 +166,8 @@ export const createScanPassDetector = () => {
     // 脉冲未变（测厚仪暂停或同位置多帧）→ 继续当前趟
     current.totalCount += 1
     if (isAdValid(ad)) current.validCount += 1
+    current.pulses.push(pulse)
+    current.ads.push(ad)
     if (pulse < current.pulseMin) current.pulseMin = pulse
     if (pulse > current.pulseMax) current.pulseMax = pulse
     return null
