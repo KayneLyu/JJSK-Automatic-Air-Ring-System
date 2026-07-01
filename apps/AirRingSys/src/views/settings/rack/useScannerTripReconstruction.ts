@@ -206,6 +206,27 @@ export function useScannerTripReconstruction() {
     }
   }
 
+  function findLatestReconstructableIndex(rows: SweepSummaryRow[]): number {
+    if (rows.length === 0) return -1
+    const coverage = getUpperSweepsCoverage()
+    if (!coverage) return rows.length - 1
+    const upperEnd = coverage.endTs + UPPER_SWEEP_GAP_TOLERANCE_MS
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (rows[i].endTs <= upperEnd) return i
+    }
+    return -1
+  }
+
+  function alignSelectedBaselineToUpperCoverage() {
+    if (dataMode.value !== 'live') return
+    const rows = sortedScannerTrips.value
+    if (rows.length === 0) return
+    const idx = findLatestReconstructableIndex(rows)
+    if (idx >= 0 && idx !== selectedIndex.value) {
+      selectedIndex.value = idx
+    }
+  }
+
   /** 给定 ts, 找出包含它的上旋趟(用于 timeToAngle 算 θ) */
   function findUpperSweepAt(
     ts: number,
@@ -481,8 +502,13 @@ export function useScannerTripReconstruction() {
       const batches = await Promise.all(windowTrips.map((t) => loadSamples(t)))
       const allSamples: SweepPoint[] = []
       for (const pts of batches) allSamples.push(...pts)
+      const coverage = getUpperSweepsCoverage()
+      const maxSampleTs = coverage
+        ? coverage.endTs + UPPER_SWEEP_GAP_TOLERANCE_MS
+        : Number.POSITIVE_INFINITY
+      const samplesForReconstruction = allSamples.filter((s) => s.ts <= maxSampleTs)
       const p = params.value
-      const measurements = buildMeasurements(allSamples, p.airAD, p.gain)
+      const measurements = buildMeasurements(samplesForReconstruction, p.airAD, p.gain)
       if (measurements.length < 50) {
         // 数据太少,放弃
         return null
@@ -537,7 +563,7 @@ export function useScannerTripReconstruction() {
       console.log(
         `[B(φ)] trip=${baseline.sweepId.slice(-8)} 
 window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) / 60_000).toFixed(1)}min) 
-samples=${allSamples.length}→meas=${measurements.length}`
+    samples=${allSamples.length}→used=${samplesForReconstruction.length}→meas=${measurements.length}`
       )
       console.log(
         `[B(φ)] 标定: W=${p.membraneWidthMm.toFixed(0)}mm θmax=${p.thetaMaxDeg.toFixed(0)}° 
@@ -791,6 +817,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
       } else {
         scannerTrips.value = rows
         selectedIndex.value = Math.max(0, rows.length - 1)
+        alignSelectedBaselineToUpperCoverage()
         hasOlderData.value = true
       }
     } catch (err) {
@@ -805,6 +832,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
     errorMessage.value = null
     try {
       await Promise.all([loadUpperSweeps(), loadScannerTrips()])
+      alignSelectedBaselineToUpperCoverage()
       lastUpdatedAt.value = Date.now()
     } catch (err) {
       errorMessage.value = err instanceof Error ? err.message : '刷新失败'
@@ -882,8 +910,8 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
     (newLatestId, oldLatestId) => {
       if (!newLatestId || newLatestId === oldLatestId) return
       if (dataMode.value !== 'live') return
-      // 切到最新趟 → 触发 selectedBaseline.sweepId watcher → 触发重构
-      selectedIndex.value = sortedScannerTrips.value.length - 1
+      // 实时模式不盲目追最新,优先选可被上旋趟覆盖的最新扫描趟。
+      alignSelectedBaselineToUpperCoverage()
     }
   )
 
