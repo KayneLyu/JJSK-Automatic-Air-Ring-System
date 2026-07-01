@@ -58,9 +58,17 @@ export const WINDOW_MAX_TIME_SPAN_MS = 10 * 60_000
 /** 上旋趟匹配容忍间隙 (ms)：超过该值则丢弃该测点，避免错配到过时上旋趟 */
 export const UPPER_SWEEP_GAP_TOLERANCE_MS = 1_000
 /** 极小时间抖动忽略阈值 (ms)：避免 5~20ms 级别日志噪声 */
-export const UPPER_SWEEP_GAP_IGNORE_WARN_BELOW_MS = 20
+export const UPPER_SWEEP_GAP_IGNORE_WARN_BELOW_MS = 50
 /** 重建分箱自适应下限：欠覆盖场景下降分箱，优先保证覆盖连续性 */
 export const MIN_ADAPTIVE_NUM_BINS = 90
+/** 分箱目标覆盖率：低于该比例时下调分箱 */
+export const TARGET_BIN_COVERAGE_RATIO = 0.8
+/** 扫描趟摘要默认拉取数量（首屏） */
+export const SCANNER_TRIPS_FETCH_COUNT = 400
+/** 上旋趟摘要刷新最短间隔，避免高频重复查询 */
+export const UPPER_SWEEPS_REFRESH_MIN_INTERVAL_MS = 10_000
+/** 本页实时刷新间隔（降低 utility 查询压力） */
+export const RECON_REFRESH_INTERVAL_MS = 5_000
 
 export function useScannerTripReconstruction() {
   // 上旋趟(用于 θ_max / 起始时间)
@@ -81,6 +89,7 @@ export function useScannerTripReconstruction() {
   const errorMessage = ref<string | null>(null)
   const isConnected = ref(false)
   const hasOlderData = ref(true)
+  const lastUpperSweepsRefreshAt = ref(0)
 
   const thicknessCfg = ref<ThicknessConfig>({ airAD: 50300, gain: 1.0 })
   const calResults = ref<ICalibrationResults>({})
@@ -349,6 +358,32 @@ export function useScannerTripReconstruction() {
     return triples
   }
 
+  function estimateCoverageRatio(
+    measurements: MeasurementTripleInput[],
+    membraneWidthMm: number,
+    numBins: number
+  ): { coveredBins: number; ratio: number } {
+    if (measurements.length === 0 || numBins <= 0 || membraneWidthMm <= 0) {
+      return { coveredBins: 0, ratio: 0 }
+    }
+
+    const binWidth = 360 / numBins
+    const covered = new Array<boolean>(numBins).fill(false)
+    for (const m of measurements) {
+      const delta = (m.scannerPosMm / membraneWidthMm) * 180
+      const alphaCenter = ((m.upperAngleDeg + 90) % 360 + 360) % 360
+      const phi1 = ((alphaCenter + delta) % 360 + 360) % 360
+      const phi2 = ((alphaCenter - delta) % 360 + 360) % 360
+      covered[Math.floor(phi1 / binWidth) % numBins] = true
+      covered[Math.floor(phi2 / binWidth) % numBins] = true
+    }
+    const coveredBins = covered.filter(Boolean).length
+    return {
+      coveredBins,
+      ratio: coveredBins / numBins,
+    }
+  }
+
   /**
    * 为给定 baseline 计算 B(φ)
    * - 命中缓存直接返回
@@ -373,14 +408,27 @@ export function useScannerTripReconstruction() {
         // 数据太少,放弃
         return null
       }
+      const baseCoverage = estimateCoverageRatio(
+        measurements,
+        p.membraneWidthMm,
+        p.numBins
+      )
       // 欠覆盖场景自适应降低分箱数,减少稀疏分布下的角度空洞
+      const coverageDrivenBins =
+        baseCoverage.ratio >= TARGET_BIN_COVERAGE_RATIO
+          ? p.numBins
+          : Math.floor((p.numBins * baseCoverage.ratio) / TARGET_BIN_COVERAGE_RATIO)
       const adaptiveNumBins = Math.max(
         MIN_ADAPTIVE_NUM_BINS,
-        Math.min(p.numBins, Math.floor(measurements.length / 6))
+        Math.min(
+          p.numBins,
+          Math.floor(measurements.length / 6),
+          coverageDrivenBins
+        )
       )
       if (adaptiveNumBins !== p.numBins) {
         console.log(
-          `[B(φ)] 分箱自适应: ${p.numBins} -> ${adaptiveNumBins} (meas=${measurements.length})`
+          `[B(φ)] 分箱自适应: ${p.numBins} -> ${adaptiveNumBins} (meas=${measurements.length}, baseCoverage=${baseCoverage.coveredBins}/${p.numBins})`
         )
       }
       const result = (await window.ipcApi.invoke(
@@ -578,11 +626,19 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
       return
     }
     try {
+      const now = Date.now()
+      if (
+        upperSweeps.value.length > 0 &&
+        now - lastUpperSweepsRefreshAt.value < UPPER_SWEEPS_REFRESH_MIN_INTERVAL_MS
+      ) {
+        return
+      }
       const result = (await window.ipcApi.invoke(
         'db-get-latest-rotation-trips',
         200
       )) as RotationTripSummaryRow[]
       upperSweeps.value = [...result].sort((a, b) => a.time - b.time)
+      lastUpperSweepsRefreshAt.value = now
     } catch (err) {
       upperSweeps.value = []
       errorMessage.value = err instanceof Error ? err.message : '加载上旋趟失败'
@@ -593,7 +649,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
     try {
       const rows = (await window.ipcApi.invoke(
         'db-get-sweep-summaries',
-        2000,
+        SCANNER_TRIPS_FETCH_COUNT,
         beforeTs
       )) as SweepSummaryRow[]
       if (beforeTs && beforeTs > 0) {
@@ -693,7 +749,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
     if (dataMode.value === 'historical') return
     refreshTimer = window.setInterval(() => {
       void refresh()
-    }, REFRESH_INTERVAL_MS)
+    }, Math.max(REFRESH_INTERVAL_MS, RECON_REFRESH_INTERVAL_MS))
   }
   function stopAutoRefresh() {
     if (refreshTimer !== null) {
