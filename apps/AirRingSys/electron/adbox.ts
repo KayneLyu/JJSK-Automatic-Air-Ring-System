@@ -605,6 +605,7 @@ function registerProxiedIpcHandlers(): void {
     'db-get-thickness-raw',
     'db-get-latest-thickness-raw',
     'db-get-sweep-summaries',
+    'db-get-latest-rotation-trips',
     'db-get-sweep-points-by-range',
     'db-get-sweep-count-by-mode',
     'db-get-sweep-ids-by-mode',

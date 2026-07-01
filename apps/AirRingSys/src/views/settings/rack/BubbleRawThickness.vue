@@ -4,7 +4,7 @@ import { useScannerTripReconstruction } from './useScannerTripReconstruction'
 import BubbleStatusBar from './BubbleStatusBar.vue'
 import BubbleNavBar from './BubbleNavBar.vue'
 import BubblePolarChart from './BubblePolarChart.vue'
-import type { BubbleSweepResult } from '@/types/ipc'
+import type { ExtendedBubbleSweepResult } from './useBubblePolarChart'
 
 const {
   selectedBaseline,
@@ -28,11 +28,33 @@ const {
  * 把重构结果打包成 BubbleSweepResult 形状,
  * 喂给 BubbleNavBar / BubbleStatusBar / BubblePolarChart(它们接口不变)
  */
-const syntheticSweep = computed<BubbleSweepResult | null>(() => {
+let cachedSyntheticSweep: ExtendedBubbleSweepResult | null = null
+let cachedResultRef: object | null = null
+let cachedBaselineKey = ''
+
+const syntheticSweep = computed<ExtendedBubbleSweepResult | null>(() => {
   const r = currentReconstruction.value
   const b = selectedBaseline.value
-  if (!r || !b) return null
-  return {
+  if (!r || !b) {
+    cachedSyntheticSweep = null
+    cachedResultRef = null
+    cachedBaselineKey = ''
+    return null
+  }
+
+  const baselineKey = `${b.sweepId}:${b.startTs}:${b.endTs}:${b.direction}`
+  const resultRef = r.result as object
+  if (
+    cachedSyntheticSweep &&
+    cachedResultRef === resultRef &&
+    cachedBaselineKey === baselineKey
+  ) {
+    return cachedSyntheticSweep
+  }
+
+  cachedBaselineKey = baselineKey
+  cachedResultRef = resultRef
+  cachedSyntheticSweep = {
     ...r.result,
     id: b.sweepId,
     time: b.startTs,
@@ -40,6 +62,7 @@ const syntheticSweep = computed<BubbleSweepResult | null>(() => {
     cycleDurationMs: b.endTs - b.startTs,
     inProgress: false,
   }
+  return cachedSyntheticSweep
 })
 
 /**

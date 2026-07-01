@@ -25,6 +25,17 @@ import {
   isProfilePlausible,
 } from './sweepHelpers'
 
+const buildProfileWarningAt = new Map<string, number>()
+const BUILD_PROFILE_WARNING_TTL_MS = 60_000
+
+function warnBuildProfile(key: string, message: string): void {
+  const now = Date.now()
+  const lastAt = buildProfileWarningAt.get(key) ?? 0
+  if (now - lastAt < BUILD_PROFILE_WARNING_TTL_MS) return
+  buildProfileWarningAt.set(key, now)
+  console.warn(message)
+}
+
 /**
  * 上旋旋转趟（~6-8min）的起止时间与方向。
  *
@@ -111,7 +122,8 @@ export function buildProfile(
     transportDelayMs?: number
   ): BubbleReconstructionResult | null {
     if (transportDelayMs == null || transportDelayMs <= 0) {
-      console.warn(
+      warnBuildProfile(
+        'missing-transport-delay',
         '[buildProfile] 缺少运输延迟参数，请标定 测量点距离(upperDistance) 和 牵引速度(rollerTractionSpeed)'
       )
       return null
@@ -224,7 +236,8 @@ export function buildProfile(
     }
 
     if (triples.length < numBins * 2) {
-      console.warn(
+      warnBuildProfile(
+        `triples-short:${numBins}`,
         `[buildProfile] 有效测量三元组不足: ${triples.length} < ${numBins * 2}`
       )
       return null
@@ -243,7 +256,8 @@ export function buildProfile(
 
     const nonZeroProfile = result.profile.filter((v) => v > 0)
     if (nonZeroProfile.length < Math.max(numBins * 0.3, 3)) {
-      console.warn(
+      warnBuildProfile(
+        `bins-short:${numBins}`,
         `[buildProfile] 有效分箱不足: ${nonZeroProfile.length} < ${Math.max(numBins * 0.3, 3)}`
       )
       return null

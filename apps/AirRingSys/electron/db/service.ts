@@ -45,6 +45,7 @@ import migrationSql from './migrations/0000_glossy_bloodstrike.sql?raw'
 import migrationSqlV1 from './migrations/0001_double_trip_model.sql?raw'
 import migrationSqlV2 from './migrations/0002_pos1_remove_calib.sql?raw'
 import { FrameRow, RotationRawRow, ThicknessRawRow } from './types'
+import type { RotationTripSummaryRow } from '@/types/ipc'
 
 /**
  * Check whether a v2 migration chunk should be skipped because
@@ -280,6 +281,38 @@ export class SQLiteService {
   }
   queryLatestSweepSummaries(limit: number, beforeTs = 0): SweepSummaryResult[] {
     return this.ready ? queryLatestSweepSummaries(this.db, limit, beforeTs) : []
+  }
+  queryLatestRotationTripSummaries(limit: number, beforeTs = 0): RotationTripSummaryRow[] {
+    if (!this.ready) return []
+
+    const rows = this.sqliteDb
+      .prepare(
+        beforeTs > 0
+          ? `SELECT id, start_ts, end_ts, direction
+             FROM rotation_trip
+             WHERE start_ts < ?
+             ORDER BY start_ts DESC
+             LIMIT ?`
+          : `SELECT id, start_ts, end_ts, direction
+             FROM rotation_trip
+             ORDER BY start_ts DESC
+             LIMIT ?`
+      )
+      .all(...(beforeTs > 0 ? [beforeTs, limit] : [limit])) as Array<{
+        id: number
+        start_ts: number
+        end_ts: number
+        direction: number
+      }>
+
+    return rows
+      .map((row): RotationTripSummaryRow => ({
+        id: `rotation-trip-${row.id}`,
+        time: row.start_ts,
+        direction: row.direction === 1 ? 'forward' : 'reverse',
+        cycleDurationMs: Math.max(0, row.end_ts - row.start_ts),
+      }))
+      .reverse()
   }
   querySweepPointsByTimeRange(startTs: number, endTs: number): { pos: number; ad: number; ts: number }[] {
     return this.ready ? querySweepPointsByRangeWithOrm(this.db, startTs, endTs) : []

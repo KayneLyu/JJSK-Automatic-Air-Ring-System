@@ -635,6 +635,10 @@ function registerAllIpcHandlers(): void {
     return sqliteDb?.queryLatestSweepSummaries(count as number, (beforeTs as number) ?? 0) ?? []
   })
 
+  registerIpcHandler('db-get-latest-rotation-trips', async ([count, beforeTs]: unknown[]) => {
+    return sqliteDb?.queryLatestRotationTripSummaries(count as number, (beforeTs as number) ?? 0) ?? []
+  })
+
   registerIpcHandler('db-get-sweep-points-by-range', async ([startTs, endTs]: unknown[]) => {
     return sqliteDb?.querySweepPointsByRange(startTs as number, endTs as number) ?? []
   })

@@ -305,6 +305,10 @@ export interface IpcChannelMap {
     args: [count: number, beforeTs?: number]
     output: SweepSummaryRow[]
   }
+  'db-get-latest-rotation-trips': {
+    args: [count: number, beforeTs?: number]
+    output: RotationTripSummaryRow[]
+  }
   'db-get-sweep-points-by-range': {
     args: [startTs: number, endTs: number]
     output: SweepPoint[]
@@ -486,4 +490,11 @@ export interface BubbleSweepResult extends BubbleReconstructionResult {
   direction: 'forward' | 'reverse'
   cycleDurationMs: number // 这一趟的实测时长
   inProgress?: boolean
+}
+
+export interface RotationTripSummaryRow {
+  id: string
+  time: number
+  direction: 'forward' | 'reverse'
+  cycleDurationMs: number
 }

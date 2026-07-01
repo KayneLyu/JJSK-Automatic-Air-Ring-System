@@ -10,10 +10,10 @@
  *   6. 缓存 B(φ) per baseline, 导航时优先命中缓存
  */
 
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
 import type {
-  BubbleSweepResult,
   ICalibrationResults,
+  RotationTripSummaryRow,
   SweepPoint,
   SweepSummaryRow,
 } from '@/types/ipc'
@@ -61,13 +61,13 @@ export const WINDOW_MAX_TIME_SPAN_MS = 10 * 60_000
 
 export function useScannerTripReconstruction() {
   // 上旋趟(用于 θ_max / 起始时间)
-  const upperSweeps = ref<BubbleSweepResult[]>([])
+  const upperSweeps = ref<RotationTripSummaryRow[]>([])
   // 测厚仪扫描趟 summary
   const scannerTrips = ref<SweepSummaryRow[]>([])
   // 详细 samples(按 sweepId 缓存)
-  const samplesCache = ref<Map<string, SweepPoint[]>>(new Map())
+  const samplesCache = shallowRef<Map<string, SweepPoint[]>>(new Map())
   // 重构结果(按 baseline sweepId 缓存)
-  const reconstructionCache = ref<Map<string, ReconstructedSweep>>(new Map())
+  const reconstructionCache = shallowRef<Map<string, ReconstructedSweep>>(new Map())
 
   const selectedIndex = ref(0)
   const dataMode = ref<DataMode>('live')
@@ -174,9 +174,9 @@ export function useScannerTripReconstruction() {
   let lastGapAfterEndWarned = 0
 
   /** 给定 ts, 找出包含它的上旋趟(用于 timeToAngle 算 θ) */
-  function findUpperSweepAt(ts: number): BubbleSweepResult | null {
+  function findUpperSweepAt(ts: number): RotationTripSummaryRow | null {
     // 上旋趟按 time 升序, 选包含 ts 的最后一个
-    let candidate: BubbleSweepResult | null = null
+    let candidate: RotationTripSummaryRow | null = null
     for (const s of upperSweeps.value) {
       if (s.time <= ts) candidate = s
       else break
@@ -441,7 +441,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
   }
 
   /** 当前选中的 baseline 的重构结果(异步加载) */
-  const currentReconstruction = ref<ReconstructedSweep | null>(null)
+  const currentReconstruction = shallowRef<ReconstructedSweep | null>(null)
 
   /**
    * 防快速翻页把队列打满:150ms 内多次切 baseline 只触发最后一次
@@ -509,7 +509,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
    * - tripStartTime / tripDurationMs / direction = 上旋趟(用于 timeToAngle 算 θ)
    * - points = baseline 扫描趟的样本
    */
-  const currentScannerSweep = ref<ScannerSweepLite | null>(null)
+  const currentScannerSweep = shallowRef<ScannerSweepLite | null>(null)
   watch(
     () => selectedBaseline.value?.sweepId,
     async (id) => {
@@ -549,9 +549,9 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
     }
     try {
       const result = (await window.ipcApi.invoke(
-        'bubble-get-latest-sweeps',
-        { ...params.value, count: 200 }
-      )) as BubbleSweepResult[]
+        'db-get-latest-rotation-trips',
+        200
+      )) as RotationTripSummaryRow[]
       upperSweeps.value = [...result].sort((a, b) => a.time - b.time)
     } catch (err) {
       upperSweeps.value = []
