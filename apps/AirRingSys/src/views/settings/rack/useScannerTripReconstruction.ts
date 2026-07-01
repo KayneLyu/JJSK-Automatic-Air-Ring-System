@@ -196,6 +196,11 @@ export function useScannerTripReconstruction() {
 
   let lastGapSummaryWarnAt = 0
 
+  function getEffectiveTransportDelayMs(): number {
+    const delay = params.value.transportDelayMs
+    return delay != null && Number.isFinite(delay) && delay > 0 ? delay : 0
+  }
+
   function getUpperSweepsCoverage(): { startTs: number; endTs: number } | null {
     const first = upperSweeps.value[0]
     const last = upperSweeps.value[upperSweeps.value.length - 1]
@@ -210,9 +215,10 @@ export function useScannerTripReconstruction() {
     if (rows.length === 0) return -1
     const coverage = getUpperSweepsCoverage()
     if (!coverage) return rows.length - 1
+    const transportDelayMs = getEffectiveTransportDelayMs()
     const upperEnd = coverage.endTs + UPPER_SWEEP_GAP_TOLERANCE_MS
     for (let i = rows.length - 1; i >= 0; i--) {
-      if (rows[i].endTs <= upperEnd) return i
+      if (rows[i].endTs - transportDelayMs <= upperEnd) return i
     }
     return -1
   }
@@ -293,18 +299,21 @@ export function useScannerTripReconstruction() {
     windowEndTs: number
   ): Promise<void> {
     if (params.value.transportDelayMs == null) return
+    const transportDelayMs = getEffectiveTransportDelayMs()
+    const targetStartTs = windowStartTs - transportDelayMs
+    const targetEndTs = windowEndTs - transportDelayMs
     const coverage = getUpperSweepsCoverage()
     if (
       coverage &&
-      coverage.startTs <= windowStartTs &&
-      coverage.endTs >= windowEndTs
+      coverage.startTs <= targetStartTs &&
+      coverage.endTs >= targetEndTs
     ) {
       return
     }
     const result = (await window.ipcApi.invoke(
       'db-get-latest-rotation-trips',
       UPPER_SWEEPS_FETCH_COUNT,
-      windowEndTs + 1
+      targetEndTs + 1
     )) as RotationTripSummaryRow[]
     upperSweeps.value = [...result].sort((a, b) => a.time - b.time)
     lastUpperSweepsRefreshAt.value = Date.now()
@@ -372,6 +381,7 @@ export function useScannerTripReconstruction() {
     gain: number
   ): MeasurementTripleInput[] {
     const p = params.value
+    const transportDelayMs = getEffectiveTransportDelayMs()
     const gapStats: UpperSweepGapStats = {
       droppedLateCount: 0,
       maxDroppedLateGapMs: 0,
@@ -385,9 +395,10 @@ export function useScannerTripReconstruction() {
     const all: MeasurementTripleInput[] = []
     for (const s of samples) {
       if (s.ad <= 0 || s.ad >= airAD) continue
-      const upper = findUpperSweepAt(s.ts, gapStats)
+      const alignedTs = s.ts - transportDelayMs
+      const upper = findUpperSweepAt(alignedTs, gapStats)
       if (!upper) continue
-      const tInTrip = s.ts - upper.time
+      const tInTrip = alignedTs - upper.time
       const tHalf = upper.cycleDurationMs / 2
       if (tInTrip < 0 || tInTrip > upper.cycleDurationMs) continue
       const theta = timeToAngle(
@@ -413,7 +424,7 @@ export function useScannerTripReconstruction() {
       if (now - lastGapSummaryWarnAt >= GAP_WARNING_SUMMARY_INTERVAL_MS) {
         lastGapSummaryWarnAt = now
         console.warn(
-          `[findUpperSweepAt] 样本匹配汇总: droppedLate=${gapStats.droppedLateCount}(max=${gapStats.maxDroppedLateGapMs.toFixed(0)}ms) afterEnd=${gapStats.afterEndCount}(max=${gapStats.maxAfterEndGapMs.toFixed(0)}ms) beforeFirst=${gapStats.beforeFirstCount}(max=${gapStats.maxBeforeFirstGapMs.toFixed(0)}ms) totalSamples=${samples.length}`
+          `[findUpperSweepAt] 样本匹配汇总: droppedLate=${gapStats.droppedLateCount}(max=${gapStats.maxDroppedLateGapMs.toFixed(0)}ms) afterEnd=${gapStats.afterEndCount}(max=${gapStats.maxAfterEndGapMs.toFixed(0)}ms) beforeFirst=${gapStats.beforeFirstCount}(max=${gapStats.maxBeforeFirstGapMs.toFixed(0)}ms) totalSamples=${samples.length} transportDelay=${transportDelayMs.toFixed(0)}ms`
         )
       }
     }
@@ -502,11 +513,17 @@ export function useScannerTripReconstruction() {
       const batches = await Promise.all(windowTrips.map((t) => loadSamples(t)))
       const allSamples: SweepPoint[] = []
       for (const pts of batches) allSamples.push(...pts)
+      const transportDelayMs = getEffectiveTransportDelayMs()
       const coverage = getUpperSweepsCoverage()
+      const minSampleTs = coverage
+        ? coverage.startTs - UPPER_SWEEP_GAP_TOLERANCE_MS + transportDelayMs
+        : Number.NEGATIVE_INFINITY
       const maxSampleTs = coverage
-        ? coverage.endTs + UPPER_SWEEP_GAP_TOLERANCE_MS
+        ? coverage.endTs + UPPER_SWEEP_GAP_TOLERANCE_MS + transportDelayMs
         : Number.POSITIVE_INFINITY
-      const samplesForReconstruction = allSamples.filter((s) => s.ts <= maxSampleTs)
+      const samplesForReconstruction = allSamples.filter(
+        (s) => s.ts >= minSampleTs && s.ts <= maxSampleTs
+      )
       const p = params.value
       const measurements = buildMeasurements(samplesForReconstruction, p.airAD, p.gain)
       if (measurements.length < 50) {
@@ -730,7 +747,9 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
         return
       }
       const pts = await loadSamples(baseline)
-      const upper = findUpperSweepAt(baseline.startTs)
+      const transportDelayMs = getEffectiveTransportDelayMs()
+      const alignedBaselineTs = baseline.startTs - transportDelayMs
+      const upper = findUpperSweepAt(alignedBaselineTs)
       if (!upper) {
         currentScannerSweep.value = null
         return
