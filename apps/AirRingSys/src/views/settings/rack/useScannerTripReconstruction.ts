@@ -67,6 +67,8 @@ export const TARGET_BIN_COVERAGE_RATIO = 0.8
 export const SCANNER_TRIPS_FETCH_COUNT = 400
 /** 上旋趟摘要刷新最短间隔，避免高频重复查询 */
 export const UPPER_SWEEPS_REFRESH_MIN_INTERVAL_MS = 10_000
+/** 重建窗口上旋趟拉取数量（较大，优先保证时间覆盖） */
+export const UPPER_SWEEPS_FETCH_COUNT = 1200
 /** 本页实时刷新间隔（降低 utility 查询压力） */
 export const RECON_REFRESH_INTERVAL_MS = 5_000
 /** 间隙告警汇总最短间隔，避免按样本刷屏 */
@@ -194,17 +196,36 @@ export function useScannerTripReconstruction() {
 
   let lastGapSummaryWarnAt = 0
 
+  function getUpperSweepsCoverage(): { startTs: number; endTs: number } | null {
+    const first = upperSweeps.value[0]
+    const last = upperSweeps.value[upperSweeps.value.length - 1]
+    if (!first || !last) return null
+    return {
+      startTs: first.time,
+      endTs: last.time + Math.max(0, last.cycleDurationMs),
+    }
+  }
+
   /** 给定 ts, 找出包含它的上旋趟(用于 timeToAngle 算 θ) */
   function findUpperSweepAt(
     ts: number,
     gapStats?: UpperSweepGapStats
   ): RotationTripSummaryRow | null {
-    // 上旋趟按 time 升序, 选包含 ts 的最后一个
-    let candidate: RotationTripSummaryRow | null = null
-    for (const s of upperSweeps.value) {
-      if (s.time <= ts) candidate = s
-      else break
+    const sweeps = upperSweeps.value
+    // 上旋趟按 time 升序, 用二分定位 time <= ts 的最后一个,避免 O(samples*trips) 的线性扫描。
+    let lo = 0
+    let hi = sweeps.length - 1
+    let idx = -1
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1
+      if (sweeps[mid].time <= ts) {
+        idx = mid
+        lo = mid + 1
+      } else {
+        hi = mid - 1
+      }
     }
+    const candidate: RotationTripSummaryRow | null = idx >= 0 ? sweeps[idx] : null
     if (candidate) {
       const end = candidate.time + candidate.cycleDurationMs
       if (ts <= end) {
@@ -244,6 +265,28 @@ export function useScannerTripReconstruction() {
     }
     // 不在任何一趟内, 退回用最近的
     return candidate
+  }
+
+  async function ensureUpperSweepsCoverage(
+    windowStartTs: number,
+    windowEndTs: number
+  ): Promise<void> {
+    if (params.value.transportDelayMs == null) return
+    const coverage = getUpperSweepsCoverage()
+    if (
+      coverage &&
+      coverage.startTs <= windowStartTs &&
+      coverage.endTs >= windowEndTs
+    ) {
+      return
+    }
+    const result = (await window.ipcApi.invoke(
+      'db-get-latest-rotation-trips',
+      UPPER_SWEEPS_FETCH_COUNT,
+      windowEndTs + 1
+    )) as RotationTripSummaryRow[]
+    upperSweeps.value = [...result].sort((a, b) => a.time - b.time)
+    lastUpperSweepsRefreshAt.value = Date.now()
   }
 
   /** 加载指定扫描趟的 samples — 带 in-flight dedup,避免并发重复查询 */
@@ -431,6 +474,9 @@ export function useScannerTripReconstruction() {
     isReconstructing.value = true
     try {
       const windowTrips = getWindowTrips(baseline)
+      const windowStartTs = windowTrips[0]?.startTs ?? baseline.startTs
+      const windowEndTs = baseline.endTs
+      await ensureUpperSweepsCoverage(windowStartTs, windowEndTs)
       // 并行加载窗口内所有 trips 的 samples(本地 SQLite,64 路并发 OK)
       const batches = await Promise.all(windowTrips.map((t) => loadSamples(t)))
       const allSamples: SweepPoint[] = []
@@ -692,7 +738,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
       }
       const result = (await window.ipcApi.invoke(
         'db-get-latest-rotation-trips',
-        200
+        UPPER_SWEEPS_FETCH_COUNT
       )) as RotationTripSummaryRow[]
       upperSweeps.value = [...result].sort((a, b) => a.time - b.time)
       lastUpperSweepsRefreshAt.value = now
