@@ -69,6 +69,17 @@ export const SCANNER_TRIPS_FETCH_COUNT = 400
 export const UPPER_SWEEPS_REFRESH_MIN_INTERVAL_MS = 10_000
 /** 本页实时刷新间隔（降低 utility 查询压力） */
 export const RECON_REFRESH_INTERVAL_MS = 5_000
+/** 间隙告警汇总最短间隔，避免按样本刷屏 */
+export const GAP_WARNING_SUMMARY_INTERVAL_MS = 15_000
+
+interface UpperSweepGapStats {
+  droppedLateCount: number
+  maxDroppedLateGapMs: number
+  afterEndCount: number
+  maxAfterEndGapMs: number
+  beforeFirstCount: number
+  maxBeforeFirstGapMs: number
+}
 
 export function useScannerTripReconstruction() {
   // 上旋趟(用于 θ_max / 起始时间)
@@ -181,12 +192,13 @@ export function useScannerTripReconstruction() {
     () => selectedIndex.value < sortedScannerTrips.value.length - 1
   )
 
-  // 边界间隙告警节流: 每个间隙场景只告警一次(按扫周期重置)
-  let gapWarnedBeforeFirst = false
-  let lastGapAfterEndWarned = 0
+  let lastGapSummaryWarnAt = 0
 
   /** 给定 ts, 找出包含它的上旋趟(用于 timeToAngle 算 θ) */
-  function findUpperSweepAt(ts: number): RotationTripSummaryRow | null {
+  function findUpperSweepAt(
+    ts: number,
+    gapStats?: UpperSweepGapStats
+  ): RotationTripSummaryRow | null {
     // 上旋趟按 time 升序, 选包含 ts 的最后一个
     let candidate: RotationTripSummaryRow | null = null
     for (const s of upperSweeps.value) {
@@ -196,8 +208,6 @@ export function useScannerTripReconstruction() {
     if (candidate) {
       const end = candidate.time + candidate.cycleDurationMs
       if (ts <= end) {
-        // 正常命中,重置告警状态
-        gapWarnedBeforeFirst = false
         return candidate
       }
       // ts 落在候补趟结束之后 → 间隙
@@ -208,28 +218,29 @@ export function useScannerTripReconstruction() {
       }
       if (gapMs > UPPER_SWEEP_GAP_TOLERANCE_MS) {
         // 超过容忍阈值时直接丢弃该测点,避免将历史上旋趟硬匹配到当前测厚
-        if (lastGapAfterEndWarned !== candidate.time) {
-          lastGapAfterEndWarned = candidate.time
-          console.warn(
-            `[findUpperSweepAt] 测厚时间 ${ts} 晚于上旋趟结束 ${gapMs.toFixed(0)}ms (阈值 ${UPPER_SWEEP_GAP_TOLERANCE_MS}ms), 该测点已丢弃`
+        if (gapStats) {
+          gapStats.droppedLateCount += 1
+          gapStats.maxDroppedLateGapMs = Math.max(
+            gapStats.maxDroppedLateGapMs,
+            gapMs
           )
         }
         return null
       }
-      if (lastGapAfterEndWarned !== candidate.time) {
-        lastGapAfterEndWarned = candidate.time
-        console.warn(
-          `[findUpperSweepAt] 测厚时间 ${ts} 落在上旋趟之后(趟结束 ${end}), 
-存在 ${gapMs.toFixed(0)}ms 间隙,使用最近趟推算角度可能不准`
+      if (gapStats) {
+        gapStats.afterEndCount += 1
+        gapStats.maxAfterEndGapMs = Math.max(gapStats.maxAfterEndGapMs, gapMs)
+      }
+    } else if (upperSweeps.value.length > 0) {
+      // ts 在所有上旋趟之前
+      const gapMs = upperSweeps.value[0].time - ts
+      if (gapStats) {
+        gapStats.beforeFirstCount += 1
+        gapStats.maxBeforeFirstGapMs = Math.max(
+          gapStats.maxBeforeFirstGapMs,
+          gapMs
         )
       }
-    } else if (!gapWarnedBeforeFirst && upperSweeps.value.length > 0) {
-      // ts 在所有上旋趟之前
-      gapWarnedBeforeFirst = true
-      console.warn(
-        `[findUpperSweepAt] 测厚时间 ${ts} 早于首个上旋趟(${upperSweeps.value[0].time}), 
-缺口 ${(upperSweeps.value[0].time - ts).toFixed(0)}ms,推算角度可能不准`
-      )
     }
     // 不在任何一趟内, 退回用最近的
     return candidate
@@ -297,12 +308,20 @@ export function useScannerTripReconstruction() {
     gain: number
   ): MeasurementTripleInput[] {
     const p = params.value
+    const gapStats: UpperSweepGapStats = {
+      droppedLateCount: 0,
+      maxDroppedLateGapMs: 0,
+      afterEndCount: 0,
+      maxAfterEndGapMs: 0,
+      beforeFirstCount: 0,
+      maxBeforeFirstGapMs: 0,
+    }
 
     // 第一遍: 构建所有三元组
     const all: MeasurementTripleInput[] = []
     for (const s of samples) {
       if (s.ad <= 0 || s.ad >= airAD) continue
-      const upper = findUpperSweepAt(s.ts)
+      const upper = findUpperSweepAt(s.ts, gapStats)
       if (!upper) continue
       const tInTrip = s.ts - upper.time
       const tHalf = upper.cycleDurationMs / 2
@@ -320,6 +339,20 @@ export function useScannerTripReconstruction() {
     }
 
     if (all.length === 0) return []
+
+    const hasGapIssue =
+      gapStats.droppedLateCount > 0 ||
+      gapStats.afterEndCount > 0 ||
+      gapStats.beforeFirstCount > 0
+    if (hasGapIssue) {
+      const now = Date.now()
+      if (now - lastGapSummaryWarnAt >= GAP_WARNING_SUMMARY_INTERVAL_MS) {
+        lastGapSummaryWarnAt = now
+        console.warn(
+          `[findUpperSweepAt] 样本匹配汇总: droppedLate=${gapStats.droppedLateCount}(max=${gapStats.maxDroppedLateGapMs.toFixed(0)}ms) afterEnd=${gapStats.afterEndCount}(max=${gapStats.maxAfterEndGapMs.toFixed(0)}ms) beforeFirst=${gapStats.beforeFirstCount}(max=${gapStats.maxBeforeFirstGapMs.toFixed(0)}ms) totalSamples=${samples.length}`
+        )
+      }
+    }
 
     // 计算 δ 分布,找扫描中心偏移
     // δ = x/W × 180° — 对于对称扫描,δ 应分布在 [-90°,90°] 附近

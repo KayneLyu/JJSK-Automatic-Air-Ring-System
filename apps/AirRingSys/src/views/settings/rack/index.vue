@@ -100,7 +100,7 @@ onMounted(() => {
 
         <el-tab-pane label="纵向" name="longitudinal" lazy>
           <div class="tab-pane-body">
-            <LongitudinalCharts />
+            <LongitudinalCharts v-if="activeTab === 'longitudinal'" />
           </div>
         </el-tab-pane>
 
@@ -119,7 +119,7 @@ onMounted(() => {
         <el-tab-pane label="膜泡原始厚度" name="bubble-raw-thickness" lazy>
           <div class="tab-pane-body">
             <div class="chart-container">
-              <BubbleRawThickness />
+              <BubbleRawThickness v-if="activeTab === 'bubble-raw-thickness'" />
             </div>
           </div>
         </el-tab-pane>
