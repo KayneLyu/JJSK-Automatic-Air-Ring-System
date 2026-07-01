@@ -122,8 +122,33 @@ export class SQLiteService {
       const trimmed = chunk.trim()
       if (trimmed && !trimmed.startsWith('--')) {
         if (shouldSkipV2Chunk(this.sqliteDb, trimmed)) continue
-        try { this.sqliteDb.exec(trimmed) } catch (e) { console.error('[SQLite] v2 migration error:', e) }
+        try {
+          this.sqliteDb.exec(trimmed)
+        } catch (e) {
+          // ADD COLUMN failures are critical — log prominently
+          if (/ADD\s+COLUMN/i.test(trimmed)) {
+            console.error('[SQLite] CRITICAL: v2 ADD COLUMN migration failed:', trimmed, e)
+          } else {
+            console.error('[SQLite] v2 migration error:', e)
+          }
+        }
       }
+    }
+
+    // Post-migration repair: ensure pos1 exists in thickness_raw.
+    // The v0 migration was modified in-place (commit eb32fa3) to include pos1.
+    // Existing databases that predate this may have the v2 ADD COLUMN
+    // skipped or fail silently — this repair catches those cases.
+    try {
+      const hasPos1 = this.sqliteDb
+        .prepare("SELECT 1 FROM pragma_table_info('thickness_raw') WHERE name = 'pos1'")
+        .get()
+      if (!hasPos1) {
+        this.sqliteDb.exec('ALTER TABLE thickness_raw ADD COLUMN pos1 integer DEFAULT 0 NOT NULL')
+        console.log('[SQLite] Repaired: added pos1 column to thickness_raw')
+      }
+    } catch (e) {
+      console.error('[SQLite] pos1 repair check failed:', e)
     }
 
     this.db = drizzle(this.sqliteDb, { schema })
