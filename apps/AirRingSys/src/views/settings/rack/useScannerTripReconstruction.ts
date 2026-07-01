@@ -55,6 +55,12 @@ export interface ReconstructedSweep {
 export const SCANNER_SLIDING_WINDOW = 640
 /** 滑动窗口最大时间跨度 (ms)：超出此范围的趟不参与重构，防止跨工艺状态数据混杂 */
 export const WINDOW_MAX_TIME_SPAN_MS = 10 * 60_000
+/** 上旋趟匹配容忍间隙 (ms)：超过该值则丢弃该测点，避免错配到过时上旋趟 */
+export const UPPER_SWEEP_GAP_TOLERANCE_MS = 1_000
+/** 极小时间抖动忽略阈值 (ms)：避免 5~20ms 级别日志噪声 */
+export const UPPER_SWEEP_GAP_IGNORE_WARN_BELOW_MS = 20
+/** 重建分箱自适应下限：欠覆盖场景下降分箱，优先保证覆盖连续性 */
+export const MIN_ADAPTIVE_NUM_BINS = 90
 
 export function useScannerTripReconstruction() {
   // 上旋趟(用于 θ_max / 起始时间)
@@ -186,11 +192,26 @@ export function useScannerTripReconstruction() {
         return candidate
       }
       // ts 落在候补趟结束之后 → 间隙
+      const gapMs = ts - end
+      if (gapMs <= UPPER_SWEEP_GAP_IGNORE_WARN_BELOW_MS) {
+        // 5~20ms 级别边界抖动视为同趟尾部,不告警
+        return candidate
+      }
+      if (gapMs > UPPER_SWEEP_GAP_TOLERANCE_MS) {
+        // 超过容忍阈值时直接丢弃该测点,避免将历史上旋趟硬匹配到当前测厚
+        if (lastGapAfterEndWarned !== candidate.time) {
+          lastGapAfterEndWarned = candidate.time
+          console.warn(
+            `[findUpperSweepAt] 测厚时间 ${ts} 晚于上旋趟结束 ${gapMs.toFixed(0)}ms (阈值 ${UPPER_SWEEP_GAP_TOLERANCE_MS}ms), 该测点已丢弃`
+          )
+        }
+        return null
+      }
       if (lastGapAfterEndWarned !== candidate.time) {
         lastGapAfterEndWarned = candidate.time
         console.warn(
           `[findUpperSweepAt] 测厚时间 ${ts} 落在上旋趟之后(趟结束 ${end}), 
-存在 ${(ts - end).toFixed(0)}ms 间隙,使用最近趟推算角度可能不准`
+存在 ${gapMs.toFixed(0)}ms 间隙,使用最近趟推算角度可能不准`
         )
       }
     } else if (!gapWarnedBeforeFirst && upperSweeps.value.length > 0) {
@@ -352,12 +373,22 @@ export function useScannerTripReconstruction() {
         // 数据太少,放弃
         return null
       }
+      // 欠覆盖场景自适应降低分箱数,减少稀疏分布下的角度空洞
+      const adaptiveNumBins = Math.max(
+        MIN_ADAPTIVE_NUM_BINS,
+        Math.min(p.numBins, Math.floor(measurements.length / 6))
+      )
+      if (adaptiveNumBins !== p.numBins) {
+        console.log(
+          `[B(φ)] 分箱自适应: ${p.numBins} -> ${adaptiveNumBins} (meas=${measurements.length})`
+        )
+      }
       const result = (await window.ipcApi.invoke(
         'bubble-reconstruct-window',
         {
           measurements,
           membraneWidthMm: p.membraneWidthMm,
-          numBins: p.numBins,
+          numBins: adaptiveNumBins,
           processDeformationFactor: p.processDeformationFactor,
           preferAfterTs: baseline.startTs,
         }

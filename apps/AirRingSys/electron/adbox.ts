@@ -64,6 +64,11 @@ let currentMaxPulse = 6500
 let pauseTimer: NodeJS.Timeout | null = null
 const END_PAUSE_MS = 200
 
+const ERR_SCAN_ACTIVE_STOP_FIRST =
+  'E_SCAN_ACTIVE_STOP_FIRST: scanning in progress, stop scan before home/move'
+const ERR_EMERGENCY_ACTIVE =
+  'E_EMERGENCY_ACTIVE: emergency stop is active'
+
 const getConnectionLogDir = (device: string) =>
   join(app.getPath('userData'), 'logs', 'connections', device)
 
@@ -267,8 +272,8 @@ function generateSerial(): number {
 }
 
 function sendMotionCommand(dir: 'forward' | 'backward', serial?: number) {
-  if (emergencyStopFlag) throw new Error('急停状态')
-  if (motionState === 'scanning') throw new Error('扫描中，请先停止扫描')
+  if (emergencyStopFlag) throw new Error(ERR_EMERGENCY_ACTIVE)
+  if (motionState === 'scanning') throw new Error(ERR_SCAN_ACTIVE_STOP_FIRST)
   const s = serial ?? generateSerial()
   currentMotionSerial = s
   motionState = dir
@@ -282,7 +287,7 @@ function sendMotionCommand(dir: 'forward' | 'backward', serial?: number) {
 }
 
 function sendMoveToCommand(pos: number, serial?: number, keepState = false) {
-  if (emergencyStopFlag) throw new Error('急停状态')
+  if (emergencyStopFlag) throw new Error(ERR_EMERGENCY_ACTIVE)
   const s = serial ?? generateSerial()
   currentMotionSerial = s
   // 只有非扫描模式下才更新运动状态为 forward/backward
@@ -295,8 +300,8 @@ function sendMoveToCommand(pos: number, serial?: number, keepState = false) {
 }
 
 function sendHomeCommand(serial?: number) {
-  if (emergencyStopFlag) throw new Error('急停状态')
-  if (motionState === 'scanning') throw new Error('扫描中，请先停止扫描')
+  if (emergencyStopFlag) throw new Error(ERR_EMERGENCY_ACTIVE)
+  if (motionState === 'scanning') throw new Error(ERR_SCAN_ACTIVE_STOP_FIRST)
   const s = serial ?? generateSerial()
   currentMotionSerial = s
   motionState = 'backward'
