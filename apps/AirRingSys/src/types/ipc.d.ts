@@ -350,6 +350,19 @@ export interface IpcChannelMap {
     output: BubbleReconstructionResult | null
   }
 
+  'bubble-reconstruct-window': {
+    args: [
+      input: {
+        measurements: MeasurementTripleInput[]
+        membraneWidthMm: number
+        numBins?: number
+        processDeformationFactor?: number
+        preferAfterTs?: number
+      }
+    ]
+    output: BubbleWindowReconstructionResult | null
+  }
+
   // ═══ 膜泡厚度：按趟重建（每趟扫描 = 一幅 profile）═══
   'bubble-get-sweeps': {
     args: [
@@ -490,6 +503,38 @@ export interface BubbleSweepResult extends BubbleReconstructionResult {
   direction: 'forward' | 'reverse'
   cycleDurationMs: number // 这一趟的实测时长
   inProgress?: boolean
+}
+
+export interface MeasurementTripleInput {
+  upperAngleDeg: number
+  scannerPosMm: number
+  thickness: number
+  timestamp: number
+}
+
+export interface BinDecompositionRow {
+  ts: number
+  phi1: number
+  phi2: number
+  b1: number
+  b2: number
+  tMeasured: number
+  tPredicted: number
+}
+
+export interface SampleDecompositionRow {
+  ts: number
+  phi1: number
+  phi2: number
+  b1: number
+  b2: number
+  tMeasured: number
+  tPredicted: number
+}
+
+export interface BubbleWindowReconstructionResult extends BubbleReconstructionResult {
+  binDecompositions?: BinDecompositionRow[]
+  sampleDecompositions?: SampleDecompositionRow[]
 }
 
 export interface RotationTripSummaryRow {

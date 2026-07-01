@@ -34,10 +34,12 @@ import type {
 } from './utilityProtocol'
 import type {
   ICalibrationResult,
+  MeasurementTripleInput,
   ICalibrationControlResult,
   ICalibrationBridgeState,
   IHistoricalCalibrationProgress,
 } from '@/types/ipc'
+import { reconstructBubbleThickness } from '@/views/settings/rack/utils/bubbleReconstruction'
 
 // ═══════════════════════════════════════════════════════════════
 // 常量
@@ -682,6 +684,30 @@ function registerAllIpcHandlers(): void {
   registerIpcHandler('bubble-reconstruct', async ([params]: unknown[]) => {
     if (!pipeline) return null
     return pipeline.getBubbleProfile(params as Parameters<typeof pipeline.getBubbleProfile>[0])
+  })
+
+  registerIpcHandler('bubble-reconstruct-window', async ([input]: unknown[]) => {
+    const payload = input as {
+      measurements: MeasurementTripleInput[]
+      membraneWidthMm: number
+      numBins?: number
+      processDeformationFactor?: number
+      preferAfterTs?: number
+    }
+
+    if (!payload || !Array.isArray(payload.measurements)) return null
+    if (!Number.isFinite(payload.membraneWidthMm) || payload.membraneWidthMm <= 0) return null
+    if (payload.measurements.length < 50) return null
+
+    return reconstructBubbleThickness(
+      payload.measurements,
+      payload.membraneWidthMm,
+      {
+        numBins: payload.numBins,
+        processDeformationFactor: payload.processDeformationFactor,
+        preferAfterTs: payload.preferAfterTs,
+      }
+    )
   })
 
   registerIpcHandler('bubble-get-sweeps', async ([params]: unknown[]) => {

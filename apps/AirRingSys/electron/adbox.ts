@@ -619,6 +619,7 @@ function registerProxiedIpcHandlers(): void {
 
     // 膜泡原始厚度重建
     'bubble-reconstruct',
+    'bubble-reconstruct-window',
     'bubble-get-sweeps',
     'bubble-get-latest-sweeps',
     'bubble-get-current-sweep',

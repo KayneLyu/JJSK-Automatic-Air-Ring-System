@@ -12,7 +12,9 @@
 
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
 import type {
+  BubbleWindowReconstructionResult,
   ICalibrationResults,
+  MeasurementTripleInput,
   RotationTripSummaryRow,
   SweepPoint,
   SweepSummaryRow,
@@ -26,11 +28,6 @@ import {
 } from './bubbleRawThickness.constants'
 import { timeToAngle } from './utils/sampleDecompose'
 import { calcThickness, type ThicknessConfig } from './utiles'
-import {
-  reconstructBubbleThickness,
-  type BubbleReconstructionResult,
-  type MeasurementTriple,
-} from './utils/bubbleReconstruction'
 
 interface DeviceConstants {
   airAD?: string
@@ -49,7 +46,7 @@ export interface ScannerSweepLite {
 export interface ReconstructedSweep {
   baseline: SweepSummaryRow
   windowIds: string[]
-  result: BubbleReconstructionResult
+  result: BubbleWindowReconstructionResult
   /** 重构用的样本数 */
   numSamples: number
 }
@@ -268,11 +265,11 @@ export function useScannerTripReconstruction() {
     samples: SweepPoint[],
     airAD: number,
     gain: number
-  ): MeasurementTriple[] {
+  ): MeasurementTripleInput[] {
     const p = params.value
 
     // 第一遍: 构建所有三元组
-    const all: MeasurementTriple[] = []
+    const all: MeasurementTripleInput[] = []
     for (const s of samples) {
       if (s.ad <= 0 || s.ad >= airAD) continue
       const upper = findUpperSweepAt(s.ts)
@@ -311,7 +308,7 @@ export function useScannerTripReconstruction() {
     )
 
     // 第二遍: δ 居中后过滤 |δ| > 90° (膜边外)
-    const triples: MeasurementTriple[] = []
+    const triples: MeasurementTripleInput[] = []
     let edgeRejected = 0
     for (const m of all) {
       const deltaCentered = (m.scannerPosMm / W) * 180 - deltaCenter
@@ -355,15 +352,17 @@ export function useScannerTripReconstruction() {
         // 数据太少,放弃
         return null
       }
-      const result = reconstructBubbleThickness(
-        measurements,
-        p.membraneWidthMm,
+      const result = (await window.ipcApi.invoke(
+        'bubble-reconstruct-window',
         {
+          measurements,
+          membraneWidthMm: p.membraneWidthMm,
           numBins: p.numBins,
           processDeformationFactor: p.processDeformationFactor,
           preferAfterTs: baseline.startTs,
         }
-      )
+      )) as BubbleWindowReconstructionResult | null
+      if (!result) return null
 
       // ---- 诊断日志 ----
       const mThick = measurements.map((m) => m.thickness)

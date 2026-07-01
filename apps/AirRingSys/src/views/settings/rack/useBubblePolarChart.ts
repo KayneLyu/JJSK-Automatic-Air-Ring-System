@@ -45,6 +45,9 @@ interface AxisPointerLabelParam {
   value: number
 }
 
+type PolarPoint = [number | null, number]
+const MIN_RELIABLE_BIN_COVERAGE = 1
+
 function angularDistance(a: number, b: number): number {
   const d = Math.abs(a - b) % 360
   return Math.min(d, 360 - d)
@@ -68,15 +71,22 @@ export function useBubblePolarChart(
       : (ref(compareSweep) as unknown as Ref<ExtendedBubbleSweepResult | null>)
     : ref(null)
 
+  function buildDisplayProfile(
+    profile: number[],
+    coverage: number[]
+  ): Array<number | null> {
+    if (coverage.length !== profile.length) return [...profile]
+    return profile.map((v, i) =>
+      coverage[i] >= MIN_RELIABLE_BIN_COVERAGE ? v : null
+    )
+  }
+
   /** 构建一组 profile 的极坐标线数据(纯折线,无散点) */
-  function buildPolarLineData(
-    sweep: ExtendedBubbleSweepResult
-  ): [number, number][] {
-    const { profile } = sweep
+  function buildPolarLineData(profile: Array<number | null>): PolarPoint[] {
     const numBins = profile.length
     const binWidth = 360 / numBins
     const dataAt = (i: number) => i * binWidth + binWidth / 2
-    const data: [number, number][] = profile.map(function (v, i) {
+    const data: PolarPoint[] = profile.map(function (v, i) {
       return [v, dataAt(i)]
     })
     data.push([profile[0], dataAt(0)])
@@ -84,14 +94,11 @@ export function useBubblePolarChart(
   }
 
   /** 构建对比扫描趟的纯线数据(无散点) */
-  function buildCompareLineData(
-    sweep: ExtendedBubbleSweepResult
-  ): [number, number][] {
-    const { profile } = sweep
+  function buildCompareLineData(profile: Array<number | null>): PolarPoint[] {
     const numBins = profile.length
     const binWidth = 360 / numBins
     const dataAt = (i: number) => i * binWidth + binWidth / 2
-    const data: [number, number][] = profile.map(function (v, i) {
+    const data: PolarPoint[] = profile.map(function (v, i) {
       return [v, dataAt(i)]
     })
     data.push([profile[0], dataAt(0)])
@@ -132,7 +139,9 @@ export function useBubblePolarChart(
         ? Math.min(...sweep.binCoverage).toFixed(1)
         : '?'
 
-    const lineData = buildPolarLineData(sweep)
+    const lineData = buildPolarLineData(
+      buildDisplayProfile(profile, sweep.binCoverage)
+    )
     const compareData = compareRef.value
     const hasCompare = !!(compareData && compareData.profile.length > 0)
     const sampleDecomps = sweep.sampleDecompositions ?? []
@@ -158,7 +167,9 @@ export function useBubblePolarChart(
         name: `${directionLabel(cSweep.direction)}向扫描(对比)`,
         coordinateSystem: 'polar',
         z: 5,
-        data: buildCompareLineData(cSweep),
+        data: buildCompareLineData(
+          buildDisplayProfile(cSweep.profile, cSweep.binCoverage)
+        ),
         lineStyle: { width: 2, color: cColor, type: 'dashed', opacity: 0.6 },
         showSymbol: false,
         emphasis: { focus: 'series' },
@@ -195,14 +206,29 @@ export function useBubblePolarChart(
           if (arr.length === 0) return ''
           const rawAngle = Number(arr[0].value[1].toFixed())
           const currentBin = Math.floor(rawAngle / binWidth) % numBins
+          const coverage = sweep.binCoverage
+
+          const coverageAt = (i: number): number => {
+            if (coverage.length !== numBins) return 1
+            return coverage[i] ?? 0
+          }
 
           // profile 插值: 保证 cursorB 与 matchedB 同源
-          const interpB = (angleDeg: number): number => {
+          const interpB = (angleDeg: number): number | null => {
             const a = ((angleDeg % 360) + 360) % 360
             const idx = a / binWidth
             const lo = Math.floor(idx) % numBins
             const hi = (lo + 1) % numBins
             const w = idx - Math.floor(idx)
+            const covLo = coverageAt(lo)
+            const covHi = coverageAt(hi)
+            // 可靠性策略：两个相邻 bin 任意一个覆盖不足，则该角度视为不可靠。
+            if (
+              covLo < MIN_RELIABLE_BIN_COVERAGE ||
+              covHi < MIN_RELIABLE_BIN_COVERAGE
+            ) {
+              return null
+            }
             return profile[lo] * (1 - w) + profile[hi] * w
           }
           const cursorB = interpB(rawAngle)
@@ -210,7 +236,7 @@ export function useBubblePolarChart(
           // 按角度动态匹配样本级反解，取游标所在侧对侧的 φ (压合 = B₁ + B₂)
           // matchedPhi = 2·αC − cursorAngle; B 从 profile 插值, 保证正反方向对称
           let matchedPhi = 0
-          let matchedB = 0
+          let matchedB: number | null = null
           let matchTs = 0
           if (sampleDecomps.length > 0) {
             let bestIdx = 0
@@ -237,12 +263,19 @@ export function useBubblePolarChart(
             }
           }
 
-          let html = `<div style="font-weight:600;margin-bottom:4px">角度：${rawAngle}° ｜ 厚度：${Number(cursorB.toFixed(2))} μm</div>`
+          const cursorText = cursorB == null ? '--' : Number(cursorB.toFixed(2))
+          let html = `<div style="font-weight:600;margin-bottom:4px">角度：${rawAngle}° ｜ 厚度：${cursorText} μm</div>`
+          if (cursorB == null) {
+            html += '<div style="color:#e6a23c;font-size:11px">当前角度覆盖不足，显示值不可靠</div>'
+            html += `<div style="color:#c0c4cc;font-size:11px">覆盖阈值: 每 bin ≥ ${MIN_RELIABLE_BIN_COVERAGE.toFixed(0)}</div>`
+          }
 
-          if (matchTs > 0) {
+          if (matchTs > 0 && cursorB != null && matchedB != null) {
             const pressing_thickness = Number((cursorB + matchedB).toFixed(2))
             html += `<div style="color:#c0c4cc;font-size:11px">测厚时间 ${formatTime(matchTs)}</div>`
             html += `<div style="margin-top:6px;padding-top:4px;border-top:1px solid #ebeef5;font-size:11px">压合厚度: ${Number(cursorB.toFixed(2))} + ${Number(matchedB.toFixed(2))}(${matchedPhi.toFixed()}°) = <b>${pressing_thickness} μm</b></div>`
+          } else if (matchTs > 0) {
+            html += '<div style="margin-top:6px;padding-top:4px;border-top:1px solid #ebeef5;font-size:11px;color:#e6a23c">压合厚度计算因覆盖不足被跳过</div>'
           }
 
           // 对比扫描趟插值
