@@ -42,11 +42,18 @@ import {
   queryLatestDirectionChanges,
 } from './rawQueries'
 import { detectBimodalThreshold } from '@jjsk/air-ring-server/electron'
+import {
+  MIN_MEMBRANE_PULSE_SPAN,
+  MIN_SCAN_PULSE_SPAN,
+} from './scanPassDetector'
 import migrationSql from './migrations/0000_glossy_bloodstrike.sql?raw'
 import migrationSqlV1 from './migrations/0001_double_trip_model.sql?raw'
 import migrationSqlV2 from './migrations/0002_pos1_remove_calib.sql?raw'
 import { FrameRow, RotationRawRow, ThicknessRawRow } from './types'
 import type { RotationTripSummaryRow } from '@/types/ipc'
+
+const MIN_VALID_ROTATION_TRIP_MS = 30_000
+const MAX_VALID_ROTATION_TRIP_MS = 900_000
 
 /**
  * Check whether a v2 migration chunk should be skipped because
@@ -230,10 +237,14 @@ export class SQLiteService {
         INSERT INTO rotation_trip (start_ts, end_ts, direction, status, created_at)
         SELECT ts, next_ts, direction, 'estimated', ?
         FROM direction_changes
-        WHERE direction IS NOT NULL AND next_ts IS NOT NULL AND next_ts > ts
+        WHERE direction IS NOT NULL
+          AND next_ts IS NOT NULL
+          AND next_ts > ts
+          AND (next_ts - ts) >= ?
+          AND (next_ts - ts) <= ?
         `
       )
-      .run(now)
+      .run(now, MIN_VALID_ROTATION_TRIP_MS, MAX_VALID_ROTATION_TRIP_MS)
 
     const inserted = (this.sqliteDb
       .prepare('SELECT COUNT(*) AS cnt FROM rotation_trip')
@@ -365,14 +376,31 @@ export class SQLiteService {
           ? `SELECT id, start_ts, end_ts, direction
              FROM rotation_trip
              WHERE start_ts < ?
+               AND (end_ts - start_ts) >= ?
+               AND (end_ts - start_ts) <= ?
              ORDER BY start_ts DESC
              LIMIT ?`
           : `SELECT id, start_ts, end_ts, direction
              FROM rotation_trip
+             WHERE (end_ts - start_ts) >= ?
+               AND (end_ts - start_ts) <= ?
              ORDER BY start_ts DESC
              LIMIT ?`
       )
-      .all(...(beforeTs > 0 ? [beforeTs, limit] : [limit])) as Array<{
+      .all(
+        ...(beforeTs > 0
+          ? [
+              beforeTs,
+              MIN_VALID_ROTATION_TRIP_MS,
+              MAX_VALID_ROTATION_TRIP_MS,
+              limit,
+            ]
+          : [
+              MIN_VALID_ROTATION_TRIP_MS,
+              MAX_VALID_ROTATION_TRIP_MS,
+              limit,
+            ])
+      ) as Array<{
         id: number
         start_ts: number
         end_ts: number
@@ -433,17 +461,29 @@ export class SQLiteService {
   /**
    * 对历史/导入得到的 scan_pass 做双峰完整性复核，不满足则标记为 rejected。
    *
-   * 仅复核 status=complete 且 valid_ratio=0 的行（典型历史回填），避免影响实时写入。
+   * 复核两类行：
+   * 1) status=complete 且 valid_ratio=0（典型历史回填）
+   * 2) status=complete 且 pulse_span 过小（窄幅抖动误标 complete）
    */
   private revalidateBackfilledScanPassesByBimodal(): number {
     const candidates = this.sqliteDb
       .prepare(
-        `SELECT id, start_ts, end_ts
+        `SELECT id, start_ts, end_ts, pulse_min, pulse_max
          FROM scan_pass
-         WHERE status = 'complete' AND valid_ratio = 0
+         WHERE status = 'complete'
+           AND (
+             valid_ratio = 0
+             OR (pulse_max - pulse_min) < ?
+           )
          ORDER BY start_ts ASC`
       )
-      .all() as Array<{ id: number; start_ts: number; end_ts: number }>
+      .all(MIN_SCAN_PULSE_SPAN) as Array<{
+      id: number
+      start_ts: number
+      end_ts: number
+      pulse_min: number
+      pulse_max: number
+    }>
     if (candidates.length === 0) return 0
 
     const queryPoints = this.sqliteDb.prepare(
@@ -457,6 +497,11 @@ export class SQLiteService {
     this.sqliteDb.exec('BEGIN')
     try {
       for (const row of candidates) {
+        if (row.pulse_max - row.pulse_min < MIN_SCAN_PULSE_SPAN) {
+          markRejected.run(row.id)
+          rejected += 1
+          continue
+        }
         const points = queryPoints.all(row.start_ts, row.end_ts) as Array<{
           pulse: number
           ad: number
@@ -487,11 +532,12 @@ export class SQLiteService {
             break
           }
         }
-        if (
-          leadingPulse === null ||
-          trailingPulse === null ||
-          trailingPulse <= leadingPulse
-        ) {
+        if (leadingPulse === null || trailingPulse === null) {
+          markRejected.run(row.id)
+          rejected += 1
+          continue
+        }
+        if (Math.abs(trailingPulse - leadingPulse) < MIN_MEMBRANE_PULSE_SPAN) {
           markRejected.run(row.id)
           rejected += 1
         }

@@ -58,6 +58,8 @@ const DEFAULT_STANDARDIZED: Scalar = {
 }
 
 const PAGE_SIZE = 5000
+const MIN_VALID_ROTATION_TRIP_MS = 30_000
+const MAX_VALID_ROTATION_TRIP_MS = 900_000
 
 // ═══════════════════════════════════════════════════════════════
 // 全局状态
@@ -657,6 +659,8 @@ function registerAllIpcHandlers(): void {
       const isReverse = cur.reverseDirChange > 0 && cur.forwardDirChange <= 0
       if (!isForward && !isReverse) continue
       if (next.timestamp <= cur.timestamp) continue
+      if (next.timestamp - cur.timestamp < MIN_VALID_ROTATION_TRIP_MS) continue
+      if (next.timestamp - cur.timestamp > MAX_VALID_ROTATION_TRIP_MS) continue
       trips.push({
         id: `rotation-fallback-${cur.id}`,
         time: cur.timestamp,

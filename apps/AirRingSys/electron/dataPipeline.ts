@@ -44,6 +44,11 @@ export class DataPipeline {
   // ── 上旋旋转趟实时检测 ──
   private rotationTripStartTs: number | null = null
   private rotationTripDirection: number | null = null
+  private lastDirectionSignalTs: number | null = null
+  private lastDirectionSignal: number | null = null
+  private readonly ROTATION_DIR_SIGNAL_DEBOUNCE_MS = 2_000
+  private readonly MIN_ROTATION_TRIP_DURATION_MS = 30_000
+  private readonly MAX_ROTATION_TRIP_DURATION_MS = 900_000
 
   // 计算回调
   private feedThicknessSample?: (sample: {
@@ -215,6 +220,8 @@ export class DataPipeline {
     if (data.Reset) {
       this.rotationTripStartTs = null
       this.rotationTripDirection = null
+      this.lastDirectionSignalTs = null
+      this.lastDirectionSignal = null
       return
     }
 
@@ -226,23 +233,45 @@ export class DataPipeline {
           : null
 
     if (directionSignal !== null) {
+      // 同向短间隔重复触发视为抖动,忽略避免切出大量 400ms 短趟。
+      if (
+        this.lastDirectionSignal !== null &&
+        this.lastDirectionSignal === directionSignal &&
+        this.lastDirectionSignalTs !== null &&
+        ts - this.lastDirectionSignalTs < this.ROTATION_DIR_SIGNAL_DEBOUNCE_MS
+      ) {
+        return
+      }
+      this.lastDirectionSignal = directionSignal
+      this.lastDirectionSignalTs = ts
+
       // 前一趟结束
       if (
         this.rotationTripStartTs !== null &&
         this.rotationTripDirection !== null &&
         ts > this.rotationTripStartTs
       ) {
-        const tripId = this.sqlite.insertRotationTrip({
-          startTs: this.rotationTripStartTs,
-          endTs: ts,
-          direction: this.rotationTripDirection,
-        })
-        // 回填该上旋趟时间范围内的 scan_pass
-        if (tripId > 0) {
-          this.sqlite.backfillScanPassRotationTrip(
-            tripId,
-            this.rotationTripStartTs,
-            ts
+        const durationMs = ts - this.rotationTripStartTs
+        if (
+          durationMs >= this.MIN_ROTATION_TRIP_DURATION_MS &&
+          durationMs <= this.MAX_ROTATION_TRIP_DURATION_MS
+        ) {
+          const tripId = this.sqlite.insertRotationTrip({
+            startTs: this.rotationTripStartTs,
+            endTs: ts,
+            direction: this.rotationTripDirection,
+          })
+          // 回填该上旋趟时间范围内的 scan_pass
+          if (tripId > 0) {
+            this.sqlite.backfillScanPassRotationTrip(
+              tripId,
+              this.rotationTripStartTs,
+              ts
+            )
+          }
+        } else {
+          console.warn(
+            `[RotationTrip] 忽略异常趟: ${durationMs}ms (valid=[${this.MIN_ROTATION_TRIP_DURATION_MS},${this.MAX_ROTATION_TRIP_DURATION_MS}]ms)`
           )
         }
       }

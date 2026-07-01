@@ -17,6 +17,11 @@
 
 import { detectBimodalThreshold } from '@jjsk/air-ring-server/electron'
 
+/** 扫描趟最小脉冲跨度：低于该值视为窄幅抖动，不可用于重构 */
+export const MIN_SCAN_PULSE_SPAN = 1000
+/** 膜内有效跨度最小值：首末膜内 pulse 间距低于该值视为覆盖不足 */
+export const MIN_MEMBRANE_PULSE_SPAN = 800
+
 /** 扫描趟方向：1 = 正向（脉冲递增），-1 = 反向（脉冲递减） */
 export type ScannerDirection = 1 | -1
 
@@ -86,6 +91,7 @@ const createCurrentScan = (
 
 const isCompleteByBimodal = (scan: CurrentScan): boolean => {
   if (scan.ads.length < 100 || scan.pulses.length < 100) return false
+  if (scan.pulseMax - scan.pulseMin < MIN_SCAN_PULSE_SPAN) return false
   const threshold = detectBimodalThreshold(scan.ads)
   if (threshold === null) return false
 
@@ -103,11 +109,9 @@ const isCompleteByBimodal = (scan: CurrentScan): boolean => {
       break
     }
   }
-  return (
-    leadingPulse !== null &&
-    trailingPulse !== null &&
-    trailingPulse > leadingPulse
-  )
+  if (leadingPulse === null || trailingPulse === null) return false
+  // 方向无关：正向/反向都用绝对跨度判断膜内覆盖宽度。
+  return Math.abs(trailingPulse - leadingPulse) >= MIN_MEMBRANE_PULSE_SPAN
 }
 
 const closeCurrentScan = (scan: CurrentScan, endTs: number): ClosedScanPass => ({

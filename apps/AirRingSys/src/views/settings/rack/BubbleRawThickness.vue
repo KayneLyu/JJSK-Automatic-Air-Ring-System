@@ -17,6 +17,7 @@ const {
   errorMessage,
   isReconstructing,
   reconstructionHint,
+  transportDelayStatus,
   calResults,
   thicknessCfg,
   scannerTrips,
@@ -77,6 +78,9 @@ const chartDiagnostic = computed<string | null>(() => {
   if (scannerTrips.value.length === 0) {
     if (calResults.value && Object.keys(calResults.value).length === 0)
       return '缺少标定参数 (airAD / membraneWidth / upperMaxAngle)，无法加载扫描趟'
+    if (dataMode.value === 'historical') {
+      return '历史数据中无可用扫描趟（仅展示 complete 扫描趟），请检查导入数据或 scan_pass 完整性判定结果'
+    }
     return '无测厚仪扫描趟数据 — 请确认 ADBox 已连接且正在采集'
   }
   if (upperSweeps.value.length === 0)
@@ -145,6 +149,7 @@ function onAutoRefreshChange(v: boolean) {
       :theta-coverage-text="thetaCoverageText"
       :delta-bandwidth-text="deltaBandwidthText"
       :effective-constraint-bin-ratio="effectiveConstraintBinRatio"
+      :transport-delay-status="transportDelayStatus"
       :has-selected-sweep="syntheticSweep !== null"
       :auto-refresh="autoRefresh"
       @update:auto-refresh="onAutoRefreshChange"

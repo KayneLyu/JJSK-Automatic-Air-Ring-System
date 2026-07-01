@@ -63,6 +63,12 @@ export const UPPER_SWEEP_GAP_IGNORE_WARN_BELOW_MS = 50
 export const MIN_ADAPTIVE_NUM_BINS = 90
 /** 分箱目标覆盖率：低于该比例时下调分箱 */
 export const TARGET_BIN_COVERAGE_RATIO = 0.8
+/** φ 对分离度 p95 下限（度）：低于该值说明横向覆盖过窄，重构病态 */
+export const MIN_P95_PHI_SEPARATION_DEG = 18
+/** θ 覆盖比例下限：低于该值说明上旋时间轴覆盖不足 */
+export const MIN_THETA_COVERAGE_RATIO = 0.8
+/** 时延上限（ms）：超过该值视为异常，降级为 0ms */
+export const MAX_EFFECTIVE_TRANSPORT_DELAY_MS = 120_000
 /** 扫描趟摘要默认拉取数量（首屏） */
 export const SCANNER_TRIPS_FETCH_COUNT = 400
 /** 上旋趟摘要刷新最短间隔，避免高频重复查询 */
@@ -83,6 +89,30 @@ interface UpperSweepGapStats {
   maxBeforeFirstGapMs: number
 }
 
+interface MeasurementBuildStats {
+  totalSamples: number
+  droppedLateCount: number
+  droppedLateRatio: number
+  transportDelayMs: number
+}
+
+interface MeasurementBuildResult {
+  measurements: MeasurementTripleInput[]
+  stats: MeasurementBuildStats
+}
+
+interface SeparationStats {
+  p95: number
+  max: number
+}
+
+interface ThetaCoverageStats {
+  p05: number
+  p95: number
+  span: number
+  ratio: number
+}
+
 export function useScannerTripReconstruction() {
   // 上旋趟(用于 θ_max / 起始时间)
   const upperSweeps = ref<RotationTripSummaryRow[]>([])
@@ -101,6 +131,7 @@ export function useScannerTripReconstruction() {
   const lastUpdatedAt = ref<number | null>(null)
   const errorMessage = ref<string | null>(null)
   const reconstructionHint = ref<string | null>(null)
+  const transportDelayStatus = ref<string | null>(null)
   const isConnected = ref(false)
   const hasOlderData = ref(true)
   const lastUpperSweepsRefreshAt = ref(0)
@@ -204,7 +235,9 @@ export function useScannerTripReconstruction() {
 
   function getEffectiveTransportDelayMs(): number {
     const delay = params.value.transportDelayMs
-    return delay != null && Number.isFinite(delay) && delay > 0 ? delay : 0
+    if (delay == null || !Number.isFinite(delay) || delay <= 0) return 0
+    if (delay > MAX_EFFECTIVE_TRANSPORT_DELAY_MS) return 0
+    return delay
   }
 
   function getUpperSweepsCoverage(): { startTs: number; endTs: number } | null {
@@ -398,10 +431,10 @@ export function useScannerTripReconstruction() {
   function buildMeasurements(
     samples: SweepPoint[],
     airAD: number,
-    gain: number
-  ): MeasurementTripleInput[] {
+    gain: number,
+    transportDelayMs = getEffectiveTransportDelayMs()
+  ): MeasurementBuildResult {
     const p = params.value
-    const transportDelayMs = getEffectiveTransportDelayMs()
     const gapStats: UpperSweepGapStats = {
       droppedLateCount: 0,
       maxDroppedLateGapMs: 0,
@@ -433,7 +466,18 @@ export function useScannerTripReconstruction() {
       all.push({ upperAngleDeg: theta, scannerPosMm: x, thickness: T, timestamp: s.ts })
     }
 
-    if (all.length === 0) return []
+    if (all.length === 0) {
+      return {
+        measurements: [],
+        stats: {
+          totalSamples: samples.length,
+          droppedLateCount: gapStats.droppedLateCount,
+          droppedLateRatio:
+            samples.length > 0 ? gapStats.droppedLateCount / samples.length : 0,
+          transportDelayMs,
+        },
+      }
+    }
 
     const hasGapIssue =
       gapStats.droppedLateCount > 0 ||
@@ -483,7 +527,16 @@ export function useScannerTripReconstruction() {
         `[buildMeasurements] δ 居中后过滤 ${edgeRejected} 条边外测量(|δ|>90°)`
       )
     }
-    return triples
+    return {
+      measurements: triples,
+      stats: {
+        totalSamples: samples.length,
+        droppedLateCount: gapStats.droppedLateCount,
+        droppedLateRatio:
+          samples.length > 0 ? gapStats.droppedLateCount / samples.length : 0,
+        transportDelayMs,
+      },
+    }
   }
 
   function estimateCoverageRatio(
@@ -512,6 +565,59 @@ export function useScannerTripReconstruction() {
     }
   }
 
+  function estimatePhiSeparationStats(
+    measurements: MeasurementTripleInput[],
+    membraneWidthMm: number
+  ): SeparationStats {
+    if (measurements.length === 0 || membraneWidthMm <= 0) {
+      return { p95: 0, max: 0 }
+    }
+    const separations = measurements
+      .map((m) => {
+        const delta = (m.scannerPosMm / membraneWidthMm) * 180
+        return Math.min(360, Math.abs(delta) * 2)
+      })
+      .sort((a, b) => a - b)
+    const p95Idx = Math.max(0, Math.min(separations.length - 1, Math.floor(separations.length * 0.95)))
+    return {
+      p95: separations[p95Idx],
+      max: separations[separations.length - 1],
+    }
+  }
+
+  function estimateThetaCoverageStats(
+    measurements: MeasurementTripleInput[],
+    thetaMaxDeg: number
+  ): ThetaCoverageStats {
+    if (measurements.length === 0 || thetaMaxDeg <= 0) {
+      return { p05: 0, p95: 0, span: 0, ratio: 0 }
+    }
+    const thetas = measurements
+      .map((m) => m.upperAngleDeg)
+      .filter((v) => Number.isFinite(v))
+      .sort((a, b) => a - b)
+    if (thetas.length === 0) {
+      return { p05: 0, p95: 0, span: 0, ratio: 0 }
+    }
+    const p05Idx = Math.max(
+      0,
+      Math.min(thetas.length - 1, Math.floor(thetas.length * 0.05))
+    )
+    const p95Idx = Math.max(
+      0,
+      Math.min(thetas.length - 1, Math.floor(thetas.length * 0.95))
+    )
+    const p05 = thetas[p05Idx]
+    const p95 = thetas[p95Idx]
+    const span = Math.max(0, p95 - p05)
+    return {
+      p05,
+      p95,
+      span,
+      ratio: span / thetaMaxDeg,
+    }
+  }
+
   /**
    * 为给定 baseline 计算 B(φ)
    * - 命中缓存直接返回
@@ -530,6 +636,7 @@ export function useScannerTripReconstruction() {
       return null
     }
     reconstructionHint.value = null
+    transportDelayStatus.value = null
     isReconstructing.value = true
     try {
       const windowTrips = getWindowTrips(baseline)
@@ -552,12 +659,91 @@ export function useScannerTripReconstruction() {
         (s) => s.ts >= minSampleTs && s.ts <= maxSampleTs
       )
       const p = params.value
-      const measurements = buildMeasurements(samplesForReconstruction, p.airAD, p.gain)
+      const rawDelayMs = p.transportDelayMs
+      const preferredDelayMs = getEffectiveTransportDelayMs()
+      let delayStatusPrefix: string | null = null
+      if (
+        rawDelayMs != null &&
+        Number.isFinite(rawDelayMs) &&
+        rawDelayMs > MAX_EFFECTIVE_TRANSPORT_DELAY_MS
+      ) {
+        delayStatusPrefix =
+          `delay异常 ${rawDelayMs.toFixed(0)}ms（>${MAX_EFFECTIVE_TRANSPORT_DELAY_MS}ms），已按0ms`
+      }
+      const primaryBuild = buildMeasurements(
+        samplesForReconstruction,
+        p.airAD,
+        p.gain,
+        preferredDelayMs
+      )
+      let chosenBuild = primaryBuild
+      if (preferredDelayMs > 0) {
+        const shouldTryNoDelay =
+          primaryBuild.stats.droppedLateRatio >= 0.6 ||
+          primaryBuild.measurements.length < 50
+        if (shouldTryNoDelay) {
+          const zeroDelayBuild = buildMeasurements(
+            samplesForReconstruction,
+            p.airAD,
+            p.gain,
+            0
+          )
+          if (zeroDelayBuild.measurements.length > primaryBuild.measurements.length * 1.5) {
+            console.warn(
+              `[B(φ)] transportDelay 回退: ${preferredDelayMs.toFixed(0)}ms -> 0ms ` +
+                `(droppedLate=${primaryBuild.stats.droppedLateCount}/${primaryBuild.stats.totalSamples}, ` +
+                `meas=${primaryBuild.measurements.length}->${zeroDelayBuild.measurements.length})`
+            )
+            transportDelayStatus.value =
+              `delay回退 ${preferredDelayMs.toFixed(0)}ms→0ms（meas ${primaryBuild.measurements.length}→${zeroDelayBuild.measurements.length}）`
+            chosenBuild = zeroDelayBuild
+          } else {
+            transportDelayStatus.value =
+              `delay保持 ${preferredDelayMs.toFixed(0)}ms（回退收益不足）`
+          }
+        } else {
+          transportDelayStatus.value =
+            delayStatusPrefix ?? `delay ${preferredDelayMs.toFixed(0)}ms`
+        }
+      } else {
+        transportDelayStatus.value = delayStatusPrefix ?? 'delay 0ms'
+      }
+
+      const measurements = chosenBuild.measurements
       if (measurements.length < 50) {
         // 数据太少,放弃
-        reconstructionHint.value = `有效测量点不足（${measurements.length}/50）`
+        const dropPct = (chosenBuild.stats.droppedLateRatio * 100).toFixed(1)
+        reconstructionHint.value =
+          `有效测量点不足（${measurements.length}/50，droppedLate=${chosenBuild.stats.droppedLateCount}/${chosenBuild.stats.totalSamples}=${dropPct}%）`
         return null
       }
+
+      const separationStats = estimatePhiSeparationStats(
+        measurements,
+        p.membraneWidthMm
+      )
+      if (separationStats.p95 < MIN_P95_PHI_SEPARATION_DEG) {
+        reconstructionHint.value =
+          `横向覆盖不足（|φ1-φ2| p95=${separationStats.p95.toFixed(1)}° < ${MIN_P95_PHI_SEPARATION_DEG}°，max=${separationStats.max.toFixed(1)}°）`
+        console.warn(
+          `[B(φ)] 跳过重构: 横向覆盖不足 (sep.p95=${separationStats.p95.toFixed(1)}°, sep.max=${separationStats.max.toFixed(1)}°, meas=${measurements.length})`
+        )
+        return null
+      }
+
+      const thetaCoverage = estimateThetaCoverageStats(
+        measurements,
+        p.thetaMaxDeg
+      )
+      if (thetaCoverage.ratio < MIN_THETA_COVERAGE_RATIO) {
+        reconstructionHint.value =
+          `上旋覆盖不足（θ p05=${thetaCoverage.p05.toFixed(0)}°, p95=${thetaCoverage.p95.toFixed(0)}°, 覆盖=${(thetaCoverage.ratio * 100).toFixed(1)}%）`
+        console.warn(
+          `[B(φ)] 跳过重构: 上旋覆盖不足 (thetaSpan=${thetaCoverage.span.toFixed(1)}°, ratio=${(thetaCoverage.ratio * 100).toFixed(1)}%, meas=${measurements.length})`
+        )
+        return null
+      }
+
       const baseCoverage = estimateCoverageRatio(
         measurements,
         p.membraneWidthMm,
@@ -593,7 +779,7 @@ export function useScannerTripReconstruction() {
       )) as BubbleWindowReconstructionResult | null
       if (!result) {
         reconstructionHint.value =
-          `重构求解无结果（samples=${samplesForReconstruction.length}, meas=${measurements.length}）`
+          `重构求解无结果（samples=${samplesForReconstruction.length}, meas=${measurements.length}, delay=${chosenBuild.stats.transportDelayMs.toFixed(0)}ms）`
         return null
       }
       reconstructionHint.value = null
@@ -994,6 +1180,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
     isRefreshing,
     isReconstructing,
     reconstructionHint,
+    transportDelayStatus,
     autoRefresh,
     lastUpdatedAt,
     errorMessage,
