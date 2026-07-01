@@ -17,25 +17,19 @@
 //   D₂[i][i±1] = −4
 //   D₂[i][i±2] = 1
 //
+// 使用原生 Float64Array，避免 ml-matrix 对象分配。
 // ============================================================
 
-import { Matrix } from 'ml-matrix'
+const ZERO = 1e-14
 
 /**
- * 构建 Tikhonov 正则化的 D₂ᵀD₂ 矩阵
+ * 构建 Tikhonov 正则化的 D₂ᵀD₂ 矩阵（N×N，行主序 Float64Array）
  *
  * D₂ 的行 i 计算平滑度：Δ²x[i] = x[i−2] − 4x[i−1] + 6x[i] − 4x[i+1] + x[i+2]
- * D₂ᵀD₂ 的 banded 结构：
- *   对每个 i，D₂ᵀD₂ 在 (i,j) 处的值为 Σ_k D₂[k][i]·D₂[k][j]
- *
- *   由于 D₂ 每行只有 5 个非零元，D₂ᵀD₂ 每行最多 9 个非零元。
- *   简化计算：直接叠加每行 k 的贡献。
- *
- * @param N 矩阵维度（bin 数）
- * @returns D₂ᵀD₂ 矩阵
+ * D₂ᵀD₂ 的 banded 结构：每行最多 9 个非零元。
  */
-export const buildD2TD2 = (N: number): Matrix => {
-  const D2TD2 = Matrix.zeros(N, N)
+export const buildD2TD2 = (N: number): Float64Array => {
+  const D2TD2 = new Float64Array(N * N)
   for (let i = 0; i < N; i++) {
     const im2 = (i - 2 + N) % N
     const im1 = (i - 1 + N) % N
@@ -48,7 +42,7 @@ export const buildD2TD2 = (N: number): Matrix => {
 
     for (const [p, wp] of kernel) {
       for (const [q, wq] of kernel) {
-        D2TD2.set(p, q, D2TD2.get(p, q) + wp * wq)
+        D2TD2[p * N + q] += wp * wq
       }
     }
   }
@@ -60,23 +54,27 @@ export const buildD2TD2 = (N: number): Matrix => {
  *
  *   L(x) = ||Ax − b||² + λ||x||² + μ||D₂x||²
  *
- * @returns 损失值
+ * @param A    测量矩阵 (M×N, 行主序 Float64Array)
+ * @param cols A 的列数 N
  */
 export const tikhonovLoss = (
   x: number[],
-  A: Matrix,
+  A: Float64Array,
+  cols: number,
   b: Float64Array | number[],
-  D2: Matrix,
+  D2: Float64Array,
   lambda: number,
   mu: number
 ): number => {
   const N = x.length
-  let residual = 0
+  const rows = A.length / cols
 
   // ||Ax − b||²
-  for (let i = 0; i < A.rows; i++) {
+  let residual = 0
+  for (let i = 0; i < rows; i++) {
     let pred = 0
-    for (let j = 0; j < N; j++) pred += A.get(i, j) * x[j]
+    const base = i * cols
+    for (let j = 0; j < N; j++) pred += A[base + j] * x[j]
     const err = pred - b[i]
     residual += err * err
   }
@@ -85,11 +83,12 @@ export const tikhonovLoss = (
   let l2Norm = 0
   for (let i = 0; i < N; i++) l2Norm += x[i] * x[i]
 
-  // μ||D₂x||²
+  // μ||D₂x||² — D₂ 是 N×N
   let smoothNorm = 0
   for (let i = 0; i < N; i++) {
     let lap = 0
-    for (let j = 0; j < N; j++) lap += D2.get(i, j) * x[j]
+    const d2Base = i * N
+    for (let j = 0; j < N; j++) lap += D2[d2Base + j] * x[j]
     smoothNorm += lap * lap
   }
 

@@ -14,6 +14,7 @@
 import { SQLiteService } from './db/service'
 import { DataPipeline } from './dataPipeline'
 import { createModbusCalibrationBridge, type ICalibrationBridge } from './calibrationBridge'
+import { runCalibrationAngleEstimate } from './calibrationBridge'
 import {
   createCalibrationSession,
   calibrateTractionSpeed,
@@ -21,7 +22,6 @@ import {
   calibrateDistance,
   detectMutation,
   detectBimodalThreshold,
-  estimateThetaMaxWithPhaseCorrection,
   type CalibrationConfig,
   type Scalar,
   type RingData,
@@ -317,10 +317,10 @@ function registerAllIpcHandlers(): void {
 
       if (pending) {
         try {
-          const maxAngle = estimateThetaMaxWithPhaseCorrection(
-            pending.tripSegments,
-            pending.options
-          )
+          const maxAngle = await runCalibrationAngleEstimate({
+            tripSegments: pending.tripSegments,
+            options: pending.options,
+          })
           if (maxAngle != null) {
             session.applyAngleEstimate(maxAngle)
           }
@@ -715,7 +715,7 @@ function registerAllIpcHandlers(): void {
   // ── 膜泡重建 ──
   registerIpcHandler('bubble-reconstruct', async ([params]: unknown[]) => {
     if (!pipeline) return null
-    return pipeline.getBubbleProfile(params as Parameters<typeof pipeline.getBubbleProfile>[0])
+    return pipeline.getBubbleProfileAsync(params as Parameters<typeof pipeline.getBubbleProfile>[0])
   })
 
   registerIpcHandler('bubble-reconstruct-window', async ([input]: unknown[]) => {

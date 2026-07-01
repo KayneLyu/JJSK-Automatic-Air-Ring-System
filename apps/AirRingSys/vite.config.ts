@@ -70,6 +70,24 @@ export default defineConfig({
           },
         },
       },
+      // 膜泡重建 Worker，输出到 dist-electron/bubbleWorker.js
+      {
+        entry: 'electron/bubbleWorker.ts',
+        vite: {
+          resolve: { alias: sharedAlias },
+          build: {
+            outDir: 'dist-electron',
+            lib: {
+              entry: 'electron/bubbleWorker.ts',
+              formats: ['es'],
+              fileName: () => 'bubbleWorker.js',
+            },
+            rollupOptions: {
+              external: ['node:worker_threads', 'electron'],
+            },
+          },
+        },
+      },
       // utilityProcess 脚本独立打包，输出到 dist-electron/utilityWorker.js
       {
         entry: 'electron/utilityWorker.ts',

@@ -10,30 +10,35 @@
 // 正规方程：
 //   (AᵀA + λI + μ·D₂ᵀD₂) · x = Aᵀb
 //
-// 对于 N=360，矩阵为 360×360 的对称正定带矩阵。
-// 采用 Cholesky 分解求解（来自 ml-matrix）。
+// 对于 N=360，矩阵为 360×360 的对称正定矩阵。
+// 使用原生 Float64Array 存储，避免 ml-matrix 的对象创建开销。
+//
+// ATA 存储为线性化行主序数组：ATA[i*N + j] = 第 i 行第 j 列的值。
 // ============================================================
 
-import { Matrix } from 'ml-matrix'
 import type { SparseSystem } from './types'
 
 const ZERO = 1e-14
 
 /**
  * 从 CSR 稀疏系统构造增广矩阵 [AᵀA+λI+μD₂ᵀD₂ | Aᵀb]
+ *
+ * 返回的 lhs 为 N×N 的 Float64Array（行主序）。
+ * 只填充上三角，由调用方在需要时对称化。
  */
 export const buildNormalEquations = (
   sparse: SparseSystem,
   lambda: number,
   mu: number
-): { lhs: Matrix; rhs: Float64Array } => {
+): { lhs: Float64Array; rhs: Float64Array } => {
   const { M, N, rowPtr, colInd, values, b } = sparse
 
-  // 构建 AᵀA（对称稠密矩阵）
-  const ATA = Matrix.zeros(N, N)
+  // ATA: 扁平化存储，只维护上三角（列索引 ≥ 行索引）
+  const ATA = new Float64Array(N * N)
   const ATb = new Float64Array(N)
 
-  // 稀疏 A × Aᵀ 累积
+  // 稀疏 AᵀA 累积：每行最多 4 个非零元
+  // 直接填充两个三角形（等效于原始 ml-matrix 版本，但避免了对象创建开销）
   for (let k = 0; k < M; k++) {
     const start = rowPtr[k]
     const end = rowPtr[k + 1]
@@ -44,22 +49,20 @@ export const buildNormalEquations = (
       for (let q = p; q < end; q++) {
         const colQ = colInd[q]
         const val = valP * values[q]
-        const cur = ATA.get(colP, colQ)
-        ATA.set(colP, colQ, cur + val)
+        ATA[colP * N + colQ] += val
         if (colP !== colQ) {
-          const cur2 = ATA.get(colQ, colP)
-          ATA.set(colQ, colP, cur2 + val)
+          ATA[colQ * N + colP] += val
         }
       }
     }
   }
 
-  // 添加 λI
+  // 添加 λI（只影响对角线 = 上三角）
   for (let i = 0; i < N; i++) {
-    ATA.set(i, i, ATA.get(i, i) + lambda)
+    ATA[i * N + i] += lambda
   }
 
-  // 添加 μ·D₂ᵀD₂ (离散拉普拉斯正则化)
+  // 添加 μ·D₂ᵀD₂ (pentadiagonal，对称)
   if (mu > ZERO) {
     for (let i = 0; i < N; i++) {
       const im2 = (i - 2 + N) % N
@@ -67,13 +70,11 @@ export const buildNormalEquations = (
       const ip1 = (i + 1) % N
       const ip2 = (i + 2) % N
 
-      // D₂ 的第 i 行 × D₂ 的第 i 列 → D₂ᵀD₂ 的对角线和近对角元素
-      // D₂ᵀD₂ 的非零元素（对每个 i）：
-      ATA.set(i, i,     ATA.get(i, i)     + mu *  6)
-      ATA.set(i, ip1,   ATA.get(i, ip1)   + mu * -4)
-      ATA.set(i, im1,   ATA.get(i, im1)   + mu * -4)
-      ATA.set(i, ip2,   ATA.get(i, ip2)   + mu *  1)
-      ATA.set(i, im2,   ATA.get(i, im2)   + mu *  1)
+      ATA[i * N + i]     += mu *  6
+      ATA[i * N + ip1]   += mu * -4
+      ATA[i * N + im1]   += mu * -4
+      ATA[i * N + ip2]   += mu *  1
+      ATA[i * N + im2]   += mu *  1
     }
   }
 
@@ -81,23 +82,33 @@ export const buildNormalEquations = (
 }
 
 /**
- * 使用 Cholesky 分解求解 Ax = b
+ * 对称 Cholesky 分解求解 Ax = b。
+ *
+ * A 以行主序 N×N Float64Array 传入，假定为对称正定且已完全对称化。
+ * 使用 O(N³) 标准 Cholesky，对于 N=360 约 ~46M 次浮点操作。
+ *
+ * 求解流程：
+ *   1. Cholesky 分解 A = L·Lᵀ
+ *   2. 前代 L·y = b
+ *   3. 回代 Lᵀ·x = y
  */
-export const solveCholesky = (A: Matrix, b: Float64Array): Float64Array => {
-  const N = A.rows
+export const solveCholesky = (A: Float64Array, b: Float64Array): Float64Array => {
+  const N = Math.round(Math.sqrt(A.length))
 
-  // Cholesky 分解：A = L·Lᵀ
+  // Cholesky 分解：A = L·Lᵀ（原地覆盖 A 的下三角为 L）
   const L = new Float64Array(N * N)
   for (let i = 0; i < N; i++) {
     for (let j = 0; j <= i; j++) {
-      let sum = A.get(i, j)
+      let sum = A[i * N + j] // 对称矩阵
+      const rowBaseI = i * N
+      const rowBaseJ = j * N
       for (let k = 0; k < j; k++) {
-        sum -= L[i * N + k] * L[j * N + k]
+        sum -= L[rowBaseI + k] * L[rowBaseJ + k]
       }
       if (i === j) {
-        L[i * N + i] = Math.sqrt(Math.max(sum, ZERO))
+        L[rowBaseI + i] = Math.sqrt(Math.max(sum, ZERO))
       } else {
-        L[i * N + j] = sum / Math.max(L[j * N + j], ZERO)
+        L[rowBaseI + j] = sum / Math.max(L[j * N + j], ZERO)
       }
     }
   }
@@ -106,10 +117,11 @@ export const solveCholesky = (A: Matrix, b: Float64Array): Float64Array => {
   const y = new Float64Array(N)
   for (let i = 0; i < N; i++) {
     let sum = b[i]
+    const rowBase = i * N
     for (let j = 0; j < i; j++) {
-      sum -= L[i * N + j] * y[j]
+      sum -= L[rowBase + j] * y[j]
     }
-    y[i] = sum / Math.max(L[i * N + i], ZERO)
+    y[i] = sum / Math.max(L[rowBase + i], ZERO)
   }
 
   // 回代：Lᵀ·x = y
@@ -128,18 +140,18 @@ export const solveCholesky = (A: Matrix, b: Float64Array): Float64Array => {
 /**
  * 构建 Tikhonov 平滑矩阵 D₂（N×N，circular 边界）
  *
- * D₂[i][i] = 6
- * D₂[i][i±1] = −4
- * D₂[i][i±2] = 1
+ * D₂[i][i] = 6  D₂[i][i±1] = −4  D₂[i][i±2] = 1
+ *
+ * 返回行主序扁平 Float64Array。
  */
-export const buildLaplacianMatrix = (N: number): Matrix => {
-  const D2 = Matrix.zeros(N, N)
+export const buildLaplacianMatrix = (N: number): Float64Array => {
+  const D2 = new Float64Array(N * N)
   for (let i = 0; i < N; i++) {
-    D2.set(i, i, 6)
-    D2.set(i, (i + 1) % N, -4)
-    D2.set(i, (i - 1 + N) % N, -4)
-    D2.set(i, (i + 2) % N, 1)
-    D2.set(i, (i - 2 + N) % N, 1)
+    D2[i * N + i] = 6
+    D2[i * N + (i + 1) % N] = -4
+    D2[i * N + (i - 1 + N) % N] = -4
+    D2[i * N + (i + 2) % N] = 1
+    D2[i * N + (i - 2 + N) % N] = 1
   }
   return D2
 }

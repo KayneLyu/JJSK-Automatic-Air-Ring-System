@@ -10,6 +10,7 @@ import type {
 import {
   findSweepsFromHistory,
   buildProfile,
+  buildProfileAsync,
 } from './db/sweepProfileBuilder'
 import {
   downsampleUniform,
@@ -345,7 +346,71 @@ export class DataPipeline {
         ? downsampleUniform(allRows, MAX_POINTS_PER_SWEEP)
         : allRows
 
+    // 同步版本：不阻塞 Worker 线程消息循环的场景使用
     return buildProfile(
+      rows,
+      {
+        startTs: sweep.startTs,
+        direction: sweep.direction,
+        durationMs: sweep.endTs - sweep.startTs,
+      },
+      params.membraneWidthMm,
+      params.thetaMaxDeg,
+      params.mmPerPulse,
+      params.airAD,
+      params.gain,
+      numBins,
+      params.processDeformationFactor,
+      params.transportDelayMs
+    )
+  }
+
+  /**
+   * Worker 线程版膜泡重建 — 将矩阵求解卸载到独立 Worker 线程，
+   * 避免阻塞 UtilityProcess 消息循环。
+   */
+  async getBubbleProfileAsync(params: {
+    membraneWidthMm: number
+    thetaMaxDeg: number
+    mmPerPulse: number
+    airAD: number
+    gain: number
+    numBins?: number
+    processDeformationFactor?: number
+    transportDelayMs?: number
+    startMs?: number
+    endMs?: number
+    useLatestWindowMs?: number
+  }): Promise<BubbleReconstructionResult | null> {
+    if (params.membraneWidthMm <= 0 || params.thetaMaxDeg <= 0) return null
+    if (params.mmPerPulse <= 0) return null
+    if (params.airAD <= 0) return null
+
+    const numBins = params.numBins ?? 48
+    const MAX_POINTS_PER_SWEEP = 2000
+
+    let startMs = params.startMs ?? 0
+    let endMs = params.endMs ?? Date.now()
+    if (params.useLatestWindowMs && params.useLatestWindowMs > 0) {
+      endMs = Date.now()
+      startMs = endMs - params.useLatestWindowMs
+    }
+
+    const sweeps = findSweepsFromHistory(this.sqlite, startMs, endMs)
+    if (sweeps.length === 0) return null
+
+    const sweep = sweeps.reduce((a, b) =>
+      b.endTs - b.startTs > a.endTs - a.startTs ? b : a
+    )
+
+    const allRows = this.sqlite.queryThicknessRaw(sweep.startTs, sweep.endTs)
+    if (allRows.length < 100) return null
+    const rows =
+      allRows.length > MAX_POINTS_PER_SWEEP
+        ? downsampleUniform(allRows, MAX_POINTS_PER_SWEEP)
+        : allRows
+
+    return buildProfileAsync(
       rows,
       {
         startTs: sweep.startTs,

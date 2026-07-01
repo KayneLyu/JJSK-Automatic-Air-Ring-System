@@ -24,6 +24,9 @@ import {
   detectOutOfBoundsThreshold,
   isProfilePlausible,
 } from './sweepHelpers'
+import {
+  runBubbleReconstructionInWorker,
+} from '../bubbleWorkerManager'
 
 const buildProfileWarningAt = new Map<string, number>()
 const BUILD_PROFILE_WARNING_TTL_MS = 60_000
@@ -259,6 +262,204 @@ export function buildProfile(
       warnBuildProfile(
         `bins-short:${numBins}`,
         `[buildProfile] 有效分箱不足: ${nonZeroProfile.length} < ${Math.max(numBins * 0.3, 3)}`
+      )
+      return null
+    }
+
+    if (!isProfilePlausible(result)) return null
+
+    const profile = result.profile
+    const binPredictedSums: number[] = new Array(numBins).fill(0)
+    const binPredictedCounts: number[] = new Array(numBins).fill(0)
+    for (let k = 0; k < allBin1.length; k++) {
+      const b1 = allBin1[k]
+      const b2 = allBin2[k]
+      const predicted = (profile[b1] + profile[b2]) * processDeformationFactor
+      binPredictedSums[b1] += predicted
+      binPredictedCounts[b1] += 1
+      if (b2 !== b1) {
+        binPredictedSums[b2] += predicted
+        binPredictedCounts[b2] += 1
+      }
+    }
+
+    const binTimestamps: number[] = binTimestampSums.map((sum, i) =>
+      binTimestampCounts[i] > 0 ? sum / binTimestampCounts[i] : 0
+    )
+
+    const rawThickness: number[] = binRawThicknessSums.map((sum, i) =>
+      binRawThicknessCounts[i] > 0 ? sum / binRawThicknessCounts[i] : 0
+    )
+
+    const predictedThickness: number[] = binPredictedSums.map((sum, i) =>
+      binPredictedCounts[i] > 0 ? sum / binPredictedCounts[i] : 0
+    )
+
+    return {
+      ...result,
+      numMeasurements: totalMeasurements,
+      binTimestamps,
+      rawThickness,
+      predictedThickness,
+    } as any
+  }
+
+/**
+ * 异步版 buildProfile — 将 CPU 密集型的 reconstructBubbleThickness 卸载到独立 Worker 线程。
+ *
+ * 用法同 buildProfile，但返回 Promise<BubbleReconstructionResult | null>。
+ * Worker 线程中的矩阵求解不会阻塞 UtilityProcess 的消息循环。
+ */
+export async function buildProfileAsync(
+    data: ReadonlyArray<{ timestamp: number; pulse: number; ad: number }>,
+    cycle: {
+      startTs: number
+      direction: 'forward' | 'reverse'
+      durationMs: number
+    },
+    membraneWidthMm: number,
+    thetaMaxDeg: number,
+    mmPerPulse: number,
+    airAD: number,
+    gain: number,
+    numBins: number,
+    processDeformationFactor: number = 1.02,
+    transportDelayMs?: number
+  ): Promise<BubbleReconstructionResult | null> {
+    if (transportDelayMs == null || transportDelayMs <= 0) {
+      warnBuildProfile(
+        'missing-transport-delay',
+        '[buildProfileAsync] 缺少运输延迟参数'
+      )
+      return null
+    }
+    if (data.length < 100) return null
+
+    const prefiltered: Array<{
+      timestamp: number
+      scannerPosMm: number
+      thickness: number
+    }> = []
+
+    for (const item of data) {
+      if (item.ad <= 0 || item.pulse < 0) continue
+      if (item.ad < airAD * 0.3) continue
+      const thickMicrons = calcThicknessMicrons(item.ad, airAD, gain)
+      if (thickMicrons <= 0 || thickMicrons > 500) continue
+      const elapsed = item.timestamp - cycle.startTs
+      if (elapsed < 0) continue
+
+      prefiltered.push({
+        timestamp: item.timestamp,
+        scannerPosMm: item.pulse * mmPerPulse,
+        thickness: thickMicrons,
+      })
+    }
+
+    if (prefiltered.length < numBins) return null
+
+    const sortedPositions = [...prefiltered]
+      .map((p) => p.scannerPosMm)
+      .sort((a, b) => a - b)
+    const centerMm = sortedPositions[Math.floor(sortedPositions.length / 2)]
+
+    const q05 = sortedPositions[Math.floor(sortedPositions.length * 0.05)]
+    const q95 = sortedPositions[Math.floor(sortedPositions.length * 0.95)]
+    const inferredWidthMm = q95 - q05
+    const effectiveWidthMm =
+      inferredWidthMm > 0 && inferredWidthMm < membraneWidthMm * 3
+        ? inferredWidthMm
+        : membraneWidthMm
+
+    const halfWidth = effectiveWidthMm / 2
+    const thicknessThreshold = detectOutOfBoundsThreshold(
+      prefiltered.map((p) => p.thickness)
+    )
+
+    const binWidthDeg = 360 / numBins
+    const tripDuration = Math.max(1, cycle.durationMs)
+    const accelRatio = Math.min(20_000, tripDuration * 0.45) / tripDuration
+
+    const triples: MeasurementTriple[] = []
+    const allBin1: number[] = []
+    const allBin2: number[] = []
+    const allTimestamps: number[] = []
+    const allThicknesses: number[] = []
+    const binRawThicknessSums: number[] = new Array(numBins).fill(0)
+    const binRawThicknessCounts: number[] = new Array(numBins).fill(0)
+    const binTimestampSums: number[] = new Array(numBins).fill(0)
+    const binTimestampCounts: number[] = new Array(numBins).fill(0)
+    let totalMeasurements = 0
+
+    for (const item of prefiltered) {
+      const centeredPos = item.scannerPosMm - centerMm
+      if (Math.abs(centeredPos) > halfWidth) continue
+      if (thicknessThreshold !== null && item.thickness > thicknessThreshold)
+        continue
+
+      const delayedTs = item.timestamp - transportDelayMs
+      const delayedElapsed = delayedTs - cycle.startTs
+      const delayedProgress = Math.max(0, Math.min(1, delayedElapsed / tripDuration))
+      const delayedPos = trapezoidalPosition(delayedProgress, accelRatio)
+      const delayedUpperAngleDeg =
+        cycle.direction === 'forward'
+          ? delayedPos * thetaMaxDeg
+          : thetaMaxDeg - delayedPos * thetaMaxDeg
+
+      triples.push({
+        upperAngleDeg: delayedUpperAngleDeg,
+        scannerPosMm: centeredPos,
+        thickness: item.thickness,
+      })
+
+      const scannerOffset = (centeredPos / effectiveWidthMm) * 180
+      const alphaC = (((delayedUpperAngleDeg + 90) % 360) + 360) % 360
+      const alpha1 = ((alphaC + scannerOffset) % 360 + 360) % 360
+      const alpha2 = ((alphaC - scannerOffset) % 360 + 360) % 360
+      const bin1 = Math.floor(alpha1 / binWidthDeg) % numBins
+      const bin2 = Math.floor(alpha2 / binWidthDeg) % numBins
+      allBin1.push(bin1)
+      allBin2.push(bin2)
+      allTimestamps.push(item.timestamp)
+      allThicknesses.push(item.thickness)
+      binRawThicknessSums[bin1] += item.thickness
+      binRawThicknessCounts[bin1] += 1
+      binTimestampSums[bin1] += item.timestamp
+      binTimestampCounts[bin1] += 1
+      if (bin2 !== bin1) {
+        binRawThicknessSums[bin2] += item.thickness
+        binRawThicknessCounts[bin2] += 1
+        binTimestampSums[bin2] += item.timestamp
+        binTimestampCounts[bin2] += 1
+      }
+      totalMeasurements += 1
+    }
+
+    if (triples.length < numBins * 2) {
+      warnBuildProfile(
+        `triples-short:${numBins}`,
+        `[buildProfileAsync] 有效测量三元组不足: ${triples.length} < ${numBins * 2}`
+      )
+      return null
+    }
+
+    // ── Worker 线程执行矩阵求解 ──
+    const result = await runBubbleReconstructionInWorker(
+      triples,
+      effectiveWidthMm,
+      {
+        numBins,
+        lambda: 1e-4,
+        mu: 0.1,
+        processDeformationFactor,
+      }
+    )
+
+    const nonZeroProfile = result.profile.filter((v) => v > 0)
+    if (nonZeroProfile.length < Math.max(numBins * 0.3, 3)) {
+      warnBuildProfile(
+        `bins-short:${numBins}`,
+        `[buildProfileAsync] 有效分箱不足: ${nonZeroProfile.length} < ${Math.max(numBins * 0.3, 3)}`
       )
       return null
     }

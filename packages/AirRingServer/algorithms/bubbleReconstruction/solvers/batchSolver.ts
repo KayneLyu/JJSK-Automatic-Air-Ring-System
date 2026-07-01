@@ -27,7 +27,7 @@ export const solveBatch = (
   lambda: number,
   mu: number
 ): number[] => {
-  const { M, N } = sparse
+  const { N } = sparse
 
   const { lhs, rhs } = buildNormalEquations(sparse, lambda, mu)
 
@@ -43,6 +43,6 @@ export const solveBatch = (
 }
 
 /**
- * Batch 模式并使用 ml-matrix 的 SVD 求解（更稳定，适合病态矩阵）
+ * Cholesky 分解求解（对称正定矩阵），使用原生 Float64Array 实现。
  */
 export { solveBatch as solveBatchCholesky }

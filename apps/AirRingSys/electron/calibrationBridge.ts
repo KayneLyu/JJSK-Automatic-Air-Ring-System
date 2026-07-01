@@ -125,6 +125,86 @@ const runAngleEstimateInWorker = (
   worker.postMessage({ ...req, id } satisfies CalibrationWorkerRequest)
 }
 
+/**
+ * Promise 版角度估算 Worker（用于历史数据标定等需要等待结果的场景）。
+ *
+ * 与 runAngleEstimateInWorker 共用同一把互斥锁，确保同一时刻只有一个 Worker。
+ *
+ * @returns 估算的最大角度，失败时返回 null
+ */
+export const runCalibrationAngleEstimate = (
+  req: Omit<CalibrationWorkerRequest, 'id'>
+): Promise<number | null> => {
+  return new Promise((resolve) => {
+    if (workerBusy) {
+      console.debug('[CalibrationBridge] Worker 正在运行，等待中...')
+      // 轮询等待 Worker 释放
+      const poll = setInterval(() => {
+        if (!workerBusy) {
+          clearInterval(poll)
+          runNow()
+        }
+      }, 100)
+      return
+    }
+    runNow()
+
+    function runNow() {
+      workerBusy = true
+      const id = ++workerIdCounter
+      const workerPath = resolveWorkerPath()
+      let settled = false
+
+      let worker: Worker
+      try {
+        worker = new Worker(workerPath)
+      } catch (err) {
+        workerBusy = false
+        resolve(null)
+        return
+      }
+
+      const timeout = setTimeout(() => {
+        if (settled) return
+        settled = true
+        worker.terminate().catch(() => {})
+        workerBusy = false
+        resolve(null)
+      }, 120_000) // 2min 超时
+
+      worker.on('message', (res: CalibrationWorkerResponse) => {
+        if (settled) return
+        if (res.id !== id) return
+        settled = true
+        clearTimeout(timeout)
+        workerBusy = false
+        resolve(res.ok ? res.maxAngle : null)
+        worker.terminate().catch(() => {})
+      })
+
+      worker.on('error', () => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
+        workerBusy = false
+        resolve(null)
+        worker.terminate().catch(() => {})
+      })
+
+      worker.on('exit', (code) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
+        workerBusy = false
+        resolve(code === 0 ? null : null)
+        worker.terminate().catch(() => {})
+      })
+
+      worker.postMessage({ ...req, id } satisfies CalibrationWorkerRequest)
+    }
+  })
+}
+
 export const createModbusCalibrationBridge = (
   options: CreateModbusCalibrationBridgeOptions = {}
 ) => {
