@@ -648,7 +648,32 @@ function registerAllIpcHandlers(): void {
     if (!sqliteDb) return []
     const limit = Math.max(1, Number(count) || 1)
     const changes = sqliteDb.queryLatestDirectionChanges(limit + 1, (beforeTs as number) ?? 0)
-    if (changes.length < 2) return []
+    if (changes.length < 2) {
+      // 冷启动/空库常见: 仅有一次方向变化时，返回进行中上旋趟用于实时重构。
+      if (changes.length === 1 && ((beforeTs as number) ?? 0) <= 0) {
+        const latest = changes[0]
+        const isForward = latest.forwardDirChange > 0 && latest.reverseDirChange <= 0
+        const isReverse = latest.reverseDirChange > 0 && latest.forwardDirChange <= 0
+        if (isForward || isReverse) {
+          const now = Date.now()
+          const durationMs = now - latest.timestamp
+          if (
+            durationMs >= MIN_VALID_ROTATION_TRIP_MS &&
+            durationMs <= MAX_VALID_ROTATION_TRIP_MS
+          ) {
+            return [
+              {
+                id: `rotation-fallback-live-${latest.id}`,
+                time: latest.timestamp,
+                direction: isForward ? 'forward' : 'reverse',
+                cycleDurationMs: durationMs,
+              },
+            ]
+          }
+        }
+      }
+      return []
+    }
 
     const asc = [...changes].sort((a, b) => a.timestamp - b.timestamp)
     const trips: RotationTripSummaryRow[] = []
