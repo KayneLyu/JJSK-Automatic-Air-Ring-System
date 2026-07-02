@@ -84,7 +84,7 @@ const chartDiagnostic = computed<string | null>(() => {
     return '无测厚仪扫描趟数据 — 请确认 ADBox 已连接且正在采集'
   }
   if (upperSweeps.value.length === 0)
-    return '无上旋趟数据 — 请确认 rotation_trip 或 rotation_raw 方向变化数据是否存在（fallback 需至少2次方向切换；实时模式下仅1次切换且持续≥30s才会生成进行中趟，SQLite 0KB 还需检查同目录 -wal 文件）'
+    return '无上旋趟数据 — 请确认 rotation_trip 或 rotation_raw 方向变化数据是否存在（fallback 需至少2次方向切换；实时模式下仅1次切换且持续≥30s才会生成进行中趟）'
   if (!selectedBaseline.value)
     return '无法选择基线扫描趟'
   if (!currentReconstruction.value)

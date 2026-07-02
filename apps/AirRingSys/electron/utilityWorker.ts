@@ -60,6 +60,15 @@ const DEFAULT_STANDARDIZED: Scalar = {
 const PAGE_SIZE = 5000
 const MIN_VALID_ROTATION_TRIP_MS = 30_000
 const MAX_VALID_ROTATION_TRIP_MS = 900_000
+const INFERRED_ROTATION_RAW_FETCH_LIMIT = 120_000
+const INFERRED_ROTATION_CHANGES_CACHE_MS = 10_000
+
+type DirectionChangeLike = {
+  id: number
+  timestamp: number
+  forwardDirChange: number
+  reverseDirChange: number
+}
 
 // ═══════════════════════════════════════════════════════════════
 // 全局状态
@@ -69,6 +78,83 @@ let sqliteDb: SQLiteService | null = null
 let pipeline: DataPipeline | null = null
 let calibrationBridge: ICalibrationBridge | null = null
 let maxPulse = 7000
+let cachedInferredChanges: DirectionChangeLike[] = []
+let cachedInferredChangesAt = 0
+
+function inferDirectionChangesFromRotationRaw(
+  rows: Array<{
+    id: number
+    timestamp: number
+    forwardRotation: number
+    reverseRotation: number
+  }>
+): DirectionChangeLike[] {
+  if (rows.length === 0) return []
+
+  const asc = [...rows].sort((a, b) => a.timestamp - b.timestamp)
+  const inferred: DirectionChangeLike[] = []
+  let lastDirection: 'forward' | 'reverse' | null = null
+
+  for (const row of asc) {
+    const isForward = row.forwardRotation > 0 && row.reverseRotation <= 0
+    const isReverse = row.reverseRotation > 0 && row.forwardRotation <= 0
+    const direction: 'forward' | 'reverse' | null = isForward
+      ? 'forward'
+      : isReverse
+        ? 'reverse'
+        : null
+    if (!direction) continue
+    if (lastDirection === null || direction !== lastDirection) {
+      inferred.push({
+        id: row.id,
+        timestamp: row.timestamp,
+        forwardDirChange: direction === 'forward' ? 1 : 0,
+        reverseDirChange: direction === 'reverse' ? 1 : 0,
+      })
+      lastDirection = direction
+    }
+  }
+
+  return inferred
+}
+
+function getDirectionChangesWithFallback(
+  db: SQLiteService,
+  limit: number,
+  beforeTs: number
+): DirectionChangeLike[] {
+  const explicit = db.queryLatestDirectionChanges(limit + 1, beforeTs)
+  if (explicit.length >= 2) {
+    return explicit.map((row) => ({
+      id: row.id,
+      timestamp: row.timestamp,
+      forwardDirChange: row.forwardDirChange,
+      reverseDirChange: row.reverseDirChange,
+    }))
+  }
+
+  if (beforeTs > 0) {
+    return explicit.map((row) => ({
+      id: row.id,
+      timestamp: row.timestamp,
+      forwardDirChange: row.forwardDirChange,
+      reverseDirChange: row.reverseDirChange,
+    }))
+  }
+
+  const now = Date.now()
+  if (now - cachedInferredChangesAt > INFERRED_ROTATION_CHANGES_CACHE_MS) {
+    const recentRows = db.queryLatestRotationRaw(INFERRED_ROTATION_RAW_FETCH_LIMIT)
+    cachedInferredChanges = inferDirectionChangesFromRotationRaw(recentRows)
+    cachedInferredChangesAt = now
+    if (cachedInferredChanges.length > 0) {
+      console.warn(
+        `[loadUpperSweeps] rotation_trip/dirChange 不足，已从 rotation_raw 正反转状态推断方向变化: ${cachedInferredChanges.length} 个`)
+    }
+  }
+
+  return cachedInferredChanges.slice(-(limit + 1))
+}
 
 // ═══════════════════════════════════════════════════════════════
 // 消息发送辅助
@@ -647,7 +733,11 @@ function registerAllIpcHandlers(): void {
   registerIpcHandler('db-get-latest-rotation-trips-fallback', async ([count, beforeTs]: unknown[]) => {
     if (!sqliteDb) return []
     const limit = Math.max(1, Number(count) || 1)
-    const changes = sqliteDb.queryLatestDirectionChanges(limit + 1, (beforeTs as number) ?? 0)
+    const changes = getDirectionChangesWithFallback(
+      sqliteDb,
+      limit,
+      (beforeTs as number) ?? 0
+    )
     if (changes.length < 2) {
       // 冷启动/空库常见: 仅有一次方向变化时，返回进行中上旋趟用于实时重构。
       if (changes.length === 1 && ((beforeTs as number) ?? 0) <= 0) {
