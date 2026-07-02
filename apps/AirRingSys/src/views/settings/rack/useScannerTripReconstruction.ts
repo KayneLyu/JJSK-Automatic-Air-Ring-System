@@ -67,8 +67,8 @@ export const TARGET_BIN_COVERAGE_RATIO = 0.8
 export const MIN_P95_PHI_SEPARATION_DEG = 18
 /** θ 覆盖比例下限：低于该值说明上旋时间轴覆盖不足 */
 export const MIN_THETA_COVERAGE_RATIO = 0.8
-/** 时延上限（ms）：超过该值视为异常，降级为 0ms */
-export const MAX_EFFECTIVE_TRANSPORT_DELAY_MS = 120_000
+/** 时延上限（ms）：只拦截明显失真的配置值，避免把长距离合法时延误判为异常 */
+export const MAX_EFFECTIVE_TRANSPORT_DELAY_MS = 15 * 60_000
 /** 扫描趟摘要默认拉取数量（首屏） */
 export const SCANNER_TRIPS_FETCH_COUNT = 400
 /** 上旋趟摘要刷新最短间隔，避免高频重复查询 */
