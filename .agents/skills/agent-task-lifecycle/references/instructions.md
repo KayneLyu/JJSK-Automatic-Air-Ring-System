@@ -56,11 +56,11 @@ README.md
 在 `execution.md` 中确保包含以下 task 相关规则（新增或补齐）：
 - Task Identification First：每轮用户消息先识别任务类型
 - Task 创建规则：由 LLM 根据复杂度、规模与记录价值，自主判断是否创建 `.agents/tasks/<task-slug>/`
-- One Task One Stream：识别到“新任务”时，必须新建并行线程（新会话 + 新分支 + 新 worktree），禁止复用当前线程直接换题
+- One Task One Stream：识别到“新任务”时，必须切到并行线程（新会话 + 用户已准备好的工作目录），禁止复用当前线程直接换题
 - task 目录规则：复杂任务使用目录跟踪，并先写 `plan.md`，再实施变更
 - task 脚本规则：task 内脚本放在 `.agents/tasks/<task-slug>/scripts/`，输出放在 `scripts/outputs/`
-- Task Switch Guard：任务切换时优先 auto-commit，失败回退 auto-stash
-- commit/stash message 基于 diff 自动生成，避免空泛描述
+- Task Switch Guard：任务切换时先暂停实现并提示用户切换到目标工作目录
+- 切换确认记录：基于用户反馈记录“已切换/未切换”，未切换则不继续执行新任务实现
 
 > 若 `execution.md` 不存在，可创建最小版本并仅写入 task 生命周期相关章节。
 
@@ -96,8 +96,8 @@ README.md
 
 **并行协同规则（新增）：**
 - `agent-task-lifecycle` 本身就必须维护任务隔离，不依赖其他并行 skill。
-- 每个新任务必须生成并记录分支与 worktree 映射。
-- 推荐在 `.agents/tasks/index.md` 记录 task 与线程映射：`task-slug`、branch、worktree、status。
+- 分支与 worktree 由用户自行创建与切换，skill 仅消费当前会话所在目录上下文。
+- 推荐在 `.agents/tasks/index.md` 记录 task 与线程映射：`task-slug`、session/workdir、status。
 
 ---
 
@@ -131,7 +131,8 @@ README.md
 
 - 任务 slug 应稳定、短而可读，例如 `fix-api-docx-download`、`refine-cache-key-rules`。
 - 新任务必须以新并行线程开始，不得在现有线程中直接接入第二个任务。
-- 新任务必须创建独立分支与独立 worktree，推荐命名：分支 `fix|feat|chore/<task-slug>`，worktree `../wt-<task-slug>`。
+- 分支与 worktree 由用户自行管理；Agent 不执行创建/切换分支或 worktree 的操作。
+- 识别到新任务时，必须先要求用户切换到目标工作目录；在用户确认切换前不继续新任务实现。
 - `progress.md` 只允许追加，不回写历史日志；每条记录时间精确到分钟（`YYYY-MM-DD HH:mm`）。
 - `decisions.md` 与 `.agents/memory/decisions.md` 的新时间记录统一精确到分钟（`YYYY-MM-DD HH:mm`）。
 - task 内脚本优先放在当前 task 的 `scripts/` 目录，输出优先写入 `scripts/outputs/`；非 task 脚本与输出由全局 `.agents/scripts/` / `.agents/scripts/outputs/` 承载。
@@ -144,7 +145,7 @@ README.md
 ## 禁止事项
 
 - ❌ 重写用户已有 task 文档段落
-- ❌ 在未检查 diff 的情况下生成空泛 commit/stash message 规则
+- ❌ 在本 skill 中要求或假设 Agent 自动创建 git 分支/worktree
 - ❌ 在本 skill 中修改与 task 无关的 guide/memory 文件
 
 ---

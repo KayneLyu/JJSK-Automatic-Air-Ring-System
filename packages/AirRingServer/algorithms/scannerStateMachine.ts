@@ -173,8 +173,8 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
               expectedTurnDirection = !detection.boundarySide
                 ? null
                 : detection.boundarySide === 'left'
-                  ? true   // 左边出界 → 往回（向右）
-                  : false  // 右边出界 → 往回（向左）
+                  ? true   // 左边出界 → 往回（向右/FWD）
+                  : false  // 右边出界 → 往回（向左/REV）
               action = expectedTurnDirection === true ? 'FWD' : 'REV'
               log = makeLog(prevState, state, 'stopped',
                 ` pulse=${pulse} stopDurationMs=${now - decelStartTime} newDirection=${expectedTurnDirection}`)

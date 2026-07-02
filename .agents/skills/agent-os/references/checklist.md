@@ -34,8 +34,10 @@
 - [ ] `execution.md` 包含 Script First 指导：Python/JS 等代码脚本避免以内联字符串传给 CLI，脚本与输出目录规则明确，复杂 shell 优先脚本化，简单直接 CLI 命令可直接执行，且长输出会优先转存文件
 - [ ] `execution.md` 保持为通用执行协议，不扩展超出 Agent OS 基线的专题流程
 - [ ] `patterns.md` 包含项目特有约定（非纯通用模板）
+- [ ] `patterns.md` 明确文件过大时优先合理拆分，且要求遵循既有模块边界、避免过度拆分
 - [ ] `safety.md` 有具体的禁止操作列表
 - [ ] `dependencies.md` 明确 Third-Party First 优先级
+- [ ] `dependencies.md` 明确 ORM First 与 ORM Schema First 仅在后端数据库相关任务中生效
 - [ ] `i18n.md` 处理正确：文件始终已生成；有国际化需求时已读取并执行；无国际化需求时可按规则跳过读取
 - [ ] `decisions.md` 的新记录时间精确到分钟（`YYYY-MM-DD HH:mm`）
 

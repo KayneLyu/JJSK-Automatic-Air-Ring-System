@@ -2,7 +2,7 @@
 name: agent-task-lifecycle
 description: >
   初始化或维护代码库中的 task 生命周期能力，包括任务识别、切换保护、目录化 task
-  跟踪模板与归档规则。适用于建立 task tracking、task switch guard、one-task-one-stream 并行规则（每任务独立 git 分支 + worktree）或 tasks 归档流程；
+  跟踪模板与归档规则。适用于建立 task tracking、task switch guard、one-task-one-stream 并行规则（每任务独立会话/工作目录）或 tasks 归档流程；
 keywords: 初始化 task 生命周期, 建立 tasks 规范, 任务切换保护, setup task lifecycle, task switch guard.
 ---
 
@@ -10,14 +10,14 @@ keywords: 初始化 task 生命周期, 建立 tasks 规范, 任务切换保护, 
 
 为任意代码库补齐 Agent 的 task 生命周期能力，确保任务识别、任务切换与归档流程可执行、可追踪；复杂任务统一使用目录结构，并以 `context.md`、`plan.md`、`progress.md`、`decisions.md` 作为标准文件；如任务需要脚本或输出落盘，可在任务目录内按需创建 `scripts/` 与 `scripts/outputs/`。
 
-本 skill 可独立完成任务隔离治理：即使未安装其他并行类 skill，也要求每个新任务使用独立 git 分支与独立 worktree，避免同一工作目录串改。
+本 skill 负责 task 生命周期治理（任务识别、切换保护、记录与归档），不负责创建或切换 git 分支/worktree；分支与 worktree 由用户自行创建并切换到目标工作目录后再继续执行。
 
 开始执行前，先阅读 [references/instructions.md](references/instructions.md)；交付前对照 [references/checklist.md](references/checklist.md)；输出格式遵循 [references/output-contract.md](references/output-contract.md)。
 
 ## 何时使用
 
 - 需要引入 Task Identification First 与 Task Switch Guard
-- 需要强制“每个新任务都以新并行线程开始”（one-task-one-stream）
+- 需要强制“每个新任务都以新并行线程开始”（one-task-one-stream，线程由用户准备）
 - 需要生成目录化 task 模板与 tasks / archive 生命周期目录
 - 需要统一复杂任务的记录与归档规范
 
@@ -41,16 +41,16 @@ keywords: 初始化 task 生命周期, 建立 tasks 规范, 任务切换保护, 
 
 - `.agents/templates/task-template.md`
 - `.agents/tasks/README.md`
-- `.agents/tasks/index.md`（可选，用于 task 与并行线程映射）
+- `.agents/tasks/index.md`（可选，用于 task 与会话/工作目录映射）
 - `.agents/tasks/archive/`
 - `.agents/guide/execution.md`（追加 task 生命周期规则）
 - `.agents/memory/decisions.md`（记录 task 规则相关决策）
 
 ## 默认隔离策略（内置）
 
-- 每个新任务必须创建独立分支：`fix/<task-slug>`、`feat/<task-slug>` 或 `chore/<task-slug>`。
-- 每个新任务必须创建独立 worktree：`../wt-<task-slug>`。
-- 任务切换时，不在当前分支/目录继续实现新任务；必须提交或暂存后切到新任务分支与 worktree。
+- 每个新任务必须在独立线程中执行（独立会话 + 独立工作目录）。
+- 分支与 worktree 由用户自行创建并切换；本 skill 不自动执行 `git branch` / `git worktree` 操作。
+- 任务切换时，不在当前目录直接实现新任务；应先提示用户完成切换，再继续在新目录执行。
 
 ## Files
 

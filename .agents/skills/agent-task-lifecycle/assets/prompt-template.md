@@ -51,11 +51,11 @@
 必须覆盖：
 - Task Identification First
 - Task 创建规则（由 LLM 自主判断是否创建 `.agents/tasks/<task-slug>/`）
-- One Task One Stream（识别到新任务时，必须创建新并行线程：新会话 + 新分支 + 新 worktree）
+- One Task One Stream（识别到新任务时，必须切到新并行线程：新会话 + 用户已准备好的工作目录）
 - 目录化 task 跟踪（先写 `plan.md`，再实施）
 - task 脚本规则（task 内脚本放 `scripts/`，输出放 `scripts/outputs/`）
-- Task Switch Guard（切换时 auto-commit 优先，失败 auto-stash）
-- commit/stash message 自动生成策略（基于 diff）
+- Task Switch Guard（发现新任务时，暂停当前实现并提示用户先切换到目标目录）
+- 切换确认记录策略（记录用户是否已完成目录切换）
 
 ---
 
@@ -90,7 +90,7 @@
 - `decisions.md` 与 `.agents/memory/decisions.md` 的新记录时间精确到分钟：`YYYY-MM-DD HH:mm`
 - `tasks/README.md` 必须包含：Task 创建规则、标准文件、可选脚本目录、状态流转（`active → completed → archived → deleted`，删除可选）、归档规则、压缩规则、删除规则与命名建议
 - 无论是脚本还是直接执行的 CLI 命令，只要输出过长、容易截断或难以可靠捕获，就优先转存到对应的输出目录文件
-- 补充 task 与线程映射规则（可选 `.agents/tasks/index.md`），并记录每个任务的 branch 与 worktree
+- 补充 task 与线程映射规则（可选 `.agents/tasks/index.md`），并记录每个任务的会话与工作目录
 
 ---
 

@@ -20,18 +20,18 @@
 - [ ] `execution.md` 覆盖 Task Identification First
 - [ ] `execution.md` 覆盖 Task 创建规则
 - [ ] `execution.md` 覆盖 One Task One Stream（新任务必须新并行线程）
-- [ ] `execution.md` 明确新任务必须独立 git 分支 + 独立 worktree
+- [ ] `execution.md` 明确分支/worktree 由用户创建与切换，skill 不自动管理
 - [ ] `execution.md` 覆盖目录化 task 跟踪与 `plan.md` 先写要求
 - [ ] `execution.md` 覆盖 task 脚本与输出目录规则（`scripts/` / `scripts/outputs/`）
 - [ ] `execution.md` 覆盖 Task Switch Guard
-- [ ] `execution.md` 覆盖 commit/stash message 自动生成策略
+- [ ] `execution.md` 覆盖“切换确认记录”策略（已切换/未切换）
 - [ ] `task-template.md` 提供 `context.md`、`plan.md`、`progress.md`、`decisions.md` 模板
 - [ ] `task-template.md` 或 `tasks/README.md` 说明了可选 `scripts/` 与 `scripts/outputs/` 目录的使用方式
 - [ ] `progress.md` 模板与相关规则要求新记录时间精确到分钟（`YYYY-MM-DD HH:mm`）
 - [ ] `decisions.md` / `.agents/memory/decisions.md` 的新记录时间要求精确到分钟（`YYYY-MM-DD HH:mm`）
 - [ ] `tasks/README.md` 包含创建规则、标准文件、可选脚本目录、状态流转、归档/压缩/删除规则与命名建议
 - [ ] task 规则明确要求：脚本或 CLI 输出过长 / 难捕获时优先转存文件
-- [ ] task 与线程映射（可选 `.agents/tasks/index.md`）规则已声明
+- [ ] task 与线程映射（可选 `.agents/tasks/index.md`）规则已声明（session/workdir）
 
 ---
 
