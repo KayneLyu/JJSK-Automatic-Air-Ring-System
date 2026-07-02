@@ -733,18 +733,28 @@ function registerAllIpcHandlers(): void {
   registerIpcHandler('db-get-latest-rotation-trips-fallback', async ([count, beforeTs]: unknown[]) => {
     if (!sqliteDb) return []
     const limit = Math.max(1, Number(count) || 1)
+    const before = (beforeTs as number) ?? 0
     const changes = getDirectionChangesWithFallback(
       sqliteDb,
       limit,
-      (beforeTs as number) ?? 0
+      before
     )
+    const getDirection = (
+      row: DirectionChangeLike
+    ): 'forward' | 'reverse' | null => {
+      const isForward = row.forwardDirChange > 0 && row.reverseDirChange <= 0
+      const isReverse = row.reverseDirChange > 0 && row.forwardDirChange <= 0
+      if (isForward) return 'forward'
+      if (isReverse) return 'reverse'
+      return null
+    }
+
     if (changes.length < 2) {
       // 冷启动/空库常见: 仅有一次方向变化时，返回进行中上旋趟用于实时重构。
-      if (changes.length === 1 && ((beforeTs as number) ?? 0) <= 0) {
+      if (changes.length === 1 && before <= 0) {
         const latest = changes[0]
-        const isForward = latest.forwardDirChange > 0 && latest.reverseDirChange <= 0
-        const isReverse = latest.reverseDirChange > 0 && latest.forwardDirChange <= 0
-        if (isForward || isReverse) {
+        const direction = getDirection(latest)
+        if (direction) {
           const now = Date.now()
           const durationMs = now - latest.timestamp
           if (
@@ -755,7 +765,7 @@ function registerAllIpcHandlers(): void {
               {
                 id: `rotation-fallback-live-${latest.id}`,
                 time: latest.timestamp,
-                direction: isForward ? 'forward' : 'reverse',
+                direction,
                 cycleDurationMs: durationMs,
               },
             ]
@@ -770,18 +780,38 @@ function registerAllIpcHandlers(): void {
     for (let i = 0; i < asc.length - 1; i++) {
       const cur = asc[i]
       const next = asc[i + 1]
-      const isForward = cur.forwardDirChange > 0 && cur.reverseDirChange <= 0
-      const isReverse = cur.reverseDirChange > 0 && cur.forwardDirChange <= 0
-      if (!isForward && !isReverse) continue
+      const direction = getDirection(cur)
+      if (!direction) continue
       if (next.timestamp <= cur.timestamp) continue
       if (next.timestamp - cur.timestamp < MIN_VALID_ROTATION_TRIP_MS) continue
       if (next.timestamp - cur.timestamp > MAX_VALID_ROTATION_TRIP_MS) continue
       trips.push({
         id: `rotation-fallback-${cur.id}`,
         time: cur.timestamp,
-        direction: isForward ? 'forward' : 'reverse',
+        direction,
         cycleDurationMs: next.timestamp - cur.timestamp,
       })
+    }
+
+    // beforeTs 未指定时，补一条“进行中上旋趟”（最后一次方向变化至 now）
+    if (before <= 0 && asc.length > 0) {
+      const last = asc[asc.length - 1]
+      const direction = getDirection(last)
+      if (direction) {
+        const now = Date.now()
+        const durationMs = now - last.timestamp
+        if (
+          durationMs >= MIN_VALID_ROTATION_TRIP_MS &&
+          durationMs <= MAX_VALID_ROTATION_TRIP_MS
+        ) {
+          trips.push({
+            id: `rotation-fallback-live-${last.id}`,
+            time: last.timestamp,
+            direction,
+            cycleDurationMs: durationMs,
+          })
+        }
+      }
     }
 
     if (trips.length <= limit) return trips
