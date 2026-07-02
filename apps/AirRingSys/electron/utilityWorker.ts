@@ -41,6 +41,7 @@ import type {
   RotationTripSummaryRow,
 } from '@/types/ipc'
 import { reconstructBubbleThickness } from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
+import { scannerMotionControl, type ScannerMotionControlOutput } from '@jjsk/air-ring-server/controllers/scannerMotionControl'
 
 // ═══════════════════════════════════════════════════════════════
 // 常量
@@ -78,6 +79,8 @@ type DirectionChangeLike = {
 let sqliteDb: SQLiteService | null = null
 let pipeline: DataPipeline | null = null
 let calibrationBridge: ICalibrationBridge | null = null
+let scannerCtrl: ReturnType<typeof scannerMotionControl> | null = null
+let scannerLastPulse: number | null = null
 let maxPulse = 7000
 let cachedInferredChanges: DirectionChangeLike[] = []
 let cachedInferredChangesAt = 0
@@ -91,11 +94,13 @@ function mergeDirectionChanges(
 ): DirectionChangeLike[] {
   const merged = new Map<string, DirectionChangeLike>()
   for (const row of fallback) {
-    const dir = row.forwardDirChange > 0 ? 'F' : row.reverseDirChange > 0 ? 'R' : 'N'
+    const dir =
+      row.forwardDirChange > 0 ? 'F' : row.reverseDirChange > 0 ? 'R' : 'N'
     merged.set(`${row.timestamp}:${dir}`, row)
   }
   for (const row of primary) {
-    const dir = row.forwardDirChange > 0 ? 'F' : row.reverseDirChange > 0 ? 'R' : 'N'
+    const dir =
+      row.forwardDirChange > 0 ? 'F' : row.reverseDirChange > 0 ? 'R' : 'N'
     merged.set(`${row.timestamp}:${dir}`, row)
   }
   return [...merged.values()].sort((a, b) => a.timestamp - b.timestamp)
@@ -166,9 +171,13 @@ function getDirectionChangesWithFallback(
       historyKey !== cachedHistoricalInferredKey ||
       now - cachedHistoricalInferredAt > INFERRED_ROTATION_CHANGES_CACHE_MS
     ) {
-      const startTs = Math.max(0, beforeTs - INFERRED_ROTATION_HISTORY_WINDOW_MS)
+      const startTs = Math.max(
+        0,
+        beforeTs - INFERRED_ROTATION_HISTORY_WINDOW_MS
+      )
       const rows = db.queryRotationRaw(startTs, beforeTs + 1)
-      cachedHistoricalInferredChanges = inferDirectionChangesFromRotationRaw(rows)
+      cachedHistoricalInferredChanges =
+        inferDirectionChangesFromRotationRaw(rows)
       cachedHistoricalInferredAt = now
       cachedHistoricalInferredKey = historyKey
       if (cachedHistoricalInferredChanges.length > 0) {
@@ -182,18 +191,24 @@ function getDirectionChangesWithFallback(
       return explicitMapped
     }
 
-    const merged = mergeDirectionChanges(explicitMapped, cachedHistoricalInferredChanges)
+    const merged = mergeDirectionChanges(
+      explicitMapped,
+      cachedHistoricalInferredChanges
+    )
     return merged.slice(-(limit + 1))
   }
 
   const now = Date.now()
   if (now - cachedInferredChangesAt > INFERRED_ROTATION_CHANGES_CACHE_MS) {
-    const recentRows = db.queryLatestRotationRaw(INFERRED_ROTATION_RAW_FETCH_LIMIT)
+    const recentRows = db.queryLatestRotationRaw(
+      INFERRED_ROTATION_RAW_FETCH_LIMIT
+    )
     cachedInferredChanges = inferDirectionChangesFromRotationRaw(recentRows)
     cachedInferredChangesAt = now
     if (cachedInferredChanges.length > 0) {
       console.warn(
-        `[loadUpperSweeps] rotation_trip/dirChange 不足，已从 rotation_raw 正反转状态推断方向变化: ${cachedInferredChanges.length} 个`)
+        `[loadUpperSweeps] rotation_trip/dirChange 不足，已从 rotation_raw 正反转状态推断方向变化: ${cachedInferredChanges.length} 个`
+      )
     }
   }
 
@@ -232,6 +247,69 @@ function initCalibrationBridge(): void {
       })
     },
   })
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 扫描仪运动控制
+// ═══════════════════════════════════════════════════════════════
+
+function initScannerMotionControl(): void {
+  // airAD 从默认配置获取（生产环境应从 electron-store 传入）
+  const airAD = 50300
+  const toleranceMs = 200
+
+  scannerCtrl = scannerMotionControl({
+    airAD,
+    stateMachine: { toleranceMs },
+  })
+  scannerLastPulse = null
+
+  console.log(
+    `[UtilityWorker] scannerMotionControl 初始化: airAD=${airAD} toleranceMs=${toleranceMs}`
+  )
+}
+
+function feedScannerMotionControl(sample: {
+  timestamp: number
+  ProbeValue: number
+  HorizontalPulse: number
+}): void {
+  if (!scannerCtrl) return
+
+  // 从连续位置变化推导运动方向（ADBox 不直接提供 MotionDirection）
+  const pulse = sample.HorizontalPulse
+  let motionDirection = true
+  if (scannerLastPulse !== null) {
+    motionDirection = pulse >= scannerLastPulse
+  }
+  scannerLastPulse = pulse
+
+  const output: ScannerMotionControlOutput = scannerCtrl.next({
+    timestamp: sample.timestamp,
+    ProbeValue: sample.ProbeValue,
+    HorizontalPulse: pulse,
+    MotionDirection: motionDirection,
+    LeftLimit: false, // ADBox 系统无硬件限位
+    RightLimit: false,
+  })
+
+  // 有控制动作时通知主进程
+  if (output.action !== 'NONE') {
+    post({
+      type: 'scanner-action',
+      action: output.action,
+      state: output.state,
+      log: output.log,
+    })
+  }
+
+  // 出界脉冲更新时同步到渲染进程（供调试参考）
+  if (
+    output.boundaryPulses.left !== null ||
+    output.boundaryPulses.right !== null
+  ) {
+    sendToRenderer('scanner-boundary-pulse', output.boundaryPulses)
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -995,14 +1073,22 @@ function doInit(payload: MainToUtilityMsg & { type: 'init' }): void {
   console.log('[UtilityWorker] 初始化标定桥...')
   initCalibrationBridge()
 
+  console.log('[UtilityWorker] 初始化扫描仪运动控制...')
+  initScannerMotionControl()
+
   console.log('[UtilityWorker] 初始化数据管道...')
   pipeline = new DataPipeline(
     { webContents: { send: sendToRenderer } } as never,
     sqliteDb,
   )
   pipeline.registerComputation({
-    feedThicknessSample: (sample) =>
-      calibrationBridge?.feedThicknessSample(sample) ?? null,
+    feedThicknessSample: (sample) => {
+      // 标定管线
+      calibrationBridge?.feedThicknessSample(sample) ?? null
+      // 扫描仪运动控制
+      feedScannerMotionControl(sample)
+      return null
+    },
     feedUpperRotationData: (data) =>
       calibrationBridge?.feedUpperRotationData(data) ?? null,
     emitUpperRotationData: (data) => sendToRenderer('upperRotation-read', data),

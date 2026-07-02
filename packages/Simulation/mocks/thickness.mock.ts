@@ -10,14 +10,14 @@ export type ThicknessMockOptions = {
    * */
   membraneWidth?: number
   /**
-   * 最大速度 默认：4米/分钟 单位：mm/ms
-   * */
-  maxSpeed?: number
-  /**
    * 缓冲脉冲量 默认：100pulse 单位：脉冲量
    * 到膜的边缘之后 缓冲一段距离之后开始换向
    * */
   bufferPulse?: number
+  /**
+   * 最大速度 默认：4米/分钟 单位：mm/ms
+   * */
+  maxSpeed?: number
   /**
    * 加速时间 默认：400ms 单位：毫秒
    * */
@@ -51,6 +51,14 @@ export type ThicknessMockOptions = {
    * 启动时间 默认：1秒 单位：毫秒
    * */
   START_TIME?: number
+  /**
+   * 空气AD值（可选，默认 0 保持向后兼容）
+   *
+   * 传入后，膜外区域的 ProbeValue 将输出为 airAD（模拟真实设备的高AD膜外行为），
+   * 供 `outOfBoundsDetector` 等下游模块使用。
+   * 不传则保持旧行为（膜外 ProbeValue = 0）。
+   * */
+  airAD?: number
 }
 export const mockThickness = ({
   membraneWidth = 1200,
@@ -65,7 +73,10 @@ export const mockThickness = ({
   PULSE_WINDOW = 50,
   START_TIME = 1000,
   SAMPLE_INTERVAL = 30,
+  airAD,
 }: ThicknessMockOptions) => {
+  // 膜外 ProbeValue：传入 airAD 时模拟真实设备高AD膜外行为，默认0保持向后兼容
+  const outOfMembraneProbeValue = airAD ?? 0
   // === 脉冲域参数 ===
   const maxPulseSpeed = maxSpeed / THICKNESS_UNIT_PULSE_DIS // pulse/ms
   const inMembraneTime = membraneWidth / maxSpeed // 膜内时间
@@ -112,7 +123,7 @@ export const mockThickness = ({
       return {
         HorizontalPulse: 0,
         MotionDirection: true,
-        ProbeValue: 0,
+        ProbeValue: outOfMembraneProbeValue,
         ResetSignal: true,
       }
     }
@@ -123,7 +134,7 @@ export const mockThickness = ({
       return {
         HorizontalPulse: Math.round(pulse),
         MotionDirection: true,
-        ProbeValue: 0,
+        ProbeValue: outOfMembraneProbeValue,
       }
     }
     if (elapsed <= inCycleTime) {
@@ -151,7 +162,7 @@ export const mockThickness = ({
         return {
           HorizontalPulse: Math.round(pulse),
           MotionDirection: true,
-          ProbeValue: 0,
+          ProbeValue: outOfMembraneProbeValue,
         }
       }
 
@@ -162,7 +173,7 @@ export const mockThickness = ({
       return {
         HorizontalPulse: Math.round(pulse),
         MotionDirection: true,
-        ProbeValue: 0,
+        ProbeValue: outOfMembraneProbeValue,
       }
     }
 
@@ -193,7 +204,8 @@ export const mockThickness = ({
       outMembranePulses,
       probeValue,
       inMembranePulses,
-      minPulse
+      minPulse,
+      outOfMembraneProbeValue
     )
   }
   return { next }
@@ -279,7 +291,8 @@ const getDataInCycle = (
   outMembranePulses: number,
   probeValue: number,
   inMembranePulses: number,
-  minPulse: number
+  minPulse: number,
+  outOfMembraneProbeValue: number
 ) => {
   /* 从左到右 */
   if (direction) {
@@ -288,7 +301,7 @@ const getDataInCycle = (
       return {
         HorizontalPulse: Math.round(maxPulse),
         MotionDirection: !direction,
-        ProbeValue: 0,
+        ProbeValue: outOfMembraneProbeValue,
         SwapDirection: true,
       }
     }
@@ -299,7 +312,7 @@ const getDataInCycle = (
           maxPulse - (tInTrip - PULSE_WINDOW) * maxPulseSpeed * 0.5
         ),
         MotionDirection: !direction,
-        ProbeValue: 0,
+        ProbeValue: outOfMembraneProbeValue,
       }
     }
     /* 最大速度阶段 */
@@ -322,7 +335,7 @@ const getDataInCycle = (
       return {
         HorizontalPulse: Math.round(pulse),
         MotionDirection: !direction,
-        ProbeValue: 0,
+        ProbeValue: outOfMembraneProbeValue,
       }
     }
     /* 减速阶段 */

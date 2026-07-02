@@ -38,6 +38,7 @@ export interface ThicknessResult {
   mmPerPulse?: number
   membraneWidthMm?: number
   mutationWindowSize?: number
+  scannerToleranceMs?: number
 }
 
 export interface UpperResult {
@@ -125,6 +126,9 @@ export function useRackDeviceConfig() {
         ...(results.mutationWindowSize !== undefined
           ? { mutationWindowSize: results.mutationWindowSize }
           : {}),
+        ...(results.scannerToleranceMs !== undefined
+          ? { scannerToleranceMs: results.scannerToleranceMs }
+          : {}),
       }
       upperResult.value = {
         ...(results.upperMaxAngle !== undefined
@@ -168,6 +172,7 @@ export function useRackDeviceConfig() {
         mmPerPulse: thicknessResult.value.mmPerPulse,
         membraneWidthMm: thicknessResult.value.membraneWidthMm,
         mutationWindowSize: thicknessResult.value.mutationWindowSize,
+        scannerToleranceMs: thicknessResult.value.scannerToleranceMs,
         upperMaxAngle: upperResult.value.maxAngle,
         upperDistance: upperResult.value.distance,
       }

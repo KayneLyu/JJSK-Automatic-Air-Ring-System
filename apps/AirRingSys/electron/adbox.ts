@@ -43,6 +43,7 @@ interface AppConfig {
   mutationWindowSizeResult?: number
   upperResultMaxAngle?: number
   upperResultDistance?: number
+  scannerToleranceMsResult?: number
 }
 
 // ==================== 全局状态 (模块级私有) ====================
@@ -159,6 +160,9 @@ export async function initMotionControl(win: BrowserWindow) {
     onRendererSend: rendererSend,
     onCalibrationResult: (result) => {
       rendererSend('calibration-result', result)
+    },
+    onScannerAction: (action, state, log) => {
+      handleScannerAction(action, state, log)
     },
     onError: (message) => {
       console.error('[MotionControl] utility 错误:', message)
@@ -327,6 +331,61 @@ function emergencyStop() {
     pauseTimer = null
   }
   mainWindow?.webContents.send('motion-state', 'emergency')
+}
+
+// ==================== 扫描仪运动控制回调 ====================
+/**
+ * 处理来自 utilityProcess 的扫描仪控制动作
+ * 映射 scannerMotionControl 的 ControlAction 到 ADBox 命令
+ *
+ * 竞态保护：每次发送新命令前先清除 onScanStepComplete 的自动换向定时器，
+ * 防止 scannerMotionControl 的换向指令与 ADBox 自身的扫描完成回调冲突。
+ */
+function handleScannerAction(
+  action: string,
+  state: string,
+  log: string | null
+): void {
+  if (log) {
+    console.log(`[ScannerMotion] ${log}`)
+  }
+
+  // 向渲染进程转发状态
+  mainWindow?.webContents.send('scanner-motion-state', { action, state, log })
+
+  if (emergencyStopFlag) return
+
+  switch (action) {
+    case 'STOP':
+      if (motionState === 'scanning') {
+        // 取消自动换向定时器（防竞态）
+        if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null }
+        // 停止当前运动，保持 scanning 状态以便后续 REV/FWD 接管
+        currentMotionSerial = generateSerial()
+        adb?.stopDecel()
+      }
+      break
+
+    case 'REV':
+    case 'FWD':
+      if (motionState === 'scanning') {
+        // 取消可能正在等待的自动换向定时器（防竞态）
+        if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null }
+        // 显式设置方向（不用 *= -1 取反，防止 scanner 已经反向时重复翻转）
+        scanDir = action === 'FWD' ? 1 : -1
+        const target = scanDir === 1 ? currentMaxPulse : 0
+        sendMoveToCommand(target, undefined, true)
+      }
+      break
+
+    case 'ALERT':
+      console.warn(`[ScannerMotion] 告警: state=${state}`)
+      mainWindow?.webContents.send('scanner-motion-alert', { action, state, log })
+      break
+
+    default:
+      break
+  }
 }
 
 // ==================== 扫描控制 ====================
@@ -537,6 +596,7 @@ function registerIpcHandlers() {
       mutationWindowSize: store?.get('mutationWindowSizeResult'),
       upperMaxAngle: store?.get('upperResultMaxAngle'),
       upperDistance: store?.get('upperResultDistance'),
+      scannerToleranceMs: store?.get('scannerToleranceMsResult'),
     }),
     'config-set-calibration-results': async (
       _event: unknown,
@@ -549,25 +609,28 @@ function registerIpcHandlers() {
         mmPerPulse?: number
         membraneWidthMm?: number
         mutationWindowSize?: number
-        upperMaxAngle?: number
-        upperDistance?: number
-      }
-      if (p.rollerTractionSpeed !== undefined)
-        store?.set('rollerResultTractionSpeed', p.rollerTractionSpeed)
-      if (p.frameLengthMM !== undefined)
-        store?.set('frameLengthMMResult', p.frameLengthMM)
-      if (p.frameLengthPulse !== undefined)
-        store?.set('frameLengthPulseResult', p.frameLengthPulse)
-      if (p.mmPerPulse !== undefined)
-        store?.set('mmPerPulseResult', p.mmPerPulse)
-      if (p.membraneWidthMm !== undefined)
-        store?.set('membraneWidthMmResult', p.membraneWidthMm)
-      if (p.mutationWindowSize !== undefined)
-        store?.set('mutationWindowSizeResult', p.mutationWindowSize)
-      if (p.upperMaxAngle !== undefined)
-        store?.set('upperResultMaxAngle', p.upperMaxAngle)
-      if (p.upperDistance !== undefined)
-        store?.set('upperResultDistance', p.upperDistance)
+      upperMaxAngle?: number
+          upperDistance?: number
+          scannerToleranceMs?: number
+        }
+        if (p.rollerTractionSpeed !== undefined)
+          store?.set('rollerResultTractionSpeed', p.rollerTractionSpeed)
+        if (p.frameLengthMM !== undefined)
+          store?.set('frameLengthMMResult', p.frameLengthMM)
+        if (p.frameLengthPulse !== undefined)
+          store?.set('frameLengthPulseResult', p.frameLengthPulse)
+        if (p.mmPerPulse !== undefined)
+          store?.set('mmPerPulseResult', p.mmPerPulse)
+        if (p.membraneWidthMm !== undefined)
+          store?.set('membraneWidthMmResult', p.membraneWidthMm)
+        if (p.mutationWindowSize !== undefined)
+          store?.set('mutationWindowSizeResult', p.mutationWindowSize)
+        if (p.upperMaxAngle !== undefined)
+          store?.set('upperResultMaxAngle', p.upperMaxAngle)
+        if (p.upperDistance !== undefined)
+          store?.set('upperResultDistance', p.upperDistance)
+        if (p.scannerToleranceMs !== undefined)
+          store?.set('scannerToleranceMsResult', p.scannerToleranceMs)
       return { success: true }
     },
   }

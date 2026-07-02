@@ -258,6 +258,14 @@ function onMembraneWidthMmBlur() {
               </el-button>
             </template>
           </el-input>
+          <el-input
+            v-model.number="thicknessResult.scannerToleranceMs"
+            size="small"
+            placeholder="出膜容错窗口 (ms)"
+            @blur="onResultBlur"
+          >
+            <template #prepend>容错窗口 (ms)</template>
+          </el-input>
         </div>
         <div class="device-result">
           <span class="result-label">机架长度（mm）</span>

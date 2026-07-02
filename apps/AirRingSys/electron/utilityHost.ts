@@ -45,6 +45,8 @@ export interface UtilityHostCallbacks {
   onCalibrationResult?: (result: unknown) => void
   /** 当 utility 推送状态时 */
   onMotionState?: (state: string) => void
+  /** 当 utility 推送扫描仪控制动作时 */
+  onScannerAction?: (action: string, state: string, log: string | null) => void
   /** 当 utility 报告错误时 */
   onError?: (message: string) => void
   /** 当 utility 就绪时 */
@@ -252,6 +254,10 @@ export class UtilityHost {
 
       case 'pipeline-stats':
         this.callbacks.onRendererSend('pipeline-stats', msg.stats)
+        break
+
+      case 'scanner-action':
+        this.callbacks.onScannerAction?.(msg.action, msg.state, msg.log)
         break
 
       case 'ipc-response': {

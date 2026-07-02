@@ -110,6 +110,7 @@ export type ICalibrationResults = {
   mutationWindowSize?: number
   upperMaxAngle?: number
   upperDistance?: number
+  scannerToleranceMs?: number
 }
 
 export type ICalibrationBridgeState = {

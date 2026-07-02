@@ -1,0 +1,250 @@
+/**
+ * 测厚仪运动控制状态机
+ *
+ * 状态流转：
+ *   UNKNOWN → IN_MEMBRANE → TOLERATING → DECELERATING → TURNING → IN_MEMBRANE
+ *   任意状态 ──(LeftLimit/RightLimit)──► EMERGENCY_STOP
+ */
+import type { OutOfBoundsResult } from './outOfBoundsDetector'
+
+/** 状态机状态 */
+export type ScannerState =
+  | 'UNKNOWN'
+  | 'IN_MEMBRANE'
+  | 'TOLERATING'
+  | 'DECELERATING'
+  | 'TURNING'
+  | 'EMERGENCY_STOP'
+
+/** 控制动作 */
+export type ControlAction = 'NONE' | 'STOP' | 'REV' | 'FWD' | 'ALERT'
+
+/** 左右出界脉冲记录 */
+export interface BoundaryPulseMap {
+  left: number | null
+  right: number | null
+}
+
+/** 状态机输出 */
+export interface StateMachineOutput {
+  state: ScannerState
+  action: ControlAction
+  log: string | null
+  boundaryPulses: BoundaryPulseMap
+}
+
+export interface ScannerStateMachineOptions {
+  /** 容错窗口（ms），默认 200 */
+  toleranceMs?: number
+  /** 停止确认窗口（ms），默认 200 */
+  stopConfirmMs?: number
+  /** 减速超时（ms），默认 5000 */
+  decelTimeoutMs?: number
+  /** 换向超时（ms），默认 3000 */
+  turnTimeoutMs?: number
+}
+
+export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) => {
+  const {
+    toleranceMs = 200,
+    stopConfirmMs = 200,
+    decelTimeoutMs = 5000,
+    turnTimeoutMs = 3000,
+  } = options
+
+  let state: ScannerState = 'UNKNOWN'
+  let toleranceStartTime: number | null = null
+  let decelStartTime: number | null = null
+  let turnStartTime: number | null = null
+  let turnStartPulse: number | null = null
+  let expectedTurnDirection: boolean | null = null // true=向右, false=向左
+  const boundaryPulses: BoundaryPulseMap = { left: null, right: null }
+
+  // 减速→停止检测：追踪脉冲稳定时间
+  let decelLastStablePulse: number | null = null
+  let decelStableSince: number | null = null
+
+  let lastPulse: number | null = null
+  let lastPulseTime: number | null = null
+
+  const logPrefix = '[ScannerMotion]'
+
+  const makeLog = (
+    from: ScannerState,
+    to: ScannerState,
+    reason: string,
+    detail: string = ''
+  ): string => {
+    const now = new Date().toISOString()
+    return `${logPrefix} ${now} ${from} → ${to} reason="${reason}"${detail}`
+  }
+
+  const next = (
+    detection: OutOfBoundsResult,
+    now: number,
+    /** 当前脉冲值 */
+    pulse: number,
+    /** 是否触发左限位 */
+    leftLimit: boolean,
+    /** 是否触发右限位 */
+    rightLimit: boolean
+  ): StateMachineOutput => {
+    // 记录上一次脉冲用于速度判断
+    lastPulse = pulse
+    lastPulseTime = now
+
+    let action: ControlAction = 'NONE'
+    let log: string | null = null
+
+    // ── 全局限位急停（最高优先级） ──
+    if (leftLimit || rightLimit) {
+      const prev = state
+      state = 'EMERGENCY_STOP'
+      log = makeLog(prev, state, leftLimit ? 'left-limit' : 'right-limit',
+        ` pulse=${pulse}`)
+      return { state, action: 'NONE', log, boundaryPulses: { ...boundaryPulses } }
+    }
+
+    const prevState = state
+
+    switch (state) {
+      case 'UNKNOWN':
+        if (detection.confirmedInMembrane) {
+          state = 'IN_MEMBRANE'
+          log = makeLog(prevState, state, 'confirmed-in-membrane',
+            ` pulse=${pulse}`)
+        }
+        break
+
+      case 'IN_MEMBRANE':
+        if (detection.confirmedOutOfBounds) {
+          state = 'TOLERATING'
+          toleranceStartTime = now
+          // 记录出界脉冲
+          if (detection.boundaryPulse !== undefined && detection.boundarySide) {
+            boundaryPulses[detection.boundarySide] = detection.boundaryPulse
+          }
+          log = makeLog(prevState, state, 'out-of-bounds',
+            ` pulse=${pulse} side=${detection.boundarySide} toleranceMs=${toleranceMs}`)
+        }
+        break
+
+      case 'TOLERATING':
+        if (detection.confirmedInMembrane) {
+          // 对称回退：连续3点厚度>0
+          state = 'IN_MEMBRANE'
+          toleranceStartTime = null
+          log = makeLog(prevState, state, 'back-to-membrane',
+            ` pulse=${pulse}`)
+        } else if (toleranceStartTime !== null && now - toleranceStartTime >= toleranceMs) {
+          // 容错到期
+          const elapsed = now - toleranceStartTime
+          state = 'DECELERATING'
+          decelStartTime = now
+          decelLastStablePulse = pulse
+          decelStableSince = null
+          toleranceStartTime = null
+          action = 'STOP'
+          log = makeLog(prevState, state, 'tolerance-expired',
+            ` pulse=${pulse} elapsedMs=${elapsed}`)
+        }
+        break
+
+      case 'DECELERATING':
+        if (decelStartTime !== null && now - decelStartTime >= decelTimeoutMs) {
+          // 减速超时（状态不变，发出告警）
+          log = makeLog(prevState, state, 'timeout',
+            ` reason=decel-timeout pulse=${pulse} elapsedMs=${now - decelStartTime}`)
+          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses } }
+        }
+
+        // 检查是否已停止：脉冲连续稳定 ≥ stopConfirmMs
+        if (decelStartTime !== null) {
+          if (decelLastStablePulse !== null && pulse === decelLastStablePulse) {
+            // 脉冲未变——开始或继续累积稳定时间
+            if (decelStableSince === null) {
+              decelStableSince = now
+            }
+            if (now - decelStableSince >= stopConfirmMs) {
+              state = 'TURNING'
+              turnStartTime = now
+              turnStartPulse = pulse
+              // 换向方向 = 当前运动方向的反向
+              expectedTurnDirection = !detection.boundarySide
+                ? null
+                : detection.boundarySide === 'left'
+                  ? true   // 左边出界 → 往回（向右）
+                  : false  // 右边出界 → 往回（向左）
+              action = expectedTurnDirection === true ? 'FWD' : 'REV'
+              log = makeLog(prevState, state, 'stopped',
+                ` pulse=${pulse} stopDurationMs=${now - decelStartTime} newDirection=${expectedTurnDirection}`)
+              decelStartTime = null
+              decelLastStablePulse = null
+              decelStableSince = null
+            }
+          } else {
+            // 脉冲变化 → 更新参考点，重置稳定计时
+            decelLastStablePulse = pulse
+            decelStableSince = null
+          }
+        }
+        break
+
+      case 'TURNING':
+        if (turnStartTime !== null && now - turnStartTime >= turnTimeoutMs) {
+          // 换向超时（状态不变，发出告警）
+          log = makeLog(prevState, state, 'timeout',
+            ` reason=turn-timeout pulse=${pulse} elapsedMs=${now - turnStartTime}`)
+          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses } }
+        }
+
+        if (detection.confirmedInMembrane) {
+          // 回到膜内
+          state = 'IN_MEMBRANE'
+          turnStartTime = null
+          turnStartPulse = null
+          expectedTurnDirection = null
+          log = makeLog(prevState, state, 'confirmed-in-membrane',
+            ` pulse=${pulse}`)
+        }
+        break
+
+      case 'EMERGENCY_STOP':
+        // 需要手动复位，不做自动转换
+        break
+    }
+
+    return { state, action, log, boundaryPulses: { ...boundaryPulses } }
+  }
+
+  /** 手动复位紧急停止 */
+  const resetEmergencyStop = () => {
+    if (state === 'EMERGENCY_STOP') {
+      state = 'UNKNOWN'
+    }
+  }
+
+  /** 完全重置状态机 */
+  const reset = () => {
+    state = 'UNKNOWN'
+    toleranceStartTime = null
+    decelStartTime = null
+    decelLastStablePulse = null
+    decelStableSince = null
+    turnStartTime = null
+    turnStartPulse = null
+    expectedTurnDirection = null
+    boundaryPulses.left = null
+    boundaryPulses.right = null
+    lastPulse = null
+    lastPulseTime = null
+  }
+
+  return {
+    next,
+    reset,
+    resetEmergencyStop,
+    getState: () => state,
+    getBoundaryPulses: () => ({ ...boundaryPulses }),
+  }
+}

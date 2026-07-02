@@ -41,6 +41,7 @@ export type UtilityToMainMsg =
   | { type: 'config-updated'; payload: Record<string, unknown> }
   | { type: 'ipc-response'; id: string; result?: unknown; error?: string }
   | { type: 'pipeline-stats'; stats: unknown }
+  | { type: 'scanner-action'; action: string; state: string; log: string | null }
 
 // ═══════════════════════════════════════════════════════════════
 // 内部 IPC 请求处理（utility 侧）
