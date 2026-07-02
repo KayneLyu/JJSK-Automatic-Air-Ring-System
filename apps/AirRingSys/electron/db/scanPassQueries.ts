@@ -181,6 +181,59 @@ export function queryLatestSweepSummaries(
     return completeRows.map(toSummary).reverse()
   }
 
+  const statusRows = db
+    .select({
+      status: schema.scanPass.status,
+      count: sql<number>`count(*)`,
+    })
+    .from(schema.scanPass)
+    .where(
+      beforeTs > 0
+        ? sql`${schema.scanPass.startTs} < ${beforeTs}`
+        : sql`1 = 1`
+    )
+    .groupBy(schema.scanPass.status)
+    .all()
+
+  const statusSummary = statusRows
+    .map((row) => `${row.status}:${row.count}`)
+    .join(', ')
+
+  const [latestRow] = db
+    .select({
+      startTs: schema.scanPass.startTs,
+      endTs: schema.scanPass.endTs,
+      status: schema.scanPass.status,
+      scannerDirection: schema.scanPass.scannerDirection,
+      pulseSpan: sql<number>`${schema.scanPass.pulseMax} - ${schema.scanPass.pulseMin}`,
+      validRatio: schema.scanPass.validRatio,
+    })
+    .from(schema.scanPass)
+    .where(
+      beforeTs > 0
+        ? sql`${schema.scanPass.startTs} < ${beforeTs}`
+        : sql`1 = 1`
+    )
+    .orderBy(desc(schema.scanPass.startTs))
+    .limit(1)
+    .all()
+
+  const latestSummary = latestRow
+    ? `latest(status=${latestRow.status}, dir=${latestRow.scannerDirection === 1 ? 'forward' : 'backward'}, span=${latestRow.pulseSpan}, validRatio=${latestRow.validRatio.toFixed(3)}, ts=${latestRow.startTs}~${latestRow.endTs})`
+    : 'latest(none)'
+
+  const now = Date.now()
+  const recentRaw = db
+    .select({
+      count60s: sql<number>`count(*)`,
+      latestRawTs: sql<number | null>`max(${schema.thicknessRaw.timestamp})`,
+    })
+    .from(schema.thicknessRaw)
+    .where(sql`${schema.thicknessRaw.timestamp} >= ${now - 60_000}`)
+    .all()[0]
+
+  const rawSummary = `raw60s=${recentRaw?.count60s ?? 0}, latestRawTs=${recentRaw?.latestRawTs ?? 0}`
+
   // 兼容冷启动/严格判定场景：若 complete 暂无数据，回退到 rejected。
   const fallbackRows = db
     .select({
@@ -197,6 +250,10 @@ export function queryLatestSweepSummaries(
     .orderBy(desc(schema.scanPass.startTs))
     .limit(limit)
     .all()
+
+  console.warn(
+    `[queryLatestSweepSummaries] complete=0 -> fallback rejected=${fallbackRows.length}, beforeTs=${beforeTs || 0}, statusDist=[${statusSummary || 'none'}], ${latestSummary}, ${rawSummary}`
+  )
 
   return fallbackRows.map(toSummary).reverse()
 }
