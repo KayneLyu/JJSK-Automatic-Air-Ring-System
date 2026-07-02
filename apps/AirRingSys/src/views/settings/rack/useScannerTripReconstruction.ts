@@ -113,6 +113,12 @@ interface ThetaCoverageStats {
   ratio: number
 }
 
+interface AirADFallbackSuggestion {
+  suggestedAirAD: number
+  aboveRatio: number
+  p99Ad: number
+}
+
 export function useScannerTripReconstruction() {
   // 上旋趟(用于 θ_max / 起始时间)
   const upperSweeps = ref<RotationTripSummaryRow[]>([])
@@ -363,7 +369,7 @@ export function useScannerTripReconstruction() {
     if (fromTripTable.length > 0) {
       const first = fromTripTable[0]
       const last = fromTripTable[fromTripTable.length - 1]
-      console.info(
+      console.warn(
         `[loadUpperSweeps] source=rotation_trip count=${fromTripTable.length} beforeTs=${queryBeforeTs} range=${first.time}~${last.time}`
       )
       return fromTripTable
@@ -637,6 +643,37 @@ export function useScannerTripReconstruction() {
     }
   }
 
+  function suggestFallbackAirAD(
+    samples: SweepPoint[],
+    currentAirAD: number
+  ): AirADFallbackSuggestion | null {
+    const positiveAds = samples
+      .map((s) => s.ad)
+      .filter((ad) => Number.isFinite(ad) && ad > 0)
+    if (positiveAds.length < 200) return null
+
+    let above = 0
+    for (const ad of positiveAds) {
+      if (ad >= currentAirAD) above += 1
+    }
+    const aboveRatio = above / positiveAds.length
+    if (aboveRatio < 0.9) return null
+
+    const sorted = [...positiveAds].sort((a, b) => a - b)
+    const p99 = sorted[Math.floor((sorted.length - 1) * 0.99)]
+    const suggestedAirAD = Math.ceil(
+      Math.max(currentAirAD + 1, 50_300, p99 * 1.01)
+    )
+    if (!Number.isFinite(suggestedAirAD) || suggestedAirAD <= currentAirAD) {
+      return null
+    }
+    return {
+      suggestedAirAD,
+      aboveRatio,
+      p99Ad: p99,
+    }
+  }
+
   /**
    * 为给定 baseline 计算 B(φ)
    * - 命中缓存直接返回
@@ -680,6 +717,7 @@ export function useScannerTripReconstruction() {
       const p = params.value
       const rawDelayMs = p.transportDelayMs
       const preferredDelayMs = getEffectiveTransportDelayMs()
+      let chosenAirAD = p.airAD
       let delayStatusPrefix: string | null = null
       if (
         rawDelayMs != null &&
@@ -728,12 +766,37 @@ export function useScannerTripReconstruction() {
         transportDelayStatus.value = delayStatusPrefix ?? 'delay 0ms'
       }
 
+      if (chosenBuild.measurements.length === 0) {
+        const fallback = suggestFallbackAirAD(samplesForReconstruction, p.airAD)
+        if (fallback) {
+          const retryBuild = buildMeasurements(
+            samplesForReconstruction,
+            fallback.suggestedAirAD,
+            p.gain,
+            chosenBuild.stats.transportDelayMs
+          )
+          if (retryBuild.measurements.length > 0) {
+            console.warn(
+              `[B(φ)] airAD 回退: ${p.airAD} -> ${fallback.suggestedAirAD} ` +
+                `(ad>=airAD ${(fallback.aboveRatio * 100).toFixed(1)}%, p99=${fallback.p99Ad.toFixed(0)}, meas 0->${retryBuild.measurements.length})`
+            )
+            chosenAirAD = fallback.suggestedAirAD
+            chosenBuild = retryBuild
+          }
+        }
+      }
+
       const measurements = chosenBuild.measurements
       if (measurements.length < 50) {
         // 数据太少,放弃
         const dropPct = (chosenBuild.stats.droppedLateRatio * 100).toFixed(1)
+        const fallback = suggestFallbackAirAD(samplesForReconstruction, chosenAirAD)
+        const airADHint =
+          fallback && measurements.length === 0
+            ? `，airAD疑似偏小（当前${chosenAirAD}，样本中>=airAD占比${(fallback.aboveRatio * 100).toFixed(1)}%，建议≈${fallback.suggestedAirAD}）`
+            : ''
         reconstructionHint.value =
-          `有效测量点不足（${measurements.length}/50，droppedLate=${chosenBuild.stats.droppedLateCount}/${chosenBuild.stats.totalSamples}=${dropPct}%）`
+          `有效测量点不足（${measurements.length}/50，droppedLate=${chosenBuild.stats.droppedLateCount}/${chosenBuild.stats.totalSamples}=${dropPct}%）${airADHint}`
         return null
       }
 
@@ -822,7 +885,7 @@ window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) /
       )
       console.log(
         `[B(φ)] 标定: W=${p.membraneWidthMm.toFixed(0)}mm θmax=${p.thetaMaxDeg.toFixed(0)}° 
-mm/pls=${p.mmPerPulse.toFixed(4)} airAD=${p.airAD} gain=${p.gain.toFixed(3)}`
+    mm/pls=${p.mmPerPulse.toFixed(4)} airAD=${chosenAirAD}${chosenAirAD !== p.airAD ? ` (cfg=${p.airAD})` : ''} gain=${p.gain.toFixed(3)}`
       )
       console.log(
         `[B(φ)] 测量: mean=${mMean.toFixed(2)}μm σ=${mStd.toFixed(2)}μm 
@@ -1016,7 +1079,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
         upperSweeps.value.length > 0 &&
         now - lastUpperSweepsRefreshAt.value < UPPER_SWEEPS_REFRESH_MIN_INTERVAL_MS
       ) {
-        console.info(
+        console.warn(
           `[loadUpperSweeps] skip refresh: cached=${upperSweeps.value.length} age=${now - lastUpperSweepsRefreshAt.value}ms`
         )
         return
@@ -1027,7 +1090,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
       if (upperSweeps.value.length > 0) {
         const first = upperSweeps.value[0]
         const last = upperSweeps.value[upperSweeps.value.length - 1]
-        console.info(
+        console.warn(
           `[loadUpperSweeps] applied count=${upperSweeps.value.length} coverage=${first.time}~${last.time + Math.max(0, last.cycleDurationMs)}`
         )
       }
