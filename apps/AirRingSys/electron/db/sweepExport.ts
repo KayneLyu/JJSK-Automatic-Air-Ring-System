@@ -8,7 +8,8 @@ import type Database from 'better-sqlite3'
 import type { drizzle } from 'drizzle-orm/better-sqlite3'
 import { lt, gte, and } from 'drizzle-orm'
 import * as schema from './schema'
-import type { ThicknessRawRow, FrameRow } from './types'
+import type { FrameRow } from './types'
+import type { ThicknessRawRow } from '@/types/ipc'
 
 /**
  * 批量导入一次扫描的全部采样点到 thickness_raw。

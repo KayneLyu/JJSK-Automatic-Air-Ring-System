@@ -10,7 +10,8 @@ import { and, gte, lt, desc, sql } from 'drizzle-orm'
 import type { drizzle } from 'drizzle-orm/better-sqlite3'
 import type Database from 'better-sqlite3'
 import * as schema from './schema'
-import type { ThicknessRawRow, RotationRawRow } from './types'
+import type { RotationRawRow } from './types'
+import type { ThicknessRawRow } from '@/types/ipc'
 
 /**
  * 按时间区间查询测厚原始数据，按时间戳升序。

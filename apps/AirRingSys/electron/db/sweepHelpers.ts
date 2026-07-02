@@ -7,28 +7,6 @@
 import { BubbleReconstructionResult } from '@/types/ipc'
 
 /**
- * 将 ADBox 原始 AD 值转换为厚度 (μm)。
- *
- * 公式基于测厚仪标定曲线：厚度 ∝ ln(airAD / ad) 的二次函数。
- *
- * @param ad    测厚仪探头 AD 值（光通量），越大越薄
- * @param airAD 空载基准 AD 值（无薄膜时的光通量）
- * @param gain  标定增益系数
- * @returns 厚度值 (μm)，非法输入返回 0
- */
-export const calcThicknessMicrons = (
-  ad: number,
-  airAD: number,
-  gain: number
-): number => {
-  if (ad <= 0 || airAD <= 0) return 0
-  if (ad >= airAD) return 0
-  const x = Math.log(airAD / ad)
-  const base = 9.65 * x * x + 243.08 * x - 0.087
-  return Math.max(0, base * (gain || 1.0))
-}
-
-/**
  * 基于直方图双峰检测，自动识别出界阈值。
  *
  * 原理：测厚仪扫描超出膜宽时，没有薄膜遮挡，AD 值跳升形成第二个峰。

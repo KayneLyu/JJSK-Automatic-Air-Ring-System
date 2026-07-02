@@ -50,7 +50,8 @@ import migrationSql from './migrations/0000_glossy_bloodstrike.sql?raw'
 import migrationSqlV1 from './migrations/0001_double_trip_model.sql?raw'
 import migrationSqlV2 from './migrations/0002_pos1_remove_calib.sql?raw'
 import migrationSqlV3 from './migrations/0003_membrane_pulse_bounds.sql?raw'
-import { FrameRow, RotationRawRow, ThicknessRawRow } from './types'
+import { FrameRow, RotationRawRow } from './types'
+import type { ThicknessRawRow } from '@/types/ipc'
 import type { RotationTripSummaryRow } from '@/types/ipc'
 
 const MIN_VALID_ROTATION_TRIP_MS = 30_000

@@ -19,8 +19,8 @@ import {
   type BubbleReconstructionResult,
 } from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
 import { trapezoidalPosition } from '@jjsk/air-ring-server/algorithms/upperRotation/upperRotation.evaluation.ts'
+import { calcThickness } from '@jjsk/air-ring-server/algorithms/thickness'
 import {
-  calcThicknessMicrons,
   detectOutOfBoundsThreshold,
   isProfilePlausible,
 } from './sweepHelpers'
@@ -142,7 +142,7 @@ export function buildProfile(
     for (const item of data) {
       if (item.ad <= 0 || item.pulse < 0) continue
       if (item.ad < airAD * 0.3) continue
-      const thickMicrons = calcThicknessMicrons(item.ad, airAD, gain)
+      const thickMicrons = calcThickness(item.ad, { airAD, gain })
       if (thickMicrons <= 0 || thickMicrons > 500) continue
       const elapsed = item.timestamp - cycle.startTs
       if (elapsed < 0) continue
@@ -344,7 +344,7 @@ export async function buildProfileAsync(
     for (const item of data) {
       if (item.ad <= 0 || item.pulse < 0) continue
       if (item.ad < airAD * 0.3) continue
-      const thickMicrons = calcThicknessMicrons(item.ad, airAD, gain)
+      const thickMicrons = calcThickness(item.ad, { airAD, gain })
       if (thickMicrons <= 0 || thickMicrons > 500) continue
       const elapsed = item.timestamp - cycle.startTs
       if (elapsed < 0) continue
