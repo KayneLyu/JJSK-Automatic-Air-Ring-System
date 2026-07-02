@@ -361,40 +361,49 @@ export function useScannerTripReconstruction() {
 
   async function fetchUpperSweeps(beforeTs?: number): Promise<RotationTripSummaryRow[]> {
     const queryBeforeTs = beforeTs ?? 0
-    const fromTripTable = (await window.ipcApi.invoke(
-      'db-get-latest-rotation-trips',
-      UPPER_SWEEPS_FETCH_COUNT,
-      beforeTs
-    )) as RotationTripSummaryRow[]
-    if (fromTripTable.length > 0) {
-      const first = fromTripTable[0]
-      const last = fromTripTable[fromTripTable.length - 1]
+    const [fromTripTable, fromFallback] = (await Promise.all([
+      window.ipcApi.invoke(
+        'db-get-latest-rotation-trips',
+        UPPER_SWEEPS_FETCH_COUNT,
+        beforeTs
+      ),
+      window.ipcApi.invoke(
+        'db-get-latest-rotation-trips-fallback',
+        UPPER_SWEEPS_FETCH_COUNT,
+        beforeTs
+      ),
+    ])) as [RotationTripSummaryRow[], RotationTripSummaryRow[]]
+
+    const mergedMap = new Map<string, RotationTripSummaryRow>()
+    for (const row of fromTripTable) {
+      const key = `${row.time}:${row.direction}`
+      mergedMap.set(key, row)
+    }
+    for (const row of fromFallback) {
+      const key = `${row.time}:${row.direction}`
+      const prev = mergedMap.get(key)
+      if (!prev || row.cycleDurationMs > prev.cycleDurationMs) {
+        mergedMap.set(key, row)
+      }
+    }
+    const merged = [...mergedMap.values()].sort((a, b) => a.time - b.time)
+
+    if (merged.length > 0) {
+      const first = merged[0]
+      const last = merged[merged.length - 1]
       console.warn(
-        `[loadUpperSweeps] source=rotation_trip count=${fromTripTable.length} beforeTs=${queryBeforeTs} range=${first.time}~${last.time}`
+        `[loadUpperSweeps] source=merged trip=${fromTripTable.length} fallback=${fromFallback.length} count=${merged.length} beforeTs=${queryBeforeTs} range=${first.time}~${last.time + Math.max(0, last.cycleDurationMs)}`
       )
-      return fromTripTable
+      if (fromTripTable.length === 0 && fromFallback.length > 0) {
+        console.warn('[loadUpperSweeps] rotation_trip 为空，已回退到 rotation_raw 方向变化构建上旋趟')
+      }
+      return merged
     }
 
-    const fromFallback = (await window.ipcApi.invoke(
-      'db-get-latest-rotation-trips-fallback',
-      UPPER_SWEEPS_FETCH_COUNT,
-      beforeTs
-    )) as RotationTripSummaryRow[]
-    if (fromFallback.length > 0) {
-      const first = fromFallback[0]
-      const last = fromFallback[fromFallback.length - 1]
-      console.warn(
-        `[loadUpperSweeps] source=fallback count=${fromFallback.length} beforeTs=${queryBeforeTs} range=${first.time}~${last.time}`
-      )
-    } else {
-      console.warn(
-        `[loadUpperSweeps] source=none count=0 beforeTs=${queryBeforeTs} (rotation_trip/fallback 均无可用上旋趟)`
-      )
-    }
-    if (fromFallback.length > 0) {
-      console.warn('[loadUpperSweeps] rotation_trip 为空，已回退到 rotation_raw 方向变化构建上旋趟')
-    }
-    return fromFallback
+    console.warn(
+      `[loadUpperSweeps] source=none count=0 beforeTs=${queryBeforeTs} (rotation_trip/fallback 均无可用上旋趟)`
+    )
+    return []
   }
 
   /** 加载指定扫描趟的 samples — 带 in-flight dedup,避免并发重复查询 */
