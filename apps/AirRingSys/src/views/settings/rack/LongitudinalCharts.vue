@@ -256,6 +256,8 @@ function handleRealtimeData(
   const data = normalizeThicknessRealtimePayload(payload)
   if (!data) return
 
+  let needUpdateLiveSweep = false
+
   for (var j = 0; j < data.pulses.length; j++) {
     var pulse = data.pulses[j]
     if (pulse < 0) continue
@@ -286,11 +288,15 @@ function handleRealtimeData(
       rtDirection = newDir
     }
     rtBuffer.push([pulse, ad, ts])
-    liveSweep.value = buildLiveSweep()
+    needUpdateLiveSweep = true
     rtLastPulse = pulse
   }
-  if (rtBuffer.length > 8000) {
-    rtBuffer = rtBuffer.slice(-8000)
+  
+  // 只在批次结束时更新一次 liveSweep，避免每个数据点都触发 Vue 响应式 + ECharts 重渲染
+  if (needUpdateLiveSweep) {
+    if (rtBuffer.length > 8000) {
+      rtBuffer = rtBuffer.slice(-8000)
+    }
     liveSweep.value = buildLiveSweep()
   }
 }

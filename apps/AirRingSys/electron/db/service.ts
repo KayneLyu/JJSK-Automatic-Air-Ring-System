@@ -325,9 +325,15 @@ export class SQLiteService {
 
     this.sqliteDb.exec('BEGIN')
     try {
-      for (const item of this.batchBuffer.thickness) this.db.insert(schema.thicknessRaw).values(item).run()
-      for (const item of this.batchBuffer.rotation) this.db.insert(schema.rotationRaw).values(item).run()
-      for (const item of this.batchBuffer.airRing) this.db.insert(schema.airRingRaw).values(item).run()
+      if (counts.thickness > 0) {
+        this.db.insert(schema.thicknessRaw).values(this.batchBuffer.thickness).run()
+      }
+      if (counts.rotation > 0) {
+        this.db.insert(schema.rotationRaw).values(this.batchBuffer.rotation).run()
+      }
+      if (counts.airRing > 0) {
+        this.db.insert(schema.airRingRaw).values(this.batchBuffer.airRing).run()
+      }
       this.sqliteDb.exec('COMMIT')
     } catch (e) {
       this.sqliteDb.exec('ROLLBACK')
