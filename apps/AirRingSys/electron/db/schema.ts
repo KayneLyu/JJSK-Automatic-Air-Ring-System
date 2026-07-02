@@ -85,8 +85,12 @@ export const scanPass = sqliteTable(
     startTs: integer('start_ts').notNull(),
     endTs: integer('end_ts').notNull(),
     scannerDirection: integer('scanner_direction').notNull(), // 1=正向扫描, 0=反向扫描
-    pulseMin: integer('pulse_min').notNull(),
-    pulseMax: integer('pulse_max').notNull(),
+    pulseMin: integer('pulse_min').notNull(), // 整趟脉冲范围下限（含出界区域）
+    pulseMax: integer('pulse_max').notNull(), // 整趟脉冲范围上限（含出界区域）
+    /** 膜内首脉冲位置（双峰边沿检测）；仅 status=complete 时有值 */
+    membranePulseMin: integer('membrane_pulse_min'),
+    /** 膜内末脉冲位置（双峰边沿检测）；仅 status=complete 时有值 */
+    membranePulseMax: integer('membrane_pulse_max'),
     validRatio: real('valid_ratio').notNull().default(0), // 有效测点占比
     status: text().notNull().default('pending'), // pending | complete | rejected
     createdAt: integer('created_at').notNull(),

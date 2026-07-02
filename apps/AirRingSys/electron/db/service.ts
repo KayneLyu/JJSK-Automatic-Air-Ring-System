@@ -49,6 +49,7 @@ import {
 import migrationSql from './migrations/0000_glossy_bloodstrike.sql?raw'
 import migrationSqlV1 from './migrations/0001_double_trip_model.sql?raw'
 import migrationSqlV2 from './migrations/0002_pos1_remove_calib.sql?raw'
+import migrationSqlV3 from './migrations/0003_membrane_pulse_bounds.sql?raw'
 import { FrameRow, RotationRawRow, ThicknessRawRow } from './types'
 import type { RotationTripSummaryRow } from '@/types/ipc'
 
@@ -139,6 +140,23 @@ export class SQLiteService {
             console.error('[SQLite] CRITICAL: v2 ADD COLUMN migration failed:', trimmed, e)
           } else {
             console.error('[SQLite] v2 migration error:', e)
+          }
+        }
+      }
+    }
+
+    // v3: 膜内脉冲边界列
+    for (const chunk of migrationSqlV3.split('--> statement-breakpoint\n')) {
+      const trimmed = chunk.trim()
+      if (trimmed && !trimmed.startsWith('--')) {
+        if (shouldSkipV2Chunk(this.sqliteDb, trimmed)) continue
+        try {
+          this.sqliteDb.exec(trimmed)
+        } catch (e) {
+          if (/ADD\s+COLUMN/i.test(trimmed)) {
+            console.error('[SQLite] CRITICAL: v3 ADD COLUMN migration failed:', trimmed, e)
+          } else {
+            console.error('[SQLite] v3 migration error:', e)
           }
         }
       }
@@ -447,6 +465,7 @@ export class SQLiteService {
   insertScanPass(sp: {
     startTs: number; endTs: number; scannerDirection: number
     pulseMin: number; pulseMax: number; validRatio: number
+    membranePulseMin: number | null; membranePulseMax: number | null
     status?: 'complete' | 'rejected'
   }): void {
     if (!this.ready) return
@@ -454,6 +473,7 @@ export class SQLiteService {
     this.db.insert(schema.scanPass).values({
       startTs: sp.startTs, endTs: sp.endTs, scannerDirection: sp.scannerDirection,
       pulseMin: sp.pulseMin, pulseMax: sp.pulseMax, validRatio: sp.validRatio,
+      membranePulseMin: sp.membranePulseMin, membranePulseMax: sp.membranePulseMax,
       status: sp.status ?? 'complete', createdAt: now,
     }).run()
   }

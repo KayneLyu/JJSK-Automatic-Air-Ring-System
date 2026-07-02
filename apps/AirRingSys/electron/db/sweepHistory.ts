@@ -24,6 +24,10 @@ export interface SweepSummaryResult {
   endTs: number
   /** 有效采样点数 */
   pointCount: number
+  /** 膜内首脉冲位置（双峰边沿检测）；status=rejected 时为 null */
+  membranePulseMin: number | null
+  /** 膜内末脉冲位置（双峰边沿检测）；status=rejected 时为 null */
+  membranePulseMax: number | null
 }
 
 /** 按索引查询扫描趟的结果（单趟或往返配对） */

@@ -48,10 +48,14 @@ export interface ClosedScanPass {
   startTs: number
   /** 结束时间戳 (ms) */
   endTs: number
-  /** 该趟最小 pulse */
+  /** 该趟最小 pulse（整趟范围，含出界区域） */
   pulseMin: number
-  /** 该趟最大 pulse */
+  /** 该趟最大 pulse（整趟范围，含出界区域） */
   pulseMax: number
+  /** 膜内最小 pulse（双峰边沿检测首膜内脉冲；rejected 时为 null） */
+  membranePulseMin: number | null
+  /** 膜内最大 pulse（双峰边沿检测末膜内脉冲；rejected 时为 null） */
+  membranePulseMax: number | null
   /** 有效测点占比 (0-1) */
   validRatio: number
   /** 总采样点数 */
@@ -89,11 +93,22 @@ const createCurrentScan = (
   ads: [ad],
 })
 
-const isCompleteByBimodal = (scan: CurrentScan): boolean => {
-  if (scan.ads.length < 100 || scan.pulses.length < 100) return false
-  if (scan.pulseMax - scan.pulseMin < MIN_SCAN_PULSE_SPAN) return false
+const isCompleteByBimodal = (
+  scan: CurrentScan
+): {
+  complete: boolean
+  membranePulseMin: number | null
+  membranePulseMax: number | null
+} => {
+  const reject = {
+    complete: false,
+    membranePulseMin: null,
+    membranePulseMax: null,
+  }
+  if (scan.ads.length < 100 || scan.pulses.length < 100) return reject
+  if (scan.pulseMax - scan.pulseMin < MIN_SCAN_PULSE_SPAN) return reject
   const threshold = detectBimodalThreshold(scan.ads)
-  if (threshold === null) return false
+  if (threshold === null) return reject
 
   let leadingPulse: number | null = null
   let trailingPulse: number | null = null
@@ -109,21 +124,33 @@ const isCompleteByBimodal = (scan: CurrentScan): boolean => {
       break
     }
   }
-  if (leadingPulse === null || trailingPulse === null) return false
+  if (leadingPulse === null || trailingPulse === null) return reject
   // 方向无关：正向/反向都用绝对跨度判断膜内覆盖宽度。
-  return Math.abs(trailingPulse - leadingPulse) >= MIN_MEMBRANE_PULSE_SPAN
+  if (Math.abs(trailingPulse - leadingPulse) < MIN_MEMBRANE_PULSE_SPAN)
+    return reject
+
+  return {
+    complete: true,
+    membranePulseMin: Math.min(leadingPulse, trailingPulse),
+    membranePulseMax: Math.max(leadingPulse, trailingPulse),
+  }
 }
 
-const closeCurrentScan = (scan: CurrentScan, endTs: number): ClosedScanPass => ({
-  scannerDirection: scan.direction === 1 ? 1 : 0,
-  startTs: scan.startTs,
-  endTs,
-  pulseMin: scan.pulseMin,
-  pulseMax: scan.pulseMax,
-  validRatio: scan.totalCount > 0 ? scan.validCount / scan.totalCount : 0,
-  totalCount: scan.totalCount,
-  status: isCompleteByBimodal(scan) ? 'complete' : 'rejected',
-})
+const closeCurrentScan = (scan: CurrentScan, endTs: number): ClosedScanPass => {
+  const bimodal = isCompleteByBimodal(scan)
+  return {
+    scannerDirection: scan.direction === 1 ? 1 : 0,
+    startTs: scan.startTs,
+    endTs,
+    pulseMin: scan.pulseMin,
+    pulseMax: scan.pulseMax,
+    membranePulseMin: bimodal.membranePulseMin,
+    membranePulseMax: bimodal.membranePulseMax,
+    validRatio: scan.totalCount > 0 ? scan.validCount / scan.totalCount : 0,
+    totalCount: scan.totalCount,
+    status: bimodal.complete ? 'complete' : 'rejected',
+  }
+}
 
 /**
  * 扫描趟检测器

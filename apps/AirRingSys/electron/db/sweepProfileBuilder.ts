@@ -169,7 +169,6 @@ export function buildProfile(
         ? inferredWidthMm
         : membraneWidthMm
 
-    const halfWidth = effectiveWidthMm / 2
     const thicknessThreshold = detectOutOfBoundsThreshold(
       prefiltered.map((p) => p.thickness)
     )
@@ -179,6 +178,8 @@ export function buildProfile(
     // (delayedUpperAngle+90°)的两点：α₁=αC+δ, α₂=αC-δ。
     // delayedUpperAngle 用 (timestamp - transportDelayMs) 推算，保证用的是
     // 膜泡被压合时刻的上旋角度而非测量时刻。
+    // 注：halfWidth 过滤已移除 — 膜内范围由 scan_pass.membranePulseMin/Max 在
+    // 查询阶段通过 pulse BETWEEN 界定，不再在 buildProfile 中做几何裁剪。
     const binWidthDeg = 360 / numBins
     const tripDuration = Math.max(1, cycle.durationMs)
     const accelRatio = Math.min(20_000, tripDuration * 0.45) / tripDuration
@@ -195,11 +196,10 @@ export function buildProfile(
     let totalMeasurements = 0
 
     for (const item of prefiltered) {
-      const centeredPos = item.scannerPosMm - centerMm
-      if (Math.abs(centeredPos) > halfWidth) continue
       if (thicknessThreshold !== null && item.thickness > thicknessThreshold)
         continue
 
+      const centeredPos = item.scannerPosMm - centerMm
       const delayedTs = item.timestamp - transportDelayMs
       const delayedElapsed = delayedTs - cycle.startTs
       const delayedProgress = Math.max(0, Math.min(1, delayedElapsed / tripDuration))
@@ -371,7 +371,6 @@ export async function buildProfileAsync(
         ? inferredWidthMm
         : membraneWidthMm
 
-    const halfWidth = effectiveWidthMm / 2
     const thicknessThreshold = detectOutOfBoundsThreshold(
       prefiltered.map((p) => p.thickness)
     )
@@ -392,11 +391,10 @@ export async function buildProfileAsync(
     let totalMeasurements = 0
 
     for (const item of prefiltered) {
-      const centeredPos = item.scannerPosMm - centerMm
-      if (Math.abs(centeredPos) > halfWidth) continue
       if (thicknessThreshold !== null && item.thickness > thicknessThreshold)
         continue
 
+      const centeredPos = item.scannerPosMm - centerMm
       const delayedTs = item.timestamp - transportDelayMs
       const delayedElapsed = delayedTs - cycle.startTs
       const delayedProgress = Math.max(0, Math.min(1, delayedElapsed / tripDuration))

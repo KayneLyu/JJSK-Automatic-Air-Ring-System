@@ -25,6 +25,8 @@ const toSummary = (row: ScanPassRow): SweepSummaryResult => ({
   startTs: row.startTs,
   endTs: row.endTs,
   pointCount: 0, // scan_pass 当前不存 totalCount，后续 migration 补充
+  membranePulseMin: row.membranePulseMin ?? null,
+  membranePulseMax: row.membranePulseMax ?? null,
 })
 
 /**
