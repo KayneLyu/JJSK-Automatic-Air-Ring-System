@@ -53,7 +53,7 @@ let option: ECOption = {
             },
             axisLabel: {
                 formatter: (value) => {
-                    return value + "°";
+                    return `${value}°`;
                 },
             },
             splitLine: {
@@ -111,7 +111,7 @@ let option: ECOption = {
         interval: 20,
         axisLabel: {
             formatter: (value) => {
-                return value + '%'
+                return `${value}%`
             }
         }
     },

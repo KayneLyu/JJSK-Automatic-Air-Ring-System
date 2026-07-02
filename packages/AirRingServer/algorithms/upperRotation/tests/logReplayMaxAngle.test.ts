@@ -23,7 +23,11 @@ type ReplayEvent =
   | { kind: 'upper'; data: UpperPoint }
   | { kind: 'thickness'; data: ThicknessPoint }
 
-const LOG_ROOT = '/Users/zane/Downloads/logs'
+const LOG_ROOT =
+  process.env.LOG_ROOT ??
+  (process.platform === 'win32'
+    ? 'C:\\Users\\zane\\Downloads\\logs'
+    : '/Users/zane/Downloads/logs')
 const THICKNESS_LOG = path.join(
   LOG_ROOT,
   'thickness',
@@ -34,7 +38,7 @@ const AIR_RING_LOG = path.join(
   'airRing',
   'upper-rotation-2026-05-08.log'
 )
-const LOG_ROOT_3 = '/Users/zane/Downloads/logs 3'
+const LOG_ROOT_3 = process.env.LOG_ROOT_3 ?? LOG_ROOT
 const MAY22_THICKNESS_LOGS = [
   path.join(LOG_ROOT_3, 'thickness', 'thickness-modbus-2026-05-22-12.log.gz'),
   path.join(LOG_ROOT_3, 'thickness', 'thickness-modbus-2026-05-22-13.log'),
@@ -44,6 +48,23 @@ const MAY22_AIR_RING_LOG = path.join(
   'airRing',
   'upper-rotation-s7-2026-05-22.log'
 )
+const JUNE10_THICKNESS_LOG = path.join(
+  LOG_ROOT,
+  'thickness',
+  'thickness-adbox-2026-06-10-15.log'
+)
+const JUNE10_AIR_RING_LOG = path.join(
+  LOG_ROOT,
+  'airRing',
+  'upper-rotation-s7-2026-06-10.log'
+)
+
+const hasMay8Logs = fs.existsSync(THICKNESS_LOG) && fs.existsSync(AIR_RING_LOG)
+const hasMay22Logs =
+  MAY22_THICKNESS_LOGS.every((filePath) => fs.existsSync(filePath)) &&
+  fs.existsSync(MAY22_AIR_RING_LOG)
+const hasJune10Logs =
+  fs.existsSync(JUNE10_THICKNESS_LOG) && fs.existsSync(JUNE10_AIR_RING_LOG)
 
 const readLogText = (filePath: string) => {
   const buffer = fs.readFileSync(filePath)
@@ -240,8 +261,63 @@ const buildReplayEvents = (
   return events
 }
 
+const runReplay = (upper: UpperPoint[], thickness: ThicknessPoint[]) => {
+  const replayEvents = buildReplayEvents(upper, thickness)
+  const { next: rollerNext } = mockRoller({
+    speed: (20 * 1000) / 60,
+    RADIUS: 15 * 10,
+  })
+  const { next: buildTripSegmentNext } = buildTripSegment()
+
+  let tripSegment = buildTripSegmentNext({
+    airRing: undefined,
+    thickness: undefined,
+  })
+
+  for (const event of replayEvents) {
+    if (event.kind === 'upper') {
+      tripSegment = buildTripSegmentNext({
+        airRing: event.data,
+        thickness: undefined,
+      })
+    } else {
+      const roller = rollerNext()
+      tripSegment = buildTripSegmentNext({
+        airRing: undefined,
+        thickness: { ...roller, ...event.data },
+      })
+    }
+  }
+
+  const completeSegments = tripSegment.filter((segment) => segment.duration > 0)
+  const usableSegments = completeSegments.filter(
+    (segment) => segment.measurements.length >= 10
+  )
+  const nanCount = usableSegments.reduce(
+    (sum, segment) =>
+      sum + segment.measurements.filter((point) => isNaN(point.y)).length,
+    0
+  )
+  const nanSegments = usableSegments.filter((segment) =>
+    segment.measurements.some((point) => isNaN(point.y))
+  ).length
+  const maxAngle = estimateThetaMaxWithPhaseCorrection(tripSegment)
+
+  return {
+    maxAngle,
+    completeCount: completeSegments.length,
+    usableCount: usableSegments.length,
+    nanCount,
+    nanSegments,
+  }
+}
+
+const isExplicitDirection = (point: UpperPoint) => {
+  return point.ForwardRotation !== point.ReverseRotation
+}
+
 describe('日志重放: Downloads/logs 最大上旋角度推导', () => {
-  test('重放 /Users/zane/Downloads/logs 并推导 maxAngle', () => {
+  ;(hasMay8Logs ? test : test.skip)('重放 Downloads/logs 并推导 maxAngle', () => {
     expect(fs.existsSync(THICKNESS_LOG)).toBe(true)
     expect(fs.existsSync(AIR_RING_LOG)).toBe(true)
 
@@ -341,7 +417,7 @@ describe('日志重放: Downloads/logs 最大上旋角度推导', () => {
     expect(best.maxAngle).toBeLessThan(360)
   }, 300_000)
 
-  test('按上旋来回分组重放并逐圈推导 maxAngle', () => {
+  ;(hasMay8Logs ? test : test.skip)('按上旋来回分组重放并逐圈推导 maxAngle', () => {
     const thickness = parseThicknessFromLog(THICKNESS_LOG)
     const upperReadTimestamps = parseUpperReadTimestamps(AIR_RING_LOG)
 
@@ -531,7 +607,7 @@ describe('日志重放: Downloads/logs 最大上旋角度推导', () => {
     }
   }, 300_000)
 
-  test('重放 /Users/zane/Downloads/logs 3 的 2026-05-22 日志并恢复出界分组', () => {
+  ;(hasMay22Logs ? test : test.skip)('重放 2026-05-22 日志并恢复出界分组', () => {
     for (const filePath of MAY22_THICKNESS_LOGS) {
       expect(fs.existsSync(filePath)).toBe(true)
     }
@@ -596,4 +672,34 @@ describe('日志重放: Downloads/logs 最大上旋角度推导', () => {
     expect(maxAngle).toBeGreaterThan(240)
     expect(maxAngle).toBeLessThan(360)
   }, 300_000)
+
+  ;(hasJune10Logs ? test : test.skip)(
+    '重放 2026-06-10 ADBox 日志并对比忽略 OFF 状态',
+    () => {
+      const thickness = parseThicknessFromLog(JUNE10_THICKNESS_LOG)
+      const upper = parseUpperFromLog(JUNE10_AIR_RING_LOG)
+      const upperWithoutOff = upper.filter(isExplicitDirection)
+
+      expect(thickness.length).toBeGreaterThan(100000)
+      expect(upper.length).toBeGreaterThan(1000)
+      expect(upperWithoutOff.length).toBeLessThan(upper.length)
+
+      const offCount = upper.length - upperWithoutOff.length
+      const rawResult = runReplay(upper, thickness)
+      const ignoreOffResult = runReplay(upperWithoutOff, thickness)
+
+      console.log(
+        `[june10-replay] raw maxAngle=${rawResult.maxAngle?.toFixed(6) ?? 'null'} usable=${rawResult.usableCount} complete=${rawResult.completeCount}`
+      )
+      console.log(
+        `[june10-replay] ignore-off maxAngle=${ignoreOffResult.maxAngle?.toFixed(6) ?? 'null'} usable=${ignoreOffResult.usableCount} complete=${ignoreOffResult.completeCount} off=${offCount}/${upper.length}`
+      )
+
+      expect(rawResult.maxAngle).toBeGreaterThan(180)
+      expect(rawResult.maxAngle).toBeLessThan(360)
+      expect(ignoreOffResult.maxAngle).toBeGreaterThan(180)
+      expect(ignoreOffResult.maxAngle).toBeLessThan(360)
+    },
+    300_000
+  )
 })

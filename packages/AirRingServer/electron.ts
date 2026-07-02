@@ -1,6 +1,14 @@
 export {
   createCalibrationSession,
+  calibrateTractionSpeed,
+  calibrateMutationWindowSize,
+  detectMutation,
+  calibrateDistance,
+  buildTripSegments,
+  calibrateMaxAngle,
   type CalibrateResult,
+  type CalibrateNextResult,
+  type PendingAngleEstimate,
   type CreateCalibrationSessionOptions,
 } from './controllers/calibration'
 export {
@@ -28,4 +36,14 @@ export type {
   ThicknessData,
   ThicknessBatchData,
 } from './connections/thickness/types'
-export type { CalibrationConfig, Scalar } from './types'
+export type { CalibrationConfig, Scalar, TripSegment } from './types'
+export {
+  estimateThetaMaxWithPhaseCorrection,
+  type UpperRotationAdaptiveRulesOverride,
+  type UpperRotationAdaptiveTuningOverride,
+  type UpperRotationDebugOptions,
+  type UpperRotationObjectiveMode,
+  type UpperRotationOffsetMode,
+  type UpperRotationStrategyProfile,
+} from './algorithms/upperRotation/upperRotation'
+export { detectBimodalThreshold } from './algorithms/buildTripSegment'

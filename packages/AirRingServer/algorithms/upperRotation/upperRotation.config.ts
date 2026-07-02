@@ -50,6 +50,7 @@ const SOLUTION_GAP_THRESHOLD_DEG = 15 // 提高门槛：高角度分歧判定更
 const DIRECT_ACCEPT_LOSS_RATIO = 1.0 // 收紧容差：direct 损失值不能更高
 const DIRECT_BOUNDARY_GUARD_DEG = 10
 const CHALLENGER_MAX_POINTS = 40000
+const SEARCH_MAX_POINTS = 100000
 
 export const ADAPTIVE_RULES_BASE = {
   lowAngle: {
@@ -93,7 +94,7 @@ export const ADAPTIVE_RULES_BASE = {
       minDownShift: 8,
     },
   },
-} as const
+}
 
 export const ADAPTIVE_TUNING_DEFAULT: UpperRotationAdaptiveTuning = {
   lowAngleBlendH1: 0.72,
@@ -208,4 +209,5 @@ export const upperRotationRuntimeLimits = {
   DIRECT_ACCEPT_LOSS_RATIO,
   DIRECT_BOUNDARY_GUARD_DEG,
   CHALLENGER_MAX_POINTS,
+  SEARCH_MAX_POINTS,
 }

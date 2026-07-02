@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "options": {
+    "typeAware": true
+  },
+  "rules": {
+    "no-console": "off"
+  },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/dist-electron/**",
+    "**/release/**",
+    "**/out/**",
+    "**/.vite/**",
+    "**/*.d.ts",
+    "**/coverage/**",
+    "**/data/**",
+    "**/*.mjs"
+  ]
+}

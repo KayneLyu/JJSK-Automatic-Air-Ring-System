@@ -34,15 +34,15 @@ export interface PushData {
 }
 
 export interface RunResult {
-  status: number;
-  serial: number;
+  status: number
+  serial: number
 }
 
 export interface PendingRequest {
-  resolve: (resp: Buffer) => void;
-  reject: (reason: Error) => void;
-  timer: NodeJS.Timeout;
-  retries: number;
-  expectedPrefix: Buffer;  // 用于匹配响应
-  commandData: Buffer;     // 不含B0的完整命令
+  resolve: (resp: Buffer) => void
+  reject: (reason: Error) => void
+  timer: NodeJS.Timeout
+  retries: number
+  expectedPrefix: Buffer // 用于匹配响应
+  commandData: Buffer // 不含B0的完整命令
 }

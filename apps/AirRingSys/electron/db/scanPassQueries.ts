@@ -1,0 +1,279 @@
+/**
+ * 扫描趟查询层（基于 scan_pass 物化表）
+ *
+ * 替代原 sweepQueries.ts 的 6-CTE SQL 实时切分方案。
+ * 所有扫描趟摘要查询直接走 scan_pass 表，O(log N) 索引查询替代 O(N) CTE。
+ *
+ * 扫描趟由 DataPipeline.scanPassDetector 在数据接收路径上实时写入，
+ * 历史数据由 backfillScanPassesHistory() 一次性从 thickness_raw 回填。
+ */
+import { desc, sql } from 'drizzle-orm'
+import type { drizzle } from 'drizzle-orm/better-sqlite3'
+import * as schema from './schema'
+import {
+  querySweepPointsByRangeWithOrm,
+  type SweepIndexedResult,
+  type SweepSummaryResult,
+} from './sweepHistory'
+
+type ScanPassSummaryRow = {
+  startTs: number
+  endTs: number
+  scannerDirection: number
+}
+
+const toSummary = (row: ScanPassSummaryRow): SweepSummaryResult => ({
+  sweepId: `${row.scannerDirection === 1 ? 'forward' : 'backward'}-${row.startTs}-${row.endTs}`,
+  direction: row.scannerDirection === 1 ? 'forward' : 'backward',
+  startTs: row.startTs,
+  endTs: row.endTs,
+  pointCount: 0, // scan_pass 当前不存 totalCount，后续 migration 补充
+  membranePulseMin: null,
+  membranePulseMax: null,
+})
+
+/**
+ * 从 scan_pass 表查询按模式的扫描趟数。
+ */
+export function querySweepCountByMode(
+  db: ReturnType<typeof drizzle<typeof schema>>,
+  mode: 'single' | 'round'
+): number {
+  const rows = db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.scanPass)
+    .where(sql`${schema.scanPass.status} = 'complete'`)
+    .get()
+  const total = rows?.count ?? 0
+  return mode === 'single' ? total : Math.ceil(total / 2)
+}
+
+/**
+ * 从 scan_pass 表查询按模式的扫描趟 ID 列表。
+ */
+export function querySweepIdsByMode(
+  db: ReturnType<typeof drizzle<typeof schema>>,
+  mode: 'single' | 'round'
+): string[] {
+  const rows = db
+    .select({
+      startTs: schema.scanPass.startTs,
+      endTs: schema.scanPass.endTs,
+      scannerDirection: schema.scanPass.scannerDirection,
+    })
+    .from(schema.scanPass)
+    .where(sql`${schema.scanPass.status} = 'complete'`)
+    .orderBy(schema.scanPass.startTs)
+    .all()
+
+  if (mode === 'single') {
+    return rows.map(
+      (r) => `${r.scannerDirection === 1 ? 'forward' : 'backward'}-${r.startTs}-${r.endTs}`
+    )
+  }
+
+  const ids: string[] = []
+  for (let i = 0; i < rows.length; i += 2) {
+    const first = rows[i]
+    const second = rows[i + 1]
+    const fid = `${first.scannerDirection === 1 ? 'forward' : 'backward'}-${first.startTs}-${first.endTs}`
+    if (second) {
+      const sid = `${second.scannerDirection === 1 ? 'forward' : 'backward'}-${second.startTs}-${second.endTs}`
+      ids.push(`${fid}|${sid}`)
+    } else {
+      ids.push(fid)
+    }
+  }
+  return ids
+}
+
+/**
+ * 从 scan_pass 表按索引查询扫描趟（含点数据）。
+ *
+ * 点数据仍从 thickness_raw 通过 sweepHistory 拉取。
+ */
+export function querySweepByIndex(
+  db: ReturnType<typeof drizzle<typeof schema>>,
+  mode: 'single' | 'round',
+  index: number
+): SweepIndexedResult | null {
+  if (!Number.isInteger(index) || index < 0) return null
+
+  const baseSelect = {
+    startTs: schema.scanPass.startTs,
+    endTs: schema.scanPass.endTs,
+    scannerDirection: schema.scanPass.scannerDirection,
+  }
+
+  if (mode === 'single') {
+    const [row] = db
+      .select(baseSelect)
+      .from(schema.scanPass)
+      .where(sql`${schema.scanPass.status} = 'complete'`)
+      .orderBy(schema.scanPass.startTs)
+      .limit(1)
+      .offset(index)
+      .all()
+    if (!row) return null
+    return {
+      id: `${row.scannerDirection === 1 ? 'forward' : 'backward'}-${row.startTs}-${row.endTs}`,
+      mode,
+      sweeps: [
+        {
+          direction: (row.scannerDirection === 1 ? 'forward' : 'backward') as 'forward' | 'backward',
+          points: querySweepPointsByRangeWithOrm(db, row.startTs, row.endTs),
+        },
+      ],
+    }
+  }
+
+  // round mode: 取 index * 2 位置开始的 2 趟
+  const rows = db
+    .select(baseSelect)
+    .from(schema.scanPass)
+    .where(sql`${schema.scanPass.status} = 'complete'`)
+    .orderBy(schema.scanPass.startTs)
+    .limit(2)
+    .offset(index * 2)
+    .all()
+
+  const first = rows[0]
+  if (!first) return null
+  const second = rows[1]
+  const selected = second ? [first, second] : [first]
+  return {
+    id: second
+      ? `${first.scannerDirection === 1 ? 'forward' : 'backward'}-${first.startTs}-${first.endTs}|${second.scannerDirection === 1 ? 'forward' : 'backward'}-${second.startTs}-${second.endTs}`
+      : `${first.scannerDirection === 1 ? 'forward' : 'backward'}-${first.startTs}-${first.endTs}`,
+    mode,
+    sweeps: selected.map((s) => ({
+      direction: (s.scannerDirection === 1 ? 'forward' : 'backward') as 'forward' | 'backward',
+      points: querySweepPointsByRangeWithOrm(db, s.startTs, s.endTs),
+    })),
+  }
+}
+
+/**
+ * 从 scan_pass 表查询最近 N 趟扫描摘要。
+ */
+export function queryLatestSweepSummaries(
+  db: ReturnType<typeof drizzle<typeof schema>>,
+  limit: number,
+  beforeTs = 0
+): SweepSummaryResult[] {
+  const completeRows = db
+    .select({
+      startTs: schema.scanPass.startTs,
+      endTs: schema.scanPass.endTs,
+      scannerDirection: schema.scanPass.scannerDirection,
+    })
+    .from(schema.scanPass)
+    .where(
+      beforeTs > 0
+        ? sql`${schema.scanPass.status} = 'complete' AND ${schema.scanPass.startTs} < ${beforeTs}`
+        : sql`${schema.scanPass.status} = 'complete'`
+    )
+    .orderBy(desc(schema.scanPass.startTs))
+    .limit(limit)
+    .all()
+
+  if (completeRows.length > 0) {
+    return completeRows.map(toSummary).reverse()
+  }
+
+  const statusRows = db
+    .select({
+      status: schema.scanPass.status,
+      count: sql<number>`count(*)`,
+    })
+    .from(schema.scanPass)
+    .where(
+      beforeTs > 0
+        ? sql`${schema.scanPass.startTs} < ${beforeTs}`
+        : sql`1 = 1`
+    )
+    .groupBy(schema.scanPass.status)
+    .all()
+
+  const statusSummary = statusRows
+    .map((row) => `${row.status}:${row.count}`)
+    .join(', ')
+
+  const [latestRow] = db
+    .select({
+      startTs: schema.scanPass.startTs,
+      endTs: schema.scanPass.endTs,
+      status: schema.scanPass.status,
+      scannerDirection: schema.scanPass.scannerDirection,
+      pulseSpan: sql<number>`${schema.scanPass.pulseMax} - ${schema.scanPass.pulseMin}`,
+      validRatio: schema.scanPass.validRatio,
+    })
+    .from(schema.scanPass)
+    .where(
+      beforeTs > 0
+        ? sql`${schema.scanPass.startTs} < ${beforeTs}`
+        : sql`1 = 1`
+    )
+    .orderBy(desc(schema.scanPass.startTs))
+    .limit(1)
+    .all()
+
+  const latestSummary = latestRow
+    ? `latest(status=${latestRow.status}, dir=${latestRow.scannerDirection === 1 ? 'forward' : 'backward'}, span=${latestRow.pulseSpan}, validRatio=${latestRow.validRatio.toFixed(3)}, ts=${latestRow.startTs}~${latestRow.endTs})`
+    : 'latest(none)'
+
+  const now = Date.now()
+  const recentRaw = db
+    .select({
+      count60s: sql<number>`count(*)`,
+      latestRawTs: sql<number | null>`max(${schema.thicknessRaw.timestamp})`,
+    })
+    .from(schema.thicknessRaw)
+    .where(sql`${schema.thicknessRaw.timestamp} >= ${now - 60_000}`)
+    .all()[0]
+
+  const rawSummary = `raw60s=${recentRaw?.count60s ?? 0}, latestRawTs=${recentRaw?.latestRawTs ?? 0}`
+
+  // 兼容冷启动/严格判定场景：若 complete 暂无数据，回退到 rejected。
+  const fallbackRows = db
+    .select({
+      startTs: schema.scanPass.startTs,
+      endTs: schema.scanPass.endTs,
+      scannerDirection: schema.scanPass.scannerDirection,
+    })
+    .from(schema.scanPass)
+    .where(
+      beforeTs > 0
+        ? sql`${schema.scanPass.status} = 'rejected' AND ${schema.scanPass.startTs} < ${beforeTs}`
+        : sql`${schema.scanPass.status} = 'rejected'`
+    )
+    .orderBy(desc(schema.scanPass.startTs))
+    .limit(limit)
+    .all()
+
+  console.warn(
+    `[queryLatestSweepSummaries] complete=0 -> fallback rejected=${fallbackRows.length}, beforeTs=${beforeTs || 0}, statusDist=[${statusSummary || 'none'}], ${latestSummary}, ${rawSummary}`
+  )
+
+  return fallbackRows.map(toSummary).reverse()
+}
+
+/**
+ * 从 scan_pass 表查询全部扫描趟摘要（按时间升序）。
+ */
+export function queryAllSweepSummaries(
+  db: ReturnType<typeof drizzle<typeof schema>>
+): SweepSummaryResult[] {
+  const rows = db
+    .select({
+      startTs: schema.scanPass.startTs,
+      endTs: schema.scanPass.endTs,
+      scannerDirection: schema.scanPass.scannerDirection,
+    })
+    .from(schema.scanPass)
+    .where(sql`${schema.scanPass.status} = 'complete'`)
+    .orderBy(schema.scanPass.startTs)
+    .all()
+
+  return rows.map(toSummary)
+}

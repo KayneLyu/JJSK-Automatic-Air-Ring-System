@@ -81,7 +81,7 @@ let option: ECOption = {
                 fontWeight: 700,
                 fontSize: 15,
                 formatter: (value: string) => {
-                    return Number(value) * 3 + '°'
+                    return `${Number(value) * 3}°`
                 },
             },
             axisTick: {
@@ -118,7 +118,7 @@ let option: ECOption = {
                 formatter: (value: string) => {
                     if (value == "1") {
                         // 对特定的刻度标签设置特殊样式
-                        return "{a|" + value + "}";
+                        return `{a|${value}}`;
                     } else {
                         return value;
                     }

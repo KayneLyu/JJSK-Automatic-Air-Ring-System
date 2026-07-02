@@ -128,7 +128,7 @@ export class S7Connector {
   private readonly connectionLogger
   private readonly normalizedOptions
 
-  constructor(private readonly options: S7ConnectorOptions) {
+  constructor(options: S7ConnectorOptions) {
     this.normalizedOptions = normalizeS7ConnectorOptions(options)
     this.connectionLogger = createConnectionLogger(
       buildS7LoggerOptions(this.normalizedOptions)

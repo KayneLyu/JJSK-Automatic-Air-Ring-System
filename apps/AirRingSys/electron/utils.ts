@@ -35,6 +35,6 @@ export function ensureServerRunning(
       return false
     }
   } catch (error) {
-    dialog.showErrorBox(`Error checking or running ${exeName}:`, error + '')
+    dialog.showErrorBox(`Error checking or running ${exeName}:`, `${error}`)
   }
 }

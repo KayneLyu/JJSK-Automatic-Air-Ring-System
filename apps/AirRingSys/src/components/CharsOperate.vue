@@ -38,7 +38,7 @@ const defineOptions = () => {
     for (let index = 1; index <= 6; index++) {
         optionList.push({
             value: index,
-            label: index + ' ' + t("control.hours")
+            label: `${index} ${t("control.hours")}`
         })
     }
     return optionList

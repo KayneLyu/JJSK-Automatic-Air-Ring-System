@@ -1,4 +1,11 @@
-import { ref, onBeforeUnmount, watch, useTemplateRef, onMounted } from 'vue'
+import {
+  ref,
+  onBeforeUnmount,
+  watch,
+  useTemplateRef,
+  onMounted,
+  nextTick,
+} from 'vue'
 import * as echarts from 'echarts/core'
 import { useConfigStore } from '@/store/config.ts'
 import type { EChartsCoreOption } from 'echarts/core'
@@ -7,10 +14,20 @@ import { showNotification } from '@/utils/common.ts'
 type IPropsDta = {
   frameData: Array<[string | number, number]> | number[]
 }
+
+type BrushSelectedPayload = {
+  batch?: Array<{
+    selected?: Array<{
+      dataIndex?: number[]
+    }>
+  }>
+}
+
 const useInitCharts = (
   containerName: string,
   options: EChartsCoreOption,
-  props?: IPropsDta
+  props?: IPropsDta,
+  onReady?: (chart: echarts.ECharts) => void
 ) => {
   const { t } = useI18n()
   const brushList = ref<number[]>([])
@@ -18,41 +35,80 @@ const useInitCharts = (
   let chartInstanceRef: echarts.ECharts | null = null
   let observer: ResizeObserver | null = null
   const store = useConfigStore()
+
+  // 缓存 initChart 完成前到达的 updateCharts 调用
+  let pendingUpdate: { options: EChartsCoreOption; notMerge: boolean } | null =
+    null
+
   // 初始化图表
+  let initRetryCount = 0
+  const MAX_RAF_RETRIES = 10
+
   const initChart = () => {
-    if (chartRef.value) {
-      try {
-        chartInstanceRef = echarts.init(
-          chartRef.value,
-          store.isDark ? 'dark' : ''
-        )
-        chartInstanceRef.setOption(options)
-        if (props && props.frameData) {
-          chartInstanceRef.setOption({
-            series: [{ data: props.frameData }],
-          })
-        }
-      } catch (error) {
-        showNotification(
-          t('notification.info'),
-          t('notification.initError'),
-          'error'
-        )
-      }
-      // 创建 ResizeObserver 实例并添加监听（只在初始化时进行）
-      if (!observer) {
-        observer = new ResizeObserver(() => {
-          if (chartInstanceRef) {
-            chartInstanceRef.resize()
+    if (!chartRef.value) return
+    const el = chartRef.value
+    // flex 子元素 onMounted 时父容器可能还没算完尺寸 → 0×0
+    // 等 nextTick + RAF 拿到真实布局后再 init
+    if (el.clientWidth === 0 || el.clientHeight === 0) {
+      initRetryCount++
+      if (initRetryCount <= MAX_RAF_RETRIES) {
+        requestAnimationFrame(() => initChart())
+      } else {
+        // RAF 重试耗尽，改用 ResizeObserver 等待尺寸就绪
+        const sizeObserver = new ResizeObserver(() => {
+          if (el.clientWidth > 0 && el.clientHeight > 0) {
+            sizeObserver.disconnect()
+            initRetryCount = 0
+            initChart()
           }
         })
-        observer.observe(chartRef.value)
+        sizeObserver.observe(el)
       }
+      return
+    }
+    try {
+      chartInstanceRef = echarts.init(el, store.isDark ? 'dark' : '')
+      chartInstanceRef.setOption(options)
+      if (props && props.frameData) {
+        chartInstanceRef.setOption({
+          series: [{ data: props.frameData }],
+        })
+      }
+
+      // 应用 initChart 完成前缓存的 updateCharts 调用
+      if (pendingUpdate) {
+        chartInstanceRef.setOption(
+          pendingUpdate.options,
+          pendingUpdate.notMerge
+        )
+        pendingUpdate = null
+      }
+
+      onReady?.(chartInstanceRef)
+    } catch (error) {
+      console.error('[useInitCharts] initChart FAILED:', error)
+      showNotification(
+        t('notification.info'),
+        t('notification.initError'),
+        'error'
+      )
+    }
+    // 创建 ResizeObserver 实例并添加监听（只在初始化时进行）
+    if (!observer) {
+      observer = new ResizeObserver(() => {
+        if (chartInstanceRef) {
+          chartInstanceRef.resize()
+        }
+      })
+      observer.observe(el)
     }
   }
-  const updateCharts = (newOptions: EChartsCoreOption) => {
-    if (chartRef.value) {
-      chartInstanceRef?.setOption(newOptions)
+  const updateCharts = (newOptions: EChartsCoreOption, notMerge = false) => {
+    if (chartInstanceRef) {
+      chartInstanceRef.setOption(newOptions, notMerge)
+      pendingUpdate = null
+    } else if (chartRef.value) {
+      pendingUpdate = { options: newOptions, notMerge }
     }
   }
 
@@ -79,8 +135,10 @@ const useInitCharts = (
         },
       })
       chartInstanceRef.off('brushSelected')
-      chartInstanceRef.on('brushSelected', (params: any) => {
-        brushList.value = params.batch[0].selected[0].dataIndex
+      chartInstanceRef.on('brushSelected', (params: unknown) => {
+        const batch = (params as BrushSelectedPayload).batch
+        const indices = batch?.[0]?.selected?.[0]?.dataIndex
+        brushList.value = Array.isArray(indices) ? indices : []
       })
     }
   }
@@ -90,6 +148,7 @@ const useInitCharts = (
   }
 
   const dropCharts = () => {
+    pendingUpdate = null
     if (observer) {
       observer.disconnect()
       observer = null
@@ -103,14 +162,15 @@ const useInitCharts = (
   // 切换主题
   watch(
     () => store.isDark,
-    (newTheme) => {
+    () => {
       dropCharts()
       initChart()
     }
   )
 
   onMounted(() => {
-    initChart()
+    // 等下一帧 layout 稳定后再 init，否则 flex 子元素 clientWidth/Height 还是 0
+    nextTick(() => initChart())
   })
 
   // 在组件卸载前，清理相关资源

@@ -758,24 +758,18 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       }
 
       delayedThicknessProfile = thicknessProfileHistory[closestIndex].profile
+      const delayedUpperAngle = thicknessProfileHistory[closestIndex].upperAngle
 
       // 将测厚仪位置映射到膜泡圆周位置
-      // 物理关系：
-      //   - 膜泡周长 = 2πr
-      //   - 压平后膜宽 ≈ πr（周长的一半）
-      //   - 测厚仪横向位移 x 对应的膜泡弧长 = x（压平是近似展开）
-      //   - 膜泡弧长对应的角度 = 弧长 / 半径 = x / r（弧度）
-      //   - 转换为角度：θ = (x / r) * (180 / π)
-      // 由于膜宽 ≈ πr，所以：θ = (x / (membraneWidth / π)) * (180 / π) = x * 180 / membraneWidth
-      // 这与原来的公式一致，但现在我们有了明确的物理依据
-      const scannerAngleOffset = (scannerPosition / membraneWidth) * 180 // 线性映射（基于展开近似）
+      //   T = f(αC + δ) + f(αC − δ)
+      //   αC = 压合中心 = delayedUpperAngle + 90°（上旋在压合时刻的角度）
+      //   δ  = scannerAngleOffset = scannerPosition / membraneWidth × 180°
+      const scannerAngleOffset = (scannerPosition / membraneWidth) * 180
 
-      // 关键修复点 2：仅厚度分布使用传输延迟；上旋角度必须用当前值，避免额外相位滞后。
-      const bubblePositionAngle = (upperAngle + scannerAngleOffset + 180) % 360
-      const oppositeAngle = (bubblePositionAngle + 180) % 360
+      const alphaCenter = (delayedUpperAngle + 90 + 360) % 360
+      const bubblePositionAngle = (alphaCenter + scannerAngleOffset + 360) % 360
+      const oppositeAngle = (alphaCenter - scannerAngleOffset + 360) % 360
 
-      // 从延迟后的膜泡厚度分布中插值得到原始厚度
-      // 测厚仪测量的是双层薄膜（压平后上下两层），对应膜泡上相隔 180° 的两个位置
       const thickness1 = interpolateAirFlow(
         bubblePositionAngle,
         delayedThicknessProfile
@@ -809,7 +803,7 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
           ? thicknessBuffer[0].value
           : originalThickness
 
-      // 双层厚度已在 originalThickness 中计算（两个 180° 位置之和），添加 2% 工艺变形
+      // originalThickness = f(αC+δ) + f(αC-δ)，添加 2% 工艺变形模拟拉伸效应
       const doubleThickness = delayedThickness * 1.02
 
       // 添加测量噪声

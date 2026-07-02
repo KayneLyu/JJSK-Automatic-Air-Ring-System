@@ -18,6 +18,8 @@
     "vitest": "^4.0.0"
   },
   "dependencies": {
+    "fft-js": "^0.0.12",
+    "mathjs": "^13.2.0",
     "modbus-serial": "^8.0.25",
     "nanostores": "^1.0.1",
     "neverthrow": "^8.2.0",

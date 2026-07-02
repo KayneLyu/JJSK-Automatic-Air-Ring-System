@@ -28,3 +28,4 @@ dist-electron/*
 # Temporary algorithm data/log artifacts
 packages/AirRingServer/algorithms/thickness/data/*.txt
 packages/AirRingServer/tmp-logReplay-*.out
+.omo/

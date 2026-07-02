@@ -175,7 +175,7 @@ const detectOtsuThreshold = (
  *
  * @returns 阈值，若无明显双峰分布则返回 null
  */
-const detectBimodalThreshold = (ys: number[]): number | null => {
+export const detectBimodalThreshold = (ys: number[]): number | null => {
   const histogram = buildHistogram(ys)
   if (!histogram) return null
 
@@ -352,9 +352,15 @@ export const buildTripSegment = (options?: {
     if (thickness) {
       if (thickness.timestamp) {
         if ((thickness.ProbeValue || 0) > 0) {
-          validThickness.push(
-            thickness as WithRequired<ThicknessData, 'timestamp' | 'ProbeValue'>
-          )
+          // 限制当前段缓冲区大小：ADBox 1ms 采样时，一个典型上旋行程约 5-10 分钟，
+          // 约 300,000-600,000 点；生产现场最长行程约 30 分钟。
+          // 上限 2,000,000 约等于 33 分钟，足以覆盖完整行程，
+          // 同时防止极端情况（信号长时间不切换）下内存无限增长。
+          if (validThickness.length < 2_000_000) {
+            validThickness.push(
+              thickness as WithRequired<ThicknessData, 'timestamp' | 'ProbeValue'>
+            )
+          }
           // 同步累积到全局分布数组（用于阈值计算），最多保留 50000 个采样
           if (allRawProbeValues.length < 50000) {
             allRawProbeValues.push(thickness.ProbeValue!)

@@ -3,7 +3,7 @@
  */
 
 import { goldenSectionSearch } from '../../utils'
-import { TripSegment, UpperRotationDeltaRange } from '../../types'
+import { TripSegment, UpperRotationDeltaRange, ValidThicknessData } from '../../types'
 import {
   ADAPTIVE_RULES_BASE,
   resolveAdaptiveRules,
@@ -24,7 +24,6 @@ import {
   type ExpandedPoint,
   evaluateDirect,
   evaluateExpanded,
-  buildFlippedMeasurements,
 } from './upperRotation.evaluation'
 import {
   expandWithScannerOffset,
@@ -102,15 +101,19 @@ const filterPartialSegments = (
   }
 
   try {
-    const durations = segments.map((s) => s.duration).filter((d) => d > 0)
+    const durations: number[] = []
+    for (let i = 0; i < segments.length; i++) {
+      const d = segments[i].duration
+      if (d > 0) durations.push(d)
+    }
 
     if (durations.length === 0) {
       console.warn('[UpperRotation] 无有效的行程时长，返回全量片段')
       return segments
     }
 
-    const sorted = [...durations].sort((a, b) => a - b)
-    const median = sorted[Math.floor(sorted.length / 2)]
+    durations.sort((a, b) => a - b)
+    const median = durations[Math.floor(durations.length / 2)]
     const minDuration = median * minThreshold
 
     const filtered = segments.filter((s) => {
@@ -135,6 +138,50 @@ const filterPartialSegments = (
   }
 }
 
+const downsampleExpandedData = (
+  data: ExpandedPoint[],
+  maxPoints: number
+): ExpandedPoint[] => {
+  if (data.length <= maxPoints || maxPoints < 2) return data
+
+  const result: ExpandedPoint[] = []
+  const step = (data.length - 1) / (maxPoints - 1)
+  for (let i = 0; i < maxPoints; i++) {
+    result.push(data[Math.round(i * step)])
+  }
+
+  return result
+}
+
+const downsampleExpandedSegments = <T extends { data: ExpandedPoint[] }>(
+  segments: T[],
+  maxTotalPoints: number
+): T[] => {
+  const total = segments.reduce((sum, segment) => sum + segment.data.length, 0)
+  if (total <= maxTotalPoints) return segments
+
+  const sampled = segments.map((segment) => {
+    const target = Math.max(
+      2,
+      Math.round((segment.data.length / total) * maxTotalPoints)
+    )
+    return {
+      ...segment,
+      data: downsampleExpandedData(segment.data, target),
+    }
+  })
+
+  const sampledTotal = sampled.reduce(
+    (sum, segment) => sum + segment.data.length,
+    0
+  )
+  console.warn(
+    `[UpperRotation] 搜索数据量过大，已等距降采样: ${total} → ${sampledTotal} 点`
+  )
+
+  return sampled
+}
+
 /**
  * 扫描段展开法（用于有间隙数据，无脉冲信息时的回退方案）
  *
@@ -148,7 +195,7 @@ const estimateWithScannerExpansion = (
   tripSegments: TripSegment[],
   min: number,
   max: number,
-  step: number,
+  _step: number,
   segments: number,
   accelDecelMs?: number,
   debugOptions: UpperRotationDebugOptions = {},
@@ -159,25 +206,63 @@ const estimateWithScannerExpansion = (
     const offsetMode = debugOptions.offsetMode ?? 'auto'
     const strategyProfile = debugOptions.strategyProfile ?? 'generic'
 
+    // ── 缓存层：flipped measurements 和 expanded results 只计算一次 ──
+    const flippedMeasurements: readonly (readonly ValidThicknessData[])[] =
+      tripSegments.map((seg) =>
+        seg.measurements.length === 0 || seg.duration <= 0
+          ? []
+          : seg.isForward
+            ? seg.measurements
+            : seg.measurements.map((p) => ({ ...p, t: seg.duration - p.t }))
+      )
+    const expandedCache = new Map<string, ExpandedPoint[]>()
+    const getExpanded = (
+      segIdx: number,
+      mode: UpperRotationOffsetMode
+    ): ExpandedPoint[] => {
+      const key = `${segIdx}:${mode}`
+      let result = expandedCache.get(key)
+      if (result !== undefined) return result
+      const flipped = flippedMeasurements[segIdx]
+      result =
+        flipped.length > 0
+          ? expandWithScannerOffset(flipped, mode, tripSegments[segIdx].isForward)
+          : []
+      expandedCache.set(key, result)
+      return result
+    }
+
     // 将 offset 展开（与 accelMs 无关）和 accelRatio 分开计算，
     // 这样诊断模式可通过 debug.accelDecelMs 覆盖默认加速段时长。
 
     // 预计算 offset 展开数据（不含 accelRatio）
     const preExpanded: { data: ExpandedPoint[]; duration: number }[] = []
-    for (const seg of tripSegments) {
+    let hasValidOffset = false
+    for (let segIdx = 0; segIdx < tripSegments.length; segIdx++) {
+      const seg = tripSegments[segIdx]
       if (seg.measurements.length === 0 || seg.duration <= 0) continue
-      const flipped = seg.isForward
-        ? seg.measurements
-        : seg.measurements.map((p) => ({ ...p, t: seg.duration - p.t }))
-      const expanded = expandWithScannerOffset(flipped, offsetMode)
+      const expanded = getExpanded(segIdx, offsetMode)
       if (expanded.length > 0) {
         preExpanded.push({ data: expanded, duration: seg.duration })
+        if (!hasValidOffset) {
+          for (let i = 0; i < expanded.length; i++) {
+            if (Math.abs(expanded[i].offsetDeg) > 0.1) {
+              hasValidOffset = true
+              break
+            }
+          }
+        }
       }
     }
     if (preExpanded.length < 2) {
       console.warn('[UpperRotation] 扫描展开后片段数不足')
       return null
     }
+
+    const searchPreExpanded = downsampleExpandedSegments(
+      preExpanded,
+      upperRotationRuntimeLimits.SEARCH_MAX_POINTS
+    )
 
     const resolveAccelRatio = (duration: number, ms?: number): number => {
       const effectiveMs = ms ?? Math.min(20000, duration * 0.45)
@@ -188,7 +273,7 @@ const estimateWithScannerExpansion = (
     const makeNormalized = (
       ms?: number
     ): { data: ExpandedPoint[]; duration: number; accelRatio: number }[] =>
-      preExpanded.map((s) => ({
+      searchPreExpanded.map((s) => ({
         data: s.data,
         duration: s.duration,
         accelRatio: resolveAccelRatio(s.duration, ms),
@@ -207,9 +292,6 @@ const estimateWithScannerExpansion = (
     // 决定使用哪个目标函数：
     // - 如果 offsetDeg 都是 0（无有效扫描位置信息），使用 evaluateDirect
     // - 否则使用 evaluateExpanded
-    const hasValidOffset = normalized.some((seg) =>
-      seg.data.some((p) => Math.abs(p.offsetDeg) > 0.1)
-    )
     const evaluateFn =
       objectiveMode === 'direct'
         ? evaluateDirect
@@ -237,11 +319,21 @@ const estimateWithScannerExpansion = (
         data: ExpandedPoint[]
         duration: number
         accelRatio: number
-      }[] = normalized
+      }[] = normalized,
+      collectSamples = false
     ): { theta: number; loss: number; samples: LossSample[] } | null => {
       let bestTheta: number | null = null
       let bestLoss = Infinity
-      const lossSamples: LossSample[] = []
+      const lossSamples: LossSample[] = collectSamples ? [] : []
+      const lossCache = new Map<number, number>()
+      const evalLoss = (theta: number): number => {
+        const key = Math.round(theta * 1000)
+        const cached = lossCache.get(key)
+        if (cached !== undefined) return cached
+        const loss = fn(segsData, theta, segments)
+        lossCache.set(key, loss)
+        return loss
+      }
 
       for (const start of startPoints) {
         // 从每个起点进行范围为 (max-min)/NUM_STARTS 的局部搜索
@@ -249,8 +341,10 @@ const estimateWithScannerExpansion = (
         const searchEnd = Math.min(max, start + rangeSize + 10) // +10 为了有重叠
 
         for (let theta = start; theta < searchEnd; theta += 0.5) {
-          const loss = fn(segsData, theta, segments)
-          lossSamples.push({ theta, loss })
+          const loss = evalLoss(theta)
+          if (collectSamples) {
+            lossSamples.push({ theta, loss })
+          }
           if (loss < bestLoss) {
             bestLoss = loss
             bestTheta = theta
@@ -264,7 +358,7 @@ const estimateWithScannerExpansion = (
       const fineMin = Math.max(min, bestTheta - 5)
       const fineMax = Math.min(max, bestTheta + 5)
       for (let theta = fineMin; theta <= fineMax; theta += 0.1) {
-        const loss = fn(segsData, theta, segments)
+        const loss = evalLoss(theta)
         if (loss < bestLoss) {
           bestLoss = loss
           bestTheta = theta
@@ -274,7 +368,13 @@ const estimateWithScannerExpansion = (
       return { theta: bestTheta, loss: bestLoss, samples: lossSamples }
     }
 
-    const expandedResult = searchBest(evaluateFn)
+    const expandedResult = searchBest(
+      evaluateFn,
+      normalized,
+      objectiveMode === 'auto' &&
+        offsetMode === 'auto' &&
+        evaluateFn === evaluateExpanded
+    )
     if (!expandedResult) {
       console.warn('[UpperRotation] 多起点搜索未找到最优点')
       return null
@@ -306,6 +406,17 @@ const estimateWithScannerExpansion = (
       (acc, seg) => acc + seg.data.length,
       0
     )
+
+    let pulseCoverageSignatureCache:
+      | ReturnType<typeof extractPulseCoverageSignature>
+      | null = null
+    const getPulseCoverageSignature = (): ReturnType<
+      typeof extractPulseCoverageSignature
+    > => {
+      if (pulseCoverageSignatureCache) return pulseCoverageSignatureCache
+      pulseCoverageSignatureCache = extractPulseCoverageSignature(tripSegments)
+      return pulseCoverageSignatureCache
+    }
 
     if (directResult) {
       const thetaGap = Math.abs(bestTheta - directResult.theta)
@@ -363,10 +474,10 @@ const estimateWithScannerExpansion = (
         duration: number
         accelRatio: number
       }[] = []
-      for (const seg of tripSegments) {
+      for (let segIdx = 0; segIdx < tripSegments.length; segIdx++) {
+        const seg = tripSegments[segIdx]
         if (seg.measurements.length === 0 || seg.duration <= 0) continue
-        const flipped = buildFlippedMeasurements(seg)
-        const expanded = expandWithScannerOffset(flipped, mode)
+        const expanded = getExpanded(segIdx, mode)
         if (expanded.length > 0) {
           out.push({
             data: expanded,
@@ -375,7 +486,10 @@ const estimateWithScannerExpansion = (
           })
         }
       }
-      return out
+      return downsampleExpandedSegments(
+        out,
+        upperRotationRuntimeLimits.SEARCH_MAX_POINTS
+      )
     }
 
     // 低角度自适应修正（特征驱动）：
@@ -390,7 +504,6 @@ const estimateWithScannerExpansion = (
       bestTheta < adaptiveRules.lowAngle.thetaUpperBound &&
       totalPoints <= adaptiveRules.lowAngle.maxPointsForEnable
     ) {
-      const coverage = extractPulseCoverageSignature(tripSegments)
       const groupDefaultNorm = buildNormalizedByOffset(
         'groupPulse',
         accelDecelMs
@@ -406,6 +519,7 @@ const estimateWithScannerExpansion = (
           : null
 
       if (groupDefaultResult && groupFastResult) {
+        const pulseCoverageSignature = getPulseCoverageSignature()
         const h1Trigger =
           bestTheta < adaptiveRules.lowAngle.thetaUpperBound &&
           groupDefaultResult.theta <
@@ -419,10 +533,10 @@ const estimateWithScannerExpansion = (
           bestTheta < adaptiveRules.lowAngle.thetaUpperBound &&
           groupDefaultResult.theta >
             adaptiveRules.lowAngle.h2.groupDefaultLowerBound &&
-          coverage.covP10 >= adaptiveRules.lowAngle.h2.covP10Min &&
-          coverage.covP10 < adaptiveRules.lowAngle.h2.covP10Max &&
-          coverage.narrowRate >= adaptiveRules.lowAngle.h2.narrowRateMin &&
-          coverage.narrowRate < adaptiveRules.lowAngle.h2.narrowRateMax
+          pulseCoverageSignature.covP10 >= adaptiveRules.lowAngle.h2.covP10Min &&
+          pulseCoverageSignature.covP10 < adaptiveRules.lowAngle.h2.covP10Max &&
+          pulseCoverageSignature.narrowRate >= adaptiveRules.lowAngle.h2.narrowRateMin &&
+          pulseCoverageSignature.narrowRate < adaptiveRules.lowAngle.h2.narrowRateMax
 
         if (h1Trigger) {
           const correctedTheta =
@@ -463,16 +577,13 @@ const estimateWithScannerExpansion = (
           highAngleDivergenceDeg +
             upperRotationRuntimeLimits.HIGH_ANGLE_DIVERGENCE_MARGIN_DEG +
             2)
-    const pulseCoverageSignature =
-      objectiveMode === 'auto' && offsetMode === 'auto' && hasValidOffset
-        ? extractPulseCoverageSignature(tripSegments)
-        : { covP10: 0, narrowRate: 1, validGroups: 0 }
     const shouldTryGroupPulseChallenger =
       objectiveMode === 'auto' &&
       offsetMode === 'auto' &&
       hasValidOffset &&
       highAngleSuspicious &&
       finalEvaluateFn === evaluateExpanded &&
+      tripSegments.length >= 3 &&
       totalPoints <= upperRotationRuntimeLimits.CHALLENGER_MAX_POINTS
 
     if (
@@ -488,6 +599,7 @@ const estimateWithScannerExpansion = (
     }
 
     if (shouldTryGroupPulseChallenger) {
+      const pulseCoverageSignature = getPulseCoverageSignature()
       let usedC5RelaxedSwitch = false
       let ds05LikeTrigger = false
       let ds05GroupTheta: number | null = null
@@ -497,10 +609,10 @@ const estimateWithScannerExpansion = (
         accelRatio: number
       }[] = []
 
-      for (const seg of tripSegments) {
+      for (let segIdx = 0; segIdx < tripSegments.length; segIdx++) {
+        const seg = tripSegments[segIdx]
         if (seg.measurements.length === 0 || seg.duration <= 0) continue
-        const flipped = buildFlippedMeasurements(seg)
-        const expandedByGroup = expandWithScannerOffset(flipped, 'groupPulse')
+        const expandedByGroup = getExpanded(segIdx, 'groupPulse')
         if (expandedByGroup.length > 0) {
           const accelRatio = resolveAccelRatio(seg.duration, accelDecelMs)
           normalizedGroupPulse.push({
@@ -563,10 +675,10 @@ const estimateWithScannerExpansion = (
         accelRatio: number
       }[] = []
 
-      for (const seg of tripSegments) {
+      for (let segIdx = 0; segIdx < tripSegments.length; segIdx++) {
+        const seg = tripSegments[segIdx]
         if (seg.measurements.length === 0 || seg.duration <= 0) continue
-        const flipped = buildFlippedMeasurements(seg)
-        const expandedByTime = expandWithScannerOffset(flipped, 'time')
+        const expandedByTime = getExpanded(segIdx, 'time')
         if (expandedByTime.length > 0) {
           const accelRatio = resolveAccelRatio(seg.duration, accelDecelMs)
           normalizedTime.push({
@@ -628,13 +740,10 @@ const estimateWithScannerExpansion = (
           accelRatio: number
         }[] = []
 
-        for (const seg of tripSegments) {
+        for (let segIdx = 0; segIdx < tripSegments.length; segIdx++) {
+          const seg = tripSegments[segIdx]
           if (seg.measurements.length === 0 || seg.duration <= 0) continue
-          const flipped = buildFlippedMeasurements(seg)
-          const expandedByGlobalPulse = expandWithScannerOffset(
-            flipped,
-            'globalPulse'
-          )
+          const expandedByGlobalPulse = getExpanded(segIdx, 'globalPulse')
           if (expandedByGlobalPulse.length > 0) {
             const accelRatio = resolveAccelRatio(
               seg.duration,

@@ -1,0 +1,3 @@
+dataset,count,meanMeasured,meanPredicted,stdMeasured,stdPredicted,varRatioPct,pearsonR,rSquared,slope,intercept,rmse,mae,maxAbsError,relativeRmsPct,relativeMaePct,symmetricFractionPct,symmetricCorrelation,predictedVsSymmetricPct
+may22,94551,7980.878,7980.868,409.123,58.722,2.0601,0.143547,0.020606,0.020604,7816.433705,404.886,246.218,4793.179,5.0732,3.0851,3.3322,0.165870,61.8256
+june10,1387867,24758.820,24758.818,1678.528,408.016,5.9088,0.243080,0.059088,0.059088,23295.872376,1628.182,1130.645,16564.125,6.5762,4.5666,8.3454,0.254051,70.8032

@@ -1,4 +1,4 @@
-import { type TripSegment } from '../../types'
+import { type TripSegment, type ValidThicknessData } from '../../types'
 import { goldenSectionSearch } from '../../utils'
 import {
   type ExpandedPoint,
@@ -19,23 +19,36 @@ export const estimateWithPulseExpansion = (
 ): number | null => {
   try {
     const preExpanded: { data: ExpandedPoint[]; duration: number }[] = []
-    for (const seg of tripSegments) {
+    for (let si = 0; si < tripSegments.length; si++) {
+      const seg = tripSegments[si]
       if (seg.measurements.length === 0 || seg.duration <= 0) continue
 
       const flipped = buildFlippedMeasurements(seg)
-      const withPulse = flipped.filter((p) => p.pulse !== undefined)
+      const withPulse: ValidThicknessData[] = []
+      let pMin = Infinity
+      let pMax = -Infinity
+      for (let i = 0; i < flipped.length; i++) {
+        const p = flipped[i]
+        const pulse = p.pulse
+        if (pulse === undefined) continue
+        withPulse.push(p)
+        if (pulse < pMin) pMin = pulse
+        if (pulse > pMax) pMax = pulse
+      }
 
       if (withPulse.length < 5) continue
-
-      const pMin = Math.min(...withPulse.map((p) => p.pulse as number))
-      const pMax = Math.max(...withPulse.map((p) => p.pulse as number))
       if (!(pMax > pMin)) continue
 
-      const expanded = withPulse.map((p) => ({
-        t: p.t,
-        y: p.y,
-        offsetDeg: (((p.pulse as number) - pMin) / (pMax - pMin) - 0.5) * 180,
-      }))
+      const expanded: ExpandedPoint[] = []
+      const pulseRange = pMax - pMin
+      for (let i = 0; i < withPulse.length; i++) {
+        const p = withPulse[i]
+        expanded.push({
+          t: p.t,
+          y: p.y,
+          offsetDeg: (((p.pulse as number) - pMin) / pulseRange - 0.5) * 180,
+        })
+      }
 
       preExpanded.push({ data: expanded, duration: seg.duration })
     }
@@ -50,11 +63,19 @@ export const estimateWithPulseExpansion = (
       return Math.max(0, Math.min(1, effectiveMs / duration))
     }
 
-    const normalized = preExpanded.map((s) => ({
-      data: s.data,
-      duration: s.duration,
-      accelRatio: resolveAccelRatio(s.duration),
-    }))
+    const normalized: {
+      data: ExpandedPoint[]
+      duration: number
+      accelRatio: number
+    }[] = []
+    for (let i = 0; i < preExpanded.length; i++) {
+      const s = preExpanded[i]
+      normalized.push({
+        data: s.data,
+        duration: s.duration,
+        accelRatio: resolveAccelRatio(s.duration),
+      })
+    }
 
     let bestTheta: number | null = null
     let bestLoss = Infinity
@@ -93,23 +114,25 @@ export const estimateWithTrapezoidOnly = (
   accelDecelMs?: number
 ): number | null => {
   try {
-    const normalized = tripSegments
-      .filter((seg) => seg.measurements.length > 0 && seg.duration > 0)
-      .map((seg) => {
-        const data = buildFlippedMeasurements(seg).map((p) => ({
-          t: p.t,
-          y: p.y,
-          offsetDeg: 0,
-        }))
-        const effectiveMs = accelDecelMs ?? Math.min(20000, seg.duration * 0.45)
-        const accelRatio = Math.max(0, Math.min(1, effectiveMs / seg.duration))
-        return {
-          data,
-          duration: seg.duration,
-          accelRatio,
-        }
-      })
-      .filter((s) => s.data.length > 0)
+    const normalized: {
+      data: ExpandedPoint[]
+      duration: number
+      accelRatio: number
+    }[] = []
+    for (let si = 0; si < tripSegments.length; si++) {
+      const seg = tripSegments[si]
+      if (seg.measurements.length === 0 || seg.duration <= 0) continue
+      const flipped = buildFlippedMeasurements(seg)
+      const data: ExpandedPoint[] = []
+      for (let i = 0; i < flipped.length; i++) {
+        const p = flipped[i]
+        data.push({ t: p.t, y: p.y, offsetDeg: 0 })
+      }
+      if (data.length === 0) continue
+      const effectiveMs = accelDecelMs ?? Math.min(20000, seg.duration * 0.45)
+      const accelRatio = Math.max(0, Math.min(1, effectiveMs / seg.duration))
+      normalized.push({ data, duration: seg.duration, accelRatio })
+    }
 
     if (normalized.length < 2) return null
 

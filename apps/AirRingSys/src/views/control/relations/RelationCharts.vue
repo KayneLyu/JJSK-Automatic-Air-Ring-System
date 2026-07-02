@@ -29,7 +29,6 @@ import { rearrangeArray } from "@/utils";
 import { useApiDataStore } from '@/store/polling-data.ts';
 import { formateList } from '@/utils/ChartsData.ts';
 import dayjs from 'dayjs';
-import { db } from '@/utils/dexie.ts';
 import { setAutoRingHeats, getHeats, getBadHeats } from "@/api";
 import { useFrameStore } from '@/store/frame.ts';
 import { showNotification } from '@/utils';
@@ -226,7 +225,7 @@ let option: EChartsOption = {
                     if (index == 0) {
                         return `{special|${Number(value) * 3}°}`
                     }
-                    return Number(value) * 3 + "°";
+                    return `${Number(value) * 3}°`;
                 },
                 rich: {
                     special: {
@@ -264,7 +263,7 @@ let option: EChartsOption = {
                         const meanDeg = 120 / configStore.apiAirRingConfig.ChannelCnt
                         const arrIndex = (meanDeg * (value.value - 1)).toFixed(0)
                         const currentValue = aAxisFormatArr[Number(arrIndex)] * 3
-                        return currentValue + '°'
+                        return `${currentValue}°`
                     }
                 },
                 handle: {
@@ -556,12 +555,7 @@ watch(() => props.currentId, async (newData) => {
 
     try {
         let channelDta: number[] = []
-        if (props.currentId === 0 || props.isFreshData) {
-            channelDta = await getHeats()
-        } else {
-            const result = await db.Heats.get(newData)
-            channelDta = result?.heats ?? []
-        }
+        channelDta = await getHeats()
         if (channelDta?.length > 0) {
             const newChannelData: [number, number][] = channelDta.map((item, index) => [index + 1, item])
             heatsList.value = newChannelData

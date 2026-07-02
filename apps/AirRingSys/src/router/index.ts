@@ -1,46 +1,25 @@
-import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router';
-const routes: RouteRecordRaw[] = [
-    {
-        path: '/',
-        name: 'Horizon',
-        component: () => import('@/views/horizontal/index.vue')
-    },
-    {
-        path: '/Controls',
-        name: 'Controls',
-        component: () => import('@/views/control/index.vue')
-    },
-    {
-        path: '/annular',
-        name: 'Annular',
-        component: () => import('@/views/annular/index.vue')
-    },
+import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
+import HorizonView from '@/views/horizontal/index.vue'
+import ControlsView from '@/views/control/index.vue'
+import AnnularView from '@/views/annular/index.vue'
+import VerticalView from '@/views/vertical/index.vue'
+import ProductView from '@/views/product/index.vue'
+import AlarmView from '@/views/alarm/index.vue'
+import SettingView from '@/views/settings/rack/index.vue'
 
-    {
-        path: '/vertical',
-        name: 'Vertical',
-        component: () => import('@/views/vertical/index.vue')
-    },
-    {
-        path: '/product',
-        name: 'Product',
-        component: () => import('@/views/product/index.vue')
-    },
-    {
-        path: '/alarm',
-        name: 'Alarm',
-        component: () => import('@/views/alarm/index.vue')
-    },
-    {
-        path: '/setting',
-        name: 'setting',
-        component: () => import('@/views/settings/rack/index.vue')
-    }
+const routes: RouteRecordRaw[] = [
+  { path: '/', name: 'Horizon', component: HorizonView },
+  { path: '/Controls', name: 'Controls', component: ControlsView },
+  { path: '/annular', name: 'Annular', component: AnnularView },
+  { path: '/vertical', name: 'Vertical', component: VerticalView },
+  { path: '/product', name: 'Product', component: ProductView },
+  { path: '/alarm', name: 'Alarm', component: AlarmView },
+  { path: '/setting', name: 'setting', component: SettingView },
 ]
 
 const router = createRouter({
-    history: createWebHashHistory(),
-    routes
-});
+  history: createWebHashHistory(),
+  routes,
+})
 
-export default router;
+export default router
