@@ -119,6 +119,30 @@ interface AirADFallbackSuggestion {
   p99Ad: number
 }
 
+function mergeMeasurementBuildResults(
+  builds: MeasurementBuildResult[]
+): MeasurementBuildResult {
+  const measurements: MeasurementTripleInput[] = []
+  let totalSamples = 0
+  let droppedLateCount = 0
+  let transportDelayMs = 0
+  for (const b of builds) {
+    measurements.push(...b.measurements)
+    totalSamples += b.stats.totalSamples
+    droppedLateCount += b.stats.droppedLateCount
+    transportDelayMs = b.stats.transportDelayMs
+  }
+  return {
+    measurements,
+    stats: {
+      totalSamples,
+      droppedLateCount,
+      droppedLateRatio: totalSamples > 0 ? droppedLateCount / totalSamples : 0,
+      transportDelayMs,
+    },
+  }
+}
+
 export function useScannerTripReconstruction() {
   // 上旋趟(用于 θ_max / 起始时间)
   const upperSweeps = ref<RotationTripSummaryRow[]>([])
@@ -720,9 +744,10 @@ export function useScannerTripReconstruction() {
       const maxSampleTs = coverage
         ? coverage.endTs + UPPER_SWEEP_GAP_TOLERANCE_MS + transportDelayMs
         : Number.POSITIVE_INFINITY
-      const samplesForReconstruction = allSamples.filter(
-        (s) => s.ts >= minSampleTs && s.ts <= maxSampleTs
+      const filteredBatches = batches.map((pts) =>
+        pts.filter((s) => s.ts >= minSampleTs && s.ts <= maxSampleTs)
       )
+      const samplesForReconstruction = filteredBatches.flat()
       const p = params.value
       const rawDelayMs = p.transportDelayMs
       const preferredDelayMs = getEffectiveTransportDelayMs()
@@ -736,11 +761,10 @@ export function useScannerTripReconstruction() {
         delayStatusPrefix =
           `delay异常 ${rawDelayMs.toFixed(0)}ms（>${MAX_EFFECTIVE_TRANSPORT_DELAY_MS}ms），已按0ms`
       }
-      const primaryBuild = buildMeasurements(
-        samplesForReconstruction,
-        p.airAD,
-        p.gain,
-        preferredDelayMs
+      const primaryBuild = mergeMeasurementBuildResults(
+        filteredBatches.map((pts) =>
+          buildMeasurements(pts, p.airAD, p.gain, preferredDelayMs)
+        )
       )
       let chosenBuild = primaryBuild
       if (preferredDelayMs > 0) {
@@ -748,11 +772,10 @@ export function useScannerTripReconstruction() {
           primaryBuild.stats.droppedLateRatio >= 0.6 ||
           primaryBuild.measurements.length < 50
         if (shouldTryNoDelay) {
-          const zeroDelayBuild = buildMeasurements(
-            samplesForReconstruction,
-            p.airAD,
-            p.gain,
-            0
+          const zeroDelayBuild = mergeMeasurementBuildResults(
+            filteredBatches.map((pts) =>
+              buildMeasurements(pts, p.airAD, p.gain, 0)
+            )
           )
           if (zeroDelayBuild.measurements.length > primaryBuild.measurements.length * 1.5) {
             console.warn(
@@ -778,11 +801,15 @@ export function useScannerTripReconstruction() {
       if (chosenBuild.measurements.length === 0) {
         const fallback = suggestFallbackAirAD(samplesForReconstruction, p.airAD)
         if (fallback) {
-          const retryBuild = buildMeasurements(
-            samplesForReconstruction,
-            fallback.suggestedAirAD,
-            p.gain,
-            chosenBuild.stats.transportDelayMs
+          const retryBuild = mergeMeasurementBuildResults(
+            filteredBatches.map((pts) =>
+              buildMeasurements(
+                pts,
+                fallback.suggestedAirAD,
+                p.gain,
+                chosenBuild.stats.transportDelayMs
+              )
+            )
           )
           if (retryBuild.measurements.length > 0) {
             console.warn(
