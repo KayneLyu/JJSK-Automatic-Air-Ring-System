@@ -161,7 +161,7 @@ export function queryLatestSweepSummaries(
   limit: number,
   beforeTs = 0
 ): SweepSummaryResult[] {
-  const rows = db
+  const completeRows = db
     .select({
       startTs: schema.scanPass.startTs,
       endTs: schema.scanPass.endTs,
@@ -177,7 +177,28 @@ export function queryLatestSweepSummaries(
     .limit(limit)
     .all()
 
-  return rows.map(toSummary).reverse()
+  if (completeRows.length > 0) {
+    return completeRows.map(toSummary).reverse()
+  }
+
+  // 兼容冷启动/严格判定场景：若 complete 暂无数据，回退到 rejected。
+  const fallbackRows = db
+    .select({
+      startTs: schema.scanPass.startTs,
+      endTs: schema.scanPass.endTs,
+      scannerDirection: schema.scanPass.scannerDirection,
+    })
+    .from(schema.scanPass)
+    .where(
+      beforeTs > 0
+        ? sql`${schema.scanPass.status} = 'rejected' AND ${schema.scanPass.startTs} < ${beforeTs}`
+        : sql`${schema.scanPass.status} = 'rejected'`
+    )
+    .orderBy(desc(schema.scanPass.startTs))
+    .limit(limit)
+    .all()
+
+  return fallbackRows.map(toSummary).reverse()
 }
 
 /**

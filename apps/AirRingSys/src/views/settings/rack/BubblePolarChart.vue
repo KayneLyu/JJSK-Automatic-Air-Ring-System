@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { toRef, computed } from 'vue'
+import { toRef, computed, ref } from 'vue'
+import { useElementSize } from '@vueuse/core'
 import VChart from 'vue-echarts'
 import { useBubblePolarChart, type ExtendedBubbleSweepResult } from './useBubblePolarChart'
 
@@ -10,6 +11,12 @@ const props = defineProps<{
 }>()
 
 const compareSweepNonNull = computed(() => props.compareSweep ?? null)
+
+const paneRef = ref<HTMLElement | null>(null)
+const paneSize = useElementSize(paneRef)
+const isPaneReady = computed(
+  () => paneSize.width.value > 0 && paneSize.height.value > 0
+)
 
 const chart = useBubblePolarChart(
   toRef(props, 'selectedSweep'),
@@ -32,8 +39,8 @@ const displayOption = computed(() => {
 </script>
 
 <template>
-  <div class="chart-pane">
-    <VChart class="chart-container" :option="displayOption" autoresize />
+  <div ref="paneRef" class="chart-pane">
+    <VChart v-if="isPaneReady" class="chart-container" :option="displayOption" autoresize />
   </div>
 </template>
 
