@@ -99,16 +99,28 @@ const isCompleteByBimodal = (
   complete: boolean
   membranePulseMin: number | null
   membranePulseMax: number | null
+  reason: 'ok' | 'too_few_samples' | 'scan_span_too_small' | 'no_bimodal_threshold' | 'membrane_span_too_small'
 } => {
   const reject = {
     complete: false,
     membranePulseMin: null,
     membranePulseMax: null,
+    reason: 'too_few_samples' as const,
   }
   if (scan.ads.length < 100 || scan.pulses.length < 100) return reject
-  if (scan.pulseMax - scan.pulseMin < MIN_SCAN_PULSE_SPAN) return reject
+  if (scan.pulseMax - scan.pulseMin < MIN_SCAN_PULSE_SPAN) {
+    return {
+      ...reject,
+      reason: 'scan_span_too_small',
+    }
+  }
   const threshold = detectBimodalThreshold(scan.ads)
-  if (threshold === null) return reject
+  if (threshold === null) {
+    return {
+      ...reject,
+      reason: 'no_bimodal_threshold',
+    }
+  }
 
   let leadingPulse: number | null = null
   let trailingPulse: number | null = null
@@ -124,20 +136,40 @@ const isCompleteByBimodal = (
       break
     }
   }
-  if (leadingPulse === null || trailingPulse === null) return reject
+  if (leadingPulse === null || trailingPulse === null) {
+    return {
+      ...reject,
+      reason: 'no_bimodal_threshold',
+    }
+  }
   // 方向无关：正向/反向都用绝对跨度判断膜内覆盖宽度。
   if (Math.abs(trailingPulse - leadingPulse) < MIN_MEMBRANE_PULSE_SPAN)
-    return reject
+    return {
+      ...reject,
+      reason: 'membrane_span_too_small',
+    }
 
   return {
     complete: true,
     membranePulseMin: Math.min(leadingPulse, trailingPulse),
     membranePulseMax: Math.max(leadingPulse, trailingPulse),
+    reason: 'ok',
   }
 }
 
 const closeCurrentScan = (scan: CurrentScan, endTs: number): ClosedScanPass => {
   const bimodal = isCompleteByBimodal(scan)
+  const durationMs = Math.max(0, endTs - scan.startTs)
+  const pulseSpan = scan.pulseMax - scan.pulseMin
+  if (bimodal.complete) {
+    console.log(
+      `[ScanPassDetector] close complete dir=${scan.direction === 1 ? 'forward' : 'backward'} duration=${durationMs}ms samples=${scan.totalCount} pulseSpan=${pulseSpan} membrane=[${bimodal.membranePulseMin},${bimodal.membranePulseMax}] validRatio=${(scan.totalCount > 0 ? scan.validCount / scan.totalCount : 0).toFixed(3)}`
+    )
+  } else {
+    console.warn(
+      `[ScanPassDetector] close rejected dir=${scan.direction === 1 ? 'forward' : 'backward'} reason=${bimodal.reason} duration=${durationMs}ms samples=${scan.totalCount} pulseSpan=${pulseSpan} validRatio=${(scan.totalCount > 0 ? scan.validCount / scan.totalCount : 0).toFixed(3)}`
+    )
+  }
   return {
     scannerDirection: scan.direction === 1 ? 1 : 0,
     startTs: scan.startTs,
@@ -165,6 +197,7 @@ const closeCurrentScan = (scan: CurrentScan, endTs: number): ClosedScanPass => {
 export const createScanPassDetector = () => {
   let current: CurrentScan | null = null
   let lastPulse: number | null = null
+  let lastNoFlipWarnAt = 0
 
   const feed = (
     ts: number,
@@ -201,6 +234,13 @@ export const createScanPassDetector = () => {
     current.ads.push(ad)
     if (pulse < current.pulseMin) current.pulseMin = pulse
     if (pulse > current.pulseMax) current.pulseMax = pulse
+
+    if (ts - current.startTs > 90_000 && ts - lastNoFlipWarnAt > 30_000) {
+      lastNoFlipWarnAt = ts
+      console.warn(
+        `[ScanPassDetector] no direction flip for ${Math.round((ts - current.startTs) / 1000)}s dir=${current.direction === 1 ? 'forward' : 'backward'} samples=${current.totalCount} pulseSpan=${current.pulseMax - current.pulseMin}`
+      )
+    }
     return null
   }
 
