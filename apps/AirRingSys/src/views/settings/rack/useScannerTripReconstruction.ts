@@ -354,18 +354,37 @@ export function useScannerTripReconstruction() {
   }
 
   async function fetchUpperSweeps(beforeTs?: number): Promise<RotationTripSummaryRow[]> {
+    const queryBeforeTs = beforeTs ?? 0
     const fromTripTable = (await window.ipcApi.invoke(
       'db-get-latest-rotation-trips',
       UPPER_SWEEPS_FETCH_COUNT,
       beforeTs
     )) as RotationTripSummaryRow[]
-    if (fromTripTable.length > 0) return fromTripTable
+    if (fromTripTable.length > 0) {
+      const first = fromTripTable[0]
+      const last = fromTripTable[fromTripTable.length - 1]
+      console.info(
+        `[loadUpperSweeps] source=rotation_trip count=${fromTripTable.length} beforeTs=${queryBeforeTs} range=${first.time}~${last.time}`
+      )
+      return fromTripTable
+    }
 
     const fromFallback = (await window.ipcApi.invoke(
       'db-get-latest-rotation-trips-fallback',
       UPPER_SWEEPS_FETCH_COUNT,
       beforeTs
     )) as RotationTripSummaryRow[]
+    if (fromFallback.length > 0) {
+      const first = fromFallback[0]
+      const last = fromFallback[fromFallback.length - 1]
+      console.warn(
+        `[loadUpperSweeps] source=fallback count=${fromFallback.length} beforeTs=${queryBeforeTs} range=${first.time}~${last.time}`
+      )
+    } else {
+      console.warn(
+        `[loadUpperSweeps] source=none count=0 beforeTs=${queryBeforeTs} (rotation_trip/fallback 均无可用上旋趟)`
+      )
+    }
     if (fromFallback.length > 0) {
       console.warn('[loadUpperSweeps] rotation_trip 为空，已回退到 rotation_raw 方向变化构建上旋趟')
     }
@@ -997,14 +1016,25 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
         upperSweeps.value.length > 0 &&
         now - lastUpperSweepsRefreshAt.value < UPPER_SWEEPS_REFRESH_MIN_INTERVAL_MS
       ) {
+        console.info(
+          `[loadUpperSweeps] skip refresh: cached=${upperSweeps.value.length} age=${now - lastUpperSweepsRefreshAt.value}ms`
+        )
         return
       }
       const result = await fetchUpperSweeps()
       upperSweeps.value = [...result].sort((a, b) => a.time - b.time)
       lastUpperSweepsRefreshAt.value = now
+      if (upperSweeps.value.length > 0) {
+        const first = upperSweeps.value[0]
+        const last = upperSweeps.value[upperSweeps.value.length - 1]
+        console.info(
+          `[loadUpperSweeps] applied count=${upperSweeps.value.length} coverage=${first.time}~${last.time + Math.max(0, last.cycleDurationMs)}`
+        )
+      }
     } catch (err) {
       upperSweeps.value = []
       errorMessage.value = err instanceof Error ? err.message : '加载上旋趟失败'
+      console.error('[loadUpperSweeps] failed', err)
     }
   }
 
