@@ -16,17 +16,20 @@ import {
   type SweepSummaryResult,
 } from './sweepHistory'
 
-/** scan_pass 表行类型（Drizzle 自动推导的 camelCase 列名） */
-type ScanPassRow = typeof schema.scanPass.$inferSelect
+type ScanPassSummaryRow = {
+  startTs: number
+  endTs: number
+  scannerDirection: number
+}
 
-const toSummary = (row: ScanPassRow): SweepSummaryResult => ({
+const toSummary = (row: ScanPassSummaryRow): SweepSummaryResult => ({
   sweepId: `${row.scannerDirection === 1 ? 'forward' : 'backward'}-${row.startTs}-${row.endTs}`,
   direction: row.scannerDirection === 1 ? 'forward' : 'backward',
   startTs: row.startTs,
   endTs: row.endTs,
   pointCount: 0, // scan_pass 当前不存 totalCount，后续 migration 补充
-  membranePulseMin: row.membranePulseMin ?? null,
-  membranePulseMax: row.membranePulseMax ?? null,
+  membranePulseMin: null,
+  membranePulseMax: null,
 })
 
 /**
@@ -96,9 +99,15 @@ export function querySweepByIndex(
 ): SweepIndexedResult | null {
   if (!Number.isInteger(index) || index < 0) return null
 
+  const baseSelect = {
+    startTs: schema.scanPass.startTs,
+    endTs: schema.scanPass.endTs,
+    scannerDirection: schema.scanPass.scannerDirection,
+  }
+
   if (mode === 'single') {
     const [row] = db
-      .select()
+      .select(baseSelect)
       .from(schema.scanPass)
       .where(sql`${schema.scanPass.status} = 'complete'`)
       .orderBy(schema.scanPass.startTs)
@@ -120,7 +129,7 @@ export function querySweepByIndex(
 
   // round mode: 取 index * 2 位置开始的 2 趟
   const rows = db
-    .select()
+    .select(baseSelect)
     .from(schema.scanPass)
     .where(sql`${schema.scanPass.status} = 'complete'`)
     .orderBy(schema.scanPass.startTs)
@@ -153,7 +162,11 @@ export function queryLatestSweepSummaries(
   beforeTs = 0
 ): SweepSummaryResult[] {
   const rows = db
-    .select()
+    .select({
+      startTs: schema.scanPass.startTs,
+      endTs: schema.scanPass.endTs,
+      scannerDirection: schema.scanPass.scannerDirection,
+    })
     .from(schema.scanPass)
     .where(
       beforeTs > 0
@@ -174,7 +187,11 @@ export function queryAllSweepSummaries(
   db: ReturnType<typeof drizzle<typeof schema>>
 ): SweepSummaryResult[] {
   const rows = db
-    .select()
+    .select({
+      startTs: schema.scanPass.startTs,
+      endTs: schema.scanPass.endTs,
+      scannerDirection: schema.scanPass.scannerDirection,
+    })
     .from(schema.scanPass)
     .where(sql`${schema.scanPass.status} = 'complete'`)
     .orderBy(schema.scanPass.startTs)
