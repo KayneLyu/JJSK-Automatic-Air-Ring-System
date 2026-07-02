@@ -87,6 +87,7 @@ export class SQLiteService {
   private sqliteDb!: Database.Database
   private dbPath = ''
   private ready = false
+  private hasScanPassMembraneColumns = true
 
   private batchBuffer: {
     thickness: (typeof schema.thicknessRaw.$inferInsert)[]
@@ -176,6 +177,31 @@ export class SQLiteService {
       }
     } catch (e) {
       console.error('[SQLite] pos1 repair check failed:', e)
+    }
+
+    // Post-migration repair: ensure membrane_pulse_min/max exist in scan_pass.
+    // 部分历史库或异常迁移路径会缺少这两列，导致 insertScanPass 直接抛错。
+    try {
+      const hasMembranePulseMin = this.sqliteDb
+        .prepare("SELECT 1 FROM pragma_table_info('scan_pass') WHERE name = 'membrane_pulse_min'")
+        .get()
+      if (!hasMembranePulseMin) {
+        this.sqliteDb.exec('ALTER TABLE scan_pass ADD COLUMN membrane_pulse_min integer')
+        console.log('[SQLite] Repaired: added membrane_pulse_min column to scan_pass')
+      }
+
+      const hasMembranePulseMax = this.sqliteDb
+        .prepare("SELECT 1 FROM pragma_table_info('scan_pass') WHERE name = 'membrane_pulse_max'")
+        .get()
+      if (!hasMembranePulseMax) {
+        this.sqliteDb.exec('ALTER TABLE scan_pass ADD COLUMN membrane_pulse_max integer')
+        console.log('[SQLite] Repaired: added membrane_pulse_max column to scan_pass')
+      }
+
+      this.hasScanPassMembraneColumns = true
+    } catch (e) {
+      this.hasScanPassMembraneColumns = false
+      console.error('[SQLite] scan_pass membrane columns repair failed:', e)
     }
 
     this.db = drizzle(this.sqliteDb, { schema })
@@ -476,12 +502,43 @@ export class SQLiteService {
   }): void {
     if (!this.ready) return
     const now = Date.now()
-    this.db.insert(schema.scanPass).values({
-      startTs: sp.startTs, endTs: sp.endTs, scannerDirection: sp.scannerDirection,
-      pulseMin: sp.pulseMin, pulseMax: sp.pulseMax, validRatio: sp.validRatio,
-      membranePulseMin: sp.membranePulseMin, membranePulseMax: sp.membranePulseMax,
-      status: sp.status ?? 'complete', createdAt: now,
-    }).run()
+    const baseValues = {
+      startTs: sp.startTs,
+      endTs: sp.endTs,
+      scannerDirection: sp.scannerDirection,
+      pulseMin: sp.pulseMin,
+      pulseMax: sp.pulseMax,
+      validRatio: sp.validRatio,
+      status: sp.status ?? 'complete',
+      createdAt: now,
+    }
+
+    if (this.hasScanPassMembraneColumns) {
+      try {
+        this.db
+          .insert(schema.scanPass)
+          .values({
+            ...baseValues,
+            membranePulseMin: sp.membranePulseMin,
+            membranePulseMax: sp.membranePulseMax,
+          })
+          .run()
+        return
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (/no column named membrane_pulse_(min|max)/i.test(msg)) {
+          this.hasScanPassMembraneColumns = false
+          console.error(
+            '[SQLite] insertScanPass fallback: membrane columns missing, write without membrane bounds:',
+            msg
+          )
+        } else {
+          throw e
+        }
+      }
+    }
+
+    this.db.insert(schema.scanPass).values(baseValues).run()
   }
 
   /**
