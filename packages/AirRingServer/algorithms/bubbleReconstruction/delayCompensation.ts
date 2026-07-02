@@ -113,5 +113,7 @@ export const estimateRotationSpeed = (
     totalDelta += delta
   }
 
-  return Math.abs(totalDelta) / ((thetaEstimates.length - 1) * timeIntervalSec)
+  // 保留符号：正值=正向旋转，负值=反向旋转
+  // 注意：对于往复上旋运动，平均速度可能接近零，建议使用 compensateTransportDelayTimeStamp
+  return totalDelta / ((thetaEstimates.length - 1) * timeIntervalSec)
 }

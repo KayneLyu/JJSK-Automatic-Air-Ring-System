@@ -238,13 +238,13 @@ export type BlowFilmSystemState = {
   /** 原始膜泡在测厚仪位置的厚度 */
   bubbleThicknessAtScanner: number | null
 
-  /** 测厚仪 OPC UA 数据 */
+  /** 测厚仪设备数据 */
   thicknessDevice: ThicknessDevice
 
-  /** 上旋 OPC UA 数据 */
+  /** 上旋设备数据 */
   upperRotationDevice: UpperRotationDevice
 
-  /** 牵引辊 OPC UA 数据 */
+  /** 牵引辊设备数据 */
   rollerDevice: RollerDevice
 }
 
@@ -838,8 +838,8 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       accumulatedLength,
     }
 
-    // ========== 生成 OPC UA 数据 ==========
-    // 厚度 OPC UA 数据
+    // ========== 生成设备数据 ==========
+    // 厚度设备数据
     const thicknessDevice: ThicknessDevice = {
       HorizontalPulse: Math.round(scannerPulse),
       MotionDirection: scannerDirection,
@@ -853,7 +853,7 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       SwapDirection: swapDirection,
     }
 
-    // 上旋 OPC UA 数据
+    // 上旋设备数据
     const upperRotationDevice: UpperRotationDevice = {
       ForwardRotation: isForward,
       ReverseRotation: !isForward,
@@ -863,7 +863,7 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
       MotorFrequency: parseFloat(motorFrequency.toFixed(2)),
     }
 
-    // 牵引辊 OPC UA 数据
+    // 牵引辊设备数据
     const rollerDevice: RollerDevice = {
       RollSpeedSignal: rollSpeedSignal,
     }
@@ -887,4 +887,3 @@ export const createBlowFilmSimulator = (config: BlowFilmSystemConfig = {}) => {
     adjustAllAirFlows,
   }
 }
-

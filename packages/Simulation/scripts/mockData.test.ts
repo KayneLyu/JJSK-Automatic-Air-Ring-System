@@ -111,7 +111,7 @@ interface ScanLine {
   validEndIndex: number
 }
 
-function groupScans(data: ThicknessDevice[]): ScanLine[] {
+function groupScans(data: (ThicknessDevice & { timestamp: number })[]): ScanLine[] {
   const scans: ScanLine[] = []
   let current: Omit<ScanLine, 'centerTime'> = {
     pulses: [],
@@ -122,13 +122,13 @@ function groupScans(data: ThicknessDevice[]): ScanLine[] {
 
   for (let i = 0; i < data.length; i++) {
     const point = data[i]
-    current.pulses.push(point.HorizontalPulse)
-    current.thicknesses.push(point.ProbeValue)
+    current.pulses.push(point.HorizontalPulse ?? 0)
+    current.thicknesses.push(point.ProbeValue ?? 0)
 
     const isEndOfScan =
       point.SwapDirection === true ||
-      point.ProbeValue <= 0 ||
-      (i + 1 < data.length && data[i + 1].ProbeValue <= 0) ||
+      (point.ProbeValue ?? 0) <= 0 ||
+      (i + 1 < data.length && (data[i + 1].ProbeValue ?? 0) <= 0) ||
       i === data.length - 1
 
     if (isEndOfScan) {
@@ -201,7 +201,7 @@ function computeFeaturePosition(
 }
 
 export function estimateMaxRotationAngle(
-  thicknessData: ThicknessDevice[],
+  thicknessData: (ThicknessDevice & { timestamp: number })[],
   config: AngleEstimationConfig
 ): EstimatedAngleResult {
   const { pulseToMm, minValidThickness = 1.0 } = config
@@ -212,7 +212,7 @@ export function estimateMaxRotationAngle(
 
   // Step 1: Group into scan lines
   const scans = groupScans(
-    thicknessData.filter((p) => p.ProbeValue >= minValidThickness)
+    thicknessData.filter((p) => (p.ProbeValue ?? 0) >= minValidThickness)
   )
   if (scans.length < 2) {
     throw new Error('Not enough valid scan lines (need at least 2)')

@@ -104,7 +104,9 @@ export const solveRLS = (
 
     // Step 6: 周期性拉普拉斯平滑
     if (smoothMu > ZERO && (k + 1) % smoothInterval === 0) {
-      const s = applyLaplacianSmoothing(B, smoothMu * 0.03)
+      const maxD2Eigenvalue = 16
+      const stableMu = Math.min(smoothMu, 0.5 / maxD2Eigenvalue)
+      const s = applyLaplacianSmoothing(B, stableMu)
       for (let i = 0; i < N; i++) {
         B[i] = s[i]
         if (!isFinite(B[i])) B[i] = nominal

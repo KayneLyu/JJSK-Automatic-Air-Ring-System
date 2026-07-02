@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import type { IPollingModBusData } from '@/types/ipc'
+import type { IPollingBatchData } from '@/types/ipc'
 import { useFrameStore } from '@/store/frame'
 
 type ReplayBatch = { adValues: number[]; pulses: number[] }
@@ -72,7 +72,7 @@ function detectSweeps(
 }
 
 export function useReplayBuffer() {
-  const addReplayBatch = (batch: IPollingModBusData) => {
+  const addReplayBatch = (batch: IPollingBatchData) => {
     buffer.value.push({ adValues: batch.adValues, pulses: batch.pulses })
   }
 

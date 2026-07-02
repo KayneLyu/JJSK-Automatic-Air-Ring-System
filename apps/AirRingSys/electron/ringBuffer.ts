@@ -102,7 +102,7 @@ export interface ThicknessRingItem {
   timestamp: number
   pulse: number
   ad: number
-  source: 'adbox' | 'modbus'
+  source: 'adbox'
 }
 
 export interface RotationRingItem {

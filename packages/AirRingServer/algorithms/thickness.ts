@@ -156,3 +156,42 @@ export const computeTractionSpeedSmooth = (
 
   return (totalDistance * 1000) / totalTime_ms // mm/s
 }
+
+// ============================================================
+// AD → μm 转换
+//
+// X光指数吸收模型 + 二次工业拟合
+// 标定样本来源：0~290μm 实际标定数据
+// 精度：RMS ≈ 0.35μm
+// ============================================================
+
+/**
+ * X光测厚计算配置
+ */
+export interface ThicknessCalcConfig {
+  /** 空气AD值 (例如 50300) */
+  airAD: number
+  /**
+   * 材料补偿倍率 (默认 1.0)
+   *
+   * PE → 1.00, PP → 1.05, EVA → 0.96
+   */
+  gain?: number
+}
+
+/**
+ * 根据 ADBox 原始光通量 (AD) 计算薄膜厚度 (μm)
+ *
+ * 公式：Thickness = (9.65·x² + 243.08·x − 0.087) × gain
+ * 其中 x = ln(airAD / ad)
+ */
+export const calcThickness = (ad: number, config: ThicknessCalcConfig): number => {
+  const { airAD, gain = 1.0 } = config
+
+  if (ad <= 0 || ad >= airAD) return 0
+
+  const x = Math.log(airAD / ad)
+  const baseThickness = 9.65 * x * x + 243.08 * x - 0.087
+
+  return Math.max(0, baseThickness * gain)
+}

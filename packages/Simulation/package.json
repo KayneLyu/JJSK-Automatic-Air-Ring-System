@@ -5,7 +5,6 @@
   "main": "index.js",
   "scripts": {
     "start": "vite-node index.ts",
-    "generator": "vite-node scripts/generator.ts",
     "transform": "vite-node scripts/transform.ts",
     "test": "vitest --run scripts/mockData.test.ts -t=^生成模拟数据"
   },
@@ -16,16 +15,11 @@
   "dependencies": {
     "@jjsk/core": "workspace:^",
     "canvas": "^3.2.1",
-    "echarts": "^5.6.0",
-    "node-opcua": "^2.157.0",
-    "node-opcua-data-model": "^2.157.0"
+    "echarts": "^5.6.0"
   },
   "devDependencies": {
     "@fast-csv/format": "^5.0.5",
     "@fast-csv/parse": "^5.0.5",
-    "node-opcua-address-space": "^2.157.0",
-    "node-opcua-generator": "^2.157.0",
-    "node-opcua-modeler": "^2.157.0",
     "vite-node": "^3.2.4",
     "vitest": "^4.0.0"
   }

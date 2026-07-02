@@ -10,6 +10,8 @@ export type MeasurementTriple = {
   scannerPosMm: number
   /** 双层总厚度 (μm) */
   thickness: number
+  /** 测量时间戳 (ms)，用于 per-bin/sample 反解展示 */
+  timestamp?: number
 }
 
 /** 膜泡重建配置 */
@@ -18,9 +20,9 @@ export type BubbleReconstructionOptions = {
   numBins?: number
   /** L2 正则化系数 λ (默认 1e-4) */
   lambda?: number
-  /** Tikhonov 二阶差分平滑系数 μ (默认 0.1) */
+  /** Tikhonov 二阶差分平滑系数 μ (默认 0.00625) */
   mu?: number
-  /** 工艺变形因子 η (默认 1.02) */
+  /** 工艺变形因子 η (默认 1.0) */
   processDeformationFactor?: number
   /** RLS 遗忘因子 λ_f ∈ (0,1] (默认 0.995) */
   forgettingFactor?: number
@@ -28,6 +30,30 @@ export type BubbleReconstructionOptions = {
   smoothMu?: number
   /** 求解模式 (默认 'rls') */
   solverMode?: 'batch' | 'rls'
+  /** tooltip 反解时优先选择 ts >= 此值的样本 */
+  preferAfterTs?: number
+}
+
+/** 单个 bin 的代表样本反解 */
+export interface BinDecomposition {
+  ts: number
+  phi1: number
+  phi2: number
+  b1: number
+  b2: number
+  tMeasured: number
+  tPredicted: number
+}
+
+/** 单个测量样本的完整反解 */
+export interface SampleDecomposition {
+  ts: number
+  phi1: number
+  phi2: number
+  b1: number
+  b2: number
+  tMeasured: number
+  tPredicted: number
 }
 
 /** 膜泡重建结果 */
@@ -46,6 +72,12 @@ export type BubbleReconstructionResult = {
   numMeasurements: number
   /** 每 bin 覆盖度 (等效观测次数) */
   binCoverage: number[]
+  /** 每个 bin 的贡献样本平均时间戳 (ms)，无贡献为 0 */
+  binTimestamps?: number[]
+  /** 每个 bin 的代表样本反解 */
+  binDecompositions?: BinDecomposition[]
+  /** 样本级反解列表 */
+  sampleDecompositions?: SampleDecomposition[]
   /** 预测的测量厚度 (μm) */
   predictedThickness?: number[]
 }

@@ -23,7 +23,7 @@ import type { ThicknessRawRow, FrameRow } from './types'
  * @param sqliteDb  原生 better-sqlite3 实例
  * @param pulses    横向脉冲数组
  * @param adValues  AD 值数组，与 pulses 一一对应
- * @param source    数据来源标识（'adbox' | 'opcua' | 'modbus' | 'file'）
+  * @param source    数据来源标识（'adbox' | 'file'）
  * @returns 成功返回 1，无有效数据返回 0
  */
 export function importSweep(

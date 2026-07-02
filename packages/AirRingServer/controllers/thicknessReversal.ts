@@ -1,174 +1,188 @@
 /**
- * 膜泡厚度反推控制器
- * 自动反推原始膜泡厚度
- * */
-import type { ThicknessData } from '../connections/thickness'
+ * 膜泡厚度重建控制器
+ *
+ * 基于 bubbleReconstruction 完整双层线性系统求解膜泡圆周厚度分布 B(φ)：
+ *   T_k = η × (B(φ₁_k) + B(φ₂_k))
+ *   φ₁ = θ + 90° + δ,  φ₂ = θ + 90° − δ
+ *   δ = (x / W) × 180°
+ *
+ * 替代旧的 thicknessReverseCalculation 简化几何模型。
+ * 重建后可通过 decomposeMeasurement 将任意测量点分解为前后层贡献，
+ * 验证 η×(B(φ₁)+B(φ₂)) ≈ T_measured。
+ */
+import type { ThicknessData } from '../connections/thickness/types'
 import type { RingData } from '../connections/airRing/types'
 import {
-  createBubbleThicknessReconstructor,
-  BubbleModelConfig,
-  MeasuredThicknessData,
-} from '../algorithms/thicknessReverseCalculation'
+  reconstructBubbleThickness,
+  computePhiPair,
+  normalizeAngle,
+} from '../algorithms/bubbleReconstruction'
+import type {
+  MeasurementTriple,
+  BubbleReconstructionOptions,
+} from '../algorithms/bubbleReconstruction'
 import { buildTimeToAngle } from '../algorithms/timeToAngle'
+import { calcThickness, type ThicknessCalcConfig } from '../algorithms/thickness'
+
+// ---- 导出类型 ----
 
 export interface ThicknessReversalOptions {
-  /**
-   * 膜泡基准半径 (mm)
-   * */
-  baseRadius: number
-  /**
-   * 膜泡高度 (mm)
-   * */
-  bubbleHeight: number
-  /**
-   * 上旋最大旋转角度 (deg)
-   * */
+  /** 膜宽 (mm) */
+  membraneWidthMm: number
+  /** 上旋最大旋转角度 (deg) */
   thetaMaxDeg: number
-  /**
-   * 上旋单程时间 (ms)
-   * */
+  /** 上旋单程时间 (ms) */
   T_half: number
-  /**
-   * 材料泊松比 (默认: 0.3)
-   * */
-  poissonRatio?: number
-  /**
-   * 历史数据窗口大小 (默认: 1000)
-   * */
-  historyWindowSize?: number
-  /**
-   * 风道总数
-   * */
+  /** 脉冲→mm 转换系数 (mm/pulse) */
+  pulseToMm: number
+  /** 风道总数 (用于 timeToAngle 分段，默认 8) */
   fanCount?: number
-  /**
-   * 是否在批量处理时启用对称性约束
-   * */
-  useSymmetryConstraint?: boolean
+  /** 每多少条新测量触发一次重建 (默认 5000) */
+  reconstructInterval?: number
+  /** 测量缓冲区上限 (默认 100000) */
+  bufferWindowSize?: number
+  /** 重建历史保留数量 (默认 10) */
+  historyMaxSize?: number
+  /** 重建算法选项 */
+  reconstructionOptions?: Partial<BubbleReconstructionOptions>
+  /** X光测厚计算配置（airAD + gain），将 ADBox 原始光通量转换为 μm */
+  thicknessCalcConfig?: ThicknessCalcConfig
 }
 
 export interface ThicknessReversalResult {
-  /**
-   * 原始膜泡厚度 (μm)
-   * */
-  originalThickness: number
-  /**
-   * 厚度拉伸比
-   * */
-  stretchRatio: number
-  /**
-   * 计算置信度 (0-1)
-   * */
-  confidence: number
-  /**
-   * 对应的角度位置
-   * */
-  angle: number
-  /**
-   * 测量时间戳
-   * */
+  /** 重建后的膜泡圆周厚度分布 B(φ) (μm) */
+  profile: number[]
+  /** 分箱数 */
+  numBins: number
+  /** 每 bin 宽度 (°) */
+  binWidthDeg: number
+  /** 均方根误差 (μm) */
+  rmsError: number
+  /** 最大误差 (μm) */
+  maxError: number
+  /** 测量数 */
+  numMeasurements: number
+  /** 每 bin 覆盖度 */
+  binCoverage: number[]
+  /** 重建时间戳 */
   timestamp: number
 }
 
 export interface ThicknessReversalState {
-  /**
-   * 最后一次测量的角度
-   * */
-  lastAngle: number
-  /**
-   * 当前上旋方向
-   * true: 正向  false: 反向
-   * */
+  /** 最后一次重建时间戳 */
+  lastReconstructionTimestamp: number
+  /** 当前上旋方向 */
   isForward: boolean
-  /**
-   * 当前单程起始时间戳
-   * */
+  /** 当前单程起始时间戳 */
   tripStartTime?: number
-  /**
-   * 反推结果历史
-   * */
-  history: ThicknessReversalResult[]
-  /**
-   * 平均原始厚度
-   * */
-  averageOriginalThickness?: number
-  /**
-   * 平均厚度标准差
-   * */
-  thicknessStdDev?: number
+  /** 已累积的测量数 */
+  measurementCount: number
+  /** 最新重建结果 */
+  lastResult?: ThicknessReversalResult
 }
 
+/** 单点分解结果：将测量厚度分解为前后层 B(φ) 贡献 */
+export interface DecomposeResult {
+  /** 当前上旋角 (°) */
+  upperAngleDeg: number
+  /** 扫描仪位置 (mm) */
+  scannerPosMm: number
+  /** 角位移 δ (°) */
+  deltaDeg: number
+  /** 压合中心角 αC (°) */
+  alphaCenterDeg: number
+  /** 前层角 φ₁ (°) */
+  phi1Deg: number
+  /** 后层角 φ₂ (°) */
+  phi2Deg: number
+  /** 前层厚度 B(φ₁) (μm) */
+  singleLayerFront: number
+  /** 后层厚度 B(φ₂) (μm) */
+  singleLayerBack: number
+  /** 预测的双层总厚度 η×(B(φ₁)+B(φ₂)) (μm) */
+  predictedThickness: number
+  /** 实测双层总厚度 (μm) */
+  measuredThickness: number
+  /** 残差 = 实测 − 预测 (μm) */
+  residual: number
+}
+
+// ---- 内部类型 ----
+
+interface TimedMeasurement extends MeasurementTriple {
+  timestamp: number
+}
+
+// ---- 内部工具 ----
+
+const interpProfile = (profile: number[], phiDeg: number): number => {
+  const N = profile.length
+  const bw = 360 / N
+  const a = normalizeAngle(phiDeg)
+  const idx = a / bw
+  const lo = Math.floor(idx) % N
+  const hi = (lo + 1) % N
+  const w = idx - Math.floor(idx)
+  return profile[lo] * (1 - w) + profile[hi] * w
+}
+
+// ---- 工厂函数 ----
+
 /**
- * 创建膜泡厚度反推控制器
- * */
-export const createThicknessReversalController = (
-  options: ThicknessReversalOptions
-) => {
+ * 创建膜泡厚度重建控制器
+ *
+ * 使用 bubbleReconstruction 完整双层线性系统。
+ * 替代旧的 thicknessReverseCalculation 简化模型。
+ */
+export const thicknessReversal = (options: ThicknessReversalOptions) => {
   const {
-    baseRadius,
-    bubbleHeight,
+    membraneWidthMm,
     thetaMaxDeg,
     T_half,
-    poissonRatio = 0.3,
-    historyWindowSize = 1000,
+    pulseToMm,
     fanCount = 8,
+    reconstructInterval = 5000,
+    bufferWindowSize = 100000,
+    historyMaxSize = 10,
+    reconstructionOptions = {},
+    thicknessCalcConfig,
   } = options
 
-  const modelConfig: BubbleModelConfig = {
-    baseRadius,
-    bubbleHeight,
-    poissonRatio,
-    historyWindowSize,
-  }
-
-  const reconstructor = createBubbleThicknessReconstructor(modelConfig)
   const timeToAngle = buildTimeToAngle(thetaMaxDeg, T_half, fanCount)
 
-  // 维护状态
-  const state: ThicknessReversalState = {
-    lastAngle: 0,
-    isForward: true,
-    tripStartTime: undefined,
-    history: [],
-  }
+  // ---- 状态 ----
+  let isForward = true
+  let tripStartTime: number | undefined
+  let scannerZeroOffset: number | null = null
+  let measurementCount = 0
+  let pendingSinceLastRecon = 0
+  let lastReconstructionTimestamp = 0
+  let lastResult: ThicknessReversalResult | undefined
 
-  const normalizeAngle = (angle: number) => {
-    const normalized = angle % (2 * Math.PI)
-    return normalized >= 0 ? normalized : normalized + 2 * Math.PI
-  }
+  const buffer: TimedMeasurement[] = []
+  const history: ThicknessReversalResult[] = []
 
-  const trimHistory = () => {
-    if (state.history.length > historyWindowSize) {
-      state.history.splice(0, state.history.length - historyWindowSize)
-    }
-  }
+  // ---- 上旋状态更新 ----
 
-  /**
-   * 根据上旋状态更新单程起点与方向
-   * */
   const updateAirRingState = (ringData: RingData) => {
-    const timestamp = ringData.timestamp
-    if (timestamp === undefined) {
-      return
-    }
+    const ts = ringData.timestamp
+    if (ts === undefined) return
 
     if (ringData.Reset) {
-      state.tripStartTime = timestamp
-      state.isForward = true
-      state.lastAngle = 0
+      tripStartTime = ts
+      isForward = true
       return
     }
 
     if (ringData.ReverseDirectionChange) {
-      state.tripStartTime = timestamp
-      state.isForward = true
-      state.lastAngle = 0
+      tripStartTime = ts
+      isForward = true
       return
     }
 
     if (ringData.ForwardDirectionChange) {
-      state.tripStartTime = timestamp
-      state.isForward = false
-      state.lastAngle = normalizeAngle((thetaMaxDeg * Math.PI) / 180)
+      tripStartTime = ts
+      isForward = false
       return
     }
 
@@ -179,345 +193,269 @@ export const createThicknessReversalController = (
       const nextIsForward =
         !!ringData.ForwardRotation && !ringData.ReverseRotation
 
-      if (state.tripStartTime === undefined) {
-        state.tripStartTime = timestamp
-        state.isForward = nextIsForward
+      if (tripStartTime === undefined) {
+        tripStartTime = ts
+        isForward = nextIsForward
         return
       }
 
-      if (nextIsForward !== state.isForward) {
-        state.tripStartTime = timestamp
-        state.isForward = nextIsForward
+      if (nextIsForward !== isForward) {
+        tripStartTime = ts
+        isForward = nextIsForward
       }
     }
   }
 
-  /**
-   * 根据厚度数据时间戳推算当前角度
-   * */
-  const calculateAngle = (timestamp: number) => {
-    if (state.tripStartTime === undefined) {
-      return null
-    }
+  // ---- 扫描仪零点跟踪 ----
 
-    const relativeTime = Math.max(0, timestamp - state.tripStartTime)
-    const clampedRelativeTime = Math.min(relativeTime, T_half)
-    return normalizeAngle(timeToAngle(clampedRelativeTime, state.isForward))
+  const updateScannerZero = (data: ThicknessData) => {
+    if (data.ResetSignal && data.HorizontalPulse != null) {
+      scannerZeroOffset = data.HorizontalPulse
+      return
+    }
+    if (scannerZeroOffset === null && data.LeftLimit && data.HorizontalPulse != null) {
+      scannerZeroOffset = data.HorizontalPulse
+    }
   }
 
-  /**
-   * 构造算法所需测厚数据
-   * */
-  const buildMeasuredData = (
-    thicknessData: ThicknessData,
-    ringData?: RingData
-  ): MeasuredThicknessData | null => {
-    if (ringData) {
-      updateAirRingState(ringData)
-    }
+  // ---- 测量转换：ThicknessData → MeasurementTriple ----
 
+  const toMeasurement = (data: ThicknessData): TimedMeasurement | null => {
     if (
-      thicknessData.ProbeValue === undefined ||
-      thicknessData.ProbeValue <= 0 ||
-      thicknessData.timestamp === undefined
+      data.ProbeValue === undefined ||
+      data.ProbeValue <= 0 ||
+      data.timestamp === undefined ||
+      tripStartTime === undefined ||
+      data.HorizontalPulse === undefined ||
+      scannerZeroOffset === null
     ) {
       return null
     }
 
-    const angle = calculateAngle(thicknessData.timestamp)
-    if (angle === null) {
-      return null
-    }
+    const thickness = thicknessCalcConfig
+      ? calcThickness(data.ProbeValue, thicknessCalcConfig)
+      : data.ProbeValue
 
-    state.lastAngle = angle
+    if (thickness < 1.0) return null
+
+    const tRel = Math.max(0, Math.min(data.timestamp - tripStartTime, T_half))
+    const angleRad = timeToAngle(tRel, isForward)
+    const upperAngleDeg = (angleRad * 180) / Math.PI
+    const scannerPosMm = (data.HorizontalPulse - scannerZeroOffset) * pulseToMm
 
     return {
-      flattenedThickness: thicknessData.ProbeValue,
-      measurementAngle: angle,
-      timestamp: thicknessData.timestamp,
+      upperAngleDeg: normalizeAngle(upperAngleDeg),
+      scannerPosMm,
+      thickness,
+      timestamp: data.timestamp,
     }
   }
 
-  /**
-   * 处理单个厚度测量
-   * */
-  const processThicknessMeasurement = (
-    thicknessData: ThicknessData,
-    ringData?: RingData
-  ): ThicknessReversalResult | null => {
-    const measuredData = buildMeasuredData(thicknessData, ringData)
-    if (!measuredData) {
-      return null
-    }
+  // ---- 重建 ----
 
-    const result = reconstructor.reconstructSingle(measuredData)
+  const runReconstruction = (): ThicknessReversalResult | null => {
+    if (buffer.length < 2) return null
 
-    const reversalResult: ThicknessReversalResult = {
-      originalThickness: result.originalThickness,
-      stretchRatio: result.stretchRatio,
-      confidence: result.confidence,
-      angle: result.angle,
-      timestamp: measuredData.timestamp,
-    }
-
-    state.history.push(reversalResult)
-    trimHistory()
-
-    updateStatistics()
-
-    return reversalResult
-  }
-
-  /**
-   * 批量处理厚度数据
-   * */
-  const processBatch = (
-    thicknessDataList: ThicknessData[],
-    ringDataList?: RingData[]
-  ): ThicknessReversalResult[] => {
-    const results: ThicknessReversalResult[] = []
-
-    thicknessDataList.forEach((thicknessData, index) => {
-      const result = processThicknessMeasurement(
-        thicknessData,
-        ringDataList?.[index]
-      )
-
-      if (result) {
-        results.push(result)
-      }
-    })
-
-    return results
-  }
-
-  /**
-   * 使用对称性约束优化结果
-   * */
-  const reconstructWithSymmetry = (
-    thicknessDataList: ThicknessData[],
-    ringDataList?: RingData[]
-  ): ThicknessReversalResult[] => {
-    const measuredDataList = thicknessDataList
-      .map((thicknessData, index) =>
-        buildMeasuredData(thicknessData, ringDataList?.[index])
-      )
-      .filter((item): item is MeasuredThicknessData => item !== null)
-
-    if (measuredDataList.length === 0) {
-      return []
-    }
-
-    const results = reconstructor.reconstructWithSymmetryConstraints(
-      measuredDataList,
-      fanCount
+    const triples: MeasurementTriple[] = buffer.map(
+      ({ timestamp: _ts, ...rest }) => rest
     )
 
-    const finalResults = results.map<ThicknessReversalResult>(
-      (result, index) => ({
-        originalThickness: result.originalThickness,
-        stretchRatio: result.stretchRatio,
-        confidence: result.confidence,
-        angle: result.angle,
-        timestamp: measuredDataList[index].timestamp,
+    try {
+      const result = reconstructBubbleThickness(triples, membraneWidthMm, {
+        processDeformationFactor: 1.02,
+        ...reconstructionOptions,
       })
-    )
 
-    state.history.push(...finalResults)
-    trimHistory()
-
-    updateStatistics()
-
-    return finalResults
-  }
-
-  /**
-   * 更新统计信息
-   * */
-  const updateStatistics = () => {
-    if (state.history.length === 0) {
-      return
-    }
-
-    const thicknesses = state.history.map((r) => r.originalThickness)
-    const mean = thicknesses.reduce((a, b) => a + b, 0) / thicknesses.length
-
-    const variance =
-      thicknesses.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) /
-      thicknesses.length
-
-    state.averageOriginalThickness = mean
-    state.thicknessStdDev = Math.sqrt(variance)
-  }
-
-  /**
-   * 获取角度范围内的平均厚度
-   * */
-  const getAverageThicknessInAngleRange = (
-    angleStart: number,
-    angleEnd: number
-  ): number | null => {
-    const filtered = state.history.filter((r) => {
-      const angle = r.angle % (2 * Math.PI)
-      const start = angleStart % (2 * Math.PI)
-      const end = angleEnd % (2 * Math.PI)
-
-      if (start <= end) {
-        return angle >= start && angle <= end
-      } else {
-        return angle >= start || angle <= end
+      const ts = buffer[buffer.length - 1]?.timestamp ?? Date.now()
+      const reversalResult: ThicknessReversalResult = {
+        profile: result.profile,
+        numBins: result.numBins,
+        binWidthDeg: result.binWidthDeg,
+        rmsError: result.rmsError,
+        maxError: result.maxError,
+        numMeasurements: result.numMeasurements,
+        binCoverage: result.binCoverage,
+        timestamp: ts,
       }
-    })
 
-    if (filtered.length === 0) {
+      lastResult = reversalResult
+      lastReconstructionTimestamp = ts
+      pendingSinceLastRecon = 0
+      history.push(reversalResult)
+      if (history.length > historyMaxSize) history.shift()
+
+      return reversalResult
+    } catch (err) {
+      console.error('[ThicknessReversal] 重建失败:', err)
       return null
     }
+  }
 
-    return (
-      filtered.reduce((sum, r) => sum + r.originalThickness, 0) /
-      filtered.length
+  // ---- 单点分解 ----
+
+  /**
+   * 将一条测量分解为前后层 B(φ) 贡献
+   *
+   * 用于验证重建结果：给定测量 T=101μm，
+   * 返回 B(φ₁)=48μm, B(φ₂)=53μm, 预测=103μm, 残差=-2μm
+   */
+  const decomposeMeasurement = (input: {
+    thickness: number
+    upperAngleDeg: number
+    scannerPosMm: number
+  }): DecomposeResult | null => {
+    if (!lastResult) return null
+
+    const { thickness, upperAngleDeg, scannerPosMm } = input
+    const { phi1Deg, phi2Deg, deltaDeg, alphaCenterDeg } = computePhiPair(
+      upperAngleDeg,
+      scannerPosMm,
+      membraneWidthMm
     )
-  }
 
-  /**
-   * 获取当前状态
-   * */
-  const getState = (): ThicknessReversalState => {
+    const processFactor = reconstructionOptions.processDeformationFactor ?? 1.02
+    const singleLayerFront = interpProfile(lastResult.profile, phi1Deg)
+    const singleLayerBack = interpProfile(lastResult.profile, phi2Deg)
+    const predictedThickness =
+      processFactor * (singleLayerFront + singleLayerBack)
+
     return {
-      ...state,
-      history: [...state.history],
+      upperAngleDeg,
+      scannerPosMm,
+      deltaDeg,
+      alphaCenterDeg,
+      phi1Deg,
+      phi2Deg,
+      singleLayerFront,
+      singleLayerBack,
+      predictedThickness,
+      measuredThickness: thickness,
+      residual: thickness - predictedThickness,
     }
   }
 
-  /**
-   * 重置控制器状态
-   * */
-  const reset = () => {
-    state.lastAngle = 0
-    state.isForward = true
-    state.tripStartTime = undefined
-    state.history = []
-    state.averageOriginalThickness = undefined
-    state.thicknessStdDev = undefined
-  }
-
-  /**
-   * 流式处理 - 订阅模式
-   * 返回一个 next 函数，持续接收数据并返回结果
-   * */
-  const subscribe = (
-    onResult: (result: ThicknessReversalResult) => void,
-    onError?: (error: Error) => void
-  ) => {
-    return (thicknessData?: ThicknessData, ringData?: RingData) => {
-      try {
-        if (ringData && !thicknessData) {
-          updateAirRingState(ringData)
-        }
-
-        if (thicknessData) {
-          const result = processThicknessMeasurement(thicknessData, ringData)
-          if (result) {
-            onResult(result)
-          }
-        }
-      } catch (error) {
-        if (onError) {
-          onError(error as Error)
-        }
-      }
-    }
-  }
-
-  return {
-    updateAirRingState,
-    processThicknessMeasurement,
-    processBatch,
-    reconstructWithSymmetry,
-    getState,
-    reset,
-    getAverageThicknessInAngleRange,
-    updateStatistics,
-    subscribe,
-  }
-}
-
-/**
- * 简化版控制器工厂 - 用于直接集成到 OPCUAController
- * */
-export const thicknessReversal = (options: ThicknessReversalOptions) => {
-  const { useSymmetryConstraint = false } = options
-  const controller = createThicknessReversalController(options)
+  // ---- 批量处理 ----
 
   const processBatch = (
     thicknessDataList: ThicknessData[],
     ringDataList?: RingData[]
-  ) => {
-    return useSymmetryConstraint
-      ? controller.reconstructWithSymmetry(thicknessDataList, ringDataList)
-      : controller.processBatch(thicknessDataList, ringDataList)
+  ): ThicknessReversalResult | null => {
+    if (ringDataList) {
+      for (const rd of ringDataList) updateAirRingState(rd)
+    }
+
+    for (const td of thicknessDataList) {
+      updateScannerZero(td)
+      const m = toMeasurement(td)
+      if (m) {
+        buffer.push(m)
+        pendingSinceLastRecon++
+        measurementCount++
+      }
+    }
+
+    if (buffer.length > bufferWindowSize) {
+      buffer.splice(0, buffer.length - bufferWindowSize)
+    }
+
+    return runReconstruction()
+  }
+
+  // ---- 流式处理 ----
+
+  const next = (data: {
+    thickness?: ThicknessData
+    airRing?: RingData
+  }): ThicknessReversalResult | null => {
+    if (data.airRing) {
+      updateAirRingState(data.airRing)
+    }
+
+    if (!data.thickness) return null
+
+    updateScannerZero(data.thickness)
+    const m = toMeasurement(data.thickness)
+    if (!m) return null
+
+    buffer.push(m)
+    pendingSinceLastRecon++
+    measurementCount++
+
+    if (buffer.length > bufferWindowSize) {
+      buffer.splice(0, buffer.length - bufferWindowSize)
+    }
+
+    if (pendingSinceLastRecon >= reconstructInterval) {
+      return runReconstruction()
+    }
+
+    return null
+  }
+
+  // ---- 状态查询 ----
+
+  const getState = (): ThicknessReversalState => ({
+    lastReconstructionTimestamp,
+    isForward,
+    tripStartTime,
+    measurementCount,
+    lastResult,
+  })
+
+  const getStatistics = () => {
+    if (!lastResult) {
+      return {
+        meanThickness: 0,
+        thicknessStdDev: 0,
+        minThickness: 0,
+        maxThickness: 0,
+        rmsError: 0,
+        maxError: 0,
+        numMeasurements: 0,
+        reconstructionCount: 0,
+      }
+    }
+
+    const profile = lastResult.profile
+    const mean = profile.reduce((a, b) => a + b, 0) / profile.length
+    const variance =
+      profile.reduce((sum, v) => sum + (v - mean) ** 2, 0) / profile.length
+
+    return {
+      meanThickness: mean,
+      thicknessStdDev: Math.sqrt(variance),
+      minThickness: Math.min(...profile),
+      maxThickness: Math.max(...profile),
+      rmsError: lastResult.rmsError,
+      maxError: lastResult.maxError,
+      numMeasurements: lastResult.numMeasurements,
+      reconstructionCount: history.length,
+    }
+  }
+
+  const getHistory = (limit?: number): ThicknessReversalResult[] => {
+    return limit ? history.slice(-limit) : [...history]
+  }
+
+  const reset = () => {
+    isForward = true
+    tripStartTime = undefined
+    scannerZeroOffset = null
+    measurementCount = 0
+    pendingSinceLastRecon = 0
+    lastReconstructionTimestamp = 0
+    lastResult = undefined
+    buffer.length = 0
+    history.length = 0
   }
 
   return {
-    /**
-     * 处理数据流
-     * */
-    next: (data: {
-      thickness?: ThicknessData
-      airRing?: RingData
-    }): ThicknessReversalResult | null => {
-      if (data.airRing && !data.thickness) {
-        controller.updateAirRingState(data.airRing)
-        return null
-      }
-
-      if (data.thickness) {
-        return controller.processThicknessMeasurement(
-          data.thickness,
-          data.airRing
-        )
-      }
-      return null
-    },
-
-    /**
-     * 批量处理数据
-     * */
+    next,
+    decomposeMeasurement,
     processBatch,
-
-    /**
-     * 获取统计结果
-     * */
-    getStatistics: () => {
-      const state = controller.getState()
-      return {
-        averageOriginalThickness: state.averageOriginalThickness,
-        thicknessStdDev: state.thicknessStdDev,
-        sampleCount: state.history.length,
-        lastAngle: state.lastAngle,
-        isForward: state.isForward,
-        tripStartTime: state.tripStartTime,
-        useSymmetryConstraint,
-      }
-    },
-
-    /**
-     * 获取完整状态
-     * */
-    getState: controller.getState,
-
-    /**
-     * 重置状态
-     * */
-    reset: controller.reset,
-
-    /**
-     * 获取历史数据
-     * */
-    getHistory: (limit?: number) => {
-      const state = controller.getState()
-      const history = state.history
-      return limit ? history.slice(-limit) : history
-    },
+    getState,
+    getStatistics,
+    getHistory,
+    reset,
   }
 }

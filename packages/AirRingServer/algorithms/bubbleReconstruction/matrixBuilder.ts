@@ -62,19 +62,28 @@ export const buildNormalEquations = (
     ATA[i * N + i] += lambda
   }
 
-  // 添加 μ·D₂ᵀD₂ (pentadiagonal，对称)
+
+  // 添加 μ·D₂ᵀD₂ (9-diagonal, 对称) — D₂ᵀD₂ = D₂² 的正确系数
   if (mu > ZERO) {
     for (let i = 0; i < N; i++) {
+      const im4 = (i - 4 + N) % N
+      const im3 = (i - 3 + N) % N
       const im2 = (i - 2 + N) % N
       const im1 = (i - 1 + N) % N
       const ip1 = (i + 1) % N
       const ip2 = (i + 2) % N
+      const ip3 = (i + 3) % N
+      const ip4 = (i + 4) % N
 
-      ATA[i * N + i]     += mu *  6
-      ATA[i * N + ip1]   += mu * -4
-      ATA[i * N + im1]   += mu * -4
-      ATA[i * N + ip2]   += mu *  1
-      ATA[i * N + im2]   += mu *  1
+      ATA[i * N + i]   += mu *  70
+      ATA[i * N + ip1] += mu * -56
+      ATA[i * N + im1] += mu * -56
+      ATA[i * N + ip2] += mu *  28
+      ATA[i * N + im2] += mu *  28
+      ATA[i * N + ip3] += mu *  -8
+      ATA[i * N + im3] += mu *  -8
+      ATA[i * N + ip4] += mu *   1
+      ATA[i * N + im4] += mu *   1
     }
   }
 

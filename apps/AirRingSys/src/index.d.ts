@@ -58,7 +58,7 @@ interface IFrameThickData {
   IsBackw: boolean
   datalist: number[]
   rawDatalist: number[]
-  source: 'modbus' | 'adbox' | 'log-import'
+  source: 'adbox' | 'log-import'
 }
 
 interface IAlarmsData {
@@ -151,7 +151,7 @@ interface IThicknessRawPoint {
   timestamp: number       // ms, 主排序键
   pos: number             // pulse position (0-6999)
   ad: number              // raw AD value
-  source: 'adbox' | 'modbus' | 'log-import'
+  source: 'adbox' | 'log-import'
   pos1: number            // 辊编码器计数，每转+1
 }
 

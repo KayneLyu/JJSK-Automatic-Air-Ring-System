@@ -13,7 +13,7 @@
 
 import { SQLiteService } from './db/service'
 import { DataPipeline } from './dataPipeline'
-import { createModbusCalibrationBridge, type ICalibrationBridge } from './calibrationBridge'
+import { createCalibrationBridge, type ICalibrationBridge } from './calibrationBridge'
 import { runCalibrationAngleEstimate } from './calibrationBridge'
 import {
   createCalibrationSession,
@@ -40,7 +40,7 @@ import type {
   IHistoricalCalibrationProgress,
   RotationTripSummaryRow,
 } from '@/types/ipc'
-import { reconstructBubbleThickness } from '@/views/settings/rack/utils/bubbleReconstruction'
+import { reconstructBubbleThickness } from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
 
 // ═══════════════════════════════════════════════════════════════
 // 常量
@@ -62,6 +62,7 @@ const MIN_VALID_ROTATION_TRIP_MS = 30_000
 const MAX_VALID_ROTATION_TRIP_MS = 900_000
 const INFERRED_ROTATION_RAW_FETCH_LIMIT = 120_000
 const INFERRED_ROTATION_CHANGES_CACHE_MS = 10_000
+const INFERRED_ROTATION_HISTORY_WINDOW_MS = 6 * 60 * 60_000
 
 type DirectionChangeLike = {
   id: number
@@ -80,6 +81,25 @@ let calibrationBridge: ICalibrationBridge | null = null
 let maxPulse = 7000
 let cachedInferredChanges: DirectionChangeLike[] = []
 let cachedInferredChangesAt = 0
+let cachedHistoricalInferredChanges: DirectionChangeLike[] = []
+let cachedHistoricalInferredAt = 0
+let cachedHistoricalInferredKey = -1
+
+function mergeDirectionChanges(
+  primary: DirectionChangeLike[],
+  fallback: DirectionChangeLike[]
+): DirectionChangeLike[] {
+  const merged = new Map<string, DirectionChangeLike>()
+  for (const row of fallback) {
+    const dir = row.forwardDirChange > 0 ? 'F' : row.reverseDirChange > 0 ? 'R' : 'N'
+    merged.set(`${row.timestamp}:${dir}`, row)
+  }
+  for (const row of primary) {
+    const dir = row.forwardDirChange > 0 ? 'F' : row.reverseDirChange > 0 ? 'R' : 'N'
+    merged.set(`${row.timestamp}:${dir}`, row)
+  }
+  return [...merged.values()].sort((a, b) => a.timestamp - b.timestamp)
+}
 
 function inferDirectionChangesFromRotationRaw(
   rows: Array<{
@@ -134,12 +154,36 @@ function getDirectionChangesWithFallback(
   }
 
   if (beforeTs > 0) {
-    return explicit.map((row) => ({
+    const explicitMapped = explicit.map((row) => ({
       id: row.id,
       timestamp: row.timestamp,
       forwardDirChange: row.forwardDirChange,
       reverseDirChange: row.reverseDirChange,
     }))
+    const historyKey = Math.floor(beforeTs / 60_000)
+    const now = Date.now()
+    if (
+      historyKey !== cachedHistoricalInferredKey ||
+      now - cachedHistoricalInferredAt > INFERRED_ROTATION_CHANGES_CACHE_MS
+    ) {
+      const startTs = Math.max(0, beforeTs - INFERRED_ROTATION_HISTORY_WINDOW_MS)
+      const rows = db.queryRotationRaw(startTs, beforeTs + 1)
+      cachedHistoricalInferredChanges = inferDirectionChangesFromRotationRaw(rows)
+      cachedHistoricalInferredAt = now
+      cachedHistoricalInferredKey = historyKey
+      if (cachedHistoricalInferredChanges.length > 0) {
+        console.warn(
+          `[loadUpperSweeps] 历史窗口推断方向变化: beforeTs=${beforeTs} inferred=${cachedHistoricalInferredChanges.length} explicit=${explicitMapped.length}`
+        )
+      }
+    }
+
+    if (cachedHistoricalInferredChanges.length === 0) {
+      return explicitMapped
+    }
+
+    const merged = mergeDirectionChanges(explicitMapped, cachedHistoricalInferredChanges)
+    return merged.slice(-(limit + 1))
   }
 
   const now = Date.now()
@@ -180,7 +224,7 @@ const yieldToEventLoop = (): Promise<void> =>
 // ═══════════════════════════════════════════════════════════════
 
 function initCalibrationBridge(): void {
-  calibrationBridge = createModbusCalibrationBridge({
+  calibrationBridge = createCalibrationBridge({
     onResult: (result) => {
       post({
         type: 'calibration-result',
@@ -733,7 +777,7 @@ function registerAllIpcHandlers(): void {
   registerIpcHandler('db-get-latest-rotation-trips-fallback', async ([count, beforeTs]: unknown[]) => {
     if (!sqliteDb) return []
     const limit = Math.max(1, Number(count) || 1)
-    const before = (beforeTs as number) ?? 0
+    const before = Math.floor((beforeTs as number) ?? 0)
     const changes = getDirectionChangesWithFallback(
       sqliteDb,
       limit,
@@ -806,6 +850,26 @@ function registerAllIpcHandlers(): void {
         ) {
           trips.push({
             id: `rotation-fallback-live-${last.id}`,
+            time: last.timestamp,
+            direction,
+            cycleDurationMs: durationMs,
+          })
+        }
+      }
+    }
+
+    // 历史模式：补一条“边界进行中上旋趟”（最后一次方向变化到 beforeTs）
+    if (before > 0 && asc.length > 0) {
+      const last = asc[asc.length - 1]
+      const direction = getDirection(last)
+      if (direction && before > last.timestamp) {
+        const durationMs = before - last.timestamp
+        if (
+          durationMs >= MIN_VALID_ROTATION_TRIP_MS &&
+          durationMs <= MAX_VALID_ROTATION_TRIP_MS
+        ) {
+          trips.push({
+            id: `rotation-fallback-boundary-${last.id}-${before}`,
             time: last.timestamp,
             direction,
             cycleDurationMs: durationMs,

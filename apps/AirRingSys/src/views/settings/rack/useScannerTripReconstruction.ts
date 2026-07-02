@@ -26,122 +26,39 @@ import {
   DEFAULT_PROCESS_DEFORMATION,
   type DataMode,
 } from './bubbleRawThickness.constants'
-import { timeToAngle } from './utils/sampleDecompose'
+import {
+  SCANNER_SLIDING_WINDOW,
+  SCANNER_TRIPS_FETCH_COUNT,
+  UPPER_SWEEPS_REFRESH_MIN_INTERVAL_MS,
+  UPPER_SWEEPS_FETCH_COUNT,
+  RECON_REFRESH_INTERVAL_MS,
+  UPPER_SWEEP_GAP_TOLERANCE_MS,
+  MAX_EFFECTIVE_TRANSPORT_DELAY_MS,
+} from './scannerTripReconstruction.constants'
+import type {
+  ScannerSweepLite,
+  ReconstructedSweep,
+  DeviceConstants,
+  UpperSweepCoverage,
+  MeasurementBuildResult,
+  AirADFallbackSuggestion,
+  MeasurementParams,
+} from './scannerTripReconstruction.types'
+import {
+  findUpperSweepAt as scanUpperSweep,
+  getUpperSweepsCoverage,
+  buildMeasurements,
+  mergeMeasurementBuildResults,
+  estimateCoverageRatio,
+  estimatePhiSeparationStats,
+  estimateThetaCoverageStats,
+  suggestFallbackAirAD,
+  getWindowTrips as collectWindowTrips,
+} from './scannerTripReconstruction.utils'
 import { calcThickness, type ThicknessConfig } from './utiles'
 
-interface DeviceConstants {
-  airAD?: string
-  materialGain?: string
-}
-
-/** 测厚仪扫描趟(供 chart 反解展示用) — 与 useBubbleSweeps 内的同名类型字段一致 */
-export interface ScannerSweepLite {
-  tripStartTime: number
-  tripDurationMs: number
-  direction: 'forward' | 'reverse'
-  points: SweepPoint[]
-}
-
-/** baseline 的重构结果 */
-export interface ReconstructedSweep {
-  baseline: SweepSummaryRow
-  windowIds: string[]
-  result: BubbleWindowReconstructionResult
-  /** 重构用的样本数 */
-  numSamples: number
-}
-
-/** 滑动窗口最大包含的扫描趟数 */
-export const SCANNER_SLIDING_WINDOW = 640
-/** 滑动窗口最大时间跨度 (ms)：超出此范围的趟不参与重构，防止跨工艺状态数据混杂 */
-export const WINDOW_MAX_TIME_SPAN_MS = 10 * 60_000
-/** 上旋趟匹配容忍间隙 (ms)：超过该值则丢弃该测点，避免错配到过时上旋趟 */
-export const UPPER_SWEEP_GAP_TOLERANCE_MS = 1_000
-/** 极小时间抖动忽略阈值 (ms)：避免 5~20ms 级别日志噪声 */
-export const UPPER_SWEEP_GAP_IGNORE_WARN_BELOW_MS = 50
-/** 重建分箱自适应下限：欠覆盖场景下降分箱，优先保证覆盖连续性 */
-export const MIN_ADAPTIVE_NUM_BINS = 90
-/** 分箱目标覆盖率：低于该比例时下调分箱 */
-export const TARGET_BIN_COVERAGE_RATIO = 0.8
-/** φ 对分离度 p95 下限（度）：低于该值说明横向覆盖过窄，重构病态 */
-export const MIN_P95_PHI_SEPARATION_DEG = 18
-/** θ 覆盖比例下限：低于该值说明上旋时间轴覆盖不足 */
-export const MIN_THETA_COVERAGE_RATIO = 0.8
-/** 时延上限（ms）：只拦截明显失真的配置值，避免把长距离合法时延误判为异常 */
-export const MAX_EFFECTIVE_TRANSPORT_DELAY_MS = 15 * 60_000
-/** 扫描趟摘要默认拉取数量（首屏） */
-export const SCANNER_TRIPS_FETCH_COUNT = 400
-/** 上旋趟摘要刷新最短间隔，避免高频重复查询 */
-export const UPPER_SWEEPS_REFRESH_MIN_INTERVAL_MS = 10_000
-/** 重建窗口上旋趟拉取数量（较大，优先保证时间覆盖） */
-export const UPPER_SWEEPS_FETCH_COUNT = 1200
-/** 本页实时刷新间隔（降低 utility 查询压力） */
-export const RECON_REFRESH_INTERVAL_MS = 5_000
-/** 间隙告警汇总最短间隔，避免按样本刷屏 */
-export const GAP_WARNING_SUMMARY_INTERVAL_MS = 15_000
-
-interface UpperSweepGapStats {
-  droppedLateCount: number
-  maxDroppedLateGapMs: number
-  afterEndCount: number
-  maxAfterEndGapMs: number
-  beforeFirstCount: number
-  maxBeforeFirstGapMs: number
-}
-
-interface MeasurementBuildStats {
-  totalSamples: number
-  droppedLateCount: number
-  droppedLateRatio: number
-  transportDelayMs: number
-}
-
-interface MeasurementBuildResult {
-  measurements: MeasurementTripleInput[]
-  stats: MeasurementBuildStats
-}
-
-interface SeparationStats {
-  p95: number
-  max: number
-}
-
-interface ThetaCoverageStats {
-  p05: number
-  p95: number
-  span: number
-  ratio: number
-}
-
-interface AirADFallbackSuggestion {
-  suggestedAirAD: number
-  aboveRatio: number
-  p99Ad: number
-}
-
-function mergeMeasurementBuildResults(
-  builds: MeasurementBuildResult[]
-): MeasurementBuildResult {
-  const measurements: MeasurementTripleInput[] = []
-  let totalSamples = 0
-  let droppedLateCount = 0
-  let transportDelayMs = 0
-  for (const b of builds) {
-    measurements.push(...b.measurements)
-    totalSamples += b.stats.totalSamples
-    droppedLateCount += b.stats.droppedLateCount
-    transportDelayMs = b.stats.transportDelayMs
-  }
-  return {
-    measurements,
-    stats: {
-      totalSamples,
-      droppedLateCount,
-      droppedLateRatio: totalSamples > 0 ? droppedLateCount / totalSamples : 0,
-      transportDelayMs,
-    },
-  }
-}
+export type { ScannerSweepLite, ReconstructedSweep } from './scannerTripReconstruction.types'
+export { SCANNER_SLIDING_WINDOW } from './scannerTripReconstruction.constants'
 
 export function useScannerTripReconstruction() {
   // 上旋趟(用于 θ_max / 起始时间)
@@ -240,6 +157,13 @@ export function useScannerTripReconstruction() {
     }
   })
 
+  /** MeasurementParams for buildMeasurements (subset of computed params) */
+  const measurementParams = computed<MeasurementParams>(() => ({
+    membraneWidthMm: params.value.membraneWidthMm,
+    mmPerPulse: params.value.mmPerPulse,
+    thetaMaxDeg: params.value.thetaMaxDeg,
+  }))
+
   // 按时间升序的扫描趟
   const sortedScannerTrips = computed(() =>
     [...scannerTrips.value].sort((a, b) => a.startTs - b.startTs)
@@ -261,8 +185,6 @@ export function useScannerTripReconstruction() {
       selectedIndex.value < sortedScannerTrips.value.length - 1
   )
 
-  let lastGapSummaryWarnAt = 0
-
   function getEffectiveTransportDelayMs(): number {
     const delay = params.value.transportDelayMs
     if (delay == null || !Number.isFinite(delay) || delay <= 0) return 0
@@ -270,19 +192,13 @@ export function useScannerTripReconstruction() {
     return delay
   }
 
-  function getUpperSweepsCoverage(): { startTs: number; endTs: number } | null {
-    const first = upperSweeps.value[0]
-    const last = upperSweeps.value[upperSweeps.value.length - 1]
-    if (!first || !last) return null
-    return {
-      startTs: first.time,
-      endTs: last.time + Math.max(0, last.cycleDurationMs),
-    }
+  function getCoverage(): UpperSweepCoverage | null {
+    return getUpperSweepsCoverage(upperSweeps.value)
   }
 
   function findLatestReconstructableIndex(rows: SweepSummaryRow[]): number {
     if (rows.length === 0) return -1
-    const coverage = getUpperSweepsCoverage()
+    const coverage = getCoverage()
     if (!coverage) return rows.length - 1
     const transportDelayMs = getEffectiveTransportDelayMs()
     const upperEnd = coverage.endTs + UPPER_SWEEP_GAP_TOLERANCE_MS
@@ -302,67 +218,6 @@ export function useScannerTripReconstruction() {
     }
   }
 
-  /** 给定 ts, 找出包含它的上旋趟(用于 timeToAngle 算 θ) */
-  function findUpperSweepAt(
-    ts: number,
-    gapStats?: UpperSweepGapStats
-  ): RotationTripSummaryRow | null {
-    const sweeps = upperSweeps.value
-    // 上旋趟按 time 升序, 用二分定位 time <= ts 的最后一个,避免 O(samples*trips) 的线性扫描。
-    let lo = 0
-    let hi = sweeps.length - 1
-    let idx = -1
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1
-      if (sweeps[mid].time <= ts) {
-        idx = mid
-        lo = mid + 1
-      } else {
-        hi = mid - 1
-      }
-    }
-    const candidate: RotationTripSummaryRow | null = idx >= 0 ? sweeps[idx] : null
-    if (candidate) {
-      const end = candidate.time + candidate.cycleDurationMs
-      if (ts <= end) {
-        return candidate
-      }
-      // ts 落在候补趟结束之后 → 间隙
-      const gapMs = ts - end
-      if (gapMs <= UPPER_SWEEP_GAP_IGNORE_WARN_BELOW_MS) {
-        // 5~20ms 级别边界抖动视为同趟尾部,不告警
-        return candidate
-      }
-      if (gapMs > UPPER_SWEEP_GAP_TOLERANCE_MS) {
-        // 超过容忍阈值时直接丢弃该测点,避免将历史上旋趟硬匹配到当前测厚
-        if (gapStats) {
-          gapStats.droppedLateCount += 1
-          gapStats.maxDroppedLateGapMs = Math.max(
-            gapStats.maxDroppedLateGapMs,
-            gapMs
-          )
-        }
-        return null
-      }
-      if (gapStats) {
-        gapStats.afterEndCount += 1
-        gapStats.maxAfterEndGapMs = Math.max(gapStats.maxAfterEndGapMs, gapMs)
-      }
-    } else if (upperSweeps.value.length > 0) {
-      // ts 在所有上旋趟之前
-      const gapMs = upperSweeps.value[0].time - ts
-      if (gapStats) {
-        gapStats.beforeFirstCount += 1
-        gapStats.maxBeforeFirstGapMs = Math.max(
-          gapStats.maxBeforeFirstGapMs,
-          gapMs
-        )
-      }
-    }
-    // 不在任何一趟内, 退回用最近的
-    return candidate
-  }
-
   async function ensureUpperSweepsCoverage(
     windowStartTs: number,
     windowEndTs: number
@@ -370,7 +225,7 @@ export function useScannerTripReconstruction() {
     const transportDelayMs = getEffectiveTransportDelayMs()
     const targetStartTs = windowStartTs - transportDelayMs
     const targetEndTs = windowEndTs - transportDelayMs
-    const coverage = getUpperSweepsCoverage()
+    const coverage = getCoverage()
     if (
       coverage &&
       coverage.startTs <= targetStartTs &&
@@ -457,256 +312,6 @@ export function useScannerTripReconstruction() {
     return promise
   }
 
-  /** 滑动窗口: baseline + 前 N-1 趟,受时间跨度约束 */
-  function getWindowTrips(
-    baseline: SweepSummaryRow
-  ): SweepSummaryRow[] {
-    const all = sortedScannerTrips.value
-    const idx = all.findIndex((s) => s.sweepId === baseline.sweepId)
-    if (idx < 0) return [baseline]
-    // 趟数约束
-    const countStart = Math.max(0, idx - (SCANNER_SLIDING_WINDOW - 1))
-    // 时间约束: 不取早于 baseline.startTs - WINDOW_MAX_TIME_SPAN_MS 的趟
-    const baselineStart = baseline.startTs
-    let timeStart = countStart
-    while (
-      timeStart < idx &&
-      baselineStart - all[timeStart].startTs > WINDOW_MAX_TIME_SPAN_MS
-    ) {
-      timeStart++
-    }
-    // 取两者中更严格的上限
-    const start = Math.max(countStart, timeStart)
-    const trips = all.slice(start, idx + 1)
-    if (trips.length < 2 && idx > 0) {
-      // 至少保底 2 趟（含 baseline），避免样本太少无法求解
-      return all.slice(Math.max(0, idx - 1), idx + 1)
-    }
-    return trips
-  }
-
-  /** 用 (pos, ad, ts) + 上旋趟信息 构造测量三元组,δ 居中 + 边外过滤 */
-  function buildMeasurements(
-    samples: SweepPoint[],
-    airAD: number,
-    gain: number,
-    transportDelayMs = getEffectiveTransportDelayMs()
-  ): MeasurementBuildResult {
-    const p = params.value
-    const gapStats: UpperSweepGapStats = {
-      droppedLateCount: 0,
-      maxDroppedLateGapMs: 0,
-      afterEndCount: 0,
-      maxAfterEndGapMs: 0,
-      beforeFirstCount: 0,
-      maxBeforeFirstGapMs: 0,
-    }
-
-    // 第一遍: 构建所有三元组
-    const all: MeasurementTripleInput[] = []
-    for (const s of samples) {
-      if (s.ad <= 0 || s.ad >= airAD) continue
-      const alignedTs = s.ts - transportDelayMs
-      const upper = findUpperSweepAt(alignedTs, gapStats)
-      if (!upper) continue
-      const tInTrip = alignedTs - upper.time
-      const tHalf = upper.cycleDurationMs / 2
-      if (tInTrip < 0 || tInTrip > upper.cycleDurationMs) continue
-      const theta = timeToAngle(
-        tInTrip,
-        upper.direction === 'forward',
-        tHalf,
-        p.thetaMaxDeg
-      )
-      const x = s.pos * p.mmPerPulse
-      const T = calcThickness(s.ad, { airAD, gain })
-      if (T <= 0) continue
-      all.push({ upperAngleDeg: theta, scannerPosMm: x, thickness: T, timestamp: s.ts })
-    }
-
-    if (all.length === 0) {
-      return {
-        measurements: [],
-        stats: {
-          totalSamples: samples.length,
-          droppedLateCount: gapStats.droppedLateCount,
-          droppedLateRatio:
-            samples.length > 0 ? gapStats.droppedLateCount / samples.length : 0,
-          transportDelayMs,
-        },
-      }
-    }
-
-    const hasGapIssue =
-      gapStats.droppedLateCount > 0 ||
-      gapStats.afterEndCount > 0 ||
-      gapStats.beforeFirstCount > 0
-    if (hasGapIssue) {
-      const now = Date.now()
-      if (now - lastGapSummaryWarnAt >= GAP_WARNING_SUMMARY_INTERVAL_MS) {
-        lastGapSummaryWarnAt = now
-        console.warn(
-          `[findUpperSweepAt] 样本匹配汇总: droppedLate=${gapStats.droppedLateCount}(max=${gapStats.maxDroppedLateGapMs.toFixed(0)}ms) afterEnd=${gapStats.afterEndCount}(max=${gapStats.maxAfterEndGapMs.toFixed(0)}ms) beforeFirst=${gapStats.beforeFirstCount}(max=${gapStats.maxBeforeFirstGapMs.toFixed(0)}ms) totalSamples=${samples.length} transportDelay=${transportDelayMs.toFixed(0)}ms`
-        )
-      }
-    }
-
-    // 计算 δ 分布,找扫描中心偏移
-    // δ = x/W × 180° — 对于对称扫描,δ 应分布在 [-90°,90°] 附近
-    // 若零点偏移,δ 中位数即为偏移量
-    const W = p.membraneWidthMm
-    const deltas = all.map((m) => (m.scannerPosMm / W) * 180)
-    deltas.sort((a, b) => a - b)
-    const deltaCenter = deltas[Math.floor(deltas.length / 2)] // 中位数
-    const halfSpan = Math.max(
-      Math.abs(deltas[0] - deltaCenter),
-      Math.abs(deltas[deltas.length - 1] - deltaCenter)
-    )
-    console.log(
-      `[buildMeasurements] δ 中位数=${deltaCenter.toFixed(1)}° 半跨=${halfSpan.toFixed(1)}° 
-(${deltas[0].toFixed(0)}~${deltas[deltas.length - 1].toFixed(0)})`
-    )
-
-    // 第二遍: δ 居中后过滤 |δ| > 90° (膜边外)
-    const triples: MeasurementTripleInput[] = []
-    let edgeRejected = 0
-    for (const m of all) {
-      const deltaCentered = (m.scannerPosMm / W) * 180 - deltaCenter
-      if (Math.abs(deltaCentered) > 90) {
-        edgeRejected++
-        continue
-      }
-      // 更新 scannerPosMm 为居中后的值,使下游 computePhiPair 直接得到正确的 δ
-      const centeredX = (deltaCentered / 180) * W
-      triples.push({ ...m, scannerPosMm: centeredX })
-    }
-    if (edgeRejected > 0) {
-      console.log(
-        `[buildMeasurements] δ 居中后过滤 ${edgeRejected} 条边外测量(|δ|>90°)`
-      )
-    }
-    return {
-      measurements: triples,
-      stats: {
-        totalSamples: samples.length,
-        droppedLateCount: gapStats.droppedLateCount,
-        droppedLateRatio:
-          samples.length > 0 ? gapStats.droppedLateCount / samples.length : 0,
-        transportDelayMs,
-      },
-    }
-  }
-
-  function estimateCoverageRatio(
-    measurements: MeasurementTripleInput[],
-    membraneWidthMm: number,
-    numBins: number
-  ): { coveredBins: number; ratio: number } {
-    if (measurements.length === 0 || numBins <= 0 || membraneWidthMm <= 0) {
-      return { coveredBins: 0, ratio: 0 }
-    }
-
-    const binWidth = 360 / numBins
-    const covered = new Array<boolean>(numBins).fill(false)
-    for (const m of measurements) {
-      const delta = (m.scannerPosMm / membraneWidthMm) * 180
-      const alphaCenter = ((m.upperAngleDeg + 90) % 360 + 360) % 360
-      const phi1 = ((alphaCenter + delta) % 360 + 360) % 360
-      const phi2 = ((alphaCenter - delta) % 360 + 360) % 360
-      covered[Math.floor(phi1 / binWidth) % numBins] = true
-      covered[Math.floor(phi2 / binWidth) % numBins] = true
-    }
-    const coveredBins = covered.filter(Boolean).length
-    return {
-      coveredBins,
-      ratio: coveredBins / numBins,
-    }
-  }
-
-  function estimatePhiSeparationStats(
-    measurements: MeasurementTripleInput[],
-    membraneWidthMm: number
-  ): SeparationStats {
-    if (measurements.length === 0 || membraneWidthMm <= 0) {
-      return { p95: 0, max: 0 }
-    }
-    const separations = measurements
-      .map((m) => {
-        const delta = (m.scannerPosMm / membraneWidthMm) * 180
-        return Math.min(360, Math.abs(delta) * 2)
-      })
-      .sort((a, b) => a - b)
-    const p95Idx = Math.max(0, Math.min(separations.length - 1, Math.floor(separations.length * 0.95)))
-    return {
-      p95: separations[p95Idx],
-      max: separations[separations.length - 1],
-    }
-  }
-
-  function estimateThetaCoverageStats(
-    measurements: MeasurementTripleInput[],
-    thetaMaxDeg: number
-  ): ThetaCoverageStats {
-    if (measurements.length === 0 || thetaMaxDeg <= 0) {
-      return { p05: 0, p95: 0, span: 0, ratio: 0 }
-    }
-    const thetas = measurements
-      .map((m) => m.upperAngleDeg)
-      .filter((v) => Number.isFinite(v))
-      .sort((a, b) => a - b)
-    if (thetas.length === 0) {
-      return { p05: 0, p95: 0, span: 0, ratio: 0 }
-    }
-    const p05Idx = Math.max(
-      0,
-      Math.min(thetas.length - 1, Math.floor(thetas.length * 0.05))
-    )
-    const p95Idx = Math.max(
-      0,
-      Math.min(thetas.length - 1, Math.floor(thetas.length * 0.95))
-    )
-    const p05 = thetas[p05Idx]
-    const p95 = thetas[p95Idx]
-    const span = Math.max(0, p95 - p05)
-    return {
-      p05,
-      p95,
-      span,
-      ratio: span / thetaMaxDeg,
-    }
-  }
-
-  function suggestFallbackAirAD(
-    samples: SweepPoint[],
-    currentAirAD: number
-  ): AirADFallbackSuggestion | null {
-    const positiveAds = samples
-      .map((s) => s.ad)
-      .filter((ad) => Number.isFinite(ad) && ad > 0)
-    if (positiveAds.length < 200) return null
-
-    let above = 0
-    for (const ad of positiveAds) {
-      if (ad >= currentAirAD) above += 1
-    }
-    const aboveRatio = above / positiveAds.length
-    if (aboveRatio < 0.9) return null
-
-    const sorted = [...positiveAds].sort((a, b) => a - b)
-    const p99 = sorted[Math.floor((sorted.length - 1) * 0.99)]
-    const suggestedAirAD = Math.ceil(
-      Math.max(currentAirAD + 1, 50_300, p99 * 1.01)
-    )
-    if (!Number.isFinite(suggestedAirAD) || suggestedAirAD <= currentAirAD) {
-      return null
-    }
-    return {
-      suggestedAirAD,
-      aboveRatio,
-      p99Ad: p99,
-    }
-  }
-
   /**
    * 为给定 baseline 计算 B(φ)
    * - 命中缓存直接返回
@@ -720,7 +325,8 @@ export function useScannerTripReconstruction() {
       reconstructionHint.value = null
       return cached
     }
-    if (params.value.membraneWidthMm <= 0) {
+    const p = params.value
+    if (p.membraneWidthMm <= 0) {
       reconstructionHint.value = '膜宽参数无效，无法重构'
       return null
     }
@@ -728,7 +334,7 @@ export function useScannerTripReconstruction() {
     transportDelayStatus.value = null
     isReconstructing.value = true
     try {
-      const windowTrips = getWindowTrips(baseline)
+      const windowTrips = collectWindowTrips(sortedScannerTrips.value, baseline)
       const windowStartTs = windowTrips[0]?.startTs ?? baseline.startTs
       const windowEndTs = baseline.endTs
       await ensureUpperSweepsCoverage(windowStartTs, windowEndTs)
@@ -737,7 +343,7 @@ export function useScannerTripReconstruction() {
       const allSamples: SweepPoint[] = []
       for (const pts of batches) allSamples.push(...pts)
       const transportDelayMs = getEffectiveTransportDelayMs()
-      const coverage = getUpperSweepsCoverage()
+      const coverage = getCoverage()
       const minSampleTs = coverage
         ? coverage.startTs - UPPER_SWEEP_GAP_TOLERANCE_MS + transportDelayMs
         : Number.NEGATIVE_INFINITY
@@ -748,7 +354,6 @@ export function useScannerTripReconstruction() {
         pts.filter((s) => s.ts >= minSampleTs && s.ts <= maxSampleTs)
       )
       const samplesForReconstruction = filteredBatches.flat()
-      const p = params.value
       const rawDelayMs = p.transportDelayMs
       const preferredDelayMs = getEffectiveTransportDelayMs()
       let chosenAirAD = p.airAD
@@ -761,22 +366,94 @@ export function useScannerTripReconstruction() {
         delayStatusPrefix =
           `delay异常 ${rawDelayMs.toFixed(0)}ms（>${MAX_EFFECTIVE_TRANSPORT_DELAY_MS}ms），已按0ms`
       }
-      const primaryBuild = mergeMeasurementBuildResults(
-        filteredBatches.map((pts) =>
-          buildMeasurements(pts, p.airAD, p.gain, preferredDelayMs)
+      const mParams = measurementParams.value
+      const sweeps = upperSweeps.value
+
+      const buildWithDelay = (
+        delayMs: number,
+        airAD: number,
+        diagnostics: boolean
+      ): MeasurementBuildResult =>
+        mergeMeasurementBuildResults(
+          filteredBatches.map((pts, idx) =>
+            buildMeasurements(
+              pts, airAD, p.gain, delayMs, sweeps, mParams,
+              windowTrips[idx], diagnostics
+            )
+          )
         )
-      )
+
+      const primaryBuild = buildWithDelay(preferredDelayMs, p.airAD, true)
       let chosenBuild = primaryBuild
+
+      const shouldSearchDelay =
+        chosenBuild.measurements.length > 0 &&
+        (chosenBuild.stats.edgeRejectedRatio >= 0.5 ||
+          chosenBuild.stats.droppedLateRatio >= 0.1)
+      if (shouldSearchDelay) {
+        const candidateSet = new Set<number>([
+          0,
+          preferredDelayMs,
+          Math.max(0, preferredDelayMs - 120_000),
+          Math.max(0, preferredDelayMs - 90_000),
+          Math.max(0, preferredDelayMs - 60_000),
+          Math.max(0, preferredDelayMs - 30_000),
+          preferredDelayMs + 30_000,
+          preferredDelayMs + 60_000,
+          preferredDelayMs + 90_000,
+          preferredDelayMs + 120_000,
+        ])
+        const candidates = [...candidateSet]
+          .filter((d) => d <= MAX_EFFECTIVE_TRANSPORT_DELAY_MS)
+          .sort((a, b) => a - b)
+
+        let bestDelay = preferredDelayMs
+        let bestBuild = chosenBuild
+        let bestThetaCoverageRatio = estimateThetaCoverageStats(
+          bestBuild.measurements,
+          p.thetaMaxDeg
+        ).ratio
+        for (const delayMs of candidates) {
+          if (delayMs === preferredDelayMs) continue
+          const candidateBuild = buildWithDelay(delayMs, p.airAD, false)
+          const candidateThetaCoverageRatio = estimateThetaCoverageStats(
+            candidateBuild.measurements,
+            p.thetaMaxDeg
+          ).ratio
+          const betterByCount =
+            candidateBuild.measurements.length >
+            bestBuild.measurements.length * 1.12
+          const betterByQuality =
+            candidateBuild.measurements.length >= bestBuild.measurements.length * 0.95 &&
+            candidateBuild.stats.edgeRejectedRatio <
+              bestBuild.stats.edgeRejectedRatio * 0.85
+          const betterByThetaCoverage =
+            candidateBuild.measurements.length >= bestBuild.measurements.length * 0.9 &&
+            candidateThetaCoverageRatio > bestThetaCoverageRatio + 0.08
+          if (betterByCount || betterByQuality || betterByThetaCoverage) {
+            bestDelay = delayMs
+            bestBuild = candidateBuild
+            bestThetaCoverageRatio = candidateThetaCoverageRatio
+          }
+        }
+
+        if (bestDelay !== preferredDelayMs) {
+          chosenBuild = buildWithDelay(bestDelay, p.airAD, true)
+          console.warn(
+            `[B(φ)] transportDelay 搜索: ${preferredDelayMs.toFixed(0)}ms -> ${bestDelay.toFixed(0)}ms ` +
+              `(meas=${primaryBuild.measurements.length}->${chosenBuild.measurements.length}, edgeReject=${(primaryBuild.stats.edgeRejectedRatio * 100).toFixed(1)}%->${(chosenBuild.stats.edgeRejectedRatio * 100).toFixed(1)}%, thetaCov=${(estimateThetaCoverageStats(primaryBuild.measurements, p.thetaMaxDeg).ratio * 100).toFixed(1)}%->${(bestThetaCoverageRatio * 100).toFixed(1)}%)`
+          )
+          transportDelayStatus.value =
+            `delay搜索 ${preferredDelayMs.toFixed(0)}ms→${bestDelay.toFixed(0)}ms（meas ${primaryBuild.measurements.length}→${chosenBuild.measurements.length}）`
+        }
+      }
+
       if (preferredDelayMs > 0) {
         const shouldTryNoDelay =
           primaryBuild.stats.droppedLateRatio >= 0.6 ||
           primaryBuild.measurements.length < 50
         if (shouldTryNoDelay) {
-          const zeroDelayBuild = mergeMeasurementBuildResults(
-            filteredBatches.map((pts) =>
-              buildMeasurements(pts, p.airAD, p.gain, 0)
-            )
-          )
+          const zeroDelayBuild = buildWithDelay(0, p.airAD, false)
           if (zeroDelayBuild.measurements.length > primaryBuild.measurements.length * 1.5) {
             console.warn(
               `[B(φ)] transportDelay 回退: ${preferredDelayMs.toFixed(0)}ms -> 0ms ` +
@@ -801,15 +478,10 @@ export function useScannerTripReconstruction() {
       if (chosenBuild.measurements.length === 0) {
         const fallback = suggestFallbackAirAD(samplesForReconstruction, p.airAD)
         if (fallback) {
-          const retryBuild = mergeMeasurementBuildResults(
-            filteredBatches.map((pts) =>
-              buildMeasurements(
-                pts,
-                fallback.suggestedAirAD,
-                p.gain,
-                chosenBuild.stats.transportDelayMs
-              )
-            )
+          const retryBuild = buildWithDelay(
+            chosenBuild.stats.transportDelayMs,
+            fallback.suggestedAirAD,
+            true
           )
           if (retryBuild.measurements.length > 0) {
             console.warn(
@@ -824,7 +496,6 @@ export function useScannerTripReconstruction() {
 
       const measurements = chosenBuild.measurements
       if (measurements.length < 50) {
-        // 数据太少,放弃
         const dropPct = (chosenBuild.stats.droppedLateRatio * 100).toFixed(1)
         const fallback = suggestFallbackAirAD(samplesForReconstruction, chosenAirAD)
         const airADHint =
@@ -836,49 +507,39 @@ export function useScannerTripReconstruction() {
         return null
       }
 
-      const separationStats = estimatePhiSeparationStats(
-        measurements,
-        p.membraneWidthMm
-      )
-      if (separationStats.p95 < MIN_P95_PHI_SEPARATION_DEG) {
+      const separationStats = estimatePhiSeparationStats(measurements, p.membraneWidthMm)
+      if (separationStats.p95 < 18) {
         reconstructionHint.value =
-          `横向覆盖不足（|φ1-φ2| p95=${separationStats.p95.toFixed(1)}° < ${MIN_P95_PHI_SEPARATION_DEG}°，max=${separationStats.max.toFixed(1)}°）`
+          `横向覆盖不足（|φ1-φ2| p95=${separationStats.p95.toFixed(1)}° < 18°，max=${separationStats.max.toFixed(1)}°）`
         console.warn(
           `[B(φ)] 跳过重构: 横向覆盖不足 (sep.p95=${separationStats.p95.toFixed(1)}°, sep.max=${separationStats.max.toFixed(1)}°, meas=${measurements.length})`
         )
         return null
       }
 
-      const thetaCoverage = estimateThetaCoverageStats(
-        measurements,
-        p.thetaMaxDeg
-      )
-      if (thetaCoverage.ratio < MIN_THETA_COVERAGE_RATIO) {
+      const thetaCoverage = estimateThetaCoverageStats(measurements, p.thetaMaxDeg)
+      if (thetaCoverage.ratio < 0.65) {
         reconstructionHint.value =
           `上旋覆盖不足（θ p05=${thetaCoverage.p05.toFixed(0)}°, p95=${thetaCoverage.p95.toFixed(0)}°, 覆盖=${(thetaCoverage.ratio * 100).toFixed(1)}%）`
         console.warn(
-          `[B(φ)] 跳过重构: 上旋覆盖不足 (thetaSpan=${thetaCoverage.span.toFixed(1)}°, ratio=${(thetaCoverage.ratio * 100).toFixed(1)}%, meas=${measurements.length})`
+          `[B(φ)] 跳过重构: 上旋覆盖严重不足 (thetaSpan=${thetaCoverage.span.toFixed(1)}°, ratio=${(thetaCoverage.ratio * 100).toFixed(1)}%, meas=${measurements.length})`
         )
         return null
       }
-
-      const baseCoverage = estimateCoverageRatio(
-        measurements,
-        p.membraneWidthMm,
-        p.numBins
-      )
-      // 欠覆盖场景自适应降低分箱数,减少稀疏分布下的角度空洞
-      const coverageDrivenBins =
-        baseCoverage.ratio >= TARGET_BIN_COVERAGE_RATIO
-          ? p.numBins
-          : Math.floor((p.numBins * baseCoverage.ratio) / TARGET_BIN_COVERAGE_RATIO)
-      const adaptiveNumBins = Math.max(
-        MIN_ADAPTIVE_NUM_BINS,
-        Math.min(
-          p.numBins,
-          Math.floor(measurements.length / 6),
-          coverageDrivenBins
+      if (thetaCoverage.ratio < 0.75) {
+        console.warn(
+          `[B(φ)] 上旋覆盖偏低但继续重构: thetaSpan=${thetaCoverage.span.toFixed(1)}°, ratio=${(thetaCoverage.ratio * 100).toFixed(1)}%, meas=${measurements.length}`
         )
+      }
+
+      const baseCoverage = estimateCoverageRatio(measurements, p.membraneWidthMm, p.numBins)
+      const coverageDrivenBins =
+        baseCoverage.ratio >= 0.8
+          ? p.numBins
+          : Math.floor((p.numBins * baseCoverage.ratio) / 0.8)
+      const adaptiveNumBins = Math.max(
+        90,
+        Math.min(p.numBins, Math.floor(measurements.length / 6), coverageDrivenBins)
       )
       if (adaptiveNumBins !== p.numBins) {
         console.log(
@@ -925,13 +586,13 @@ window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) /
       )
       console.log(
         `[B(φ)] 测量: mean=${mMean.toFixed(2)}μm σ=${mStd.toFixed(2)}μm 
-范围[${Math.min(...mThick).toFixed(1)},${Math.max(...mThick).toFixed(1)}]`
+ 范围[${Math.min(...mThick).toFixed(1)},${Math.max(...mThick).toFixed(1)}]`
       )
       console.log(
         `[B(φ)] 剖面: mean=${pMean.toFixed(2)}μm 范围[${pMin.toFixed(1)},${pMax.toFixed(1)}] 
-波动=${pRange.toFixed(1)}μm(${((pRange / pMean) * 100).toFixed(1)}%) 
-RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm 
-覆盖=${coveredBins}/${result.numBins}bin`
+ 波动=${pRange.toFixed(1)}μm(${((pRange / pMean) * 100).toFixed(1)}%) 
+ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm 
+ 覆盖=${coveredBins}/${result.numBins}bin`
       )
 
       // ---- φ₁/φ₂ 分布诊断: 采样 100 个测量看几何映射 ----
@@ -958,8 +619,8 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
       })
       console.log(
         `[B(φ)] 几何: θ∈[${Math.min(...thetas).toFixed(0)},${Math.max(...thetas).toFixed(0)}]° 
-δ∈[${Math.min(...deltas).toFixed(0)},${Math.max(...deltas).toFixed(0)}]° 
-|φ₁-φ₂|∈[${Math.min(...separations).toFixed(0)},${Math.max(...separations).toFixed(0)}]°`
+ δ∈[${Math.min(...deltas).toFixed(0)},${Math.max(...deltas).toFixed(0)}]° 
+ |φ₁-φ₂|∈[${Math.min(...separations).toFixed(0)},${Math.max(...separations).toFixed(0)}]°`
       )
       const entry: ReconstructedSweep = {
         baseline,
@@ -1006,7 +667,6 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
   }
 
   function enqueueReconstruction(id: string) {
-    // 仅保留最新目标：慢重建期间新请求会覆盖旧请求，避免并发打满 CPU。
     queuedReconstructionId = id
     if (!isReconstructionQueueRunning) {
       void drainReconstructionQueue()
@@ -1035,7 +695,6 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
     if (fresh && selectedBaseline.value?.sweepId === id) {
       currentReconstruction.value = fresh
     }
-    // 预热相邻 baseline 的 samples, 让翻页 0 DB hit
     prefetchNeighbors(baseline)
   }
 
@@ -1057,13 +716,11 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
         reconstructionHint.value = null
         return
       }
-      // 立即拿缓存填充, 不让 chart 闪空
       currentReconstruction.value =
         reconstructionCache.value.get(id) ?? null
       if (currentReconstruction.value) {
         reconstructionHint.value = null
       }
-      // 调度真重建(防抖)
       scheduleReconstruction(id)
     },
     { immediate: true }
@@ -1072,9 +729,6 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
   /**
    * 当前 baseline 的 per-sample 数据 + 所属上旋趟参数
    * 供 chart tooltip 反解使用
-   *
-   * - tripStartTime / tripDurationMs / direction = 上旋趟(用于 timeToAngle 算 θ)
-   * - points = baseline 扫描趟的样本
    */
   const currentScannerSweep = shallowRef<ScannerSweepLite | null>(null)
   watch(
@@ -1092,7 +746,7 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
       const pts = await loadSamples(baseline)
       const transportDelayMs = getEffectiveTransportDelayMs()
       const alignedBaselineTs = baseline.startTs - transportDelayMs
-      const upper = findUpperSweepAt(alignedBaselineTs)
+      const upper = scanUpperSweep(upperSweeps.value, alignedBaselineTs)
       if (!upper) {
         currentScannerSweep.value = null
         return
@@ -1145,7 +799,6 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
         beforeTs
       )) as SweepSummaryRow[]
       if (beforeTs && beforeTs > 0) {
-        // 加载更老的数据
         if (rows.length === 0) {
           hasOlderData.value = false
           return
@@ -1263,20 +916,16 @@ RMS=${result.rmsError.toFixed(2)}μm maxErr=${result.maxError.toFixed(2)}μm
     else startAutoRefresh()
   })
 
-  // 连接状态变化时同步 dataMode + 触发一次刷新
   watch(isConnected, (connected) => {
     dataMode.value = connected ? 'live' : 'historical'
     void refresh()
   })
 
-  // 实时模式: 新进来的扫描趟自动选中为 baseline 并触发重构
-  // 监听列表中"最新一趟"的 sweepId,只在 dataMode==='live' 时响应
   watch(
     () => sortedScannerTrips.value[sortedScannerTrips.value.length - 1]?.sweepId,
     (newLatestId, oldLatestId) => {
       if (!newLatestId || newLatestId === oldLatestId) return
       if (dataMode.value !== 'live') return
-      // 实时模式不盲目追最新,优先选可被上旋趟覆盖的最新扫描趟。
       alignSelectedBaselineToUpperCoverage()
     }
   )

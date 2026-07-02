@@ -20,6 +20,8 @@ type ScanPassSummaryRow = {
   startTs: number
   endTs: number
   scannerDirection: number
+  membranePulseMin: number | null
+  membranePulseMax: number | null
 }
 
 const toSummary = (row: ScanPassSummaryRow): SweepSummaryResult => ({
@@ -28,8 +30,8 @@ const toSummary = (row: ScanPassSummaryRow): SweepSummaryResult => ({
   startTs: row.startTs,
   endTs: row.endTs,
   pointCount: 0, // scan_pass 当前不存 totalCount，后续 migration 补充
-  membranePulseMin: null,
-  membranePulseMax: null,
+  membranePulseMin: row.membranePulseMin ?? null,
+  membranePulseMax: row.membranePulseMax ?? null,
 })
 
 /**
@@ -103,6 +105,8 @@ export function querySweepByIndex(
     startTs: schema.scanPass.startTs,
     endTs: schema.scanPass.endTs,
     scannerDirection: schema.scanPass.scannerDirection,
+    membranePulseMin: schema.scanPass.membranePulseMin,
+    membranePulseMax: schema.scanPass.membranePulseMax,
   }
 
   if (mode === 'single') {
@@ -166,6 +170,8 @@ export function queryLatestSweepSummaries(
       startTs: schema.scanPass.startTs,
       endTs: schema.scanPass.endTs,
       scannerDirection: schema.scanPass.scannerDirection,
+      membranePulseMin: schema.scanPass.membranePulseMin,
+      membranePulseMax: schema.scanPass.membranePulseMax,
     })
     .from(schema.scanPass)
     .where(
@@ -240,6 +246,8 @@ export function queryLatestSweepSummaries(
       startTs: schema.scanPass.startTs,
       endTs: schema.scanPass.endTs,
       scannerDirection: schema.scanPass.scannerDirection,
+      membranePulseMin: schema.scanPass.membranePulseMin,
+      membranePulseMax: schema.scanPass.membranePulseMax,
     })
     .from(schema.scanPass)
     .where(
@@ -269,6 +277,8 @@ export function queryAllSweepSummaries(
       startTs: schema.scanPass.startTs,
       endTs: schema.scanPass.endTs,
       scannerDirection: schema.scanPass.scannerDirection,
+      membranePulseMin: schema.scanPass.membranePulseMin,
+      membranePulseMax: schema.scanPass.membranePulseMax,
     })
     .from(schema.scanPass)
     .where(sql`${schema.scanPass.status} = 'complete'`)

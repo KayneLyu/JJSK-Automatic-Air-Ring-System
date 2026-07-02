@@ -34,7 +34,7 @@ export interface ThicknessRawRow {
   pulse: number
   /** AD 值（光通量） */
   ad: number
-  /** 数据来源：adbox | opcua | modbus | file */
+  /** 数据来源：adbox | file */
   source: string
   /** 辊编码器计数，每转+1 */
   pos1: number

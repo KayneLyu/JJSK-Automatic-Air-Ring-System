@@ -1,16 +1,16 @@
 import type { PushData } from '@jjsk/adbox-sdk'
-import type { IPollingModBusData } from '@/types/ipc'
+import type { IPollingBatchData } from '@/types/ipc'
 
-type ThicknessRealtimePayload = IPollingModBusData | PushData | PushData[]
+type ThicknessRealtimePayload = IPollingBatchData | PushData | PushData[]
 
-const hasModbusBatchShape = (
+const hasBatchShape = (
   payload: unknown
-): payload is IPollingModBusData => {
+): payload is IPollingBatchData => {
   if (!payload || typeof payload !== 'object') {
     return false
   }
 
-  const candidate = payload as Partial<IPollingModBusData>
+  const candidate = payload as Partial<IPollingBatchData>
   return (
     Array.isArray(candidate.adValues) &&
     Array.isArray(candidate.pulses) &&
@@ -20,7 +20,7 @@ const hasModbusBatchShape = (
 
 const normalizeAdboxFrames = (
   payload: PushData | PushData[]
-): IPollingModBusData | null => {
+): IPollingBatchData | null => {
   const frames = Array.isArray(payload) ? payload : [payload]
   if (frames.length === 0) {
     return null
@@ -59,8 +59,8 @@ const normalizeAdboxFrames = (
 
 export const normalizeThicknessRealtimePayload = (
   payload: ThicknessRealtimePayload
-): IPollingModBusData | null => {
-  if (hasModbusBatchShape(payload)) {
+): IPollingBatchData | null => {
+  if (hasBatchShape(payload)) {
     return payload
   }
 

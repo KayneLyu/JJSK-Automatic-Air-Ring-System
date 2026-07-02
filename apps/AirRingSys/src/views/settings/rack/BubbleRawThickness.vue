@@ -104,6 +104,18 @@ const selectedMinCoverage = computed(() => {
   return Math.min(...s.binCoverage)
 })
 
+const selectedProfileMinThickness = computed<number | null>(() => {
+  const s = syntheticSweep.value
+  if (!s || s.profile.length === 0) return null
+  return Math.min(...s.profile)
+})
+
+const selectedProfileMaxThickness = computed<number | null>(() => {
+  const s = syntheticSweep.value
+  if (!s || s.profile.length === 0) return null
+  return Math.max(...s.profile)
+})
+
 const thetaCoverageText = computed(() => {
   const thetaMax = calResults.value.upperMaxAngle
   if (thetaMax == null || !Number.isFinite(thetaMax) || thetaMax <= 0) return '--'
@@ -146,6 +158,8 @@ function onAutoRefreshChange(v: boolean) {
       :last-updated-at="lastUpdatedAt"
       :selected-mean-coverage="selectedMeanCoverage"
       :selected-min-coverage="selectedMinCoverage"
+      :selected-profile-min-thickness="selectedProfileMinThickness"
+      :selected-profile-max-thickness="selectedProfileMaxThickness"
       :theta-coverage-text="thetaCoverageText"
       :delta-bandwidth-text="deltaBandwidthText"
       :effective-constraint-bin-ratio="effectiveConstraintBinRatio"

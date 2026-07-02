@@ -15,7 +15,7 @@ const transform = () => {
   let min = Infinity
   let max = -Infinity
   parseStream(rs, { headers: true })
-    .on('data', (data) => {
+    .on('data', (data: any) => {
       const angle = Number(data.angleOfRotation)
       if (angle < min) {
         min = angle
@@ -73,6 +73,9 @@ const transform = () => {
     })
 }
 
+export type ThicknessData = ThicknessDevice & { timestamp?: number }
+export type ScanGroup = Array<{ t: number; y: number }>
+
 export const groupScans = (data: ThicknessData[]): ScanGroup[] => {
   const groups: ThicknessData[][] = []
   const min = data.reduce((acc, cur) => {
@@ -109,12 +112,12 @@ export const groupScans = (data: ThicknessData[]): ScanGroup[] => {
       })
     })
 }
-const renderChartToBuffer = (option, width = 800, height = 600) => {
+const renderChartToBuffer = (option: any, width = 800, height = 600) => {
   // 1. 创建一个指定大小的Canvas
   const canvas = createCanvas(width, height)
   // 2. 使用该Canvas初始化ECharts实例
   // 注意：这里传入了node-canvas创建的canvas对象
-  const chart = echarts.init(canvas)
+  const chart = echarts.init(canvas as any)
   // 3. 设置图表配置项
   chart.setOption(option)
   // 4. 将Canvas转换为图片Buffer（如PNG格式）

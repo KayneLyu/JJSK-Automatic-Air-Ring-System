@@ -26,16 +26,8 @@ export {
   createUpperRotationS7Connection,
   type UpperRotationS7ConnectionOptions,
 } from './connections/airRing/s7'
-export {
-  createThicknessBatchModbusConnection,
-  type ThicknessBatchModbusConnectionOptions,
-  parseThicknessBatchRegisters,
-} from './connections/thickness/batchModbus'
 export type { RingData } from './connections/airRing/types'
-export type {
-  ThicknessData,
-  ThicknessBatchData,
-} from './connections/thickness/types'
+export type { ThicknessData } from './connections/thickness/types'
 export type { CalibrationConfig, Scalar, TripSegment } from './types'
 export {
   estimateThetaMaxWithPhaseCorrection,

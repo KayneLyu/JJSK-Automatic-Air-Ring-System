@@ -1,4 +1,4 @@
-import type { IPollingModBusData } from '@/types/ipc'
+import type { IPollingBatchData } from '@/types/ipc'
 import type { PushData } from '@jjsk/adbox-sdk'
 import { Worker } from 'node:worker_threads'
 import { dirname, join } from 'node:path'
@@ -34,7 +34,7 @@ const DEFAULT_STANDARDIZED: Scalar = {
 }
 
 export interface ICalibrationBridge {
-  feedModbusData(data: IPollingModBusData): CalibrateResult | null
+  feedModbusData(data: IPollingBatchData): CalibrateResult | null
   feedThicknessSample(sample: FeedThicknessSampleInput): CalibrateResult | null
   feedUpperRotationData(data: RingData): CalibrateResult | null
   feedAdboxPushData(push: PushData): CalibrateResult | null
@@ -45,7 +45,7 @@ export interface ICalibrationBridge {
   getResult(): CalibrateResult | null
 }
 
-export type CreateModbusCalibrationBridgeOptions = {
+export type CreateCalibrationBridgeOptions = {
   config?: CalibrationConfig
   standardized?: Scalar
   disturbanceTs?: number
@@ -205,8 +205,8 @@ export const runCalibrationAngleEstimate = (
   })
 }
 
-export const createModbusCalibrationBridge = (
-  options: CreateModbusCalibrationBridgeOptions = {}
+export const createCalibrationBridge = (
+  options: CreateCalibrationBridgeOptions = {}
 ) => {
   const session = createCalibrationSession({
     config: options.config ?? DEFAULT_CALIBRATION_CONFIG,
@@ -254,7 +254,7 @@ export const createModbusCalibrationBridge = (
   }
 
   const buildThicknessSample = (
-    data: IPollingModBusData,
+    data: IPollingBatchData,
     index: number,
     nowMs: number
   ): ThicknessData | null => {
@@ -359,7 +359,7 @@ export const createModbusCalibrationBridge = (
     return calibrateResult
   }
 
-  const feedModbusData = (data: IPollingModBusData) => {
+  const feedModbusData = (data: IPollingBatchData) => {
     const nowMs = Date.now()
     const sampleCount = Math.min(
       data.adValues.length,

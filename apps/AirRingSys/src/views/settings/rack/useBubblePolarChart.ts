@@ -12,7 +12,7 @@ import type { BubbleSweepResult } from '@/types/ipc'
 import type {
   BinDecomposition,
   SampleDecomposition,
-} from './utils/bubbleReconstruction'
+} from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
 import {
   EMPTY_POLAR_OPTION,
   directionColor,

@@ -32,7 +32,7 @@ class MySubClassDexie extends Dexie {
             if (!frame.startTimestamp) frame.startTimestamp = 0
             if (!frame.endTimestamp) frame.endTimestamp = 0
             if (!frame.rawDatalist) frame.rawDatalist = []
-            if (!frame.source) frame.source = 'modbus'
+            if (!frame.source) frame.source = 'adbox'
             if (!frame.airAD) frame.airAD = 0
             if (!frame.gain) frame.gain = 1
           })

@@ -45,7 +45,7 @@ export type IPlcWriteResult = {
   error?: string
 }
 
-export type IPollingModBusData = {
+export type IPollingBatchData = {
   timestamps: number[]
   adValues: number[]
   pulses: number[]
@@ -288,8 +288,8 @@ export interface IpcChannelMap {
     }
   }
   'ModBus-read': {
-    args: [data: IPollingModBusData]
-    output: [data: IPollingModBusData]
+    args: [data: IPollingBatchData]
+    output: [data: IPollingBatchData]
   } // 获取modbus轮询数据
 
   // ═══ SQLite 历史数据查询 (数据管道) ═══
@@ -457,6 +457,8 @@ export interface SweepSummaryRow {
   startTs: number
   endTs: number
   pointCount: number
+  membranePulseMin?: number | null
+  membranePulseMax?: number | null
 }
 
 export interface FrameRow {

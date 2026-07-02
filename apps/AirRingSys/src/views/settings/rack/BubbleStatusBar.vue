@@ -14,6 +14,8 @@ const props = defineProps<{
   lastUpdatedAt: number | null
   selectedMeanCoverage: number
   selectedMinCoverage: number
+  selectedProfileMinThickness: number | null
+  selectedProfileMaxThickness: number | null
   thetaCoverageText: string
   deltaBandwidthText: string
   effectiveConstraintBinRatio: number
@@ -75,6 +77,12 @@ function membraneWidthMmLabel(): string {
     <span class="param-text" v-if="hasSelectedSweep" style="color: #67c23a">
       当前：约束计数均 {{ selectedMeanCoverage.toFixed(1) }} / 最小
       {{ selectedMinCoverage.toFixed(1) }}
+    </span>
+    <span class="param-text" v-if="hasSelectedSweep" style="color: #409eff">
+      膜泡厚度：最小
+      {{ selectedProfileMinThickness == null ? '--' : `${selectedProfileMinThickness.toFixed(1)}μm` }}
+      / 最大
+      {{ selectedProfileMaxThickness == null ? '--' : `${selectedProfileMaxThickness.toFixed(1)}μm` }}
     </span>
     <span class="param-text" v-if="hasSelectedSweep" style="color: #e6a23c">
       可观测性：θ覆盖 {{ thetaCoverageText }} · δ带宽 {{ deltaBandwidthText }} ·
