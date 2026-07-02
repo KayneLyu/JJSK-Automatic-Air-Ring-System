@@ -32,14 +32,12 @@ import {
   RECON_REFRESH_INTERVAL_MS,
   UPPER_SWEEP_GAP_TOLERANCE_MS,
   MAX_EFFECTIVE_TRANSPORT_DELAY_MS,
-} from './scannerTripReconstruction.constants'
+} from '@jjsk/air-ring-server/algorithms/scannerPreprocessing'
 import type {
-  ReconstructedSweep,
-  DeviceConstants,
   UpperSweepCoverage,
   MeasurementBuildResult,
   MeasurementParams,
-} from './scannerTripReconstruction.types'
+} from '@jjsk/air-ring-server/algorithms/scannerPreprocessing.types'
 import {
   getUpperSweepsCoverage,
   buildMeasurements,
@@ -49,8 +47,22 @@ import {
   estimateThetaCoverageStats,
   suggestFallbackAirAD,
   getWindowTrips as collectWindowTrips,
-} from './scannerTripReconstruction.utils'
+} from '@jjsk/air-ring-server/algorithms/scannerPreprocessing'
 import type { ThicknessConfig } from './utiles'
+
+/** baseline 的重构结果 */
+interface ReconstructedSweep {
+  baseline: SweepSummaryRow
+  windowIds: string[]
+  result: BubbleWindowReconstructionResult
+  /** 重构用的样本数 */
+  numSamples: number
+}
+
+interface DeviceConstants {
+  airAD?: string
+  materialGain?: string
+}
 
 export function useScannerTripReconstruction() {
   // 上旋趟(用于 θ_max / 起始时间)

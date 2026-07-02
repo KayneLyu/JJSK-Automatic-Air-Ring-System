@@ -80,9 +80,15 @@ export {
   angularDistance,
   computeBinTimestamps,
   interpolateB,
+  decomposeSample,
+  findClosestSample,
   buildBinDecompositions,
   buildSampleDecompositions,
 } from './decompositions'
+export type { DecomposeInput, DecomposeResult } from './decompositions'
+
+// ---- profile 平滑 ----
+export { bridgeShortGaps } from './profileSmoothing'
 
 // ---- 仿真 ----
 export {

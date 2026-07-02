@@ -195,3 +195,8 @@ export const calcThickness = (ad: number, config: ThicknessCalcConfig): number =
 
   return Math.max(0, baseThickness * gain)
 }
+
+export const calcGain = (actualThickness: number, displayedThickness: number): number => {
+  if (displayedThickness <= 0) return 1
+  return actualThickness / displayedThickness
+}

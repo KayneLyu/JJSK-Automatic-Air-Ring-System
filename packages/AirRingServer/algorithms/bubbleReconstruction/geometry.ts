@@ -31,7 +31,7 @@ export interface PhiPair {
   alphaCenterDeg: number
 }
 
-const normalizeAngle = (deg: number): number => {
+export const normalizeAngle = (deg: number): number => {
   const a = ((deg % 360) + 360) % 360
   return a >= 360 ? 0 : a
 }
@@ -104,11 +104,6 @@ export const phiToScannerPosition = (
 export const computePressingCenterShift = (deltaThetaDeg: number): number => {
   return deltaThetaDeg
 }
-
-/**
- * 角度归一化到 [0, 360)
- */
-export { normalizeAngle }
 
 /**
  * 计算两个角度之间的最小差（考虑圆周）

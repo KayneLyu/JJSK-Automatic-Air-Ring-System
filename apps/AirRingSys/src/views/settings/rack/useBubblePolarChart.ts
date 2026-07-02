@@ -9,10 +9,11 @@ import { LineChart } from 'echarts/charts'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsCoreOption } from 'echarts/core'
 import type { BubbleSweepResult } from '@/types/ipc'
-import { angularDistance } from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
-import type {
-  BinDecomposition,
-  SampleDecomposition,
+import {
+  angularDistance,
+  bridgeShortGaps,
+  type BinDecomposition,
+  type SampleDecomposition,
 } from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
 import {
   EMPTY_POLAR_OPTION,
@@ -79,54 +80,6 @@ export function useBubblePolarChart(
       coverage[i] >= MIN_RELIABLE_BIN_COVERAGE ? v : null
     )
     return bridgeShortGaps(masked, MAX_BRIDGE_GAP_BINS)
-  }
-
-  function bridgeShortGaps(
-    profile: Array<number | null>,
-    maxGapBins: number
-  ): Array<number | null> {
-    const n = profile.length
-    if (n === 0 || maxGapBins <= 0) return profile
-
-    const out = [...profile]
-    const anchor = out.findIndex((v) => v != null)
-    if (anchor < 0) return out
-
-    let idx = (anchor + 1) % n
-    while (idx !== anchor) {
-      if (out[idx] != null) {
-        idx = (idx + 1) % n
-        continue
-      }
-
-      const start = idx
-      let len = 0
-      while (out[idx] == null) {
-        len += 1
-        idx = (idx + 1) % n
-        if (idx === anchor) break
-      }
-
-      const prevIdx = (start - 1 + n) % n
-      const nextIdx = idx
-      const prevVal = out[prevIdx]
-      const nextVal = out[nextIdx]
-
-      if (
-        len <= maxGapBins &&
-        prevVal != null &&
-        nextVal != null
-      ) {
-        for (let k = 1; k <= len; k++) {
-          const t = k / (len + 1)
-          out[(prevIdx + k) % n] = prevVal * (1 - t) + nextVal * t
-        }
-      }
-
-      if (idx === anchor) break
-    }
-
-    return out
   }
 
   /** 构建一组 profile 的极坐标线数据(纯折线,无散点) */

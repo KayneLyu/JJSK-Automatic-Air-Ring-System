@@ -2,7 +2,10 @@
 // 膜泡重建 — 时间戳与反解分解
 // ============================================================
 
-import { computePhiPair } from './geometry'
+// allow: SIZE_OK — central decomposition API retains existing reconstruction helpers plus migrated sample decomposition exports.
+
+import { calcThickness, type ThicknessCalcConfig } from '../thickness'
+import { computePhiPair, normalizeAngle } from './geometry'
 import type {
   BinDecomposition,
   MeasurementTriple,
@@ -17,6 +20,103 @@ const EMPTY_BIN_DECOMPOSITION: BinDecomposition = {
   b2: 0,
   tMeasured: 0,
   tPredicted: 0,
+}
+
+const TIME_TO_ANGLE_SEGMENTS = 60
+
+export interface DecomposeInput {
+  /** 扫描样本 (pos, ad, ts) */
+  readonly pos: number
+  readonly ad: number
+  readonly ts: number
+  /** 该样本所属的上旋扫描趟 */
+  readonly tripStartTime: number
+  readonly tripDurationMs: number
+  readonly isForward: boolean
+  /** 几何参数 */
+  readonly mmPerPulse: number
+  readonly membraneWidthMm: number
+  readonly thetaMaxDeg: number
+  /** B(φ) 剖面(360 bin) */
+  readonly profile: number[]
+  /** 测厚仪计算参数 */
+  readonly thicknessCfg: ThicknessCalcConfig
+  /** 形变因子 */
+  readonly processDeformation: number
+}
+
+export interface DecomposeResult {
+  readonly ts: number
+  readonly x: number
+  readonly delta: number
+  readonly theta: number
+  readonly alphaCenter: number
+  readonly phi1: number
+  readonly phi2: number
+  readonly b1: number
+  readonly b2: number
+  readonly tMeasured: number
+  readonly tPredicted: number
+  readonly residual: number
+}
+
+/**
+ * 仿 packages/AirRingServer/algorithms/timeToAngle.ts::buildTimeToAngle
+ * 简化版:采用与后端相同的 20/60/20 加减速分段 + S 形平滑
+ */
+const timeToAngle = (
+  t: number,
+  isForward: boolean,
+  tHalf: number,
+  thetaMaxDeg: number
+): number => {
+  const totalAngleDeg = thetaMaxDeg
+  const segmentAngleDeg = totalAngleDeg / TIME_TO_ANGLE_SEGMENTS
+
+  const accelRatio = 0.2
+  const constantRatio = 0.6
+  const accelTime = tHalf * accelRatio
+  const constantTime = tHalf * constantRatio
+  const segmentTimes: number[] = []
+  for (let i = 0; i < TIME_TO_ANGLE_SEGMENTS; i++) {
+    if (i < TIME_TO_ANGLE_SEGMENTS * 0.2) {
+      const accelProgress = i / (TIME_TO_ANGLE_SEGMENTS * 0.2)
+      segmentTimes.push(
+        (accelTime * (1.5 - 0.5 * accelProgress)) /
+          (TIME_TO_ANGLE_SEGMENTS * 0.2)
+      )
+    } else if (i < TIME_TO_ANGLE_SEGMENTS * 0.8) {
+      segmentTimes.push(constantTime / (TIME_TO_ANGLE_SEGMENTS * 0.6))
+    } else {
+      const decelProgress =
+        (i - TIME_TO_ANGLE_SEGMENTS * 0.8) / (TIME_TO_ANGLE_SEGMENTS * 0.2)
+      segmentTimes.push(
+        (accelTime * (1 + decelProgress)) / (TIME_TO_ANGLE_SEGMENTS * 0.2)
+      )
+    }
+  }
+
+  if (t <= 0) return isForward ? 0 : totalAngleDeg
+  if (t >= tHalf) return isForward ? totalAngleDeg : 0
+
+  let elapsed = 0
+  for (let i = 0; i < TIME_TO_ANGLE_SEGMENTS; i++) {
+    const segmentTime = segmentTimes[i] ?? 0
+    if (t <= elapsed + segmentTime) {
+      const localT = t - elapsed
+      const localAngleDeg = (localT / segmentTime) * segmentAngleDeg
+      const normalizedLocal = localT / segmentTime
+      const smoothFactor =
+        3 * normalizedLocal * normalizedLocal -
+        2 * normalizedLocal * normalizedLocal * normalizedLocal
+      const correctedLocalAngleDeg = localAngleDeg * smoothFactor
+      return isForward
+        ? i * segmentAngleDeg + correctedLocalAngleDeg
+        : totalAngleDeg - (i * segmentAngleDeg + correctedLocalAngleDeg)
+    }
+    elapsed += segmentTime
+  }
+  return isForward ? totalAngleDeg : 0
 }
 
 /** 角度距离 (0~180°) */
@@ -80,7 +180,7 @@ export const computeBinTimestamps = (
   return result
 }
 
-const decomposeSample = (
+const decomposeMeasurement = (
   measurement: MeasurementTriple,
   profile: number[],
   membraneWidthMm: number,
@@ -120,7 +220,7 @@ export const buildBinDecompositions = (
 
   const binWidth = 360 / numBins
   const perMeasurement = measurements.map((measurement) =>
-    decomposeSample(measurement, profile, membraneWidthMm, processDeformationFactor)
+    decomposeMeasurement(measurement, profile, membraneWidthMm, processDeformationFactor)
   )
   const result = new Array<BinDecomposition>(numBins)
   const timePenaltyDeg = preferAfterTs !== undefined ? 3 : 0
@@ -158,5 +258,63 @@ export const buildSampleDecompositions = (
   processDeformationFactor: number
 ): SampleDecomposition[] =>
   measurements.map((measurement) =>
-    decomposeSample(measurement, profile, membraneWidthMm, processDeformationFactor)
+    decomposeMeasurement(measurement, profile, membraneWidthMm, processDeformationFactor)
   )
+
+/**
+ * 对单个测厚仪样本做完整反解
+ */
+export const decomposeSample = (input: DecomposeInput): DecomposeResult => {
+  const x = input.pos * input.mmPerPulse
+  const delta = (x / input.membraneWidthMm) * 180
+  const tInTrip = input.ts - input.tripStartTime
+  const tHalf = input.tripDurationMs / 2
+  const theta = timeToAngle(tInTrip, input.isForward, tHalf, input.thetaMaxDeg)
+  const alphaCenter = theta + 90
+  const phi1 = normalizeAngle(alphaCenter + delta)
+  const phi2 = normalizeAngle(alphaCenter - delta)
+  const b1 = interpolateB(input.profile, phi1)
+  const b2 = interpolateB(input.profile, phi2)
+  const tMeasured = calcThickness(input.ad, input.thicknessCfg)
+  const tPredicted = input.processDeformation * (b1 + b2)
+  return {
+    ts: input.ts,
+    x,
+    delta,
+    theta,
+    alphaCenter,
+    phi1,
+    phi2,
+    b1,
+    b2,
+    tMeasured,
+    tPredicted,
+    residual: tMeasured - tPredicted,
+  }
+}
+
+/**
+ * 在样本数组中找最接近目标 ts 的样本(用于 hover bin 时取代表样本)
+ */
+export const findClosestSample = <T extends { readonly ts: number }>(
+  samples: readonly T[],
+  targetTs: number
+): T | null => {
+  if (samples.length === 0) return null
+  // 假设样本按 ts 升序,用二分
+  let lo = 0
+  let hi = samples.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    const sample = samples[mid]
+    if (sample && sample.ts < targetTs) lo = mid + 1
+    else hi = mid
+  }
+  const cand1 = samples[lo]
+  if (!cand1) return null
+  const cand2 = lo > 0 ? samples[lo - 1] ?? null : null
+  if (!cand2) return cand1
+  return Math.abs(cand1.ts - targetTs) < Math.abs(cand2.ts - targetTs)
+    ? cand1
+    : cand2
+}
