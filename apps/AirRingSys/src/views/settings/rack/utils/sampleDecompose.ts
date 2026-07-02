@@ -11,8 +11,17 @@
  *   T_predicted    = η · (B(φ₁) + B(φ₂))           (η = 1.02 processDeformation)
  */
 
-import { calcThickness, type ThicknessConfig } from '../utiles'
+import {
+  interpolateB,
+  normalizeAngle,
+} from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
+import {
+  calcThickness,
+  type ThicknessCalcConfig,
+} from '@jjsk/air-ring-server/algorithms/thickness'
 import { TIME_TO_ANGLE_SEGMENTS } from '../bubbleRawThickness.constants'
+
+export { interpolateB }
 
 /**
  * 仿 packages/AirRingServer/algorithms/timeToAngle.ts::buildTimeToAngle
@@ -69,37 +78,6 @@ export function timeToAngle(
   return isForward ? totalAngleDeg : 0
 }
 
-/**
- * 角度归一化到 [0, 360)
- */
-function normalizeAngle(deg: number): number {
-  const m = deg % 360
-  return m < 0 ? m + 360 : m
-}
-
-/**
- * 在 360 bin 的 B(φ) 上做角度插值
- * B(φ)[i] 中心角度 = i * binWidthDeg + binWidthDeg/2
- */
-export function interpolateB(
-  profile: number[],
-  angleDeg: number
-): number {
-  if (profile.length === 0) return 0
-  const binWidth = 360 / profile.length
-  const a = normalizeAngle(angleDeg)
-  // 中心是 i*binWidth + binWidth/2 → 反推 i = (a - binWidth/2) / binWidth
-  const idxF = (a - binWidth / 2) / binWidth
-  const n = profile.length
-  // 处理环绕
-  const idx0 = Math.floor(idxF)
-  const idx1 = idx0 + 1
-  const frac = idxF - idx0
-  const v0 = profile[((idx0 % n) + n) % n]
-  const v1 = profile[((idx1 % n) + n) % n]
-  return v0 * (1 - frac) + v1 * frac
-}
-
 export interface DecomposeInput {
   /** 扫描样本 (pos, ad, ts) */
   pos: number
@@ -116,7 +94,7 @@ export interface DecomposeInput {
   /** B(φ) 剖面(360 bin) */
   profile: number[]
   /** 测厚仪计算参数 */
-  thicknessCfg: ThicknessConfig
+  thicknessCfg: ThicknessCalcConfig
   /** 形变因子 */
   processDeformation: number
 }

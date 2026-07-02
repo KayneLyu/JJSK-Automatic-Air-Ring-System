@@ -4,17 +4,13 @@ import type {
   SweepPoint,
   SweepSummaryRow,
 } from '@/types/ipc'
+import { calcThickness } from '@jjsk/air-ring-server/algorithms/thickness'
 import {
   SCANNER_SLIDING_WINDOW,
   WINDOW_MAX_TIME_SPAN_MS,
   UPPER_SWEEP_GAP_TOLERANCE_MS,
   UPPER_SWEEP_GAP_IGNORE_WARN_BELOW_MS,
   GAP_WARNING_SUMMARY_INTERVAL_MS,
-  MIN_P95_PHI_SEPARATION_DEG,
-  MIN_THETA_COVERAGE_RATIO,
-  HARD_MIN_THETA_COVERAGE_RATIO,
-  MIN_ADAPTIVE_NUM_BINS,
-  TARGET_BIN_COVERAGE_RATIO,
 } from './scannerTripReconstruction.constants'
 import type {
   UpperSweepGapStats,
@@ -27,7 +23,6 @@ import type {
   MeasurementParams,
 } from './scannerTripReconstruction.types'
 import { timeToAngle } from './utils/sampleDecompose'
-import { calcThickness } from './utiles'
 
 // -- 间隙告警节流计数器(模块级，整个 composable 共享) --
 let lastGapSummaryWarnAt = 0
@@ -65,7 +60,10 @@ export function findUpperSweepAt(
     if (gapMs > UPPER_SWEEP_GAP_TOLERANCE_MS) {
       if (gapStats) {
         gapStats.droppedLateCount += 1
-        gapStats.maxDroppedLateGapMs = Math.max(gapStats.maxDroppedLateGapMs, gapMs)
+        gapStats.maxDroppedLateGapMs = Math.max(
+          gapStats.maxDroppedLateGapMs,
+          gapMs
+        )
       }
       return null
     }
@@ -77,14 +75,19 @@ export function findUpperSweepAt(
     const gapMs = sweeps[0].time - ts
     if (gapStats) {
       gapStats.beforeFirstCount += 1
-      gapStats.maxBeforeFirstGapMs = Math.max(gapStats.maxBeforeFirstGapMs, gapMs)
+      gapStats.maxBeforeFirstGapMs = Math.max(
+        gapStats.maxBeforeFirstGapMs,
+        gapMs
+      )
     }
   }
   return candidate
 }
 
 /** 获取上旋趟的时间覆盖范围 */
-export function getUpperSweepsCoverage(sweeps: RotationTripSummaryRow[]): UpperSweepCoverage | null {
+export function getUpperSweepsCoverage(
+  sweeps: RotationTripSummaryRow[]
+): UpperSweepCoverage | null {
   const first = sweeps[0]
   const last = sweeps[sweeps.length - 1]
   if (!first || !last) return null
@@ -118,7 +121,8 @@ export function mergeMeasurementBuildResults(
       totalSamples,
       rawMeasurementCount,
       edgeRejectedCount,
-      edgeRejectedRatio: rawMeasurementCount > 0 ? edgeRejectedCount / rawMeasurementCount : 0,
+      edgeRejectedRatio:
+        rawMeasurementCount > 0 ? edgeRejectedCount / rawMeasurementCount : 0,
       droppedLateCount,
       droppedLateRatio: totalSamples > 0 ? droppedLateCount / totalSamples : 0,
       transportDelayMs,
@@ -178,7 +182,12 @@ export function buildMeasurements(
       : s.pos * params.mmPerPulse
     const T = calcThickness(s.ad, { airAD, gain })
     if (T <= 0) continue
-    all.push({ upperAngleDeg: theta, scannerPosMm: x, thickness: T, timestamp: s.ts })
+    all.push({
+      upperAngleDeg: theta,
+      scannerPosMm: x,
+      thickness: T,
+      timestamp: s.ts,
+    })
   }
 
   if (all.length === 0) {
@@ -190,7 +199,8 @@ export function buildMeasurements(
         edgeRejectedCount: 0,
         edgeRejectedRatio: 0,
         droppedLateCount: gapStats.droppedLateCount,
-        droppedLateRatio: samples.length > 0 ? gapStats.droppedLateCount / samples.length : 0,
+        droppedLateRatio:
+          samples.length > 0 ? gapStats.droppedLateCount / samples.length : 0,
         transportDelayMs,
       },
     }
@@ -238,7 +248,9 @@ export function buildMeasurements(
     triples.push({ ...m, scannerPosMm: centeredX })
   }
   if (emitDiagnostics && edgeRejected > 0) {
-    console.log(`[buildMeasurements] δ 居中后过滤 ${edgeRejected} 条边外测量(|δ|>90°)`)
+    console.log(
+      `[buildMeasurements] δ 居中后过滤 ${edgeRejected} 条边外测量(|δ|>90°)`
+    )
   }
   return {
     measurements: triples,
@@ -248,7 +260,8 @@ export function buildMeasurements(
       edgeRejectedCount: edgeRejected,
       edgeRejectedRatio: all.length > 0 ? edgeRejected / all.length : 0,
       droppedLateCount: gapStats.droppedLateCount,
-      droppedLateRatio: samples.length > 0 ? gapStats.droppedLateCount / samples.length : 0,
+      droppedLateRatio:
+        samples.length > 0 ? gapStats.droppedLateCount / samples.length : 0,
       transportDelayMs,
     },
   }
@@ -267,9 +280,9 @@ export function estimateCoverageRatio(
   const covered = new Array<boolean>(numBins).fill(false)
   for (const m of measurements) {
     const delta = (m.scannerPosMm / membraneWidthMm) * 180
-    const alphaCenter = ((m.upperAngleDeg + 90) % 360 + 360) % 360
-    const phi1 = ((alphaCenter + delta) % 360 + 360) % 360
-    const phi2 = ((alphaCenter - delta) % 360 + 360) % 360
+    const alphaCenter = (((m.upperAngleDeg + 90) % 360) + 360) % 360
+    const phi1 = (((alphaCenter + delta) % 360) + 360) % 360
+    const phi2 = (((alphaCenter - delta) % 360) + 360) % 360
     covered[Math.floor(phi1 / binWidth) % numBins] = true
     covered[Math.floor(phi2 / binWidth) % numBins] = true
   }
@@ -291,7 +304,10 @@ export function estimatePhiSeparationStats(
       return Math.min(360, Math.abs(delta) * 2)
     })
     .sort((a, b) => a - b)
-  const p95Idx = Math.max(0, Math.min(separations.length - 1, Math.floor(separations.length * 0.95)))
+  const p95Idx = Math.max(
+    0,
+    Math.min(separations.length - 1, Math.floor(separations.length * 0.95))
+  )
   return { p95: separations[p95Idx], max: separations[separations.length - 1] }
 }
 
@@ -310,8 +326,14 @@ export function estimateThetaCoverageStats(
   if (thetas.length === 0) {
     return { p05: 0, p95: 0, span: 0, ratio: 0 }
   }
-  const p05Idx = Math.max(0, Math.min(thetas.length - 1, Math.floor(thetas.length * 0.05)))
-  const p95Idx = Math.max(0, Math.min(thetas.length - 1, Math.floor(thetas.length * 0.95)))
+  const p05Idx = Math.max(
+    0,
+    Math.min(thetas.length - 1, Math.floor(thetas.length * 0.05))
+  )
+  const p95Idx = Math.max(
+    0,
+    Math.min(thetas.length - 1, Math.floor(thetas.length * 0.95))
+  )
   const p05 = thetas[p05Idx]
   const p95 = thetas[p95Idx]
   const span = Math.max(0, p95 - p05)
@@ -337,7 +359,9 @@ export function suggestFallbackAirAD(
 
   const sorted = [...positiveAds].sort((a, b) => a - b)
   const p99 = sorted[Math.floor((sorted.length - 1) * 0.99)]
-  const suggestedAirAD = Math.ceil(Math.max(currentAirAD + 1, 50_300, p99 * 1.01))
+  const suggestedAirAD = Math.ceil(
+    Math.max(currentAirAD + 1, 50_300, p99 * 1.01)
+  )
   if (!Number.isFinite(suggestedAirAD) || suggestedAirAD <= currentAirAD) {
     return null
   }
@@ -354,7 +378,10 @@ export function getWindowTrips(
   const countStart = Math.max(0, idx - (SCANNER_SLIDING_WINDOW - 1))
   const baselineStart = baseline.startTs
   let timeStart = countStart
-  while (timeStart < idx && baselineStart - allTrips[timeStart].startTs > WINDOW_MAX_TIME_SPAN_MS) {
+  while (
+    timeStart < idx &&
+    baselineStart - allTrips[timeStart].startTs > WINDOW_MAX_TIME_SPAN_MS
+  ) {
     timeStart++
   }
   const start = Math.max(countStart, timeStart)
@@ -364,16 +391,3 @@ export function getWindowTrips(
   }
   return trips
 }
-
-// re-export constants & types for convenient single-import by the composable
-export {
-  SCANNER_SLIDING_WINDOW,
-  WINDOW_MAX_TIME_SPAN_MS,
-  UPPER_SWEEP_GAP_TOLERANCE_MS,
-  UPPER_SWEEP_GAP_IGNORE_WARN_BELOW_MS,
-  MIN_ADAPTIVE_NUM_BINS,
-  TARGET_BIN_COVERAGE_RATIO,
-  MIN_P95_PHI_SEPARATION_DEG,
-  MIN_THETA_COVERAGE_RATIO,
-  HARD_MIN_THETA_COVERAGE_RATIO,
-} from './scannerTripReconstruction.constants'

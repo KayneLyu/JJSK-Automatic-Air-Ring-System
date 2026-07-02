@@ -2,17 +2,8 @@ import type {
   BubbleWindowReconstructionResult,
   MeasurementTripleInput,
   RotationTripSummaryRow,
-  SweepPoint,
   SweepSummaryRow,
 } from '@/types/ipc'
-
-/** 测厚仪扫描趟(供 chart 反解展示用) — 与 useBubbleSweeps 内的同名类型字段一致 */
-export interface ScannerSweepLite {
-  tripStartTime: number
-  tripDurationMs: number
-  direction: 'forward' | 'reverse'
-  points: SweepPoint[]
-}
 
 /** baseline 的重构结果 */
 export interface ReconstructedSweep {

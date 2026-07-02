@@ -77,7 +77,9 @@ export {
 
 // ---- 反解分解 ----
 export {
+  angularDistance,
   computeBinTimestamps,
+  interpolateB,
   buildBinDecompositions,
   buildSampleDecompositions,
 } from './decompositions'

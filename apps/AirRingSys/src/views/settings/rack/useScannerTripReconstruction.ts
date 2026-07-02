@@ -14,7 +14,6 @@ import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
 import type {
   BubbleWindowReconstructionResult,
   ICalibrationResults,
-  MeasurementTripleInput,
   RotationTripSummaryRow,
   SweepPoint,
   SweepSummaryRow,
@@ -27,7 +26,6 @@ import {
   type DataMode,
 } from './bubbleRawThickness.constants'
 import {
-  SCANNER_SLIDING_WINDOW,
   SCANNER_TRIPS_FETCH_COUNT,
   UPPER_SWEEPS_REFRESH_MIN_INTERVAL_MS,
   UPPER_SWEEPS_FETCH_COUNT,
@@ -36,16 +34,13 @@ import {
   MAX_EFFECTIVE_TRANSPORT_DELAY_MS,
 } from './scannerTripReconstruction.constants'
 import type {
-  ScannerSweepLite,
   ReconstructedSweep,
   DeviceConstants,
   UpperSweepCoverage,
   MeasurementBuildResult,
-  AirADFallbackSuggestion,
   MeasurementParams,
 } from './scannerTripReconstruction.types'
 import {
-  findUpperSweepAt as scanUpperSweep,
   getUpperSweepsCoverage,
   buildMeasurements,
   mergeMeasurementBuildResults,
@@ -55,10 +50,7 @@ import {
   suggestFallbackAirAD,
   getWindowTrips as collectWindowTrips,
 } from './scannerTripReconstruction.utils'
-import { calcThickness, type ThicknessConfig } from './utiles'
-
-export type { ScannerSweepLite, ReconstructedSweep } from './scannerTripReconstruction.types'
-export { SCANNER_SLIDING_WINDOW } from './scannerTripReconstruction.constants'
+import type { ThicknessConfig } from './utiles'
 
 export function useScannerTripReconstruction() {
   // 上旋趟(用于 θ_max / 起始时间)
@@ -68,7 +60,9 @@ export function useScannerTripReconstruction() {
   // 详细 samples(按 sweepId 缓存)
   const samplesCache = shallowRef<Map<string, SweepPoint[]>>(new Map())
   // 重构结果(按 baseline sweepId 缓存)
-  const reconstructionCache = shallowRef<Map<string, ReconstructedSweep>>(new Map())
+  const reconstructionCache = shallowRef<Map<string, ReconstructedSweep>>(
+    new Map()
+  )
 
   const selectedIndex = ref(0)
   const dataMode = ref<DataMode>('live')
@@ -92,7 +86,8 @@ export function useScannerTripReconstruction() {
         'config-get-device-constants'
       )) as DeviceConstants
       if (dev?.airAD) thicknessCfg.value.airAD = Number(dev.airAD) || 50300
-      if (dev?.materialGain) thicknessCfg.value.gain = Number(dev.materialGain) || 1.0
+      if (dev?.materialGain)
+        thicknessCfg.value.gain = Number(dev.materialGain) || 1.0
     } catch {
       /* 默认值即可 */
     }
@@ -130,7 +125,8 @@ export function useScannerTripReconstruction() {
         ? Number(thicknessCfg.value.airAD)
         : 50300
     const gainNum =
-      thicknessCfg.value.gain !== undefined && Number.isFinite(thicknessCfg.value.gain)
+      thicknessCfg.value.gain !== undefined &&
+      Number.isFinite(thicknessCfg.value.gain)
         ? thicknessCfg.value.gain
         : 1.0
     const transportDelayMs =
@@ -238,7 +234,9 @@ export function useScannerTripReconstruction() {
     lastUpperSweepsRefreshAt.value = Date.now()
   }
 
-  async function fetchUpperSweeps(beforeTs?: number): Promise<RotationTripSummaryRow[]> {
+  async function fetchUpperSweeps(
+    beforeTs?: number
+  ): Promise<RotationTripSummaryRow[]> {
     const queryBeforeTs = beforeTs ?? 0
     const [fromTripTable, fromFallback] = (await Promise.all([
       window.ipcApi.invoke(
@@ -274,7 +272,9 @@ export function useScannerTripReconstruction() {
         `[loadUpperSweeps] source=merged trip=${fromTripTable.length} fallback=${fromFallback.length} count=${merged.length} beforeTs=${queryBeforeTs} range=${first.time}~${last.time + Math.max(0, last.cycleDurationMs)}`
       )
       if (fromTripTable.length === 0 && fromFallback.length > 0) {
-        console.warn('[loadUpperSweeps] rotation_trip 为空，已回退到 rotation_raw 方向变化构建上旋趟')
+        console.warn(
+          '[loadUpperSweeps] rotation_trip 为空，已回退到 rotation_raw 方向变化构建上旋趟'
+        )
       }
       return merged
     }
@@ -363,8 +363,7 @@ export function useScannerTripReconstruction() {
         Number.isFinite(rawDelayMs) &&
         rawDelayMs > MAX_EFFECTIVE_TRANSPORT_DELAY_MS
       ) {
-        delayStatusPrefix =
-          `delay异常 ${rawDelayMs.toFixed(0)}ms（>${MAX_EFFECTIVE_TRANSPORT_DELAY_MS}ms），已按0ms`
+        delayStatusPrefix = `delay异常 ${rawDelayMs.toFixed(0)}ms（>${MAX_EFFECTIVE_TRANSPORT_DELAY_MS}ms），已按0ms`
       }
       const mParams = measurementParams.value
       const sweeps = upperSweeps.value
@@ -377,8 +376,14 @@ export function useScannerTripReconstruction() {
         mergeMeasurementBuildResults(
           filteredBatches.map((pts, idx) =>
             buildMeasurements(
-              pts, airAD, p.gain, delayMs, sweeps, mParams,
-              windowTrips[idx], diagnostics
+              pts,
+              airAD,
+              p.gain,
+              delayMs,
+              sweeps,
+              mParams,
+              windowTrips[idx],
+              diagnostics
             )
           )
         )
@@ -424,11 +429,13 @@ export function useScannerTripReconstruction() {
             candidateBuild.measurements.length >
             bestBuild.measurements.length * 1.12
           const betterByQuality =
-            candidateBuild.measurements.length >= bestBuild.measurements.length * 0.95 &&
+            candidateBuild.measurements.length >=
+              bestBuild.measurements.length * 0.95 &&
             candidateBuild.stats.edgeRejectedRatio <
               bestBuild.stats.edgeRejectedRatio * 0.85
           const betterByThetaCoverage =
-            candidateBuild.measurements.length >= bestBuild.measurements.length * 0.9 &&
+            candidateBuild.measurements.length >=
+              bestBuild.measurements.length * 0.9 &&
             candidateThetaCoverageRatio > bestThetaCoverageRatio + 0.08
           if (betterByCount || betterByQuality || betterByThetaCoverage) {
             bestDelay = delayMs
@@ -443,8 +450,7 @@ export function useScannerTripReconstruction() {
             `[B(φ)] transportDelay 搜索: ${preferredDelayMs.toFixed(0)}ms -> ${bestDelay.toFixed(0)}ms ` +
               `(meas=${primaryBuild.measurements.length}->${chosenBuild.measurements.length}, edgeReject=${(primaryBuild.stats.edgeRejectedRatio * 100).toFixed(1)}%->${(chosenBuild.stats.edgeRejectedRatio * 100).toFixed(1)}%, thetaCov=${(estimateThetaCoverageStats(primaryBuild.measurements, p.thetaMaxDeg).ratio * 100).toFixed(1)}%->${(bestThetaCoverageRatio * 100).toFixed(1)}%)`
           )
-          transportDelayStatus.value =
-            `delay搜索 ${preferredDelayMs.toFixed(0)}ms→${bestDelay.toFixed(0)}ms（meas ${primaryBuild.measurements.length}→${chosenBuild.measurements.length}）`
+          transportDelayStatus.value = `delay搜索 ${preferredDelayMs.toFixed(0)}ms→${bestDelay.toFixed(0)}ms（meas ${primaryBuild.measurements.length}→${chosenBuild.measurements.length}）`
         }
       }
 
@@ -454,18 +460,19 @@ export function useScannerTripReconstruction() {
           primaryBuild.measurements.length < 50
         if (shouldTryNoDelay) {
           const zeroDelayBuild = buildWithDelay(0, p.airAD, false)
-          if (zeroDelayBuild.measurements.length > primaryBuild.measurements.length * 1.5) {
+          if (
+            zeroDelayBuild.measurements.length >
+            primaryBuild.measurements.length * 1.5
+          ) {
             console.warn(
               `[B(φ)] transportDelay 回退: ${preferredDelayMs.toFixed(0)}ms -> 0ms ` +
                 `(droppedLate=${primaryBuild.stats.droppedLateCount}/${primaryBuild.stats.totalSamples}, ` +
                 `meas=${primaryBuild.measurements.length}->${zeroDelayBuild.measurements.length})`
             )
-            transportDelayStatus.value =
-              `delay回退 ${preferredDelayMs.toFixed(0)}ms→0ms（meas ${primaryBuild.measurements.length}→${zeroDelayBuild.measurements.length}）`
+            transportDelayStatus.value = `delay回退 ${preferredDelayMs.toFixed(0)}ms→0ms（meas ${primaryBuild.measurements.length}→${zeroDelayBuild.measurements.length}）`
             chosenBuild = zeroDelayBuild
           } else {
-            transportDelayStatus.value =
-              `delay保持 ${preferredDelayMs.toFixed(0)}ms（回退收益不足）`
+            transportDelayStatus.value = `delay保持 ${preferredDelayMs.toFixed(0)}ms（回退收益不足）`
           }
         } else {
           transportDelayStatus.value =
@@ -497,30 +504,36 @@ export function useScannerTripReconstruction() {
       const measurements = chosenBuild.measurements
       if (measurements.length < 50) {
         const dropPct = (chosenBuild.stats.droppedLateRatio * 100).toFixed(1)
-        const fallback = suggestFallbackAirAD(samplesForReconstruction, chosenAirAD)
+        const fallback = suggestFallbackAirAD(
+          samplesForReconstruction,
+          chosenAirAD
+        )
         const airADHint =
           fallback && measurements.length === 0
             ? `，airAD疑似偏小（当前${chosenAirAD}，样本中>=airAD占比${(fallback.aboveRatio * 100).toFixed(1)}%，建议≈${fallback.suggestedAirAD}）`
             : ''
-        reconstructionHint.value =
-          `有效测量点不足（${measurements.length}/50，droppedLate=${chosenBuild.stats.droppedLateCount}/${chosenBuild.stats.totalSamples}=${dropPct}%）${airADHint}`
+        reconstructionHint.value = `有效测量点不足（${measurements.length}/50，droppedLate=${chosenBuild.stats.droppedLateCount}/${chosenBuild.stats.totalSamples}=${dropPct}%）${airADHint}`
         return null
       }
 
-      const separationStats = estimatePhiSeparationStats(measurements, p.membraneWidthMm)
+      const separationStats = estimatePhiSeparationStats(
+        measurements,
+        p.membraneWidthMm
+      )
       if (separationStats.p95 < 18) {
-        reconstructionHint.value =
-          `横向覆盖不足（|φ1-φ2| p95=${separationStats.p95.toFixed(1)}° < 18°，max=${separationStats.max.toFixed(1)}°）`
+        reconstructionHint.value = `横向覆盖不足（|φ1-φ2| p95=${separationStats.p95.toFixed(1)}° < 18°，max=${separationStats.max.toFixed(1)}°）`
         console.warn(
           `[B(φ)] 跳过重构: 横向覆盖不足 (sep.p95=${separationStats.p95.toFixed(1)}°, sep.max=${separationStats.max.toFixed(1)}°, meas=${measurements.length})`
         )
         return null
       }
 
-      const thetaCoverage = estimateThetaCoverageStats(measurements, p.thetaMaxDeg)
+      const thetaCoverage = estimateThetaCoverageStats(
+        measurements,
+        p.thetaMaxDeg
+      )
       if (thetaCoverage.ratio < 0.65) {
-        reconstructionHint.value =
-          `上旋覆盖不足（θ p05=${thetaCoverage.p05.toFixed(0)}°, p95=${thetaCoverage.p95.toFixed(0)}°, 覆盖=${(thetaCoverage.ratio * 100).toFixed(1)}%）`
+        reconstructionHint.value = `上旋覆盖不足（θ p05=${thetaCoverage.p05.toFixed(0)}°, p95=${thetaCoverage.p95.toFixed(0)}°, 覆盖=${(thetaCoverage.ratio * 100).toFixed(1)}%）`
         console.warn(
           `[B(φ)] 跳过重构: 上旋覆盖严重不足 (thetaSpan=${thetaCoverage.span.toFixed(1)}°, ratio=${(thetaCoverage.ratio * 100).toFixed(1)}%, meas=${measurements.length})`
         )
@@ -532,33 +545,37 @@ export function useScannerTripReconstruction() {
         )
       }
 
-      const baseCoverage = estimateCoverageRatio(measurements, p.membraneWidthMm, p.numBins)
+      const baseCoverage = estimateCoverageRatio(
+        measurements,
+        p.membraneWidthMm,
+        p.numBins
+      )
       const coverageDrivenBins =
         baseCoverage.ratio >= 0.8
           ? p.numBins
           : Math.floor((p.numBins * baseCoverage.ratio) / 0.8)
       const adaptiveNumBins = Math.max(
         90,
-        Math.min(p.numBins, Math.floor(measurements.length / 6), coverageDrivenBins)
+        Math.min(
+          p.numBins,
+          Math.floor(measurements.length / 6),
+          coverageDrivenBins
+        )
       )
       if (adaptiveNumBins !== p.numBins) {
         console.log(
           `[B(φ)] 分箱自适应: ${p.numBins} -> ${adaptiveNumBins} (meas=${measurements.length}, baseCoverage=${baseCoverage.coveredBins}/${p.numBins})`
         )
       }
-      const result = (await window.ipcApi.invoke(
-        'bubble-reconstruct-window',
-        {
-          measurements,
-          membraneWidthMm: p.membraneWidthMm,
-          numBins: adaptiveNumBins,
-          processDeformationFactor: p.processDeformationFactor,
-          preferAfterTs: baseline.startTs,
-        }
-      )) as BubbleWindowReconstructionResult | null
+      const result = (await window.ipcApi.invoke('bubble-reconstruct-window', {
+        measurements,
+        membraneWidthMm: p.membraneWidthMm,
+        numBins: adaptiveNumBins,
+        processDeformationFactor: p.processDeformationFactor,
+        preferAfterTs: baseline.startTs,
+      })) as BubbleWindowReconstructionResult | null
       if (!result) {
-        reconstructionHint.value =
-          `重构求解无结果（samples=${samplesForReconstruction.length}, meas=${measurements.length}, delay=${chosenBuild.stats.transportDelayMs.toFixed(0)}ms）`
+        reconstructionHint.value = `重构求解无结果（samples=${samplesForReconstruction.length}, meas=${measurements.length}, delay=${chosenBuild.stats.transportDelayMs.toFixed(0)}ms）`
         return null
       }
       reconstructionHint.value = null
@@ -598,7 +615,14 @@ window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) /
       // ---- φ₁/φ₂ 分布诊断: 采样 100 个测量看几何映射 ----
       const sampleN = Math.min(100, measurements.length)
       const step = Math.max(1, Math.floor(measurements.length / sampleN))
-      const phiDist: { theta: number; x: number; delta: number; phi1: number; phi2: number; T: number }[] = []
+      const phiDist: {
+        theta: number
+        x: number
+        delta: number
+        phi1: number
+        phi2: number
+        T: number
+      }[] = []
       for (let i = 0; i < measurements.length; i += step) {
         const m = measurements[i]
         const delta = (m.scannerPosMm / p.membraneWidthMm) * 180
@@ -606,8 +630,8 @@ window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) /
           theta: m.upperAngleDeg,
           x: m.scannerPosMm,
           delta,
-          phi1: ((m.upperAngleDeg + 90 + delta) % 360 + 360) % 360,
-          phi2: ((m.upperAngleDeg + 90 - delta) % 360 + 360) % 360,
+          phi1: (((m.upperAngleDeg + 90 + delta) % 360) + 360) % 360,
+          phi2: (((m.upperAngleDeg + 90 - delta) % 360) + 360) % 360,
           T: m.thickness,
         })
       }
@@ -716,47 +740,11 @@ window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) /
         reconstructionHint.value = null
         return
       }
-      currentReconstruction.value =
-        reconstructionCache.value.get(id) ?? null
+      currentReconstruction.value = reconstructionCache.value.get(id) ?? null
       if (currentReconstruction.value) {
         reconstructionHint.value = null
       }
       scheduleReconstruction(id)
-    },
-    { immediate: true }
-  )
-
-  /**
-   * 当前 baseline 的 per-sample 数据 + 所属上旋趟参数
-   * 供 chart tooltip 反解使用
-   */
-  const currentScannerSweep = shallowRef<ScannerSweepLite | null>(null)
-  watch(
-    () => selectedBaseline.value?.sweepId,
-    async (id) => {
-      if (!id) {
-        currentScannerSweep.value = null
-        return
-      }
-      const baseline = sortedScannerTrips.value.find((s) => s.sweepId === id)
-      if (!baseline) {
-        currentScannerSweep.value = null
-        return
-      }
-      const pts = await loadSamples(baseline)
-      const transportDelayMs = getEffectiveTransportDelayMs()
-      const alignedBaselineTs = baseline.startTs - transportDelayMs
-      const upper = scanUpperSweep(upperSweeps.value, alignedBaselineTs)
-      if (!upper) {
-        currentScannerSweep.value = null
-        return
-      }
-      currentScannerSweep.value = {
-        tripStartTime: upper.time,
-        tripDurationMs: upper.cycleDurationMs,
-        direction: upper.direction,
-        points: pts,
-      }
     },
     { immediate: true }
   )
@@ -767,7 +755,8 @@ window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) /
       const now = Date.now()
       if (
         upperSweeps.value.length > 0 &&
-        now - lastUpperSweepsRefreshAt.value < UPPER_SWEEPS_REFRESH_MIN_INTERVAL_MS
+        now - lastUpperSweepsRefreshAt.value <
+          UPPER_SWEEPS_REFRESH_MIN_INTERVAL_MS
       ) {
         console.warn(
           `[loadUpperSweeps] skip refresh: cached=${upperSweeps.value.length} age=${now - lastUpperSweepsRefreshAt.value}ms`
@@ -897,9 +886,12 @@ window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) /
     stopAutoRefresh()
     if (!autoRefresh.value) return
     if (dataMode.value === 'historical') return
-    refreshTimer = window.setInterval(() => {
-      void refresh()
-    }, Math.max(REFRESH_INTERVAL_MS, RECON_REFRESH_INTERVAL_MS))
+    refreshTimer = window.setInterval(
+      () => {
+        void refresh()
+      },
+      Math.max(REFRESH_INTERVAL_MS, RECON_REFRESH_INTERVAL_MS)
+    )
   }
   function stopAutoRefresh() {
     if (refreshTimer !== null) {
@@ -922,7 +914,8 @@ window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) /
   })
 
   watch(
-    () => sortedScannerTrips.value[sortedScannerTrips.value.length - 1]?.sweepId,
+    () =>
+      sortedScannerTrips.value[sortedScannerTrips.value.length - 1]?.sweepId,
     (newLatestId, oldLatestId) => {
       if (!newLatestId || newLatestId === oldLatestId) return
       if (dataMode.value !== 'live') return
@@ -944,35 +937,24 @@ window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) /
   })
 
   return {
-    // state
+    // state — consumed by BubbleRawThickness.vue
     dataMode,
     scannerTrips,
-    sortedScannerTrips,
     upperSweeps,
-    selectedIndex,
     selectedBaseline,
     currentReconstruction,
-    currentScannerSweep,
     canGoPrev,
     canGoNext,
-    isRefreshing,
     isReconstructing,
     reconstructionHint,
     transportDelayStatus,
     autoRefresh,
     lastUpdatedAt,
     errorMessage,
-    isConnected,
-    hasOlderData,
     thicknessCfg,
     calResults,
-    params,
     // actions
-    refresh,
     prevTrip,
     nextTrip,
-    loadOlderTrips,
-    checkConnection,
-    reconstructForBaseline,
   }
 }

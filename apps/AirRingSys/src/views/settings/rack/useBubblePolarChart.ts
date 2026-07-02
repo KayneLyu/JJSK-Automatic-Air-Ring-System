@@ -9,6 +9,7 @@ import { LineChart } from 'echarts/charts'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsCoreOption } from 'echarts/core'
 import type { BubbleSweepResult } from '@/types/ipc'
+import { angularDistance } from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
 import type {
   BinDecomposition,
   SampleDecomposition,
@@ -48,11 +49,6 @@ interface AxisPointerLabelParam {
 type PolarPoint = [number | null, number]
 const MIN_RELIABLE_BIN_COVERAGE = 1
 const MAX_BRIDGE_GAP_BINS = 3
-
-function angularDistance(a: number, b: number): number {
-  const d = Math.abs(a - b) % 360
-  return Math.min(d, 360 - d)
-}
 
 export function useBubblePolarChart(
   selectedSweep:

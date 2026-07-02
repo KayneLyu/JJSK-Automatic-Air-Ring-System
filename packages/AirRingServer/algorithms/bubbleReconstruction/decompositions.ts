@@ -20,13 +20,13 @@ const EMPTY_BIN_DECOMPOSITION: BinDecomposition = {
 }
 
 /** 角度距离 (0~180°) */
-const angularDistance = (a: number, b: number): number => {
+export const angularDistance = (a: number, b: number): number => {
   const d = Math.abs(a - b) % 360
   return Math.min(d, 360 - d)
 }
 
 /** profile 上做角度插值 */
-const interpolateB = (profile: number[], phiDeg: number): number => {
+export const interpolateB = (profile: number[], phiDeg: number): number => {
   const numBins = profile.length
   if (numBins === 0) return 0
 
