@@ -4,7 +4,7 @@
  * 集成出膜检测器与状态机，连接 S7 控制层。
  * 每个 ThicknessData 采样点调用一次 next()，返回控制建议和状态。
  */
-import type { ThicknessData } from '../connections/thickness/types'
+import type { ThicknessData } from '../connections/thickness'
 import { outOfBoundsDetector, type OutOfBoundsDetectorOptions } from '../algorithms/outOfBoundsDetector'
 import {
   scannerStateMachine,

@@ -1,3 +1,5 @@
+export * from './RingBuffer'
+
 import { RollerScalar } from '../types'
 
 /**

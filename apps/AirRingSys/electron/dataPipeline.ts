@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron'
-import { RingBuffer, ThicknessRingItem, RotationRingItem } from './ringBuffer'
+import { RingBuffer, RingBufferAPI, ThicknessRingValue, RotationRingValue } from '@jjsk/core'
 import { SQLiteService } from './db/service'
 import type { PushData } from '@jjsk/adbox-sdk'
 import type { IUpperRotationDebugData, BubbleSweepResult } from '@/types/ipc'
@@ -28,8 +28,8 @@ import {
  *                                └─► SQLite (WAL, 500ms批量写入)
  */
 export class DataPipeline {
-  readonly thicknessRing: RingBuffer<ThicknessRingItem>
-  readonly rotationRing: RingBuffer<RotationRingItem>
+  readonly thicknessRing: RingBufferAPI<ThicknessRingValue>
+  readonly rotationRing: RingBufferAPI<RotationRingValue>
 
   private sqlite: SQLiteService
   private batcher: DataBatcher<PushData>
@@ -62,8 +62,8 @@ export class DataPipeline {
   private emitUpperRotationData?: (data: IUpperRotationDebugData) => void
 
   constructor(window: BrowserWindow, sqlite: SQLiteService) {
-    this.thicknessRing = new RingBuffer<ThicknessRingItem>(200_000)
-    this.rotationRing = new RingBuffer<RotationRingItem>(10_000)
+    this.thicknessRing = RingBuffer<ThicknessRingValue>(200_000)
+    this.rotationRing = RingBuffer<RotationRingValue>(10_000)
     this.sqlite = sqlite
 
     // 50ms 节流推送至渲染层
@@ -153,12 +153,10 @@ export class DataPipeline {
     if (typeof push.pos0 !== 'number' || !Number.isFinite(push.pos0)) return
 
     // 1. RingBuffer 写入
-    this.thicknessRing.push({
-      timestamp,
-      pulse: push.pos0,
-      ad: push.ad0,
-      source: 'adbox',
-    })
+    this.thicknessRing.push(
+      { pulse: push.pos0, ad: push.ad0, source: 'adbox' },
+      timestamp
+    )
 
     // 2. 推送至渲染 (50ms 节流)
     this.batcher.push(push)
@@ -186,13 +184,15 @@ export class DataPipeline {
     const ts = data.timestamp ?? Date.now()
 
     // 1. RingBuffer
-    this.rotationRing.push({
-      timestamp: ts,
-      forwardRotation: data.ForwardRotation ?? false,
-      reverseRotation: data.ReverseRotation ?? false,
-      motorFrequency: data.MotorFrequency ?? 0,
-      heats: data.Heats ?? [],
-    })
+    this.rotationRing.push(
+      {
+        forwardRotation: data.ForwardRotation ?? false,
+        reverseRotation: data.ReverseRotation ?? false,
+        motorFrequency: data.MotorFrequency ?? 0,
+        heats: data.Heats ?? [],
+      },
+      ts
+    )
 
     // 2. 推送至计算管线
     this.feedUpperRotationData?.(data)
