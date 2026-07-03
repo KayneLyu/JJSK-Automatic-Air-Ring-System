@@ -18,7 +18,6 @@ import {
   type MeasurementTriple,
   type BubbleReconstructionResult,
 } from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
-import { trapezoidalPosition } from '@jjsk/air-ring-server/algorithms/upperRotation/upperRotation.evaluation.ts'
 import { calcThickness } from '@jjsk/air-ring-server/algorithms/thickness'
 import {
   detectOutOfBoundsThreshold,
@@ -182,11 +181,12 @@ export function buildProfile(
     // 查询阶段通过 pulse BETWEEN 界定，不再在 buildProfile 中做几何裁剪。
     const binWidthDeg = 360 / numBins
     const tripDuration = Math.max(1, cycle.durationMs)
-    const accelRatio = Math.min(20_000, tripDuration * 0.45) / tripDuration
 
     const triples: MeasurementTriple[] = []
     const allBin1: number[] = []
     const allBin2: number[] = []
+    const allAlpha1: number[] = []
+    const allAlpha2: number[] = []
     const allTimestamps: number[] = []
     const allThicknesses: number[] = []
     const binRawThicknessSums: number[] = new Array(numBins).fill(0)
@@ -203,11 +203,10 @@ export function buildProfile(
       const delayedTs = item.timestamp - transportDelayMs
       const delayedElapsed = delayedTs - cycle.startTs
       const delayedProgress = Math.max(0, Math.min(1, delayedElapsed / tripDuration))
-      const delayedPos = trapezoidalPosition(delayedProgress, accelRatio)
       const delayedUpperAngleDeg =
         cycle.direction === 'forward'
-          ? delayedPos * thetaMaxDeg
-          : thetaMaxDeg - delayedPos * thetaMaxDeg
+          ? delayedProgress * thetaMaxDeg
+          : thetaMaxDeg - delayedProgress * thetaMaxDeg
 
       triples.push({
         upperAngleDeg: delayedUpperAngleDeg,
@@ -223,6 +222,8 @@ export function buildProfile(
       const bin2 = Math.floor(alpha2 / binWidthDeg) % numBins
       allBin1.push(bin1)
       allBin2.push(bin2)
+      allAlpha1.push(alpha1)
+      allAlpha2.push(alpha2)
       allTimestamps.push(item.timestamp)
       allThicknesses.push(item.thickness)
       binRawThicknessSums[bin1] += item.thickness
@@ -252,7 +253,7 @@ export function buildProfile(
       {
         numBins,
         lambda: 1e-4,
-        mu: 0.1,
+        mu: 1e-6,
         processDeformationFactor,
       }
     )
@@ -271,15 +272,34 @@ export function buildProfile(
     const profile = result.profile
     const binPredictedSums: number[] = new Array(numBins).fill(0)
     const binPredictedCounts: number[] = new Array(numBins).fill(0)
-    for (let k = 0; k < allBin1.length; k++) {
-      const b1 = allBin1[k]
-      const b2 = allBin2[k]
-      const predicted = (profile[b1] + profile[b2]) * processDeformationFactor
-      binPredictedSums[b1] += predicted
-      binPredictedCounts[b1] += 1
-      if (b2 !== b1) {
-        binPredictedSums[b2] += predicted
-        binPredictedCounts[b2] += 1
+    for (let k = 0; k < allAlpha1.length; k++) {
+      // 双线性插值：每层分配到两个相邻 bin
+      const interp = (phiDeg: number): { lo: number; hi: number; w: number; val: number } => {
+        const idx = phiDeg / binWidthDeg
+        const lo = Math.floor(idx) % numBins
+        const hi = (lo + 1) % numBins
+        const w = idx - Math.floor(idx)
+        return { lo, hi, w, val: profile[lo] * (1 - w) + profile[hi] * w }
+      }
+      const i1 = interp(allAlpha1[k])
+      const i2 = interp(allAlpha2[k])
+      const predicted = (i1.val + i2.val) * processDeformationFactor
+
+      // 按双线性权重分配到各 bin
+      binPredictedSums[i1.lo] += predicted * (1 - i1.w)
+      binPredictedCounts[i1.lo] += (1 - i1.w)
+      binPredictedSums[i1.hi] += predicted * i1.w
+      binPredictedCounts[i1.hi] += i1.w
+      // 避免 α₂ 的 bin 与 α₁ 的 bin 重复计数
+      const seen = new Set([i1.lo, i1.hi])
+      if (!seen.has(i2.lo)) {
+        binPredictedSums[i2.lo] += predicted * (1 - i2.w)
+        binPredictedCounts[i2.lo] += (1 - i2.w)
+        seen.add(i2.lo)
+      }
+      if (!seen.has(i2.hi)) {
+        binPredictedSums[i2.hi] += predicted * i2.w
+        binPredictedCounts[i2.hi] += i2.w
       }
     }
 
@@ -377,11 +397,12 @@ export async function buildProfileAsync(
 
     const binWidthDeg = 360 / numBins
     const tripDuration = Math.max(1, cycle.durationMs)
-    const accelRatio = Math.min(20_000, tripDuration * 0.45) / tripDuration
 
     const triples: MeasurementTriple[] = []
     const allBin1: number[] = []
     const allBin2: number[] = []
+    const allAlpha1: number[] = []
+    const allAlpha2: number[] = []
     const allTimestamps: number[] = []
     const allThicknesses: number[] = []
     const binRawThicknessSums: number[] = new Array(numBins).fill(0)
@@ -398,11 +419,10 @@ export async function buildProfileAsync(
       const delayedTs = item.timestamp - transportDelayMs
       const delayedElapsed = delayedTs - cycle.startTs
       const delayedProgress = Math.max(0, Math.min(1, delayedElapsed / tripDuration))
-      const delayedPos = trapezoidalPosition(delayedProgress, accelRatio)
       const delayedUpperAngleDeg =
         cycle.direction === 'forward'
-          ? delayedPos * thetaMaxDeg
-          : thetaMaxDeg - delayedPos * thetaMaxDeg
+          ? delayedProgress * thetaMaxDeg
+          : thetaMaxDeg - delayedProgress * thetaMaxDeg
 
       triples.push({
         upperAngleDeg: delayedUpperAngleDeg,
@@ -418,6 +438,8 @@ export async function buildProfileAsync(
       const bin2 = Math.floor(alpha2 / binWidthDeg) % numBins
       allBin1.push(bin1)
       allBin2.push(bin2)
+      allAlpha1.push(alpha1)
+      allAlpha2.push(alpha2)
       allTimestamps.push(item.timestamp)
       allThicknesses.push(item.thickness)
       binRawThicknessSums[bin1] += item.thickness
@@ -448,7 +470,7 @@ export async function buildProfileAsync(
       {
         numBins,
         lambda: 1e-4,
-        mu: 0.1,
+        mu: 1e-6,
         processDeformationFactor,
       }
     )
@@ -467,15 +489,34 @@ export async function buildProfileAsync(
     const profile = result.profile
     const binPredictedSums: number[] = new Array(numBins).fill(0)
     const binPredictedCounts: number[] = new Array(numBins).fill(0)
-    for (let k = 0; k < allBin1.length; k++) {
-      const b1 = allBin1[k]
-      const b2 = allBin2[k]
-      const predicted = (profile[b1] + profile[b2]) * processDeformationFactor
-      binPredictedSums[b1] += predicted
-      binPredictedCounts[b1] += 1
-      if (b2 !== b1) {
-        binPredictedSums[b2] += predicted
-        binPredictedCounts[b2] += 1
+    for (let k = 0; k < allAlpha1.length; k++) {
+      // 双线性插值：每层分配到两个相邻 bin
+      const interp = (phiDeg: number): { lo: number; hi: number; w: number; val: number } => {
+        const idx = phiDeg / binWidthDeg
+        const lo = Math.floor(idx) % numBins
+        const hi = (lo + 1) % numBins
+        const w = idx - Math.floor(idx)
+        return { lo, hi, w, val: profile[lo] * (1 - w) + profile[hi] * w }
+      }
+      const i1 = interp(allAlpha1[k])
+      const i2 = interp(allAlpha2[k])
+      const predicted = (i1.val + i2.val) * processDeformationFactor
+
+      // 按双线性权重分配到各 bin
+      binPredictedSums[i1.lo] += predicted * (1 - i1.w)
+      binPredictedCounts[i1.lo] += (1 - i1.w)
+      binPredictedSums[i1.hi] += predicted * i1.w
+      binPredictedCounts[i1.hi] += i1.w
+      // 避免 α₂ 的 bin 与 α₁ 的 bin 重复计数
+      const seen = new Set([i1.lo, i1.hi])
+      if (!seen.has(i2.lo)) {
+        binPredictedSums[i2.lo] += predicted * (1 - i2.w)
+        binPredictedCounts[i2.lo] += (1 - i2.w)
+        seen.add(i2.lo)
+      }
+      if (!seen.has(i2.hi)) {
+        binPredictedSums[i2.hi] += predicted * i2.w
+        binPredictedCounts[i2.hi] += i2.w
       }
     }
 

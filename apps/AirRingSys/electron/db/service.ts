@@ -261,16 +261,12 @@ export class SQLiteService {
   }
 
   /**
-   * 若 rotation_trip 为空，则从 rotation_raw 的方向变化事件回填上旋趟。
+   * 从 rotation_raw 的方向变化事件回填 rotation_trip。
    *
    * 适配历史导入场景：旧导入链路仅写 rotation_raw，不会落 rotation_trip。
+   * 每次启动都会运行，只插入尚不存在的 trip（按 start_ts 去重）。
    */
   private backfillRotationTripsFromDirectionChanges(): number {
-    const rtCount = (this.sqliteDb
-      .prepare('SELECT COUNT(*) AS cnt FROM rotation_trip')
-      .get() as { cnt: number } | undefined)?.cnt ?? 0
-    if (rtCount > 0) return 0
-
     const dirChangeCount = (this.sqliteDb
       .prepare(
         'SELECT COUNT(*) AS cnt FROM rotation_raw WHERE forwardDirChange > 0 OR reverseDirChange > 0'
@@ -279,37 +275,37 @@ export class SQLiteService {
     if (dirChangeCount < 2) return 0
 
     const now = Date.now()
-    this.sqliteDb
+    const result = this.sqliteDb
       .prepare(
         `
-        WITH direction_changes AS (
-          SELECT
-            id,
-            timestamp AS ts,
-            CASE
-              WHEN forwardDirChange > 0 THEN 1
-              WHEN reverseDirChange > 0 THEN 0
-              ELSE NULL
-            END AS direction,
-            LEAD(timestamp) OVER (ORDER BY timestamp ASC, id ASC) AS next_ts
+        WITH filtered AS (
+          SELECT timestamp AS ts,
+            CASE WHEN forwardDirChange > 0 THEN 1 WHEN reverseDirChange > 0 THEN 0 END AS direction
           FROM rotation_raw
           WHERE forwardDirChange > 0 OR reverseDirChange > 0
+        ),
+        unique_changes AS (
+          SELECT ts, direction FROM (
+            SELECT ts, direction, LAG(direction) OVER (ORDER BY ts) AS prev
+            FROM filtered
+          ) WHERE prev IS NULL OR direction != prev
+        ),
+        pairs AS (
+          SELECT ts AS start_ts, direction, LEAD(ts) OVER (ORDER BY ts) AS end_ts
+          FROM unique_changes
         )
         INSERT INTO rotation_trip (start_ts, end_ts, direction, status, created_at)
-        SELECT ts, next_ts, direction, 'estimated', ?
-        FROM direction_changes
-        WHERE direction IS NOT NULL
-          AND next_ts IS NOT NULL
-          AND next_ts > ts
-          AND (next_ts - ts) >= ?
-          AND (next_ts - ts) <= ?
+        SELECT start_ts, end_ts, direction, 'estimated', ?
+        FROM pairs
+        WHERE end_ts IS NOT NULL
+          AND (end_ts - start_ts) >= ?
+          AND (end_ts - start_ts) <= ?
+          AND NOT EXISTS (SELECT 1 FROM rotation_trip rt WHERE rt.start_ts = pairs.start_ts)
         `
       )
       .run(now, MIN_VALID_ROTATION_TRIP_MS, MAX_VALID_ROTATION_TRIP_MS)
 
-    const inserted = (this.sqliteDb
-      .prepare('SELECT COUNT(*) AS cnt FROM rotation_trip')
-      .get() as { cnt: number } | undefined)?.cnt ?? 0
+    const inserted = result.changes
     if (inserted > 0) {
       this.sqliteDb.exec(`
         UPDATE scan_pass SET rotation_trip_id = (
