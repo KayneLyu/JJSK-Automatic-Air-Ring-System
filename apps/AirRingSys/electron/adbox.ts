@@ -189,7 +189,7 @@ export async function initMotionControl(win: BrowserWindow) {
   app.on('before-quit', () => {
     stopUpperRotationPolling()
     utilityHost?.destroy()
-    adb?.disconnect()
+    ADBoxClient.destroyInstance()
   })
 }
 
@@ -198,13 +198,13 @@ async function initADBox() {
   // 确保 mainWindow 在此处可用
   if (!mainWindow) throw new Error('Main window is not available')
 
-  adb = new ADBoxClient({
-    host: '192.168.251.12',
-    port: 20021,
-    pushTimeout: 1000,
-    commandTimeout: 1000,
-    maxRetries: 2,
-  })
+	  adb = ADBoxClient.getInstance({
+	    host: '192.168.251.12',
+	    port: 20021,
+	    pushTimeout: 1000,
+	    commandTimeout: 1000,
+	    maxRetries: 2,
+	  })
 
   adb.on('connected', () => {
     console.log('ADBox connected')
@@ -484,7 +484,7 @@ function registerIpcHandlers() {
       return adb?.isConnected ?? false
     },
     'adbox-disconnect': async () => {
-      adb?.disconnect()
+	    ADBoxClient.destroyInstance()
     },
 
     // 运动控制

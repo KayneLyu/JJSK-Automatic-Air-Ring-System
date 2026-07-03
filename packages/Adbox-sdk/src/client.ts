@@ -17,6 +17,23 @@ export interface AdBoxOptions {
 }
 
 export class ADBoxClient extends EventEmitter {
+  private static instance: ADBoxClient | null = null
+
+  static getInstance(options?: AdBoxOptions): ADBoxClient {
+    if (!ADBoxClient.instance) {
+      if (!options) {
+        throw new Error('ADBoxClient: options required for first initialization')
+      }
+      ADBoxClient.instance = new ADBoxClient(options)
+    }
+    return ADBoxClient.instance
+  }
+
+  static destroyInstance(): void {
+    ADBoxClient.instance?.disconnect()
+    ADBoxClient.instance = null
+  }
+
   private socket: net.Socket | null = null
   private parser = new FrameParser()
   private pending: PendingRequest[] = []
@@ -42,7 +59,7 @@ export class ADBoxClient extends EventEmitter {
 
   private opts: Required<AdBoxOptions>
 
-  constructor(options: AdBoxOptions) {
+  private constructor(options: AdBoxOptions) {
     super()
     this.opts = {
       autoReconnect: true,

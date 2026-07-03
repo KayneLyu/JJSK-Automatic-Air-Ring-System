@@ -98,7 +98,7 @@ let adb: ADBoxClient
  * 初始化ADBOX
  */
 export function initADBox(win: BrowserWindow) {
-  adb = new ADBoxClient({
+  adb = ADBoxClient.getInstance({
     host: '192.168.251.12',
     port: 20021,
     pushTimeout: 1000,
