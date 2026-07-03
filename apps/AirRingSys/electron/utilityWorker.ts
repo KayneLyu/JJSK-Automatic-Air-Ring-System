@@ -14,9 +14,7 @@
 import { SQLiteService } from './db/service'
 import { DataPipeline } from './dataPipeline'
 import { createCalibrationBridge, type ICalibrationBridge } from './calibrationBridge'
-import { runCalibrationAngleEstimate } from './calibrationBridge'
 import {
-  createCalibrationSession,
   calibrateTractionSpeed,
   calibrateMutationWindowSize,
   calibrateDistance,
@@ -25,7 +23,6 @@ import {
   type CalibrationConfig,
   type Scalar,
   type RingData,
-  type PendingAngleEstimate,
 } from '@jjsk/air-ring-server/electron'
 import type {
   MainToUtilityMsg,
@@ -37,11 +34,11 @@ import type {
   MeasurementTripleInput,
   ICalibrationControlResult,
   ICalibrationBridgeState,
-  IHistoricalCalibrationProgress,
   RotationTripSummaryRow,
 } from '@/types/ipc'
 import { reconstructBubbleThickness } from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
 import { scannerMotionControl, type ScannerMotionControlOutput } from '@jjsk/air-ring-server/controllers/scannerMotionControl'
+import { runHistoricalCalibrationInWorker } from './historicalCalibrationManager'
 
 // ═══════════════════════════════════════════════════════════════
 // 常量
@@ -58,7 +55,6 @@ const DEFAULT_STANDARDIZED: Scalar = {
   ROLLER: { DIAMETER: 100 },
 }
 
-const PAGE_SIZE = 5000
 const MIN_VALID_ROTATION_TRIP_MS = 30_000
 const MAX_VALID_ROTATION_TRIP_MS = 900_000
 const INFERRED_ROTATION_RAW_FETCH_LIMIT = 120_000
@@ -228,13 +224,6 @@ function sendToRenderer(channel: string, data: unknown): void {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 事件循环让出（用于大批量历史数据回放）
-// ═══════════════════════════════════════════════════════════════
-
-const yieldToEventLoop = (): Promise<void> =>
-  new Promise((resolve) => setImmediate(resolve))
-
-// ═══════════════════════════════════════════════════════════════
 // 标定桥创建
 // ═══════════════════════════════════════════════════════════════
 
@@ -392,7 +381,7 @@ function registerAllIpcHandlers(): void {
     }
   )
 
-  // ── 标定历史数据回放 ──
+  // ── 标定历史数据回放（委托给独立 Worker，避免同步 SQL 阻塞实时数据流） ──
   registerIpcHandler(
     'calibration-feed-historical',
     async ([input]: unknown[]) => {
@@ -421,132 +410,18 @@ function registerAllIpcHandlers(): void {
 
       if (!sqliteDb) return { success: false, error: '数据库未初始化' }
 
-      const totalThickness = sqliteDb.countThicknessRawInRange(startMs, endMs)
-      const totalRotation = sqliteDb.countRotationRawInRange(startMs, endMs)
-
-      if (totalThickness < 10) {
-        return {
-          success: false,
-          disturbanceTs: disturbanceTs ?? Date.now(),
-          error: `所选范围内有效数据不足 (thickness=${totalThickness})`,
-        }
-      }
-
-      const total = totalThickness + totalRotation
-
-      type FeedEvent = {
-        timestamp: number
-        thickness?: {
-          timestamp: number
-          ProbeValue: number
-          HorizontalPulse: number
-          MotionDirection: boolean
-        }
-        airRing?: RingData
-      }
-      const events: FeedEvent[] = []
-
-      let prevPulse: number | undefined
-      for (let offset = 0; offset < totalThickness; offset += PAGE_SIZE) {
-        const rows = sqliteDb.queryThicknessRawPage(
-          startMs,
-          endMs,
-          PAGE_SIZE,
-          offset
-        )
-        for (const r of rows) {
-          const md = prevPulse === undefined ? true : r.pulse >= prevPulse
-          prevPulse = r.pulse
-          events.push({
-            timestamp: r.timestamp,
-            thickness: {
-              timestamp: r.timestamp,
-              ProbeValue: r.ad,
-              HorizontalPulse: r.pulse,
-              MotionDirection: md,
-            },
-          })
-        }
-        await yieldToEventLoop()
-      }
-
-      const rotationRows = sqliteDb.queryRotationRaw(startMs, endMs)
-      for (const r of rotationRows) {
-        events.push({
-          timestamp: r.timestamp,
-          airRing: {
-            timestamp: r.timestamp,
-            ForwardRotation: r.forwardRotation === 1,
-            ReverseRotation: r.reverseRotation === 1,
-            MotorFrequency: r.motorFrequency,
-            ForwardDirectionChange: r.forwardDirChange === 1,
-            ReverseDirectionChange: r.reverseDirChange === 1,
-            Reset: r.reset === 1,
-            Heats: JSON.parse(r.heats || '[]') as number[],
-          },
-        })
-      }
-
-      events.sort((a, b) => a.timestamp - b.timestamp)
-
-      const session = createCalibrationSession({
+      return runHistoricalCalibrationInWorker({
+        dbPath: sqliteDb.getDbPath(),
+        startMs,
+        endMs,
+        manualTractionSpeed,
+        disturbanceTs,
         config: DEFAULT_CONFIG,
         standardized: DEFAULT_STANDARDIZED,
-        manualTractionSpeed,
+        onProgress: (progress) => {
+          sendToRenderer('calibration-historical-progress', progress)
+        },
       })
-
-      if (disturbanceTs !== undefined) {
-        session.setManualTractionSpeed(manualTractionSpeed, disturbanceTs)
-      }
-
-      let pending: PendingAngleEstimate | null = null
-      let processed = 0
-
-      for (let offset = 0; offset < events.length; offset += PAGE_SIZE) {
-        const batch = events.slice(offset, offset + PAGE_SIZE)
-        for (const ev of batch) {
-          if (ev.thickness) {
-            const ret = session.feedThickness(ev.thickness)
-            if (ret.pendingAngleEstimate) pending = ret.pendingAngleEstimate
-          }
-          if (ev.airRing) {
-            const ret2 = session.feedAirRing(ev.airRing)
-            if (ret2.pendingAngleEstimate) pending = ret2.pendingAngleEstimate
-          }
-        }
-
-        processed += batch.length
-        sendToRenderer('calibration-historical-progress', {
-          processed,
-          total,
-        } satisfies IHistoricalCalibrationProgress)
-        await yieldToEventLoop()
-      }
-
-      if (pending) {
-        try {
-          const maxAngle = await runCalibrationAngleEstimate({
-            tripSegments: pending.tripSegments,
-            options: pending.options,
-          })
-          if (maxAngle != null) {
-            session.applyAngleEstimate(maxAngle)
-          }
-        } catch (e) {
-          console.error('[UtilityWorker] 历史数据角度估算失败:', e)
-        }
-      }
-
-      const result = session.getResult()
-      if (!result) {
-        return {
-          success: false,
-          disturbanceTs: disturbanceTs ?? Date.now(),
-          error: '所选范围内数据不足以完成标定',
-        }
-      }
-
-      return { success: true, manualTractionSpeed, disturbanceTs: disturbanceTs ?? Date.now(), result }
     }
   )
 
@@ -1031,7 +906,8 @@ function registerAllIpcHandlers(): void {
 
   registerIpcHandler('bubble-get-sweeps', async ([params]: unknown[]) => {
     if (!pipeline) return []
-    return pipeline.getBubbleSweeps(params as Parameters<typeof pipeline.getBubbleSweeps>[0])
+    // P1: 使用 Worker 版异步查询，不阻塞实时数据流
+    return pipeline.getBubbleSweepsAsync(params as Parameters<typeof pipeline.getBubbleSweeps>[0])
   })
 
   registerIpcHandler('bubble-get-latest-sweeps', async ([params]: unknown[]) => {

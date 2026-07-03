@@ -112,9 +112,20 @@ export class SQLiteService {
     mkdirSync(dbDir, { recursive: true })
     this.dbPath = join(dbDir, 'jjsk.db')
     this.sqliteDb = new Database(this.dbPath)
-    this.sqliteDb.exec('PRAGMA journal_mode=OFF')
-    this.sqliteDb.exec('PRAGMA synchronous=OFF')
+    this.sqliteDb.exec('PRAGMA journal_mode=WAL')
+    this.sqliteDb.exec('PRAGMA synchronous=NORMAL')
     this.sqliteDb.exec('PRAGMA cache_size=-400000')
+
+    // 验证 WAL 模式已启用（某些平台/文件系统可能不支持）
+    const journalMode = (
+      this.sqliteDb.prepare('PRAGMA journal_mode').get() as { journal_mode: string }
+    )?.journal_mode
+    if (journalMode?.toLowerCase() !== 'wal') {
+      console.warn(`[SQLite] WAL 模式启用失败，当前模式: ${journalMode}，回退至 OFF`)
+      this.sqliteDb.exec('PRAGMA journal_mode=OFF')
+    } else {
+      console.log('[SQLite] WAL 模式已启用，支持并发读')
+    }
 
     for (const chunk of migrationSql.split('--> statement-breakpoint\n')) {
       const trimmed = chunk.trim()
@@ -234,6 +245,11 @@ export class SQLiteService {
     this.ready = false
     try { this.flush() } catch (err) { console.error('[SQLite] flush on close error:', err) }
     this.sqliteDb.close()
+  }
+
+  /** 获取数据库文件路径（供 Worker Thread 打开只读连接） */
+  getDbPath(): string {
+    return this.dbPath
   }
 
   /** 获取最近一次 INSERT 的 rowid */
@@ -677,3 +693,31 @@ export class SQLiteService {
 }
 
 export { schema }
+
+// ═══════════════════════════════════════════════════════════
+// WAL 只读连接 — 供 Worker Thread 使用
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * 为 Worker Thread 打开一个只读 SQLite 连接。
+ *
+ * WAL 模式下支持一个 writer + 多个 reader 并发，Worker Thread
+ * 可以通过此连接执行查询而不阻塞主 utilityProcess 线程的写入。
+ *
+ * 注意：调用方负责在 Worker 退出时 close()。
+ */
+export function createReadOnlyConnection(dbPath: string): {
+  sqliteDb: Database.Database
+  db: ReturnType<typeof drizzle<typeof schema>>
+  close: () => void
+} {
+  const sqliteDb = new Database(dbPath, { readonly: true })
+  sqliteDb.exec('PRAGMA journal_mode=WAL')
+  sqliteDb.exec('PRAGMA cache_size=-64000')
+  const db = drizzle(sqliteDb, { schema })
+  return {
+    sqliteDb,
+    db,
+    close: () => sqliteDb.close(),
+  }
+}

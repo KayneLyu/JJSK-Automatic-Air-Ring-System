@@ -18,6 +18,10 @@ import {
 import {
   createScanPassDetector,
 } from './db/scanPassDetector'
+import {
+  queryBubbleProfileData,
+  queryBubbleSweepsData,
+} from './bubbleQueryManager'
 
 
 /**
@@ -25,13 +29,14 @@ import {
  *
  *                                ┌─► DataBatcher ─► Renderer (50ms, 最新帧)
  *   ADBox/S7 ─► RingBuffer ─────┼─► computation (calibrationBridge)
- *                                └─► SQLite (WAL, 500ms批量写入)
+ *                                └─► SQLite (journal_mode=WAL, 500ms批量写入)
  */
 export class DataPipeline {
   readonly thicknessRing: RingBufferAPI<ThicknessRingValue>
   readonly rotationRing: RingBufferAPI<RotationRingValue>
 
   private sqlite: SQLiteService
+  private readonly dbPath: string
   private batcher: DataBatcher<PushData>
   private flushTimer: NodeJS.Timeout | null = null
   private readonly FLUSH_INTERVAL_MS = 500
@@ -61,10 +66,18 @@ export class DataPipeline {
   private feedUpperRotationData?: (data: IUpperRotationDebugData) => void
   private emitUpperRotationData?: (data: IUpperRotationDebugData) => void
 
+  // ── P3: 热路径耗时 instrumentation ──
+  private lastInstrumentLogAt = 0
+  private readonly INSTRUMENT_LOG_INTERVAL_MS = 60_000
+  private instrumentCallCount = 0
+  private instrumentTotalMicros = 0
+  private instrumentMaxMicros = 0
+
   constructor(window: BrowserWindow, sqlite: SQLiteService) {
     this.thicknessRing = RingBuffer<ThicknessRingValue>(200_000)
     this.rotationRing = RingBuffer<RotationRingValue>(10_000)
     this.sqlite = sqlite
+    this.dbPath = sqlite.getDbPath()
 
     // 50ms 节流推送至渲染层
     this.batcher = new DataBatcher<PushData>(window, 'adbox-data', {
@@ -152,6 +165,9 @@ export class DataPipeline {
   receiveThickness(push: PushData, timestamp: number): void {
     if (typeof push.pos0 !== 'number' || !Number.isFinite(push.pos0)) return
 
+    // ── P3: 热路径耗时 instrumentation ──
+    const t0 = process.hrtime.bigint()
+
     // 1. RingBuffer 写入
     this.thicknessRing.push(
       { pulse: push.pos0, ad: push.ad0, source: 'adbox' },
@@ -176,6 +192,26 @@ export class DataPipeline {
     const closed = this.scanPassDetector.feed(timestamp, push.pos0, push.ad0)
     if (closed) {
       this.sqlite.insertScanPass(closed)
+    }
+
+    // ── P3: 记录耗时 ──
+    const elapsedNs = Number(process.hrtime.bigint() - t0)
+    this.instrumentCallCount++
+    this.instrumentTotalMicros += elapsedNs / 1000
+    if (elapsedNs / 1000 > this.instrumentMaxMicros) {
+      this.instrumentMaxMicros = elapsedNs / 1000
+    }
+    // 每分钟汇总一次
+    const now = Date.now()
+    if (now - this.lastInstrumentLogAt >= this.INSTRUMENT_LOG_INTERVAL_MS) {
+      const avg = Math.round(this.instrumentTotalMicros / this.instrumentCallCount)
+      console.log(
+        `[Pipeline] receiveThickness 耗时: avg=${avg}μs max=${Math.round(this.instrumentMaxMicros)}μs calls=${this.instrumentCallCount}/min`
+      )
+      this.lastInstrumentLogAt = now
+      this.instrumentCallCount = 0
+      this.instrumentTotalMicros = 0
+      this.instrumentMaxMicros = 0
     }
   }
 
@@ -366,8 +402,13 @@ export class DataPipeline {
   }
 
   /**
-   * Worker 线程版膜泡重建 — 将矩阵求解卸载到独立 Worker 线程，
-   * 避免阻塞 UtilityProcess 消息循环。
+   * Worker 线程版膜泡重建 — SQL 查询 + 矩阵求解全部卸载到独立 Worker，
+   * 完全避免阻塞 UtilityProcess 消息循环。
+   *
+   * 流程：
+   *   1. bubbleQueryWorker（只读 WAL 连接）→ SQL 查询 + sweep 选取
+   *   2. 主线程 downsampling（快速）
+   *   3. bubbleWorker → 矩阵求解
    */
   async getBubbleProfileAsync(params: {
     membraneWidthMm: number
@@ -388,6 +429,7 @@ export class DataPipeline {
 
     const numBins = params.numBins ?? 48
     const MAX_POINTS_PER_SWEEP = 2000
+    const dbPath = this.dbPath
 
     let startMs = params.startMs ?? 0
     let endMs = params.endMs ?? Date.now()
@@ -396,26 +438,42 @@ export class DataPipeline {
       startMs = endMs - params.useLatestWindowMs
     }
 
-    const sweeps = findSweepsFromHistory(this.sqlite, startMs, endMs)
-    if (sweeps.length === 0) return null
-
-    const sweep = sweeps.reduce((a, b) =>
-      b.endTs - b.startTs > a.endTs - a.startTs ? b : a
-    )
-
-    const allRows = this.sqlite.queryThicknessRaw(sweep.startTs, sweep.endTs)
-    if (allRows.length < 100) return null
-    const rows =
-      allRows.length > MAX_POINTS_PER_SWEEP
+    // ── P1: SQL 查询卸载到独立 Worker（只读 WAL，不阻塞实时数据）──
+    let sweepData: { sweep: { startTs: number; endTs: number; direction: string; durationMs: number }; rows: Array<{ timestamp: number; pulse: number; ad: number }> }
+    try {
+      sweepData = await queryBubbleProfileData(dbPath, startMs, endMs)
+    } catch (err) {
+      console.warn('[DataPipeline] BubbleQuery Worker 查询失败，回退同步查询:', err)
+      // 回退到同步 SQL 查询（可能在 WAL 不可用时发生）
+      const sweeps = findSweepsFromHistory(this.sqlite, startMs, endMs)
+      if (sweeps.length === 0) return null
+      const sweep = sweeps.reduce((a, b) =>
+        b.endTs - b.startTs > a.endTs - a.startTs ? b : a
+      )
+      const allRows = this.sqlite.queryThicknessRaw(sweep.startTs, sweep.endTs)
+      if (allRows.length < 100) return null
+      const rows = allRows.length > MAX_POINTS_PER_SWEEP
         ? downsampleUniform(allRows, MAX_POINTS_PER_SWEEP)
         : allRows
+      return buildProfileAsync(
+        rows,
+        { startTs: sweep.startTs, direction: sweep.direction, durationMs: sweep.endTs - sweep.startTs },
+        params.membraneWidthMm, params.thetaMaxDeg, params.mmPerPulse,
+        params.airAD, params.gain, numBins,
+        params.processDeformationFactor, params.transportDelayMs
+      )
+    }
+
+    const rows = sweepData.rows.length > MAX_POINTS_PER_SWEEP
+      ? downsampleUniform(sweepData.rows, MAX_POINTS_PER_SWEEP)
+      : sweepData.rows
 
     return buildProfileAsync(
       rows,
       {
-        startTs: sweep.startTs,
-        direction: sweep.direction,
-        durationMs: sweep.endTs - sweep.startTs,
+        startTs: sweepData.sweep.startTs,
+        direction: sweepData.sweep.direction as 'forward' | 'reverse',
+        durationMs: sweepData.sweep.durationMs,
       },
       params.membraneWidthMm,
       params.thetaMaxDeg,
@@ -429,7 +487,10 @@ export class DataPipeline {
   }
 
   /**
-   * 按时间窗口取多趟扫描，每趟重建一个 profile
+   * 按时间窗口取多趟扫描，每趟重建一个 profile。
+   *
+   * 同步版本（直接 SQL 查询，用于已存在数据缓存的场景）。
+   * 推荐异步版本 getBubbleSweepsAsync（SQL 查询卸载到 Worker）。
    */
   getBubbleSweeps(params: {
     membraneWidthMm: number
@@ -495,6 +556,85 @@ export class DataPipeline {
         time: sweep.startTs,
         direction: sweep.direction,
         cycleDurationMs: sweep.endTs - sweep.startTs,
+      })
+    }
+
+    return results
+  }
+
+  /**
+   * 异步版 getBubbleSweeps — SQL 查询卸载到独立 Worker（只读 WAL 连接），
+   * 不阻塞 utilityProcess 实时数据接收。
+   */
+  async getBubbleSweepsAsync(params: {
+    membraneWidthMm: number
+    thetaMaxDeg: number
+    mmPerPulse: number
+    airAD: number
+    gain: number
+    numBins?: number
+    processDeformationFactor?: number
+    transportDelayMs?: number
+    startMs?: number
+    endMs?: number
+    useLatestWindowMs?: number
+    limit?: number
+  }): Promise<BubbleSweepResult[]> {
+    if (params.membraneWidthMm <= 0 || params.thetaMaxDeg <= 0) return []
+    if (params.mmPerPulse <= 0) return []
+    if (params.airAD <= 0) return []
+
+    const numBins = params.numBins ?? 48
+    const MAX_POINTS_PER_SWEEP = 2000
+
+    let startMs = params.startMs ?? 0
+    let endMs = params.endMs ?? Date.now()
+    if (params.useLatestWindowMs && params.useLatestWindowMs > 0) {
+      endMs = Date.now()
+      startMs = endMs - params.useLatestWindowMs
+    }
+
+    // ── P1: SQL 查询卸载到独立 Worker ──
+    let sweepsData: Array<{
+      sweep: { startTs: number; endTs: number; direction: string; durationMs: number }
+      rows: Array<{ timestamp: number; pulse: number; ad: number }>
+    }>
+    try {
+      sweepsData = await queryBubbleSweepsData(this.dbPath, startMs, endMs, params.limit)
+    } catch (err) {
+      console.warn('[DataPipeline] BubbleQuery (sweeps) Worker 查询失败，回退同步:', err)
+      return this.getBubbleSweeps(params)
+    }
+
+    const results: BubbleSweepResult[] = []
+    for (const { sweep, rows: allRows } of sweepsData) {
+      if (allRows.length < 100) continue
+      const rows = allRows.length > MAX_POINTS_PER_SWEEP
+        ? downsampleUniform(allRows, MAX_POINTS_PER_SWEEP)
+        : allRows
+      const profile = buildProfile(
+        rows,
+        {
+          startTs: sweep.startTs,
+          direction: sweep.direction as 'forward' | 'reverse',
+          durationMs: sweep.durationMs,
+        },
+        params.membraneWidthMm,
+        params.thetaMaxDeg,
+        params.mmPerPulse,
+        params.airAD,
+        params.gain,
+        numBins,
+        params.processDeformationFactor,
+        params.transportDelayMs
+      )
+      if (!profile) continue
+      results.push({
+        ...profile,
+        id: `sweep-${sweep.startTs}-${sweep.direction}`,
+        time: sweep.startTs,
+        direction: sweep.direction as 'forward' | 'reverse',
+        cycleDurationMs: sweep.durationMs,
       })
     }
 
