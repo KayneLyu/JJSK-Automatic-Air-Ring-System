@@ -16,12 +16,7 @@ export {
   S7Connector,
   type S7ConnectorOptions,
 } from './connections/base/s7'
-export {
-  createThicknessS7Connection,
-  type ThicknessS7ControlKey,
-  type ThicknessS7ControlState,
-  type ThicknessS7ConnectionOptions,
-} from './connections/thickness/s7'
+
 export {
   createUpperRotationS7Connection,
   type UpperRotationS7ConnectionOptions,
