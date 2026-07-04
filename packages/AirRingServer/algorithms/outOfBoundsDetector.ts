@@ -50,8 +50,8 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
 
   let effectiveMinThickness = minThickness
 
-  // 环形缓冲区：存储最近 N 个样本是否为出膜，及出膜时的方向
-  const outRing: (boolean | null)[] = new Array(outWindowSize).fill(null)
+  // 环形缓冲区：存储最近 N 个样本是否为出膜
+  const outRing: boolean[] = new Array(outWindowSize).fill(false)
   const inRing: boolean[] = new Array(inWindowSize).fill(false)
   let outRingIdx = 0
   let inRingIdx = 0
@@ -86,11 +86,10 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
     // ── 出膜窗口 ──
     {
       const oldOut = outRing[outRingIdx]
-      outRing[outRingIdx] = outOfBounds ? trendDirection : null
+      outRing[outRingIdx] = outOfBounds
       outRingIdx = (outRingIdx + 1) % outWindowSize
       if (outRingIdx === 0) outRingFilled = true
-      if (oldOut !== null && oldOut !== false) outCount--
-      else if (oldOut === false) outCount--
+      if (oldOut) outCount--
       if (outOfBounds) outCount++
     }
 
@@ -130,7 +129,7 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
   }
 
   const reset = () => {
-    outRing.fill(null)
+    outRing.fill(false)
     inRing.fill(false)
     outRingIdx = 0
     inRingIdx = 0
