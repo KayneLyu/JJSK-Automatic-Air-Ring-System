@@ -100,9 +100,10 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
       boundaryRecorded = true
     }
 
-    // 确认入膜后重置 boundaryRecorded
+    // 确认入膜后重置 boundaryRecorded 和方向记录
     if (confirmedIn) {
       boundaryRecorded = false
+      lastOutDirection = null
     }
 
     return {
