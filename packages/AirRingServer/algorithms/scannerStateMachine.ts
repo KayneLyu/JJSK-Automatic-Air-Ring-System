@@ -148,10 +148,12 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
         if (detection.confirmedOutOfBounds) {
           state = 'TOLERATING'
           toleranceStartTime = now
-          // 记录出界脉冲和边界方向（此时扫描仪仍在运动，方向准确）
-          if (detection.boundaryPulse !== undefined && detection.boundarySide) {
-            boundaryPulses[detection.boundarySide] = detection.boundaryPulse
+          // 记录出膜脉冲和边界方向（此时扫描仪仍在运动，方向准确）
+          if (detection.boundarySide) {
             lastBoundarySide = detection.boundarySide
+            if (detection.boundaryPulse !== undefined) {
+              boundaryPulses[detection.boundarySide] = detection.boundaryPulse
+            }
           }
           log = makeLog(prevState, state, 'out-of-bounds',
             ` pulse=${pulse} side=${detection.boundarySide} toleranceMs=${toleranceMs}`)
