@@ -224,13 +224,16 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
 
       case 'TURNING':
         if (turnStartTime !== null && now - turnStartTime >= turnTimeoutMs) {
-          // 换向超时（状态不变，发出告警）
-          log = makeLog(prevState, state, 'timeout',
-            ` reason=turn-timeout pulse=${pulse} elapsedMs=${now - turnStartTime}`)
-          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses }, targetPulse, boundarySide: lastBoundarySide, machineDebug: machineDebug() }
-        }
-
-        if (detection.confirmedInMembrane) {
+          // 换向超时 → 判定为已到达目标位置，强制回膜继续扫描
+          state = 'IN_MEMBRANE'
+          turnStartTime = null
+          turnStartPulse = null
+          expectedTurnDirection = null
+          lastBoundarySide = null
+          membraneEntryPulse = pulse
+          log = makeLog(prevState, state, 'turn-timeout-force-in',
+            ` pulse=${pulse} elapsedMs=${now - turnStartTime}`)
+        } else if (detection.confirmedInMembrane) {
           // 回到膜内 → 记录入口位置（下一趟换向目标）
           state = 'IN_MEMBRANE'
           turnStartTime = null
