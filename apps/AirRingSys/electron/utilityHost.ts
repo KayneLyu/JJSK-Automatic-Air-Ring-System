@@ -198,6 +198,16 @@ export class UtilityHost {
     this.send({ type: 'rotation-data', data })
   }
 
+  /** 开启扫描仪运动控制 */
+  enableScannerMotion(): void {
+    this.send({ type: 'enable-scanner-motion' })
+  }
+
+  /** 停止扫描仪运动控制 */
+  disableScannerMotion(): void {
+    this.send({ type: 'disable-scanner-motion' })
+  }
+
   /** 向 utility 发起 IPC 请求并等待响应 */
   async ipcRequest(channel: string, ...args: unknown[]): Promise<unknown> {
     if (!this.child || !this.ready) {

@@ -399,6 +399,8 @@ function emergencyStop() {
     clearTimeout(pauseTimer)
     pauseTimer = null
   }
+  // 停止扫描仪运动控制
+  utilityHost?.disableScannerMotion()
   mainWindow?.webContents.send('motion-state', 'emergency')
 }
 
@@ -476,6 +478,9 @@ async function startScan() {
   currentMaxPulse = store?.get('maxPulse') || currentMaxPulse
   scanDir = 1
 
+  // 开启扫描仪运动控制（复位状态机，从膜内开始检测）
+  utilityHost?.enableScannerMotion()
+
   mainWindow?.webContents.send('motion-state', 'scanning')
   const target = currentMaxPulse
   // keepState = true，保持扫描状态不变
@@ -508,6 +513,8 @@ function stopScanInternal(graceful: boolean) {
     clearTimeout(pauseTimer)
     pauseTimer = null
   }
+  // 停止扫描仪运动控制
+  utilityHost?.disableScannerMotion()
   if (graceful) {
     stopScanGracefully()
   } else {

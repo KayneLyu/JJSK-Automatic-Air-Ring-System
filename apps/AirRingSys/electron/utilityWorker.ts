@@ -80,6 +80,7 @@ let scannerLastPulse: number | null = null
 let scannerPrevState: string | null = null
 let scannerSampleCount = 0
 let scannerStateTransitionCount = 0
+let scannerMotionEnabled = false
 let maxPulse = 7000
 let cachedInferredChanges: DirectionChangeLike[] = []
 let cachedInferredChangesAt = 0
@@ -262,6 +263,7 @@ function initScannerMotionControl(configuredAirAD?: number, configuredToleranceM
   scannerPrevState = null
   scannerSampleCount = 0
   scannerStateTransitionCount = 0
+  scannerMotionEnabled = false
 
   console.log(
     `[UtilityWorker] scannerMotionControl 初始化: airAD=${airAD} toleranceMs=${toleranceMs}`
@@ -273,7 +275,7 @@ function feedScannerMotionControl(sample: {
   ProbeValue: number
   HorizontalPulse: number
 }): void {
-  if (!scannerCtrl) return
+  if (!scannerCtrl || !scannerMotionEnabled) return
 
   // 从连续位置变化推导运动方向（ADBox 不直接提供 MotionDirection）
   const pulse = sample.HorizontalPulse
@@ -1061,6 +1063,21 @@ process.parentPort.on('message', (event) => {
       break
     case 'ipc-request':
       void handleIpcRequest(msg.id, msg.channel, msg.args)
+      break
+    case 'enable-scanner-motion':
+      if (scannerCtrl) {
+        scannerCtrl.reset()
+        scannerLastPulse = null
+        scannerPrevState = null
+        scannerSampleCount = 0
+        scannerStateTransitionCount = 0
+      }
+      scannerMotionEnabled = true
+      console.log('[UtilityWorker] 扫描仪运动控制 → 开启（状态机已复位）')
+      break
+    case 'disable-scanner-motion':
+      scannerMotionEnabled = false
+      console.log('[UtilityWorker] 扫描仪运动控制 → 停止')
       break
     default:
       console.warn('[UtilityWorker] 未知消息类型:', (msg as { type: string }).type)
