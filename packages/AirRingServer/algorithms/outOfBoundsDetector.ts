@@ -1,34 +1,33 @@
 /**
  * 出膜检测器
  *
- * 基于 calcThickness 计算的膜厚（μm）检测测厚仪是否运动出膜。
- * 膜内：厚度 ≥ effectiveMinThickness
- * 膜外：厚度 < effectiveMinThickness
- *
- * 入膜确认（confirmInCount，默认 50）：慢确认，确保深入膜内
- * 出膜确认（confirmOutCount，默认 10）：快反应，离开膜就触发
+ * 基于滑动窗口 + 百分比阈值检测，比连续计数更鲁棒：
+ * - 出膜：最近 outWindowSize 个样本中 ≥ outThreshold 比例判为出膜
+ * - 入膜：最近 inWindowSize 个样本中 ≥ inThreshold 比例判为入膜
  */
 import { calcThickness, type ThicknessCalcConfig } from './thickness'
 
 export interface OutOfBoundsDetectorOptions {
   /** 空气 AD 值（用于 calcThickness 计算，非直接判定阈值） */
   airAD: number
-  /** 连续确认点数（出膜和入膜共用默认值，默认 10） */
-  confirmCount?: number
-  /** 出膜连续确认点数（默认使用 confirmCount） */
-  confirmOutCount?: number
-  /** 入膜连续确认点数（默认 50，比出膜大以深入膜内） */
-  confirmInCount?: number
   /** 最小膜厚（μm），低于此值视为出膜（默认 5.0） */
   minThickness?: number
+  /** 出膜窗口大小（样本数，默认 500） */
+  outWindowSize?: number
+  /** 出膜比例阈值（默认 0.95，即窗口内 95% 出膜才确认） */
+  outThreshold?: number
+  /** 入膜窗口大小（样本数，默认 1000） */
+  inWindowSize?: number
+  /** 入膜比例阈值（默认 0.95） */
+  inThreshold?: number
 }
 
 export interface OutOfBoundsResult {
   /** 当前点是否在膜内 */
   inMembrane: boolean
-  /** 连续达到 confirmOutCount 个膜厚<effectiveMinThickness 点 → 确认出膜 */
+  /** 窗口内 ≥ outThreshold 比例的样本为出膜 */
   confirmedOutOfBounds: boolean
-  /** 连续达到 confirmInCount 个膜厚≥effectiveMinThickness 点 → 确认回膜 */
+  /** 窗口内 ≥ inThreshold 比例的样本为入膜 */
   confirmedInMembrane: boolean
   /** 首次确认出膜时的脉冲值 */
   boundaryPulse?: number
@@ -39,18 +38,27 @@ export interface OutOfBoundsResult {
 export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
   const {
     airAD,
-    confirmCount = 10,
-    confirmOutCount = confirmCount,
-    confirmInCount = 50,
     minThickness = 5.0,
+    outWindowSize = 500,
+    outThreshold = 0.95,
+    inWindowSize = 1000,
+    inThreshold = 0.95,
   } = options
   const thicknessConfig: ThicknessCalcConfig = { airAD }
 
-  let outCount = 0
-  let inCount = 0
-  let boundaryRecorded = false
-
   let effectiveMinThickness = minThickness
+
+  // 环形缓冲区：存储最近 N 个样本是否为出膜
+  const outRing: boolean[] = new Array(outWindowSize).fill(false)
+  const inRing: boolean[] = new Array(inWindowSize).fill(false)
+  let outRingIdx = 0
+  let inRingIdx = 0
+  let outRingFilled = false
+  let inRingFilled = false
+  let outCount = 0 // 窗口内出膜样本数
+  let inCount = 0  // 窗口内入膜样本数
+
+  let boundaryRecorded = false
 
   const next = (
     probeValue: number,
@@ -58,30 +66,39 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
     motionDirection: boolean
   ): OutOfBoundsResult => {
     const thickness = calcThickness(probeValue, thicknessConfig)
-
     const outOfBounds = thickness < effectiveMinThickness
 
-    if (outOfBounds) {
-      if (outCount < confirmOutCount) {
-        outCount++
-      }
-      inCount = 0
-    } else {
-      inCount = Math.min(inCount + 1, confirmInCount)
-      if (inCount >= confirmInCount) {
-        // 连续回膜确认 → 重置出膜状态
-        outCount = 0
-        boundaryRecorded = false
-      }
-      // 未确认回膜时不重置 outCount
+    // ── 出膜窗口 ──
+    {
+      const old = outRing[outRingIdx]
+      outRing[outRingIdx] = outOfBounds
+      outRingIdx = (outRingIdx + 1) % outWindowSize
+      if (outRingIdx === 0) outRingFilled = true
+      if (old) outCount--
+      if (outOfBounds) outCount++
     }
 
-    const confirmedOut = outCount >= confirmOutCount
-    const confirmedIn = inCount >= confirmInCount
+    // ── 入膜窗口 ──
+    {
+      const old = inRing[inRingIdx]
+      inRing[inRingIdx] = !outOfBounds // in-membrane = not out
+      inRingIdx = (inRingIdx + 1) % inWindowSize
+      if (inRingIdx === 0) inRingFilled = true
+      if (old) inCount--
+      if (!outOfBounds) inCount++
+    }
 
-    const justNowConfirmed = confirmedOut && outCount === confirmOutCount && !boundaryRecorded
+    const confirmedOut = outRingFilled && outCount / outWindowSize >= outThreshold
+    const confirmedIn = inRingFilled && inCount / inWindowSize >= inThreshold
+
+    const justNowConfirmed = confirmedOut && !boundaryRecorded
     if (justNowConfirmed) {
       boundaryRecorded = true
+    }
+
+    // 确认入膜后重置 boundaryRecorded
+    if (confirmedIn) {
+      boundaryRecorded = false
     }
 
     return {
@@ -94,6 +111,12 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
   }
 
   const reset = () => {
+    outRing.fill(false)
+    inRing.fill(false)
+    outRingIdx = 0
+    inRingIdx = 0
+    outRingFilled = false
+    inRingFilled = false
     outCount = 0
     inCount = 0
     boundaryRecorded = false
@@ -104,6 +127,8 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
   const getDebugInfo = () => ({
     outCount,
     inCount,
+    outWindowSize,
+    inWindowSize,
     boundaryRecorded,
     effectiveMinThickness,
   })
