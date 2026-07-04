@@ -51,6 +51,8 @@ export interface ScannerStateMachineOptions {
   decelTimeoutMs?: number
   /** 换向超时（ms），默认 3000 */
   turnTimeoutMs?: number
+  /** 停稳速度阈值（脉冲/采样），变化低于此值视为已停稳（默认 2） */
+  stopSpeedThreshold?: number
 }
 
 export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) => {
@@ -59,6 +61,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
     stopConfirmMs = 200,
     decelTimeoutMs = 5000,
     turnTimeoutMs = 3000,
+    stopSpeedThreshold = 2,
   } = options
 
   let state: ScannerState = 'UNKNOWN'
@@ -178,10 +181,11 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
           return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses }, targetPulse, machineDebug: machineDebug() }
         }
 
-        // 检查是否已停止：脉冲连续稳定 ≥ stopConfirmMs
+        // 检查是否已停止：脉冲变化速度 < stopSpeedThreshold，且持续 ≥ stopConfirmMs
         if (decelStartTime !== null) {
-          if (decelLastStablePulse !== null && pulse === decelLastStablePulse) {
-            // 脉冲未变——开始或继续累积稳定时间
+          const speed = decelLastStablePulse !== null ? Math.abs(pulse - decelLastStablePulse) : Infinity
+          if (speed <= stopSpeedThreshold) {
+            // 速度低于阈值 → 开始或继续累积稳定时间
             if (decelStableSince === null) {
               decelStableSince = now
             }
@@ -199,7 +203,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
               decelStableSince = null
             }
           } else {
-            // 脉冲变化 → 更新参考点，重置稳定计时
+            // 速度超过阈值 → 更新参考点，重置稳定计时
             decelLastStablePulse = pulse
             decelStableSince = null
           }
