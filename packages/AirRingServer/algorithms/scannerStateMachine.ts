@@ -53,6 +53,8 @@ export interface ScannerStateMachineOptions {
   turnTimeoutMs?: number
   /** 停稳速度阈值（脉冲/采样），变化低于此值视为已停稳（默认 2） */
   stopSpeedThreshold?: number
+  /** 换向回退偏移（脉冲），确保回到膜内而非精确边界（默认 100） */
+  turnBackOffset?: number
 }
 
 export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) => {
@@ -62,6 +64,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
     decelTimeoutMs = 5000,
     turnTimeoutMs = 3000,
     stopSpeedThreshold = 2,
+    turnBackOffset = 100,
   } = options
 
   let state: ScannerState = 'UNKNOWN'
@@ -193,7 +196,14 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
               state = 'TURNING'
               turnStartTime = now
               turnStartPulse = pulse
-              targetPulse = membraneEntryPulse ?? undefined
+              // 换向目标 = 入膜位置 + 回扫余量（确保进入膜内，而非卡在边界）
+              targetPulse = membraneEntryPulse !== null
+                ? lastBoundarySide === 'left'
+                  ? membraneEntryPulse + turnBackOffset  // 左边出→往右，多走一点进入膜内
+                  : lastBoundarySide === 'right'
+                    ? membraneEntryPulse - turnBackOffset  // 右边出→往左，多走一点进入膜内
+                    : membraneEntryPulse                   // 方向未知，退回精确位置
+                : undefined
               lastBoundarySide = null // 消费后重置
               action = 'MOVE_TO'
               log = makeLog(prevState, state, 'stopped',
