@@ -25,6 +25,10 @@ export interface InitPayload {
   maxPulse: number
   margin: number
   config: Record<string, unknown>
+  /** 空气 AD 值（扫描仪出膜判定阈值） */
+  airAD?: number
+  /** 扫描仪出膜容错窗口 (ms) */
+  scannerToleranceMs?: number
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -41,7 +45,7 @@ export type UtilityToMainMsg =
   | { type: 'config-updated'; payload: Record<string, unknown> }
   | { type: 'ipc-response'; id: string; result?: unknown; error?: string }
   | { type: 'pipeline-stats'; stats: unknown }
-  | { type: 'scanner-action'; action: string; state: string; log: string | null }
+  | { type: 'scanner-action'; action: string; state: string; log: string | null; pulse?: number; probeValue?: number; inMembrane?: boolean; direction?: 'FWD' | 'REV' }
 
 // ═══════════════════════════════════════════════════════════════
 // 内部 IPC 请求处理（utility 侧）

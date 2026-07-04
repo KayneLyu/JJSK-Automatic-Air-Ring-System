@@ -36,6 +36,19 @@ export interface ScannerMotionControlOutput {
   thickness: number
   /** 当前点是否在膜内 */
   inMembrane: boolean
+  /** 出膜检测器内部状态（调试用） */
+  detectorDebug?: {
+    outCount: number
+    inCount: number
+    boundaryRecorded: boolean
+  }
+  /** 状态机内部计时器状态（调试用） */
+  machineDebug?: {
+    toleranceStartTime: number | null
+    decelStartTime: number | null
+    decelStableSince: number | null
+    turnStartTime: number | null
+  }
 }
 
 export const scannerMotionControl = (options: ScannerMotionControlOptions) => {
@@ -78,6 +91,8 @@ export const scannerMotionControl = (options: ScannerMotionControlOptions) => {
       boundaryPulses: machineOutput.boundaryPulses,
       thickness: detection.inMembrane ? probeValue : 0, // 真实厚度需要 calcThickness，此处示意
       inMembrane: detection.inMembrane,
+      detectorDebug: detector.getDebugInfo(),
+      machineDebug: machineOutput.machineDebug,
     }
   }
 

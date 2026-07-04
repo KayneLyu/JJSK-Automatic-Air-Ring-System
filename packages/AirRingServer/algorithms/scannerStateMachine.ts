@@ -31,6 +31,13 @@ export interface StateMachineOutput {
   action: ControlAction
   log: string | null
   boundaryPulses: BoundaryPulseMap
+  /** 状态机内部计时器状态（调试用） */
+  machineDebug?: {
+    toleranceStartTime: number | null
+    decelStartTime: number | null
+    decelStableSince: number | null
+    turnStartTime: number | null
+  }
 }
 
 export interface ScannerStateMachineOptions {
@@ -79,6 +86,13 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
     return `${logPrefix} ${now} ${from} → ${to} reason="${reason}"${detail}`
   }
 
+  const machineDebug = () => ({
+    toleranceStartTime,
+    decelStartTime,
+    decelStableSince,
+    turnStartTime,
+  })
+
   const next = (
     detection: OutOfBoundsResult,
     now: number,
@@ -102,7 +116,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
       state = 'EMERGENCY_STOP'
       log = makeLog(prev, state, leftLimit ? 'left-limit' : 'right-limit',
         ` pulse=${pulse}`)
-      return { state, action: 'NONE', log, boundaryPulses: { ...boundaryPulses } }
+      return { state, action: 'NONE', log, boundaryPulses: { ...boundaryPulses }, machineDebug: machineDebug() }
     }
 
     const prevState = state
@@ -155,7 +169,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
           // 减速超时（状态不变，发出告警）
           log = makeLog(prevState, state, 'timeout',
             ` reason=decel-timeout pulse=${pulse} elapsedMs=${now - decelStartTime}`)
-          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses } }
+          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses }, machineDebug: machineDebug() }
         }
 
         // 检查是否已停止：脉冲连续稳定 ≥ stopConfirmMs
@@ -195,7 +209,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
           // 换向超时（状态不变，发出告警）
           log = makeLog(prevState, state, 'timeout',
             ` reason=turn-timeout pulse=${pulse} elapsedMs=${now - turnStartTime}`)
-          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses } }
+          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses }, machineDebug: machineDebug() }
         }
 
         if (detection.confirmedInMembrane) {
@@ -214,7 +228,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
         break
     }
 
-    return { state, action, log, boundaryPulses: { ...boundaryPulses } }
+    return { state, action, log, boundaryPulses: { ...boundaryPulses }, machineDebug: machineDebug() }
   }
 
   /** 手动复位紧急停止 */

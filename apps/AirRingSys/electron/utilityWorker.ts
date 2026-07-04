@@ -77,6 +77,9 @@ let pipeline: DataPipeline | null = null
 let calibrationBridge: ICalibrationBridge | null = null
 let scannerCtrl: ReturnType<typeof scannerMotionControl> | null = null
 let scannerLastPulse: number | null = null
+let scannerPrevState: string | null = null
+let scannerSampleCount = 0
+let scannerStateTransitionCount = 0
 let maxPulse = 7000
 let cachedInferredChanges: DirectionChangeLike[] = []
 let cachedInferredChangesAt = 0
@@ -242,16 +245,23 @@ function initCalibrationBridge(): void {
 // 扫描仪运动控制
 // ═══════════════════════════════════════════════════════════════
 
-function initScannerMotionControl(): void {
-  // airAD 从默认配置获取（生产环境应从 electron-store 传入）
-  const airAD = 50300
-  const toleranceMs = 200
+function initScannerMotionControl(configuredAirAD?: number, configuredToleranceMs?: number): void {
+  // 使用传入的配置值，fallback 到合理的默认值
+  const airAD = (configuredAirAD !== undefined && Number.isFinite(configuredAirAD) && configuredAirAD > 0)
+    ? configuredAirAD
+    : 2048
+  const toleranceMs = (configuredToleranceMs !== undefined && Number.isFinite(configuredToleranceMs) && configuredToleranceMs > 0)
+    ? configuredToleranceMs
+    : 200
 
   scannerCtrl = scannerMotionControl({
     airAD,
     stateMachine: { toleranceMs },
   })
   scannerLastPulse = null
+  scannerPrevState = null
+  scannerSampleCount = 0
+  scannerStateTransitionCount = 0
 
   console.log(
     `[UtilityWorker] scannerMotionControl 初始化: airAD=${airAD} toleranceMs=${toleranceMs}`
@@ -282,14 +292,54 @@ function feedScannerMotionControl(sample: {
     RightLimit: false,
   })
 
-  // 有控制动作时通知主进程
-  if (output.action !== 'NONE') {
+  scannerSampleCount++
+
+  const dirLabel = motionDirection ? 'FWD' : 'REV'
+  const debug = {
+    pulse,
+    probeValue: sample.ProbeValue,
+    inMembrane: output.inMembrane,
+    direction: dirLabel as 'FWD' | 'REV',
+  }
+
+  // ── 状态转换时始终上报（含 NONE action 的静默转换） ──
+  const stateChanged = output.state !== scannerPrevState
+  if (stateChanged || output.action !== 'NONE') {
+    scannerPrevState = output.state
+    if (stateChanged) {
+      scannerStateTransitionCount++
+    }
+    const detector = output.detectorDebug
+      ? ` outCnt=${output.detectorDebug.outCount} inCnt=${output.detectorDebug.inCount} boundaryRec=${output.detectorDebug.boundaryRecorded}`
+      : ''
+    const machine = output.machineDebug
+      ? ` tolStart=${output.machineDebug.toleranceStartTime} decelStart=${output.machineDebug.decelStartTime} stableSince=${output.machineDebug.decelStableSince} turnStart=${output.machineDebug.turnStartTime}`
+      : ''
+    const enrichedLog = output.log ? `${output.log}${detector}${machine}` : null
     post({
       type: 'scanner-action',
       action: output.action,
       state: output.state,
-      log: output.log,
+      log: enrichedLog,
+      ...debug,
     })
+  }
+
+  // ── 每 100 个采样点输出一次摘要（仅 utilityWorker 控制台） ──
+  if (scannerSampleCount % 100 === 0) {
+    const dd = output.detectorDebug
+    const detStr = dd
+      ? ` outCnt=${dd.outCount}/${dd.inCount} boundaryRec=${dd.boundaryRecorded}`
+      : ''
+    const md = output.machineDebug
+    const machStr = md
+      ? ` tolStart=${md.toleranceStartTime ?? '-'} decelStart=${md.decelStartTime ?? '-'} stableSince=${md.decelStableSince ?? '-'} turnStart=${md.turnStartTime ?? '-'}`
+      : ''
+    console.log(
+      `[ScannerMotion] #${scannerSampleCount} state=${output.state} ` +
+      `pulse=${pulse} ad=${sample.ProbeValue} inMembrane=${output.inMembrane} dir=${dirLabel} ` +
+      `transitions=${scannerStateTransitionCount}${detStr}${machStr}`
+    )
   }
 
   // 出界脉冲更新时同步到渲染进程（供调试参考）
@@ -939,7 +989,7 @@ function registerAllIpcHandlers(): void {
 // ═══════════════════════════════════════════════════════════════
 
 function doInit(payload: MainToUtilityMsg & { type: 'init' }): void {
-  const { dbDir, maxPulse: mp } = payload.payload
+  const { dbDir, maxPulse: mp, airAD, scannerToleranceMs } = payload.payload
   maxPulse = mp
 
   console.log('[UtilityWorker] 初始化数据库:', dbDir)
@@ -950,7 +1000,7 @@ function doInit(payload: MainToUtilityMsg & { type: 'init' }): void {
   initCalibrationBridge()
 
   console.log('[UtilityWorker] 初始化扫描仪运动控制...')
-  initScannerMotionControl()
+  initScannerMotionControl(airAD, scannerToleranceMs)
 
   console.log('[UtilityWorker] 初始化数据管道...')
   pipeline = new DataPipeline(

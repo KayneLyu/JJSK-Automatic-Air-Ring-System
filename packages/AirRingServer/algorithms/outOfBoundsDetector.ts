@@ -85,5 +85,12 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
     boundaryRecorded = false
   }
 
-  return { next, reset }
+  /** 调试：获取检测器内部状态 */
+  const getDebugInfo = () => ({
+    outCount,
+    inCount,
+    boundaryRecorded,
+  })
+
+  return { next, reset, getDebugInfo }
 }

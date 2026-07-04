@@ -181,8 +181,8 @@ export async function initMotionControl(win: BrowserWindow) {
     onCalibrationResult: (result) => {
       rendererSend('calibration-result', result)
     },
-    onScannerAction: (action, state, log) => {
-      handleScannerAction(action, state, log)
+    onScannerAction: (action, state, log, debug) => {
+      handleScannerAction(action, state, log, debug)
     },
     onError: (message) => {
       console.error('[MotionControl] utility 错误:', message)
@@ -194,11 +194,15 @@ export async function initMotionControl(win: BrowserWindow) {
   registerProxiedIpcHandlers()
 
   const dbDir = join(app.getPath('userData'), 'db')
+  const storedAirAD = store.get('airAD')
+  const airAD = Number(storedAirAD)
   await utilityHost.init({
     dbDir,
     maxPulse: currentMaxPulse,
     margin: store.get('margin'),
     config: {}, // 配置由主进程管理，utility 无需
+    airAD: Number.isFinite(airAD) && airAD > 0 ? airAD : undefined,
+    scannerToleranceMs: store.get('scannerToleranceMsResult'),
   })
 
   // AD盒初始化（utilityProcess 已就绪，可以接收数据）
@@ -409,14 +413,18 @@ function emergencyStop() {
 function handleScannerAction(
   action: string,
   state: string,
-  log: string | null
+  log: string | null,
+  debug?: { pulse?: number; probeValue?: number; inMembrane?: boolean; direction?: 'FWD' | 'REV' }
 ): void {
   if (log) {
-    console.log(`[ScannerMotion] ${log}`)
+    const debugSuffix = debug
+      ? ` pulse=${debug.pulse ?? '-'} ad=${debug.probeValue ?? '-'} inMembrane=${debug.inMembrane ?? '-'} dir=${debug.direction ?? '-'}`
+      : ''
+    console.log(`[ScannerMotion] ${log}${debugSuffix}`)
   }
 
-  // 向渲染进程转发状态
-  mainWindow?.webContents.send('scanner-motion-state', { action, state, log })
+  // 向渲染进程转发状态（含 debug 信息）
+  mainWindow?.webContents.send('scanner-motion-state', { action, state, log, debug })
 
   if (emergencyStopFlag) return
 
