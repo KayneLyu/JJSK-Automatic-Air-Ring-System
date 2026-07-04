@@ -234,16 +234,18 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
           log = makeLog(prevState, state, 'turn-timeout-force-in',
             ` pulse=${pulse} elapsedMs=${now - turnStartTime}`)
         } else if (detection.confirmedInMembrane) {
-          // 回到膜内 → 记录入口位置（下一趟换向目标）
-          state = 'IN_MEMBRANE'
-          turnStartTime = null
-          turnStartPulse = null
-          expectedTurnDirection = null
-          lastBoundarySide = null
-          membraneEntryPulse = pulse
-          log = makeLog(prevState, state, 'confirmed-in-membrane',
-            ` pulse=${pulse}`)
-        }
+          // 回到膜内 — 但必须离出膜点足够远（防止边缘假回膜）
+          const distFromEdge = Math.abs(pulse - (turnStartPulse ?? pulse))
+          if (distFromEdge >= turnBackOffset) {
+            state = 'IN_MEMBRANE'
+            turnStartTime = null
+            turnStartPulse = null
+            expectedTurnDirection = null
+            lastBoundarySide = null
+            membraneEntryPulse = pulse
+            log = makeLog(prevState, state, 'confirmed-in-membrane',
+              ` pulse=${pulse} distFromEdge=${distFromEdge}`)
+          }
         break
 
       case 'EMERGENCY_STOP':
