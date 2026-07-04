@@ -65,6 +65,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
   let turnStartTime: number | null = null
   let turnStartPulse: number | null = null
   let expectedTurnDirection: boolean | null = null // true=向右, false=向左
+  let lastBoundarySide: 'left' | 'right' | null = null // 出膜瞬间的真实方向（停止后方向会丢失）
   const boundaryPulses: BoundaryPulseMap = { left: null, right: null }
 
   // 减速→停止检测：追踪脉冲稳定时间
@@ -134,9 +135,10 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
         if (detection.confirmedOutOfBounds) {
           state = 'TOLERATING'
           toleranceStartTime = now
-          // 记录出界脉冲
+          // 记录出界脉冲和边界方向（此时扫描仪仍在运动，方向准确）
           if (detection.boundaryPulse !== undefined && detection.boundarySide) {
             boundaryPulses[detection.boundarySide] = detection.boundaryPulse
+            lastBoundarySide = detection.boundarySide
           }
           log = makeLog(prevState, state, 'out-of-bounds',
             ` pulse=${pulse} side=${detection.boundarySide} toleranceMs=${toleranceMs}`)
@@ -148,6 +150,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
           // 对称回退：连续3点厚度>0
           state = 'IN_MEMBRANE'
           toleranceStartTime = null
+          lastBoundarySide = null
           log = makeLog(prevState, state, 'back-to-membrane',
             ` pulse=${pulse}`)
         } else if (toleranceStartTime !== null && now - toleranceStartTime >= toleranceMs) {
@@ -183,10 +186,10 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
               state = 'TURNING'
               turnStartTime = now
               turnStartPulse = pulse
-              // 换向方向 = 当前运动方向的反向
-              expectedTurnDirection = !detection.boundarySide
+              // 换向方向 = 出膜边界的反向（使用 TOLERATING 进入时记录的方向，停止后方向已丢失）
+              expectedTurnDirection = !lastBoundarySide
                 ? null
-                : detection.boundarySide === 'left'
+                : lastBoundarySide === 'left'
                   ? true   // 左边出界 → 往回（向右/FWD）
                   : false  // 右边出界 → 往回（向左/REV）
               action = expectedTurnDirection === true ? 'FWD' : 'REV'
@@ -218,6 +221,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
           turnStartTime = null
           turnStartPulse = null
           expectedTurnDirection = null
+          lastBoundarySide = null
           log = makeLog(prevState, state, 'confirmed-in-membrane',
             ` pulse=${pulse}`)
         }
@@ -248,6 +252,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
     turnStartTime = null
     turnStartPulse = null
     expectedTurnDirection = null
+    lastBoundarySide = null
     boundaryPulses.left = null
     boundaryPulses.right = null
     lastPulse = null
