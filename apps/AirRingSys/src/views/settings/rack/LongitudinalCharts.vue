@@ -198,12 +198,16 @@ const chartOption = computed(() => {
         name: '正程',
         type: 'line' as const,
         showSymbol: false,
+        sampling: 'lttb' as const,
+        animation: false,
         data: fwdPoints,
       },
       {
         name: '逆程',
         type: 'line' as const,
         showSymbol: false,
+        sampling: 'lttb' as const,
+        animation: false,
         data: bwdPoints,
       },
     ],
@@ -478,6 +482,7 @@ onUnmounted(() => {
       :option="chartOption"
       :theme="theme"
       autoresize
+      :update-options="{ lazyUpdate: true, replaceMerge: ['series'] }"
     />
     <div v-if="loading" class="loading-overlay">加载中...</div>
     <div
