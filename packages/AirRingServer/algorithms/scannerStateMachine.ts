@@ -17,7 +17,7 @@ export type ScannerState =
   | 'EMERGENCY_STOP'
 
 /** 控制动作 */
-export type ControlAction = 'NONE' | 'STOP' | 'REV' | 'FWD' | 'ALERT'
+export type ControlAction = 'NONE' | 'STOP' | 'REV' | 'FWD' | 'ALERT' | 'MOVE_TO'
 
 /** 左右出界脉冲记录 */
 export interface BoundaryPulseMap {
@@ -193,15 +193,10 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
               turnStartTime = now
               turnStartPulse = pulse
               targetPulse = membraneEntryPulse ?? undefined
-              // 换向方向 = 出膜边界的反向（使用 TOLERATING 进入时记录的方向，停止后方向已丢失）
-              expectedTurnDirection = !lastBoundarySide
-                ? null
-                : lastBoundarySide === 'left'
-                  ? true   // 左边出界 → 往回（向右/FWD）
-                  : false  // 右边出界 → 往回（向左/REV）
-              action = expectedTurnDirection === true ? 'FWD' : 'REV'
+              lastBoundarySide = null // 消费后重置
+              action = 'MOVE_TO'
               log = makeLog(prevState, state, 'stopped',
-                ` pulse=${pulse} stopDurationMs=${now - decelStartTime} targetPulse=${targetPulse} newDirection=${expectedTurnDirection}`)
+                ` pulse=${pulse} stopDurationMs=${now - decelStartTime} targetPulse=${targetPulse}`)
               decelStartTime = null
               decelLastStablePulse = null
               decelStableSince = null

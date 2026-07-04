@@ -61,7 +61,7 @@ let motionState: MotionState = 'idle'
 let currentMotionSerial = 0
 let scanDir = 1 // 1:正向, -1:反向
 let emergencyStopFlag = false
-let currentMaxPulse = 6500
+let currentMaxPulse = 0
 let pauseTimer: NodeJS.Timeout | null = null
 const END_PAUSE_MS = 200
 let scannerMotionActive = false // 扫描仪运动控制接管换向，禁用 onScanStepComplete 自动换向
@@ -445,12 +445,20 @@ function handleScannerAction(
 
     case 'REV':
     case 'FWD':
-      if (motionState === 'scanning' && targetPulse !== undefined) {
-        // 扫描仪运动控制接管换向：禁用自动换向，使用膜入口位置作为目标
-        scannerMotionActive = true
+      // 保留兼容旧逻辑（无 targetPulse 时的兜底）
+      if (motionState === 'scanning' && targetPulse === undefined) {
         if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null }
         scanDir = action === 'FWD' ? 1 : -1
-        // 停止 → 等待 100ms → 移动到 targetPulse
+        const target = scanDir === 1 ? currentMaxPulse : 0
+        sendMoveToCommand(target, undefined, true)
+      }
+      break
+
+    case 'MOVE_TO':
+      if (motionState === 'scanning' && targetPulse !== undefined) {
+        scannerMotionActive = true
+        if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null }
+        // 停止 → 等待 100ms → 移动到目标脉冲位置
         adb?.stopDecel()
         setTimeout(() => {
           if (motionState !== 'scanning') return
@@ -479,9 +487,14 @@ async function startScan() {
   await adb.stopDecel()
   await new Promise((r) => setTimeout(r, 300))
 
+  const maxPulse = store?.get('maxPulse')
+  if (maxPulse === undefined || maxPulse <= 0) {
+    throw new Error('未设置 MaxPulse 扫描范围，请先在设置中配置')
+  }
+  currentMaxPulse = maxPulse
+
   motionState = 'scanning'
   emergencyStopFlag = false
-  currentMaxPulse = store?.get('maxPulse') || currentMaxPulse
   scanDir = 1
 
   // 开启扫描仪运动控制（从 store 读取最新配置，每次扫描时刷新参数）
@@ -505,11 +518,13 @@ function onScanStepComplete() {
 
   // 扫描仪运动控制接管时，不自动换向
   if (scannerMotionActive) return
+  if (currentMaxPulse <= 0) return
 
   if (pauseTimer) clearTimeout(pauseTimer)
   pauseTimer = setTimeout(() => {
     pauseTimer = null
     if (motionState !== 'scanning') return
+    if (currentMaxPulse <= 0) return
 
     scanDir *= -1
     const target = scanDir === 1 ? currentMaxPulse : 0
