@@ -27,8 +27,19 @@ const formatConsoleArg = (value: unknown) => {
   })
 }
 
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+/** 本地时间格式化（中国时区 UTC+8） */
+const formatLocalISO = (now: Date): string => {
+  return (
+    `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}T` +
+    `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}.` +
+    `${String(now.getMilliseconds()).padStart(3, '0')}+08:00`
+  )
+}
+
 const getLogFilePath = (dirPath: string, now: Date) => {
-  const date = now.toISOString().slice(0, 10)
+  const date = formatLocalISO(now).slice(0, 10)
   return join(dirPath, `main-console-${date}.log`)
 }
 
@@ -57,7 +68,7 @@ export const setupConsoleFileLogger = (app: App) => {
 
       const now = new Date()
       const message = args.map(formatConsoleArg).join(' ')
-      const line = `${now.toISOString()} [${level.toUpperCase()}] ${message}\n`
+      const line = `${formatLocalISO(now)} [${level.toUpperCase()}] ${message}\n`
       writeLogLine(line)
     }
   }

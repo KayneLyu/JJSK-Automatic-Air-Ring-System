@@ -86,8 +86,13 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
     reason: string,
     detail: string = ''
   ): string => {
-    const now = new Date().toISOString()
-    return `${logPrefix} ${now} ${from} → ${to} reason="${reason}"${detail}`
+    const now = new Date()
+    // 本地时间格式化（UTC+8）
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const localTime =
+      `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
+      `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${String(now.getMilliseconds()).padStart(3, '0')}`
+    return `${logPrefix} ${localTime} ${from} → ${to} reason="${reason}"${detail}`
   }
 
   const machineDebug = () => ({
