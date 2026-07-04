@@ -31,7 +31,7 @@ export interface StateMachineOutput {
   action: ControlAction
   log: string | null
   boundaryPulses: BoundaryPulseMap
-  /** 换向目标脉冲位置（TURNING 状态时有效，回到膜入口位置） */
+  /** 换向目标脉冲位置（TURNING 时由 adbox 根据 boundarySide + currentMaxPulse 计算） */
   targetPulse?: number
   /** 出膜边界侧（TURNING 时有效，供 adbox 计算换向目标 0/maxPulse） */
   boundarySide?: 'left' | 'right' | null
@@ -55,8 +55,6 @@ export interface ScannerStateMachineOptions {
   turnTimeoutMs?: number
   /** 停稳速度阈值（脉冲/采样），变化低于此值视为已停稳（默认 2） */
   stopSpeedThreshold?: number
-  /** 换向回退偏移（脉冲），确保回到膜内而非精确边界（默认 100） */
-  turnBackOffset?: number
 }
 
 export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) => {
@@ -66,7 +64,6 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
     decelTimeoutMs = 5000,
     turnTimeoutMs = 3000,
     stopSpeedThreshold = 2,
-    turnBackOffset = 100,
   } = options
 
   let state: ScannerState = 'UNKNOWN'
@@ -76,7 +73,6 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
   let turnStartPulse: number | null = null
   let expectedTurnDirection: boolean | null = null // true=向右, false=向左
   let lastBoundarySide: 'left' | 'right' | null = null // 出膜瞬间的真实方向（停止后方向会丢失）
-  let membraneEntryPulse: number | null = null // 本次扫描趟进入膜时的脉冲位置（换向目标）
   const boundaryPulses: BoundaryPulseMap = { left: null, right: null }
 
   // 减速→停止检测：追踪脉冲稳定时间
@@ -143,7 +139,6 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
       case 'UNKNOWN':
         if (detection.confirmedInMembrane) {
           state = 'IN_MEMBRANE'
-          membraneEntryPulse = pulse
           log = makeLog(prevState, state, 'confirmed-in-membrane',
             ` pulse=${pulse}`)
         }
@@ -198,18 +193,11 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
               state = 'TURNING'
               turnStartTime = now
               turnStartPulse = pulse
-              // 换向目标 = 入膜位置 + 回扫余量（确保回到膜内，而非卡在边界）
-              targetPulse = membraneEntryPulse !== null
-                ? lastBoundarySide === 'left'
-                  ? membraneEntryPulse + turnBackOffset  // 左边出→往右，多走一点进入膜内
-                  : lastBoundarySide === 'right'
-                    ? membraneEntryPulse - turnBackOffset  // 右边出→往左，多走一点进入膜内
-                    : membraneEntryPulse                   // 方向未知，退回精确位置
-                : undefined
-              lastBoundarySide = null // 消费后重置
+              // 换向目标由 adbox 根据 boundarySide 计算：左边界→maxPulse，右边界→0
+              // targetPulse 保持 undefined，adbox 自行计算
               action = 'MOVE_TO'
               log = makeLog(prevState, state, 'stopped',
-                ` pulse=${pulse} stopDurationMs=${now - decelStartTime} targetPulse=${targetPulse}`)
+                ` pulse=${pulse} stopDurationMs=${now - decelStartTime} boundarySide=${lastBoundarySide}`)
               decelStartTime = null
               decelLastStablePulse = null
               decelStableSince = null
@@ -230,22 +218,21 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
           turnStartPulse = null
           expectedTurnDirection = null
           lastBoundarySide = null
-          membraneEntryPulse = pulse
           log = makeLog(prevState, state, 'turn-timeout-force-in',
             ` pulse=${pulse} elapsedMs=${now - turnStartTime}`)
         } else if (detection.confirmedInMembrane) {
           // 回到膜内 — 但必须离出膜点足够远（防止边缘假回膜）
           const distFromEdge = Math.abs(pulse - (turnStartPulse ?? pulse))
-          if (distFromEdge >= turnBackOffset) {
+          if (distFromEdge >= 100) {
             state = 'IN_MEMBRANE'
             turnStartTime = null
             turnStartPulse = null
             expectedTurnDirection = null
             lastBoundarySide = null
-            membraneEntryPulse = pulse
             log = makeLog(prevState, state, 'confirmed-in-membrane',
               ` pulse=${pulse} distFromEdge=${distFromEdge}`)
           }
+        }
         break
 
       case 'EMERGENCY_STOP':
@@ -274,7 +261,6 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
     turnStartPulse = null
     expectedTurnDirection = null
     lastBoundarySide = null
-    membraneEntryPulse = null
     boundaryPulses.left = null
     boundaryPulses.right = null
     lastPulse = null
