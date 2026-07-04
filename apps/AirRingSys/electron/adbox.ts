@@ -65,10 +65,30 @@ let currentMaxPulse = 6500
 let pauseTimer: NodeJS.Timeout | null = null
 const END_PAUSE_MS = 200
 
+// 辊速状态
+// 速度计算缓存（X10专用）
+let x10LastRiseTime = 0;          // 上次上升沿时间 (ms)
+let x10PulseCount = 0;            // 脉冲计数（用于累计长度）
+const x10SpeedBuffer: number[] = []; // 滑动滤波（存最近5次速度）
+
+// 物理参数（根据现场标定，请务必核对！）
+const X10_PULSE_PER_REVOLUTION = 1;   // 接近开关每转触发次数 (单齿为1)
+const ROLLER_DIAMETER_MM = 10;     // 测速辊直径 (mm)
+
 const ERR_SCAN_ACTIVE_STOP_FIRST =
   'E_SCAN_ACTIVE_STOP_FIRST: scanning in progress, stop scan before home/move'
 const ERR_EMERGENCY_ACTIVE =
   'E_EMERGENCY_ACTIVE: emergency stop is active'
+
+/**
+ * 计算辊速 (米/分钟)
+ */
+function calcSpeedFromX10(deltaTimeMs: number): number {
+  if (deltaTimeMs <= 0) return 0;
+  const pulsesPerSec = 1000 / deltaTimeMs;                         // 每秒脉冲数
+  const speedMmPerSec = (pulsesPerSec / X10_PULSE_PER_REVOLUTION) * (ROLLER_DIAMETER_MM * Math.PI);
+  return (speedMmPerSec * 60) / 1000;                             // 转 m/min
+}
 
 const getConnectionLogDir = (device: string) =>
   join(app.getPath('userData'), 'logs', 'connections', device)
@@ -193,18 +213,20 @@ export async function initMotionControl(win: BrowserWindow) {
   })
 }
 
+
+
 // ==================== AD盒初始化 ====================
 async function initADBox() {
   // 确保 mainWindow 在此处可用
   if (!mainWindow) throw new Error('Main window is not available')
 
-	  adb = ADBoxClient.getInstance({
-	    host: '192.168.251.12',
-	    port: 20021,
-	    pushTimeout: 1000,
-	    commandTimeout: 1000,
-	    maxRetries: 2,
-	  })
+  adb = ADBoxClient.getInstance({
+    host: '192.168.251.12',
+    port: 20021,
+    pushTimeout: 1000,
+    commandTimeout: 1000,
+    maxRetries: 2,
+  })
 
   adb.on('connected', () => {
     console.log('ADBox connected')
@@ -213,13 +235,56 @@ async function initADBox() {
 
   adb.on('firstFrame', async () => {
     console.log('First frame received')
-    await adb?.syncPos0().catch(() => {})
+    await adb?.syncPos0().catch(() => { })
   })
 
   adb.on('data', (push: PushData) => {
     // 将原始数据直接推送到 utilityProcess 处理
     // utility 内部负责：时间戳解析、RingBuffer、SQLite、标定、渲染批推
     utilityHost?.pushThickness(push, Date.now())
+
+    // 辊速计算
+    // 处理输入变化（X0~X15）
+    // 注意：push.inChange 只有在输入状态变化时才有值
+    if (push.in !== undefined && push.inChange !== undefined) {
+      // 检测 X10 (bit 10 = 0x0400) 是否发生了变化
+      if ((push.inChange & 0x0400) !== 0) {
+        // X10 发生了翻转！判断它是上升沿还是下降沿
+        const isX10High = (push.in & 0x0400) !== 0; // true=高电平(开关断开), false=低电平(导通)
+
+        // 上升沿 isX10High
+        if (!isX10High) {
+          // 下降沿触发！
+          const now = Date.now();
+          x10PulseCount++;
+
+          if (x10LastRiseTime > 0) {
+            const deltaMs = now - x10LastRiseTime;
+
+            // 过滤无效间隔（防止抖动，比如间隔 < 50ms 认为是干扰）
+            if (deltaMs > 50) {
+              const speed = calcSpeedFromX10(deltaMs);
+
+              // 滑动平均滤波
+              x10SpeedBuffer.push(speed);
+              if (x10SpeedBuffer.length > 5) x10SpeedBuffer.shift();
+              const avgSpeed = x10SpeedBuffer.reduce((a, b) => a + b, 0) / x10SpeedBuffer.length;
+
+              // 推送给 UI
+              // mainWindow?.webContents.send('production-speed', {
+              //   speed: Math.round(avgSpeed * 100) / 100,
+              //   pulseCount: x10PulseCount,
+              //   deltaMs: deltaMs,
+              //   source: 'X10',
+              // });
+              console.log('product-speed', avgSpeed);
+              
+            }
+          }
+          x10LastRiseTime = now;
+        }
+      }
+    }
   })
 
   adb.on('runResult', (result: RunResult) => {
@@ -396,7 +461,7 @@ async function startScan() {
 
   // 确保之前的运动完全停止
   await adb.stopDecel()
-  await new Promise((r) => setTimeout(r, 100))
+  await new Promise((r) => setTimeout(r, 300))
 
   motionState = 'scanning'
   emergencyStopFlag = false
@@ -484,7 +549,7 @@ function registerIpcHandlers() {
       return adb?.isConnected ?? false
     },
     'adbox-disconnect': async () => {
-	    ADBoxClient.destroyInstance()
+      ADBoxClient.destroyInstance()
     },
 
     // 运动控制
@@ -609,28 +674,28 @@ function registerIpcHandlers() {
         mmPerPulse?: number
         membraneWidthMm?: number
         mutationWindowSize?: number
-      upperMaxAngle?: number
-          upperDistance?: number
-          scannerToleranceMs?: number
-        }
-        if (p.rollerTractionSpeed !== undefined)
-          store?.set('rollerResultTractionSpeed', p.rollerTractionSpeed)
-        if (p.frameLengthMM !== undefined)
-          store?.set('frameLengthMMResult', p.frameLengthMM)
-        if (p.frameLengthPulse !== undefined)
-          store?.set('frameLengthPulseResult', p.frameLengthPulse)
-        if (p.mmPerPulse !== undefined)
-          store?.set('mmPerPulseResult', p.mmPerPulse)
-        if (p.membraneWidthMm !== undefined)
-          store?.set('membraneWidthMmResult', p.membraneWidthMm)
-        if (p.mutationWindowSize !== undefined)
-          store?.set('mutationWindowSizeResult', p.mutationWindowSize)
-        if (p.upperMaxAngle !== undefined)
-          store?.set('upperResultMaxAngle', p.upperMaxAngle)
-        if (p.upperDistance !== undefined)
-          store?.set('upperResultDistance', p.upperDistance)
-        if (p.scannerToleranceMs !== undefined)
-          store?.set('scannerToleranceMsResult', p.scannerToleranceMs)
+        upperMaxAngle?: number
+        upperDistance?: number
+        scannerToleranceMs?: number
+      }
+      if (p.rollerTractionSpeed !== undefined)
+        store?.set('rollerResultTractionSpeed', p.rollerTractionSpeed)
+      if (p.frameLengthMM !== undefined)
+        store?.set('frameLengthMMResult', p.frameLengthMM)
+      if (p.frameLengthPulse !== undefined)
+        store?.set('frameLengthPulseResult', p.frameLengthPulse)
+      if (p.mmPerPulse !== undefined)
+        store?.set('mmPerPulseResult', p.mmPerPulse)
+      if (p.membraneWidthMm !== undefined)
+        store?.set('membraneWidthMmResult', p.membraneWidthMm)
+      if (p.mutationWindowSize !== undefined)
+        store?.set('mutationWindowSizeResult', p.mutationWindowSize)
+      if (p.upperMaxAngle !== undefined)
+        store?.set('upperResultMaxAngle', p.upperMaxAngle)
+      if (p.upperDistance !== undefined)
+        store?.set('upperResultDistance', p.upperDistance)
+      if (p.scannerToleranceMs !== undefined)
+        store?.set('scannerToleranceMsResult', p.scannerToleranceMs)
       return { success: true }
     },
   }
