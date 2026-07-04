@@ -1,27 +1,29 @@
 /**
  * 出膜检测器
  *
- * 基于 ProbeValue（光通量 AD 值）检测测厚仪是否运动出膜。
- * 膜内：AD 值 < airAD → 厚度 > 0
- * 膜外：AD 值 ≥ airAD → 厚度 = 0（物理铁律）
+ * 基于 calcThickness 计算的膜厚（μm）检测测厚仪是否运动出膜。
+ * 膜内：厚度 ≥ minThickness → 探头在薄膜覆盖范围内
+ * 膜外：厚度 < minThickness → 探头跑出膜外（仅空气，无薄膜衰减）
  *
- * 检测策略：纯硬判定 — 连续 N 个点 calcThickness === 0 判定为出膜。
+ * 检测策略：连续 N 个点厚度 < minThickness 判定为出膜。
  */
 import { calcThickness, type ThicknessCalcConfig } from './thickness'
 
 export interface OutOfBoundsDetectorOptions {
-  /** 空气 AD 值 */
+  /** 空气 AD 值（用于 calcThickness 计算，非直接判定阈值） */
   airAD: number
   /** 连续确认点数（默认 3） */
   confirmCount?: number
+  /** 最小膜厚（μm），低于此值视为出膜（默认 1.0） */
+  minThickness?: number
 }
 
 export interface OutOfBoundsResult {
   /** 当前点是否在膜内 */
   inMembrane: boolean
-  /** 连续达到 confirmCount 个厚度=0 点 → 确认出膜 */
+  /** 连续达到 confirmCount 个膜厚<minThickness 点 → 确认出膜 */
   confirmedOutOfBounds: boolean
-  /** 连续达到 confirmCount 个厚度>0 点 → 确认回膜 */
+  /** 连续达到 confirmCount 个膜厚≥minThickness 点 → 确认回膜 */
   confirmedInMembrane: boolean
   /** 首次确认出膜时的脉冲值（仅 confirmedOutOfBounds 且 outCount===confirmCount 时返回） */
   boundaryPulse?: number
@@ -30,7 +32,7 @@ export interface OutOfBoundsResult {
 }
 
 export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
-  const { airAD, confirmCount = 3 } = options
+  const { airAD, confirmCount = 3, minThickness = 1.0 } = options
   const thicknessConfig: ThicknessCalcConfig = { airAD }
 
   let outCount = 0
@@ -43,7 +45,8 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
     motionDirection: boolean
   ): OutOfBoundsResult => {
     const thickness = calcThickness(probeValue, thicknessConfig)
-    const outOfBounds = thickness === 0
+    // 基于膜厚判定出膜（厚度低于最小阈值 = 探头在空气区）
+    const outOfBounds = thickness < minThickness
 
     if (outOfBounds) {
       if (outCount < confirmCount) {
