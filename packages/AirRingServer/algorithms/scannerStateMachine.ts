@@ -156,15 +156,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
         break
 
       case 'TOLERATING':
-        if (detection.confirmedInMembrane) {
-          // 容错回退：连续3点回膜 → 更新膜入口位置
-          state = 'IN_MEMBRANE'
-          toleranceStartTime = null
-          lastBoundarySide = null
-          membraneEntryPulse = pulse
-          log = makeLog(prevState, state, 'back-to-membrane',
-            ` pulse=${pulse}`)
-        } else if (toleranceStartTime !== null && now - toleranceStartTime >= toleranceMs) {
+        if (toleranceStartTime !== null && now - toleranceStartTime >= toleranceMs) {
           // 容错到期
           const elapsed = now - toleranceStartTime
           state = 'DECELERATING'
