@@ -39,7 +39,7 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
   const {
     airAD,
     minThickness = 5.0,
-    outWindowSize = 500,
+    outWindowSize = 100,
     outThreshold = 0.95,
     inWindowSize = 200,
     inThreshold = 0.95,
