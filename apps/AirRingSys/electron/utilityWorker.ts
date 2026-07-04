@@ -991,7 +991,7 @@ function registerAllIpcHandlers(): void {
 // ═══════════════════════════════════════════════════════════════
 
 function doInit(payload: MainToUtilityMsg & { type: 'init' }): void {
-  const { dbDir, maxPulse: mp, airAD, scannerToleranceMs } = payload.payload
+  const { dbDir, maxPulse: mp } = payload.payload
   maxPulse = mp
 
   console.log('[UtilityWorker] 初始化数据库:', dbDir)
@@ -1000,9 +1000,6 @@ function doInit(payload: MainToUtilityMsg & { type: 'init' }): void {
 
   console.log('[UtilityWorker] 初始化标定桥...')
   initCalibrationBridge()
-
-  console.log('[UtilityWorker] 初始化扫描仪运动控制...')
-  initScannerMotionControl(airAD, scannerToleranceMs)
 
   console.log('[UtilityWorker] 初始化数据管道...')
   pipeline = new DataPipeline(
