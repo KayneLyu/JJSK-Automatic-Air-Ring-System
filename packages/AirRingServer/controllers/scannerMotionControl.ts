@@ -32,6 +32,8 @@ export interface ScannerMotionControlOutput {
   log: string | null
   /** 左右出界脉冲记录 */
   boundaryPulses: BoundaryPulseMap
+  /** 换向目标脉冲位置（回到膜入口） */
+  targetPulse?: number
   /** 当前点厚度（μm） */
   thickness: number
   /** 当前点是否在膜内 */
@@ -89,7 +91,8 @@ export const scannerMotionControl = (options: ScannerMotionControlOptions) => {
       action: machineOutput.action,
       log: machineOutput.log ?? lastLog,
       boundaryPulses: machineOutput.boundaryPulses,
-      thickness: detection.inMembrane ? probeValue : 0, // 真实厚度需要 calcThickness，此处示意
+      targetPulse: machineOutput.targetPulse,
+      thickness: detection.inMembrane ? probeValue : 0,
       inMembrane: detection.inMembrane,
       detectorDebug: detector.getDebugInfo(),
       machineDebug: machineOutput.machineDebug,

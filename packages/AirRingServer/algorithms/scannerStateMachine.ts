@@ -31,6 +31,8 @@ export interface StateMachineOutput {
   action: ControlAction
   log: string | null
   boundaryPulses: BoundaryPulseMap
+  /** 换向目标脉冲位置（TURNING 状态时有效，回到膜入口位置） */
+  targetPulse?: number
   /** 状态机内部计时器状态（调试用） */
   machineDebug?: {
     toleranceStartTime: number | null
@@ -66,6 +68,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
   let turnStartPulse: number | null = null
   let expectedTurnDirection: boolean | null = null // true=向右, false=向左
   let lastBoundarySide: 'left' | 'right' | null = null // 出膜瞬间的真实方向（停止后方向会丢失）
+  let membraneEntryPulse: number | null = null // 本次扫描趟进入膜时的脉冲位置（换向目标）
   const boundaryPulses: BoundaryPulseMap = { left: null, right: null }
 
   // 减速→停止检测：追踪脉冲稳定时间
@@ -110,6 +113,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
 
     let action: ControlAction = 'NONE'
     let log: string | null = null
+    let targetPulse: number | undefined
 
     // ── 全局限位急停（最高优先级） ──
     if (leftLimit || rightLimit) {
@@ -117,7 +121,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
       state = 'EMERGENCY_STOP'
       log = makeLog(prev, state, leftLimit ? 'left-limit' : 'right-limit',
         ` pulse=${pulse}`)
-      return { state, action: 'NONE', log, boundaryPulses: { ...boundaryPulses }, machineDebug: machineDebug() }
+      return { state, action: 'NONE', log, boundaryPulses: { ...boundaryPulses }, targetPulse, machineDebug: machineDebug() }
     }
 
     const prevState = state
@@ -126,6 +130,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
       case 'UNKNOWN':
         if (detection.confirmedInMembrane) {
           state = 'IN_MEMBRANE'
+          membraneEntryPulse = pulse
           log = makeLog(prevState, state, 'confirmed-in-membrane',
             ` pulse=${pulse}`)
         }
@@ -147,10 +152,11 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
 
       case 'TOLERATING':
         if (detection.confirmedInMembrane) {
-          // 对称回退：连续3点厚度>0
+          // 容错回退：连续3点回膜 → 更新膜入口位置
           state = 'IN_MEMBRANE'
           toleranceStartTime = null
           lastBoundarySide = null
+          membraneEntryPulse = pulse
           log = makeLog(prevState, state, 'back-to-membrane',
             ` pulse=${pulse}`)
         } else if (toleranceStartTime !== null && now - toleranceStartTime >= toleranceMs) {
@@ -172,7 +178,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
           // 减速超时（状态不变，发出告警）
           log = makeLog(prevState, state, 'timeout',
             ` reason=decel-timeout pulse=${pulse} elapsedMs=${now - decelStartTime}`)
-          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses }, machineDebug: machineDebug() }
+          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses }, targetPulse, machineDebug: machineDebug() }
         }
 
         // 检查是否已停止：脉冲连续稳定 ≥ stopConfirmMs
@@ -186,6 +192,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
               state = 'TURNING'
               turnStartTime = now
               turnStartPulse = pulse
+              targetPulse = membraneEntryPulse ?? undefined
               // 换向方向 = 出膜边界的反向（使用 TOLERATING 进入时记录的方向，停止后方向已丢失）
               expectedTurnDirection = !lastBoundarySide
                 ? null
@@ -194,7 +201,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
                   : false  // 右边出界 → 往回（向左/REV）
               action = expectedTurnDirection === true ? 'FWD' : 'REV'
               log = makeLog(prevState, state, 'stopped',
-                ` pulse=${pulse} stopDurationMs=${now - decelStartTime} newDirection=${expectedTurnDirection}`)
+                ` pulse=${pulse} stopDurationMs=${now - decelStartTime} targetPulse=${targetPulse} newDirection=${expectedTurnDirection}`)
               decelStartTime = null
               decelLastStablePulse = null
               decelStableSince = null
@@ -212,16 +219,17 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
           // 换向超时（状态不变，发出告警）
           log = makeLog(prevState, state, 'timeout',
             ` reason=turn-timeout pulse=${pulse} elapsedMs=${now - turnStartTime}`)
-          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses }, machineDebug: machineDebug() }
+          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses }, targetPulse, machineDebug: machineDebug() }
         }
 
         if (detection.confirmedInMembrane) {
-          // 回到膜内
+          // 回到膜内 → 记录入口位置（下一趟换向目标）
           state = 'IN_MEMBRANE'
           turnStartTime = null
           turnStartPulse = null
           expectedTurnDirection = null
           lastBoundarySide = null
+          membraneEntryPulse = pulse
           log = makeLog(prevState, state, 'confirmed-in-membrane',
             ` pulse=${pulse}`)
         }
@@ -232,7 +240,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
         break
     }
 
-    return { state, action, log, boundaryPulses: { ...boundaryPulses }, machineDebug: machineDebug() }
+    return { state, action, log, boundaryPulses: { ...boundaryPulses }, targetPulse, machineDebug: machineDebug() }
   }
 
   /** 手动复位紧急停止 */
@@ -253,6 +261,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
     turnStartPulse = null
     expectedTurnDirection = null
     lastBoundarySide = null
+    membraneEntryPulse = null
     boundaryPulses.left = null
     boundaryPulses.right = null
     lastPulse = null

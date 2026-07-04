@@ -46,7 +46,7 @@ export interface UtilityHostCallbacks {
   /** 当 utility 推送状态时 */
   onMotionState?: (state: string) => void
   /** 当 utility 推送扫描仪控制动作时 */
-  onScannerAction?: (action: string, state: string, log: string | null, debug?: { pulse?: number; probeValue?: number; inMembrane?: boolean; direction?: 'FWD' | 'REV' }) => void
+  onScannerAction?: (action: string, state: string, log: string | null, debug?: { pulse?: number; probeValue?: number; inMembrane?: boolean; direction?: 'FWD' | 'REV' }, targetPulse?: number) => void
   /** 当 utility 报告错误时 */
   onError?: (message: string) => void
   /** 当 utility 就绪时 */
@@ -271,7 +271,8 @@ export class UtilityHost {
           msg.action,
           msg.state,
           msg.log,
-          { pulse: msg.pulse, probeValue: msg.probeValue, inMembrane: msg.inMembrane, direction: msg.direction }
+          { pulse: msg.pulse, probeValue: msg.probeValue, inMembrane: msg.inMembrane, direction: msg.direction },
+          msg.targetPulse,
         )
         break
 

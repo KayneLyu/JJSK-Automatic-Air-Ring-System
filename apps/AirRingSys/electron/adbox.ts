@@ -64,6 +64,7 @@ let emergencyStopFlag = false
 let currentMaxPulse = 6500
 let pauseTimer: NodeJS.Timeout | null = null
 const END_PAUSE_MS = 200
+let scannerMotionActive = false // 扫描仪运动控制接管换向，禁用 onScanStepComplete 自动换向
 
 // 辊速状态
 // 速度计算缓存（X10专用）
@@ -181,8 +182,8 @@ export async function initMotionControl(win: BrowserWindow) {
     onCalibrationResult: (result) => {
       rendererSend('calibration-result', result)
     },
-    onScannerAction: (action, state, log, debug) => {
-      handleScannerAction(action, state, log, debug)
+    onScannerAction: (action, state, log, debug, targetPulse) => {
+      handleScannerAction(action, state, log, debug, targetPulse)
     },
     onError: (message) => {
       console.error('[MotionControl] utility 错误:', message)
@@ -394,6 +395,7 @@ function stopMotion() {
 function emergencyStop() {
   motionState = 'emergency'
   emergencyStopFlag = true
+  scannerMotionActive = false
   adb?.stopEmergency()
   if (pauseTimer) {
     clearTimeout(pauseTimer)
@@ -416,26 +418,26 @@ function handleScannerAction(
   action: string,
   state: string,
   log: string | null,
-  debug?: { pulse?: number; probeValue?: number; inMembrane?: boolean; direction?: 'FWD' | 'REV' }
+  debug?: { pulse?: number; probeValue?: number; inMembrane?: boolean; direction?: 'FWD' | 'REV' },
+  targetPulse?: number,
 ): void {
   if (log) {
     const debugSuffix = debug
       ? ` pulse=${debug.pulse ?? '-'} ad=${debug.probeValue ?? '-'} inMembrane=${debug.inMembrane ?? '-'} dir=${debug.direction ?? '-'}`
       : ''
-    console.log(`[ScannerMotion] ${log}${debugSuffix}`)
+    const tpSuffix = targetPulse !== undefined ? ` targetPulse=${targetPulse}` : ''
+    console.log(`[ScannerMotion] ${log}${debugSuffix}${tpSuffix}`)
   }
 
   // 向渲染进程转发状态（含 debug 信息）
-  mainWindow?.webContents.send('scanner-motion-state', { action, state, log, debug })
+  mainWindow?.webContents.send('scanner-motion-state', { action, state, log, debug, targetPulse })
 
   if (emergencyStopFlag) return
 
   switch (action) {
     case 'STOP':
       if (motionState === 'scanning') {
-        // 取消自动换向定时器（防竞态）
         if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null }
-        // 停止当前运动，保持 scanning 状态以便后续 REV/FWD 接管
         currentMotionSerial = generateSerial()
         adb?.stopDecel()
       }
@@ -443,13 +445,17 @@ function handleScannerAction(
 
     case 'REV':
     case 'FWD':
-      if (motionState === 'scanning') {
-        // 取消可能正在等待的自动换向定时器（防竞态）
+      if (motionState === 'scanning' && targetPulse !== undefined) {
+        // 扫描仪运动控制接管换向：禁用自动换向，使用膜入口位置作为目标
+        scannerMotionActive = true
         if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null }
-        // 显式设置方向（不用 *= -1 取反，防止 scanner 已经反向时重复翻转）
         scanDir = action === 'FWD' ? 1 : -1
-        const target = scanDir === 1 ? currentMaxPulse : 0
-        sendMoveToCommand(target, undefined, true)
+        // 停止 → 等待 100ms → 移动到 targetPulse
+        adb?.stopDecel()
+        setTimeout(() => {
+          if (motionState !== 'scanning') return
+          sendMoveToCommand(targetPulse, undefined, true)
+        }, 100)
       }
       break
 
@@ -497,6 +503,9 @@ function onScanStepComplete() {
 
   if (motionState !== 'scanning') return
 
+  // 扫描仪运动控制接管时，不自动换向
+  if (scannerMotionActive) return
+
   if (pauseTimer) clearTimeout(pauseTimer)
   pauseTimer = setTimeout(() => {
     pauseTimer = null
@@ -518,6 +527,7 @@ function stopScanInternal(graceful: boolean) {
     clearTimeout(pauseTimer)
     pauseTimer = null
   }
+  scannerMotionActive = false
   // 停止扫描仪运动控制
   utilityHost?.disableScannerMotion()
   if (graceful) {
