@@ -14,7 +14,7 @@ export interface OutOfBoundsDetectorOptions {
   airAD: number
   /** 连续确认点数（默认 3） */
   confirmCount?: number
-  /** 最小膜厚（μm），低于此值视为出膜（默认 1.0） */
+  /** 最小膜厚（μm），低于此值视为出膜（默认 5.0） */
   minThickness?: number
 }
 
@@ -32,7 +32,7 @@ export interface OutOfBoundsResult {
 }
 
 export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
-  const { airAD, confirmCount = 10, minThickness = 1.0 } = options
+  const { airAD, confirmCount = 10, minThickness = 5.0 } = options
   const thicknessConfig: ThicknessCalcConfig = { airAD }
 
   let outCount = 0
