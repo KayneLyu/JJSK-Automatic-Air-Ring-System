@@ -198,11 +198,18 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
               state = 'TURNING'
               turnStartTime = now
               turnStartPulse = pulse
-              // 换向目标由 adbox.ts 根据边界侧计算：左边界→maxPulse，右边界→0
-              targetPulse = undefined // 由 adbox 根据 lastBoundarySide + currentMaxPulse 计算
+              // 换向目标 = 入膜位置 + 回扫余量（确保回到膜内，而非卡在边界）
+              targetPulse = membraneEntryPulse !== null
+                ? lastBoundarySide === 'left'
+                  ? membraneEntryPulse + turnBackOffset  // 左边出→往右，多走一点进入膜内
+                  : lastBoundarySide === 'right'
+                    ? membraneEntryPulse - turnBackOffset  // 右边出→往左，多走一点进入膜内
+                    : membraneEntryPulse                   // 方向未知，退回精确位置
+                : undefined
+              lastBoundarySide = null // 消费后重置
               action = 'MOVE_TO'
               log = makeLog(prevState, state, 'stopped',
-                ` pulse=${pulse} stopDurationMs=${now - decelStartTime} boundarySide=${lastBoundarySide}`)
+                ` pulse=${pulse} stopDurationMs=${now - decelStartTime} targetPulse=${targetPulse}`)
               decelStartTime = null
               decelLastStablePulse = null
               decelStableSince = null

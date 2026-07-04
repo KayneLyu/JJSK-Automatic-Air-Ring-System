@@ -456,24 +456,14 @@ function handleScannerAction(
       break
 
     case 'MOVE_TO':
-      if (motionState === 'scanning') {
-        // 根据出膜边界侧计算换向目标：左边界→maxPulse，右边界→0
-        const moveTarget = targetPulse !== undefined
-          ? targetPulse
-          : boundarySide === 'left'
-            ? currentMaxPulse
-            : boundarySide === 'right'
-              ? 0
-              : undefined
-        if (moveTarget !== undefined) {
-          scannerMotionActive = true
-          if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null }
-          adb?.stopDecel()
-          setTimeout(() => {
-            if (motionState !== 'scanning') return
-            sendMoveToCommand(moveTarget, undefined, true)
-          }, 100)
-        }
+      if (motionState === 'scanning' && targetPulse !== undefined) {
+        scannerMotionActive = true
+        if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null }
+        adb?.stopDecel()
+        setTimeout(() => {
+          if (motionState !== 'scanning') return
+          sendMoveToCommand(targetPulse, undefined, true)
+        }, 100)
       }
       break
 
