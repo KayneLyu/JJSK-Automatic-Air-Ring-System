@@ -34,6 +34,8 @@ export interface ScannerMotionControlOutput {
   boundaryPulses: BoundaryPulseMap
   /** 换向目标脉冲位置（回到膜入口） */
   targetPulse?: number
+  /** 出膜边界侧（供 adbox 计算换向目标 0/maxPulse） */
+  boundarySide?: 'left' | 'right' | null
   /** 当前点厚度（μm） */
   thickness: number
   /** 当前点是否在膜内 */
@@ -92,6 +94,7 @@ export const scannerMotionControl = (options: ScannerMotionControlOptions) => {
       log: machineOutput.log ?? lastLog,
       boundaryPulses: machineOutput.boundaryPulses,
       targetPulse: machineOutput.targetPulse,
+      boundarySide: machineOutput.boundarySide,
       thickness: detection.inMembrane ? probeValue : 0,
       inMembrane: detection.inMembrane,
       detectorDebug: detector.getDebugInfo(),

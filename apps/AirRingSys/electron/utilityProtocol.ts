@@ -47,7 +47,7 @@ export type UtilityToMainMsg =
   | { type: 'config-updated'; payload: Record<string, unknown> }
   | { type: 'ipc-response'; id: string; result?: unknown; error?: string }
   | { type: 'pipeline-stats'; stats: unknown }
-  | { type: 'scanner-action'; action: string; state: string; log: string | null; pulse?: number; probeValue?: number; inMembrane?: boolean; direction?: 'FWD' | 'REV'; targetPulse?: number }
+  | { type: 'scanner-action'; action: string; state: string; log: string | null; pulse?: number; probeValue?: number; inMembrane?: boolean; direction?: 'FWD' | 'REV'; targetPulse?: number; boundarySide?: 'left' | 'right' | null }
 
 // ═══════════════════════════════════════════════════════════════
 // 内部 IPC 请求处理（utility 侧）

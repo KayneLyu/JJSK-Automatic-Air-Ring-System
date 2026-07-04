@@ -33,6 +33,8 @@ export interface StateMachineOutput {
   boundaryPulses: BoundaryPulseMap
   /** 换向目标脉冲位置（TURNING 状态时有效，回到膜入口位置） */
   targetPulse?: number
+  /** 出膜边界侧（TURNING 时有效，供 adbox 计算换向目标 0/maxPulse） */
+  boundarySide?: 'left' | 'right' | null
   /** 状态机内部计时器状态（调试用） */
   machineDebug?: {
     toleranceStartTime: number | null
@@ -132,7 +134,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
       state = 'EMERGENCY_STOP'
       log = makeLog(prev, state, leftLimit ? 'left-limit' : 'right-limit',
         ` pulse=${pulse}`)
-      return { state, action: 'NONE', log, boundaryPulses: { ...boundaryPulses }, targetPulse, machineDebug: machineDebug() }
+      return { state, action: 'NONE', log, boundaryPulses: { ...boundaryPulses }, targetPulse, boundarySide: lastBoundarySide, machineDebug: machineDebug() }
     }
 
     const prevState = state
@@ -181,7 +183,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
           // 减速超时（状态不变，发出告警）
           log = makeLog(prevState, state, 'timeout',
             ` reason=decel-timeout pulse=${pulse} elapsedMs=${now - decelStartTime}`)
-          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses }, targetPulse, machineDebug: machineDebug() }
+          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses }, targetPulse, boundarySide: lastBoundarySide, machineDebug: machineDebug() }
         }
 
         // 检查是否已停止：脉冲变化速度 < stopSpeedThreshold，且持续 ≥ stopConfirmMs
@@ -196,18 +198,11 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
               state = 'TURNING'
               turnStartTime = now
               turnStartPulse = pulse
-              // 换向目标 = 入膜位置 + 回扫余量（确保进入膜内，而非卡在边界）
-              targetPulse = membraneEntryPulse !== null
-                ? lastBoundarySide === 'left'
-                  ? membraneEntryPulse + turnBackOffset  // 左边出→往右，多走一点进入膜内
-                  : lastBoundarySide === 'right'
-                    ? membraneEntryPulse - turnBackOffset  // 右边出→往左，多走一点进入膜内
-                    : membraneEntryPulse                   // 方向未知，退回精确位置
-                : undefined
-              lastBoundarySide = null // 消费后重置
+              // 换向目标由 adbox.ts 根据边界侧计算：左边界→maxPulse，右边界→0
+              targetPulse = undefined // 由 adbox 根据 lastBoundarySide + currentMaxPulse 计算
               action = 'MOVE_TO'
               log = makeLog(prevState, state, 'stopped',
-                ` pulse=${pulse} stopDurationMs=${now - decelStartTime} targetPulse=${targetPulse}`)
+                ` pulse=${pulse} stopDurationMs=${now - decelStartTime} boundarySide=${lastBoundarySide}`)
               decelStartTime = null
               decelLastStablePulse = null
               decelStableSince = null
@@ -225,7 +220,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
           // 换向超时（状态不变，发出告警）
           log = makeLog(prevState, state, 'timeout',
             ` reason=turn-timeout pulse=${pulse} elapsedMs=${now - turnStartTime}`)
-          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses }, targetPulse, machineDebug: machineDebug() }
+          return { state, action: 'ALERT', log, boundaryPulses: { ...boundaryPulses }, targetPulse, boundarySide: lastBoundarySide, machineDebug: machineDebug() }
         }
 
         if (detection.confirmedInMembrane) {
@@ -246,7 +241,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
         break
     }
 
-    return { state, action, log, boundaryPulses: { ...boundaryPulses }, targetPulse, machineDebug: machineDebug() }
+    return { state, action, log, boundaryPulses: { ...boundaryPulses }, targetPulse, boundarySide: lastBoundarySide, machineDebug: machineDebug() }
   }
 
   /** 手动复位紧急停止 */

@@ -335,6 +335,7 @@ function feedScannerMotionControl(sample: {
       state: output.state,
       log: enrichedLog,
       targetPulse: output.targetPulse,
+      boundarySide: output.boundarySide,
       ...debug,
     })
   }

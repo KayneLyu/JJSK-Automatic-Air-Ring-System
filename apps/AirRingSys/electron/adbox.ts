@@ -182,8 +182,8 @@ export async function initMotionControl(win: BrowserWindow) {
     onCalibrationResult: (result) => {
       rendererSend('calibration-result', result)
     },
-    onScannerAction: (action, state, log, debug, targetPulse) => {
-      handleScannerAction(action, state, log, debug, targetPulse)
+    onScannerAction: (action, state, log, debug, targetPulse, boundarySide) => {
+      handleScannerAction(action, state, log, debug, targetPulse, boundarySide)
     },
     onError: (message) => {
       console.error('[MotionControl] utility 错误:', message)
@@ -420,6 +420,7 @@ function handleScannerAction(
   log: string | null,
   debug?: { pulse?: number; probeValue?: number; inMembrane?: boolean; direction?: 'FWD' | 'REV' },
   targetPulse?: number,
+  boundarySide?: 'left' | 'right' | null,
 ): void {
   if (log) {
     const debugSuffix = debug
@@ -455,15 +456,24 @@ function handleScannerAction(
       break
 
     case 'MOVE_TO':
-      if (motionState === 'scanning' && targetPulse !== undefined) {
-        scannerMotionActive = true
-        if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null }
-        // 停止 → 等待 100ms → 移动到目标脉冲位置
-        adb?.stopDecel()
-        setTimeout(() => {
-          if (motionState !== 'scanning') return
-          sendMoveToCommand(targetPulse, undefined, true)
-        }, 200)
+      if (motionState === 'scanning') {
+        // 根据出膜边界侧计算换向目标：左边界→maxPulse，右边界→0
+        const moveTarget = targetPulse !== undefined
+          ? targetPulse
+          : boundarySide === 'left'
+            ? currentMaxPulse
+            : boundarySide === 'right'
+              ? 0
+              : undefined
+        if (moveTarget !== undefined) {
+          scannerMotionActive = true
+          if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null }
+          adb?.stopDecel()
+          setTimeout(() => {
+            if (motionState !== 'scanning') return
+            sendMoveToCommand(moveTarget, undefined, true)
+          }, 100)
+        }
       }
       break
 
