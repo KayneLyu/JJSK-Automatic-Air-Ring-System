@@ -463,7 +463,7 @@ function handleScannerAction(
         setTimeout(() => {
           if (motionState !== 'scanning') return
           sendMoveToCommand(targetPulse, undefined, true)
-        }, 100)
+        }, 200)
       }
       break
 
