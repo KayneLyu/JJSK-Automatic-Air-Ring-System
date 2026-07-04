@@ -214,14 +214,22 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
 
       case 'TURNING':
         if (turnStartTime !== null && now - turnStartTime >= turnTimeoutMs) {
-          // 换向超时 → 判定为已到达目标位置，强制回膜继续扫描
-          state = 'IN_MEMBRANE'
-          turnStartTime = null
-          turnStartPulse = null
-          expectedTurnDirection = null
-          lastBoundarySide = null
-          log = makeLog(prevState, state, 'turn-timeout-force-in',
-            ` pulse=${pulse} elapsedMs=${now - turnStartTime}`)
+          // 检查是否停滞：距上次记录的脉冲变化 < 50 → 真的卡住了
+          const stuck = turnStartPulse !== null && Math.abs(pulse - turnStartPulse) < 50
+          if (stuck) {
+            // 换向超时且停滞 → 判定为已到达目标位置，强制回膜继续扫描
+            state = 'IN_MEMBRANE'
+            turnStartTime = null
+            turnStartPulse = null
+            expectedTurnDirection = null
+            lastBoundarySide = null
+            log = makeLog(prevState, state, 'turn-timeout-stuck',
+              ` pulse=${pulse} elapsedMs=${now - turnStartTime}`)
+          } else {
+            // 还在移动 → 更新参考点，重置计时器，继续等待
+            turnStartTime = now
+            turnStartPulse = pulse
+          }
         } else if (detection.confirmedInMembrane) {
           // 回到膜内 — 但必须离出膜点足够远（防止边缘假回膜）
           const distFromEdge = Math.abs(pulse - (turnStartPulse ?? pulse))
