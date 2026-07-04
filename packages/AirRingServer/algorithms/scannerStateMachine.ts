@@ -217,14 +217,13 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
           // 检查是否停滞：距上次记录的脉冲变化 < 50 → 真的卡住了
           const stuck = turnStartPulse !== null && Math.abs(pulse - turnStartPulse) < 50
           if (stuck) {
-            // 换向超时且停滞 → 判定为已到达目标位置，强制回膜继续扫描
-            state = 'IN_MEMBRANE'
-            turnStartTime = null
-            turnStartPulse = null
-            expectedTurnDirection = null
-            lastBoundarySide = null
-            log = makeLog(prevState, state, 'turn-timeout-stuck',
-              ` pulse=${pulse} elapsedMs=${now - turnStartTime}`)
+            // 已到达端点（脉冲≈0或不再变化）→ 反向换向，往回走
+            lastBoundarySide = lastBoundarySide === 'left' ? 'right' : lastBoundarySide === 'right' ? 'left' : null
+            turnStartTime = now
+            turnStartPulse = pulse
+            action = 'MOVE_TO'
+            log = makeLog(prevState, state, 'turn-timeout-stuck-reverse',
+              ` pulse=${pulse} newSide=${lastBoundarySide} elapsedMs=${now - turnStartTime}`)
           } else {
             // 还在移动 → 更新参考点，重置计时器，继续等待
             turnStartTime = now
