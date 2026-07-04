@@ -56,9 +56,8 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
         // 连续回膜确认 → 重置出膜状态，允许下次重新记录 boundaryPulse
         outCount = 0
         boundaryRecorded = false
-      } else {
-        outCount = 0
       }
+      // 未确认回膜时不重置 outCount，防止膜边缘 AD 振荡导致出膜判定失败
     }
 
     const confirmedOut = outCount >= confirmCount
