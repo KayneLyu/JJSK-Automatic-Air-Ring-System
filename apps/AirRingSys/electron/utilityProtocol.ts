@@ -19,7 +19,7 @@ export type MainToUtilityMsg =
   | { type: 'thickness-push'; push: PushData; receivedAt: number }
   | { type: 'rotation-data'; data: IUpperRotationDebugData }
   | { type: 'ipc-request'; id: string; channel: string; args: unknown[] }
-  | { type: 'enable-scanner-motion' }
+  | { type: 'enable-scanner-motion'; airAD?: number; toleranceMs?: number }
   | { type: 'disable-scanner-motion' }
 
 export interface InitPayload {

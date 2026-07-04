@@ -199,8 +199,8 @@ export class UtilityHost {
   }
 
   /** 开启扫描仪运动控制 */
-  enableScannerMotion(): void {
-    this.send({ type: 'enable-scanner-motion' })
+  enableScannerMotion(airAD?: number, toleranceMs?: number): void {
+    this.send({ type: 'enable-scanner-motion', airAD, toleranceMs })
   }
 
   /** 停止扫描仪运动控制 */

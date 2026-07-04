@@ -478,8 +478,13 @@ async function startScan() {
   currentMaxPulse = store?.get('maxPulse') || currentMaxPulse
   scanDir = 1
 
-  // 开启扫描仪运动控制（复位状态机，从膜内开始检测）
-  utilityHost?.enableScannerMotion()
+  // 开启扫描仪运动控制（从 store 读取最新配置，每次扫描时刷新参数）
+  const scanAirAD = store?.get('airAD')
+  const parsedAirAD = Number(scanAirAD)
+  utilityHost?.enableScannerMotion(
+    Number.isFinite(parsedAirAD) && parsedAirAD > 0 ? parsedAirAD : undefined,
+    store?.get('scannerToleranceMsResult'),
+  )
 
   mainWindow?.webContents.send('motion-state', 'scanning')
   const target = currentMaxPulse

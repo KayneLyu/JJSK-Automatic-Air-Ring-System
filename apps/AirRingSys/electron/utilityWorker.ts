@@ -1065,15 +1065,13 @@ process.parentPort.on('message', (event) => {
       void handleIpcRequest(msg.id, msg.channel, msg.args)
       break
     case 'enable-scanner-motion':
-      if (scannerCtrl) {
-        scannerCtrl.reset()
-        scannerLastPulse = null
-        scannerPrevState = null
-        scannerSampleCount = 0
-        scannerStateTransitionCount = 0
-      }
+      // 每次扫描开始时用最新配置重建控制器（运行时修改 airAD/toleranceMs 即时生效）
+      initScannerMotionControl(msg.airAD, msg.toleranceMs)
       scannerMotionEnabled = true
-      console.log('[UtilityWorker] 扫描仪运动控制 → 开启（状态机已复位）')
+      console.log(
+        `[UtilityWorker] 扫描仪运动控制 → 开启` +
+        ` airAD=${msg.airAD ?? 'inherit'} toleranceMs=${msg.toleranceMs ?? 'inherit'}`
+      )
       break
     case 'disable-scanner-motion':
       scannerMotionEnabled = false
