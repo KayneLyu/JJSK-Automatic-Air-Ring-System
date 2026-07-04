@@ -57,6 +57,7 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
   let inRingFilled = false
   let outCount = 0 // 窗口内出膜样本数
   let inCount = 0  // 窗口内入膜样本数
+  let lastOutDirection: boolean | null = null // 最近出膜样本的运动方向（防停止后丢失）
 
   let boundaryRecorded = false
 
@@ -75,7 +76,10 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
       outRingIdx = (outRingIdx + 1) % outWindowSize
       if (outRingIdx === 0) outRingFilled = true
       if (old) outCount--
-      if (outOfBounds) outCount++
+      if (outOfBounds) {
+        outCount++
+        lastOutDirection = motionDirection // 记录出膜时的真实方向
+      }
     }
 
     // ── 入膜窗口 ──
@@ -106,7 +110,9 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
       confirmedOutOfBounds: confirmedOut,
       confirmedInMembrane: confirmedIn,
       boundaryPulse: justNowConfirmed ? horizontalPulse : undefined,
-      boundarySide: motionDirection ? 'right' : 'left',
+      boundarySide: lastOutDirection !== null
+        ? (lastOutDirection ? 'right' : 'left')
+        : (motionDirection ? 'right' : 'left'),
     }
   }
 
@@ -119,6 +125,7 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
     inRingFilled = false
     outCount = 0
     inCount = 0
+    lastOutDirection = null
     boundaryRecorded = false
     effectiveMinThickness = minThickness
   }
