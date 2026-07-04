@@ -48,8 +48,8 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
 
   let effectiveMinThickness = minThickness
 
-  // 环形缓冲区：存储最近 N 个样本是否为出膜
-  const outRing: boolean[] = new Array(outWindowSize).fill(false)
+  // 环形缓冲区：存储最近 N 个样本是否为出膜，及出膜时的方向
+  const outRing: (boolean | null)[] = new Array(outWindowSize).fill(null)
   const inRing: boolean[] = new Array(inWindowSize).fill(false)
   let outRingIdx = 0
   let inRingIdx = 0
@@ -57,7 +57,7 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
   let inRingFilled = false
   let outCount = 0 // 窗口内出膜样本数
   let inCount = 0  // 窗口内入膜样本数
-  let lastOutDirection: boolean | null = null // 最近出膜样本的运动方向（防停止后丢失）
+  let outRightCount = 0 // 窗口内出膜且方向为右的样本数
 
   let boundaryRecorded = false
 
@@ -71,14 +71,19 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
 
     // ── 出膜窗口 ──
     {
-      const old = outRing[outRingIdx]
-      outRing[outRingIdx] = outOfBounds
+      const oldOut = outRing[outRingIdx]
+      outRing[outRingIdx] = outOfBounds ? motionDirection : null
       outRingIdx = (outRingIdx + 1) % outWindowSize
       if (outRingIdx === 0) outRingFilled = true
-      if (old) outCount--
+      if (oldOut !== null && oldOut !== false) {
+        outCount--
+        outRightCount--
+      } else if (oldOut === false) {
+        outCount--
+      }
       if (outOfBounds) {
         outCount++
-        lastOutDirection = motionDirection // 记录出膜时的真实方向
+        if (motionDirection) outRightCount++
       }
     }
 
@@ -100,10 +105,9 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
       boundaryRecorded = true
     }
 
-    // 确认入膜后重置 boundaryRecorded 和方向记录
+    // 确认入膜后重置 boundaryRecorded
     if (confirmedIn) {
       boundaryRecorded = false
-      lastOutDirection = null
     }
 
     return {
@@ -111,14 +115,15 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
       confirmedOutOfBounds: confirmedOut,
       confirmedInMembrane: confirmedIn,
       boundaryPulse: justNowConfirmed ? horizontalPulse : undefined,
-      boundarySide: lastOutDirection !== null
-        ? (lastOutDirection ? 'right' : 'left')
+      // 多数投票：窗口内出膜样本中方向占多数的为边界侧
+      boundarySide: outCount > 0
+        ? (outRightCount > outCount / 2 ? 'right' : 'left')
         : (motionDirection ? 'right' : 'left'),
     }
   }
 
   const reset = () => {
-    outRing.fill(false)
+    outRing.fill(null)
     inRing.fill(false)
     outRingIdx = 0
     inRingIdx = 0
@@ -126,7 +131,7 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
     inRingFilled = false
     outCount = 0
     inCount = 0
-    lastOutDirection = null
+    outRightCount = 0
     boundaryRecorded = false
     effectiveMinThickness = minThickness
   }
