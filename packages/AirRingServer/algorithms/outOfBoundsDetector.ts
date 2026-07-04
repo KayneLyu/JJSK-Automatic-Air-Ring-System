@@ -1,9 +1,11 @@
 /**
  * 出膜检测器
  *
- * 基于滑动窗口 + 百分比阈值检测，比连续计数更鲁棒：
+ * 基于滑动窗口 + 百分比阈值检测：
  * - 出膜：最近 outWindowSize 个样本中 ≥ outThreshold 比例判为出膜
  * - 入膜：最近 inWindowSize 个样本中 ≥ inThreshold 比例判为入膜
+ *
+ * 运动方向基于脉冲位移趋势判定（脉冲变化≥10才更新），比逐采样 motionDirection 鲁棒。
  */
 import { calcThickness, type ThicknessCalcConfig } from './thickness'
 
@@ -57,7 +59,10 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
   let inRingFilled = false
   let outCount = 0 // 窗口内出膜样本数
   let inCount = 0  // 窗口内入膜样本数
-  let outRightCount = 0 // 窗口内出膜且方向为右的样本数
+
+  // 运动方向：基于脉冲位置变化趋势判定（比逐采样 pulse>=lastPulse 更鲁棒）
+  let trendPulse: number | null = null // 用于方向判定的参考脉冲
+  let trendDirection: boolean | null = null // true=右, false=左, null=未知
 
   let boundaryRecorded = false
 
@@ -69,22 +74,24 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
     const thickness = calcThickness(probeValue, thicknessConfig)
     const outOfBounds = thickness < effectiveMinThickness
 
+    // ── 运动方向趋势（基于脉冲位移，比逐采样 direction 鲁棒） ──
+    if (trendPulse === null) {
+      trendPulse = horizontalPulse
+      trendDirection = null
+    } else if (Math.abs(horizontalPulse - trendPulse) >= 10) {
+      trendDirection = horizontalPulse > trendPulse
+      trendPulse = horizontalPulse
+    }
+
     // ── 出膜窗口 ──
     {
       const oldOut = outRing[outRingIdx]
-      outRing[outRingIdx] = outOfBounds ? motionDirection : null
+      outRing[outRingIdx] = outOfBounds ? trendDirection : null
       outRingIdx = (outRingIdx + 1) % outWindowSize
       if (outRingIdx === 0) outRingFilled = true
-      if (oldOut !== null && oldOut !== false) {
-        outCount--
-        outRightCount--
-      } else if (oldOut === false) {
-        outCount--
-      }
-      if (outOfBounds) {
-        outCount++
-        if (motionDirection) outRightCount++
-      }
+      if (oldOut !== null && oldOut !== false) outCount--
+      else if (oldOut === false) outCount--
+      if (outOfBounds) outCount++
     }
 
     // ── 入膜窗口 ──
@@ -115,9 +122,9 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
       confirmedOutOfBounds: confirmedOut,
       confirmedInMembrane: confirmedIn,
       boundaryPulse: justNowConfirmed ? horizontalPulse : undefined,
-      // 多数投票：窗口内出膜样本中方向占多数的为边界侧
-      boundarySide: outCount > 0
-        ? (outRightCount > outCount / 2 ? 'right' : 'left')
+      // 基于脉冲位移趋势判定运动方向 → 边界侧
+      boundarySide: trendDirection !== null
+        ? (trendDirection ? 'right' : 'left')
         : (motionDirection ? 'right' : 'left'),
     }
   }
@@ -131,7 +138,8 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
     inRingFilled = false
     outCount = 0
     inCount = 0
-    outRightCount = 0
+    trendPulse = null
+    trendDirection = null
     boundaryRecorded = false
     effectiveMinThickness = minThickness
   }
