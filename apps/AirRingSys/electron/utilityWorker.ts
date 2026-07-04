@@ -275,6 +275,17 @@ function feedScannerMotionControl(sample: {
   ProbeValue: number
   HorizontalPulse: number
 }): void {
+  // ── 诊断：每5秒输出一次 guard 状态（限前30次避免刷屏） ──
+  if (!feedScannerMotionControl._diagLastLog || Date.now() - feedScannerMotionControl._diagLastLog > 5000) {
+    feedScannerMotionControl._diagLastLog = Date.now()
+    feedScannerMotionControl._diagCount = (feedScannerMotionControl._diagCount ?? 0) + 1
+    if (feedScannerMotionControl._diagCount <= 30) {
+      post({
+        type: 'error',
+        message: `[ScannerMotion-DEBUG] guard: scannerCtrl=${!!scannerCtrl} enabled=${scannerMotionEnabled}`,
+      })
+    }
+  }
   if (!scannerCtrl || !scannerMotionEnabled) return
 
   // 从连续位置变化推导运动方向（ADBox 不直接提供 MotionDirection）
@@ -1065,6 +1076,10 @@ process.parentPort.on('message', (event) => {
       // 每次扫描开始时用最新配置重建控制器（运行时修改 airAD/toleranceMs 即时生效）
       initScannerMotionControl(msg.airAD, msg.toleranceMs)
       scannerMotionEnabled = true
+      post({
+        type: 'error',
+        message: `[ScannerMotion-DEBUG] enable: scannerCtrl=${!!scannerCtrl} enabled=${scannerMotionEnabled} airAD=${msg.airAD ?? 'inherit'}`,
+      })
       console.log(
         `[UtilityWorker] 扫描仪运动控制 → 开启` +
         ` airAD=${msg.airAD ?? 'inherit'} toleranceMs=${msg.toleranceMs ?? 'inherit'}`

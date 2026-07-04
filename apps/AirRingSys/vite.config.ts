@@ -8,7 +8,7 @@ import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
-const sharedAlias = {
+const sharedAlias: Record<string, string> = {
   '@': join(__dirname, '/src'),
   '@jjsk/air-ring-server/electron': path.resolve(
     __dirname,
@@ -16,6 +16,13 @@ const sharedAlias = {
   ),
   '@jjsk/core': path.resolve(__dirname, '../../packages/core'),
   '@jjsk/ad-box': path.resolve(__dirname, '../../packages/Adbox-sdk'),
+}
+
+function resolveAirRingServer() {
+  return [
+    ...Object.entries(sharedAlias).map(([find, replacement]) => ({ find, replacement })),
+    { find: /^@jjsk\/air-ring-server\/(.+)$/, replacement: path.resolve(__dirname, '../../packages/AirRingServer/$1') },
+  ]
 }
 
 // https://vitejs.dev/config/
@@ -92,7 +99,7 @@ export default defineConfig({
       {
         entry: 'electron/utilityWorker.ts',
         vite: {
-          resolve: { alias: sharedAlias },
+          resolve: { alias: resolveAirRingServer() },
           build: {
             outDir: 'dist-electron',
             lib: {
