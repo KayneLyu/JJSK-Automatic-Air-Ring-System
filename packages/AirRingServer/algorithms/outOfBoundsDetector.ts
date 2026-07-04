@@ -43,24 +43,10 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
   let boundaryRecorded = false
 
   // ── 自动标定：前 N 个采样点收集膜厚，计算实际空气噪声水平 ──
+  // 目前关闭自动标定，直接使用配置的 minThickness（默认 5.0 μm）
+  // 原因：标定期可能混入膜内样本，导致 effectiveMinThickness 过高（20μm）
+  //       膜边缘厚度 5-10μm 被判为出膜 → 全膜内误触发 TOLERATING
   let effectiveMinThickness = minThickness
-  let calibrationSamples: number[] = []
-  const CALIBRATION_MAX = 200
-  const CALIBRATION_MIN_AIR = 30
-  const FILM_JUMP_THRESHOLD = 20.0 // 膜厚超过此值认为已进入膜内
-
-  const finishCalibration = (): void => {
-    // 仅保留空气区样本（膜厚 < 跳变阈值）
-    const airSamples = calibrationSamples.filter((t) => t < FILM_JUMP_THRESHOLD)
-    if (airSamples.length >= CALIBRATION_MIN_AIR) {
-      const sorted = [...airSamples].sort((a, b) => a - b)
-      const p95 = sorted[Math.floor(sorted.length * 0.95)]
-      // 自动阈值 = P95 × 3，限制在 2.0 ~ 20.0 μm
-      const auto = Math.min(Math.max(p95 * 3, 2.0), 20.0)
-      effectiveMinThickness = Math.max(auto, minThickness)
-    }
-    calibrationSamples = []
-  }
 
   const next = (
     probeValue: number,
@@ -68,14 +54,6 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
     motionDirection: boolean
   ): OutOfBoundsResult => {
     const thickness = calcThickness(probeValue, thicknessConfig)
-
-    // ── 自动标定阶段 ──
-    if (calibrationSamples.length < CALIBRATION_MAX) {
-      calibrationSamples.push(thickness)
-      if (thickness > FILM_JUMP_THRESHOLD || calibrationSamples.length >= CALIBRATION_MAX) {
-        finishCalibration()
-      }
-    }
 
     // 基于膜厚判定出膜（厚度低于有效阈值 = 探头在空气区）
     const outOfBounds = thickness < effectiveMinThickness
@@ -117,7 +95,6 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
     outCount = 0
     inCount = 0
     boundaryRecorded = false
-    calibrationSamples = []
     effectiveMinThickness = minThickness
   }
 
