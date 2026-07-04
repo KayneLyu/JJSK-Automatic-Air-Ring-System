@@ -32,7 +32,7 @@ export interface OutOfBoundsResult {
 }
 
 export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
-  const { airAD, confirmCount = 3, minThickness = 1.0 } = options
+  const { airAD, confirmCount = 10, minThickness = 1.0 } = options
   const thicknessConfig: ThicknessCalcConfig = { airAD }
 
   let outCount = 0
@@ -60,7 +60,7 @@ export const outOfBoundsDetector = (options: OutOfBoundsDetectorOptions) => {
         outCount = 0
         boundaryRecorded = false
       }
-      // 未确认回膜时不重置 outCount，防止膜边缘 AD 振荡导致出膜判定失败
+      // 未确认回膜时不重置 outCount，防止膜边缘厚度振荡导致出膜判定失败
     }
 
     const confirmedOut = outCount >= confirmCount
