@@ -232,7 +232,7 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
         } else if (detection.confirmedInMembrane) {
           // 回到膜内 — 但必须离出膜点足够远（防止边缘假回膜）
           const distFromEdge = Math.abs(pulse - (turnStartPulse ?? pulse))
-          if (distFromEdge >= 100) {
+          if (distFromEdge >= 500) {
             state = 'IN_MEMBRANE'
             turnStartTime = null
             turnStartPulse = null
