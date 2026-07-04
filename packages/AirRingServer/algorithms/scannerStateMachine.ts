@@ -230,17 +230,14 @@ export const scannerStateMachine = (options: ScannerStateMachineOptions = {}) =>
             turnStartPulse = pulse
           }
         } else if (detection.confirmedInMembrane) {
-          // 回到膜内 — 但必须离出膜点足够远（防止边缘假回膜）
-          const distFromEdge = Math.abs(pulse - (turnStartPulse ?? pulse))
-          if (distFromEdge >= 500) {
-            state = 'IN_MEMBRANE'
-            turnStartTime = null
-            turnStartPulse = null
-            expectedTurnDirection = null
-            lastBoundarySide = null
-            log = makeLog(prevState, state, 'confirmed-in-membrane',
-              ` pulse=${pulse} distFromEdge=${distFromEdge}`)
-          }
+          // 回到膜内（confirmInCount=50 已确保深入膜内，无需额外 distFromEdge 检查）
+          state = 'IN_MEMBRANE'
+          turnStartTime = null
+          turnStartPulse = null
+          expectedTurnDirection = null
+          lastBoundarySide = null
+          log = makeLog(prevState, state, 'confirmed-in-membrane',
+            ` pulse=${pulse}`)
         }
         break
 
