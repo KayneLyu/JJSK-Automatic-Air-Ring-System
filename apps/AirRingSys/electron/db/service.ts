@@ -45,6 +45,7 @@ import migrationSqlV1 from './migrations/0001_double_trip_model.sql?raw'
 import migrationSqlV2 from './migrations/0002_pos1_remove_calib.sql?raw'
 import migrationSqlV3 from './migrations/0003_membrane_pulse_bounds.sql?raw'
 import migrationSqlV4 from './migrations/0004_drop_scan_pass_fk.sql?raw'
+import migrationSqlV5 from './migrations/0005_drop_scan_pass_summary.sql?raw'
 import { FrameRow, RotationRawRow } from './types'
 import type { ThicknessRawRow } from '@/types/ipc'
 import type { RotationTripSummaryRow } from '@/types/ipc'
@@ -178,6 +179,18 @@ export class SQLiteService {
           this.sqliteDb.exec(trimmed)
         } catch (e) {
           console.error('[SQLite] v4 migration error:', e)
+        }
+      }
+    }
+
+    // v5: 移除 scan_pass_summary（死表，从无消费者）
+    for (const chunk of migrationSqlV5.split('--> statement-breakpoint\n')) {
+      const trimmed = chunk.trim()
+      if (trimmed && !trimmed.startsWith('--')) {
+        try {
+          this.sqliteDb.exec(trimmed)
+        } catch (e) {
+          console.error('[SQLite] v5 migration error:', e)
         }
       }
     }

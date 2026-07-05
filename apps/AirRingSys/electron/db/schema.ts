@@ -97,24 +97,3 @@ export const scanPass = sqliteTable(
     index('idx_scan_pass_status').on(t.status),
   ]
 )
-
-// ── 双趟模型：扫描趟摘要 ──
-export const scanPassSummary = sqliteTable(
-  'scan_pass_summary',
-  {
-    id: integer().primaryKey({ autoIncrement: true }),
-    scanPassId: integer('scan_pass_id')
-      .notNull()
-      .references(() => scanPass.id),
-    profileBinsJson: text('profile_bins_json').notNull().default('[]'),
-    // JSON: { offsetDeg: number, avgThickness: number }[]
-    qualityScore: real('quality_score').notNull().default(0), // 0-1 综合质量分
-    candidateFanIndicesJson: text('candidate_fan_indices_json')
-      .notNull()
-      .default('[]'), // number[] 候选风道索引
-    createdAt: integer('created_at').notNull(),
-  },
-  (t) => [
-    index('idx_scan_pass_summary_sp').on(t.scanPassId),
-  ]
-)
