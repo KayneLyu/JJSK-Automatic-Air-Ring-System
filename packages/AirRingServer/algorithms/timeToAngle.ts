@@ -135,3 +135,31 @@ export const buildAdaptiveTimeToAngle = (
     return isForward ? totalAngle : 0
   }
 }
+
+/**
+ * 简化版时间-角度映射：假设全程匀速运转
+ *
+ * 适用场景：上旋加减速段仅 ~20s/端，占总行程比例小（<15%），
+ * 匀速假设对膜泡厚度重构的全局影响可忽略（端部角度偏差被批量最小二乘平均）。
+ *
+ * 与 buildTimeToAngle 的区别：
+ * - 不需要分段加速/匀速/减速模型
+ * - 不需要 S 形平滑校正
+ * - 仅依赖 θ_max 和 T_half，计算 O(1)
+ *
+ * @param thetaMaxDeg  上旋最大角度 (°)
+ * @param T_half       单程估计时间 (ms)
+ * @returns (elapsedMs, isForward) => angleDeg
+ */
+export const buildLinearTimeToAngle = (
+  thetaMaxDeg: number,
+  T_half: number
+): ((t: number, isForward: boolean) => number) => {
+  const omega = thetaMaxDeg / T_half
+  return (t: number, isForward: boolean): number => {
+    if (t <= 0) return isForward ? 0 : thetaMaxDeg
+    if (t >= T_half) return isForward ? thetaMaxDeg : 0
+    const theta = omega * t
+    return isForward ? theta : thetaMaxDeg - theta
+  }
+}

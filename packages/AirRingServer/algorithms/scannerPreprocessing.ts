@@ -1,4 +1,5 @@
 import { calcThickness } from './thickness'
+import { buildLinearTimeToAngle } from './timeToAngle'
 import { computePhiPair } from './bubbleReconstruction/geometry'
 import type {
   AirADFallbackSuggestion,
@@ -213,6 +214,54 @@ export const getUpperSweepsCoverage = (
   }
 }
 
+/**
+ * 从上旋趟列表中估计最近的单程时间（中位数）
+ * 取最近 recentCount 个已完成趟的 cycleDurationMs 中位数，
+ * 比均值更抗离群值（如某趟因故障异常偏长/偏短）。
+ *
+ * @returns 估计的 T_half (ms)，无可用的已完成趟时返回 null
+ */
+export const estimateAverageTHalf = (
+  sweeps: readonly RotationTripLike[],
+  recentCount: number = 5
+): number | null => {
+  const completed = sweeps.filter((s) => s.cycleDurationMs > 0)
+  if (completed.length === 0) return null
+  const recent = completed.slice(-Math.min(recentCount, completed.length))
+  const sorted = recent.map((s) => s.cycleDurationMs).sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  const median =
+    sorted.length % 2 === 0
+      ? (sorted[mid - 1]! + sorted[mid]!) / 2
+      : sorted[mid]!
+  return median > 0 ? median : null
+}
+
+/**
+ * 查找指定时间戳之前最近的上旋换向点
+ *
+ * 与 findUpperSweepAt 不同：不需要 ts 严格落在某趟的 [time, time+cycleDurationMs] 区间内，
+ * 只找 startTs <= ts 的最新趟作为换向参考点。
+ *
+ * @returns { reversalTs, isForward } 或 null（没有可用的换向点）
+ */
+export const findUpperReversalAt = (
+  sweeps: readonly RotationTripLike[],
+  ts: number
+): { reversalTs: number; isForward: boolean } | null => {
+  let best: RotationTripLike | null = null
+  for (const s of sweeps) {
+    if (s.time <= ts && (!best || s.time > best.time)) {
+      best = s
+    }
+  }
+  if (!best) return null
+  return {
+    reversalTs: best.time,
+    isForward: best.direction === 'forward',
+  }
+}
+
 /** 合并多个 buildMeasurements 结果 */
 export const mergeMeasurementBuildResults = (
   builds: readonly MeasurementBuildResult[]
@@ -372,6 +421,211 @@ export const buildMeasurements = (
       droppedLateCount: gapStats.droppedLateCount,
       droppedLateRatio:
         samples.length > 0 ? gapStats.droppedLateCount / samples.length : 0,
+      transportDelayMs,
+    },
+  }
+}
+
+/**
+ * 从扫描点 + 上旋换向时间构建测量三元组（线性匀速 timeToAngle 版）
+ *
+ * 与 buildMeasurements 的核心区别：
+ * - 不依赖完整上旋趟的 cycleDurationMs，改用最近历史趟的 T_half 均值估计
+ * - timeToAngle 简化为全程匀速线性映射（O(1)）
+ * - 通过 findUpperReversalAt 查找换向点，不再要求 ts 严格落在某趟内
+ *
+ * 时间容忍度：允许样本超出 estimatedTHalf 的 30%（约 54s），
+ * 超出该范围的样本视为已被下一趟覆盖，跳过不处理。
+ *
+ * 退避策略：当历史数据不足以估算 T_half 时，自动回退到 buildMeasurements。
+ *
+ * @param overrideTHalf 可选，强制使用指定的 T_half（用于相关性驱动的自适应校准）
+ */
+export const buildMeasurementsFromReversal = (
+  samples: readonly ScannerSampleLike[],
+  airAD: number,
+  gain: number,
+  transportDelayMs: number,
+  upperSweeps: readonly RotationTripLike[],
+  params: MeasurementParams,
+  pulseBounds?: SweepBoundsLike,
+  emitDiagnostics = false,
+  overrideTHalf?: number
+): MeasurementBuildResult => {
+  const estimatedTHalf = overrideTHalf ?? estimateAverageTHalf(upperSweeps)
+
+  // 无可用的 T_half 估计 → 回退到标准方法
+  if (estimatedTHalf === null || estimatedTHalf <= 0) {
+    console.warn(
+      '[buildMeasurementsFromReversal] 无可用上旋趟估计 T_half，回退到标准 buildMeasurements'
+    )
+    return buildMeasurements(
+      samples, airAD, gain, transportDelayMs,
+      upperSweeps, params, pulseBounds, emitDiagnostics
+    )
+  }
+
+  const timeToAngle = buildLinearTimeToAngle(params.thetaMaxDeg, estimatedTHalf)
+
+  const all: MeasurementTripleInput[] = []
+  const { min: boundsMin, max: boundsMax } = boundsOf(pulseBounds)
+  const hasBounds =
+    boundsMin != null &&
+    boundsMax != null &&
+    Number.isFinite(boundsMin) &&
+    Number.isFinite(boundsMax) &&
+    boundsMax > boundsMin
+  const pulseCenter = hasBounds ? (boundsMin + boundsMax) / 2 : 0
+  const pulseHalfSpan = hasBounds ? (boundsMax - boundsMin) / 2 : 0
+
+  // 时间容忍度：允许样本超出 estimatedTHalf 30%
+  const maxElapsedMs = estimatedTHalf * 1.3
+
+  // 加减速段跳过：上旋两端 ~10s 加减速期间匀速模型角度偏差大，跳过这些测量
+  // 注意：窗口不能太大，否则会跳过大量有效数据（特别是短扫描趟）
+  const ACCEL_ZONE_MS = 10_000
+  const accelZoneEnd = Math.min(ACCEL_ZONE_MS, estimatedTHalf * 0.08)
+  const decelZoneStart = Math.max(estimatedTHalf - ACCEL_ZONE_MS, estimatedTHalf * 0.92)
+
+  let skippedOutOfRange = 0
+  let skippedNoReversal = 0
+  let skippedAccelZone = 0
+
+  for (const sample of samples) {
+    if (sample.ad <= 0 || sample.ad >= airAD) continue
+    const alignedTs = sample.ts - transportDelayMs
+    const reversal = findUpperReversalAt(upperSweeps, alignedTs)
+    if (!reversal) {
+      skippedNoReversal++
+      continue
+    }
+
+    const elapsed = alignedTs - reversal.reversalTs
+    // 超出容忍范围的样本（可能属于下一趟或上一趟）直接跳过
+    if (elapsed < 0 || elapsed > maxElapsedMs) {
+      skippedOutOfRange++
+      continue
+    }
+
+    // 跳过加减速段：匀速模型在这些区域角度偏差大
+    if (elapsed < accelZoneEnd || elapsed > decelZoneStart) {
+      skippedAccelZone++
+      continue
+    }
+
+    const theta = timeToAngle(elapsed, reversal.isForward)
+    const pulse = pulseOf(sample)
+    const x = hasBounds
+      ? ((pulse - pulseCenter) / pulseHalfSpan) * (params.membraneWidthMm / 2)
+      : pulse * params.mmPerPulse
+    const thickness = calcThickness(sample.ad, { airAD, gain })
+    if (thickness <= 0) continue
+    all.push({
+      upperAngleDeg: theta,
+      scannerPosMm: x,
+      thickness,
+      timestamp: sample.ts,
+    })
+  }
+
+  if (all.length === 0) {
+    return {
+      measurements: [],
+      stats: {
+        totalSamples: samples.length,
+        totalMeasurements: 0,
+        edgeRejectedCount: 0,
+        edgeRejectedRatio: 0,
+        droppedLateCount: skippedOutOfRange + skippedNoReversal,
+        droppedLateRatio:
+          samples.length > 0
+            ? (skippedOutOfRange + skippedNoReversal) / samples.length
+            : 0,
+        transportDelayMs,
+      },
+    }
+  }
+
+  if (
+    emitDiagnostics &&
+    (skippedOutOfRange > 0 || skippedNoReversal > 0 || skippedAccelZone > 0)
+  ) {
+    console.warn(
+      `[buildMeasurementsFromReversal] skipped: outOfRange=${skippedOutOfRange} noReversal=${skippedNoReversal} accelZone=${skippedAccelZone} totalSamples=${samples.length} estimatedTHalf=${estimatedTHalf.toFixed(0)}ms accelEnd=${accelZoneEnd.toFixed(0)}ms decelStart=${decelZoneStart.toFixed(0)}ms`
+    )
+  }
+
+  // ---- δ 居中 + 边外过滤（与 buildMeasurements 相同逻辑） ----
+  const width = params.membraneWidthMm
+  const deltas = all.map((m) => (m.scannerPosMm / width) * 180)
+  deltas.sort((a, b) => a - b)
+  const deltaCenter = deltas[Math.floor(deltas.length / 2)] ?? 0
+  const minDelta = deltas[0] ?? 0
+  const maxDelta = deltas[deltas.length - 1] ?? 0
+  const halfSpan = Math.max(
+    Math.abs(minDelta - deltaCenter),
+    Math.abs(maxDelta - deltaCenter)
+  )
+  if (emitDiagnostics) {
+    console.log(
+      `[buildMeasurementsFromReversal] δ 中位数=${deltaCenter.toFixed(1)}° 半跨=${halfSpan.toFixed(1)}° (${minDelta.toFixed(0)}~${maxDelta.toFixed(0)})`
+    )
+  }
+
+  // 异常批次过滤：δ 中位数偏移 >20° 说明该批次样本被匹配到错误的换向点，θ 系统性偏差
+  if (Math.abs(deltaCenter) > 20) {
+    if (emitDiagnostics) {
+      console.warn(
+        `[buildMeasurementsFromReversal] 批次拒绝: |δ中位数|=${Math.abs(deltaCenter).toFixed(1)}° > 20°，疑似换向点匹配错误，丢弃 ${all.length} 条测量`
+      )
+    }
+    return {
+      measurements: [],
+      stats: {
+        totalSamples: samples.length,
+        totalMeasurements: 0,
+        edgeRejectedCount: all.length,
+        edgeRejectedRatio: 1,
+        // 不计入 droppedLateCount — 批次拒绝是 δ 偏移问题，不是 delay 问题
+        droppedLateCount: skippedOutOfRange + skippedNoReversal,
+        droppedLateRatio:
+          samples.length > 0
+            ? (skippedOutOfRange + skippedNoReversal) / samples.length
+            : 0,
+        transportDelayMs,
+      },
+    }
+  }
+
+  const triples: MeasurementTripleInput[] = []
+  let edgeRejected = 0
+  for (const m of all) {
+    const deltaCentered = (m.scannerPosMm / width) * 180 - deltaCenter
+    if (Math.abs(deltaCentered) > 90) {
+      edgeRejected++
+      continue
+    }
+    const centeredX = (deltaCentered / 180) * width
+    triples.push({ ...m, scannerPosMm: centeredX })
+  }
+  if (emitDiagnostics && edgeRejected > 0) {
+    console.log(
+      `[buildMeasurementsFromReversal] δ 居中后过滤 ${edgeRejected} 条边外测量(|δ|>90°)`
+    )
+  }
+
+  return {
+    measurements: triples,
+    stats: {
+      totalSamples: samples.length,
+      totalMeasurements: all.length,
+      edgeRejectedCount: edgeRejected,
+      edgeRejectedRatio: all.length > 0 ? edgeRejected / all.length : 0,
+      droppedLateCount: skippedOutOfRange + skippedNoReversal,
+      droppedLateRatio:
+        samples.length > 0
+          ? (skippedOutOfRange + skippedNoReversal) / samples.length
+          : 0,
       transportDelayMs,
     },
   }

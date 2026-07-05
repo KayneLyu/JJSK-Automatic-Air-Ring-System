@@ -74,6 +74,7 @@ export const rotationTrip = sqliteTable(
   ]
 )
 
+
 // ── 双趟模型：测厚仪扫描趟 ──
 export const scanPass = sqliteTable(
   'scan_pass',
