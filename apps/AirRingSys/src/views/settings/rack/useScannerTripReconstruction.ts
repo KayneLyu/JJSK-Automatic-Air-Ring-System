@@ -32,6 +32,8 @@ import {
   RECON_REFRESH_INTERVAL_MS,
   UPPER_SWEEP_GAP_TOLERANCE_MS,
   MAX_EFFECTIVE_TRANSPORT_DELAY_MS,
+  HARD_MIN_THETA_COVERAGE_RATIO,
+  MIN_THETA_COVERAGE_RATIO,
 } from '@jjsk/air-ring-server/algorithms/scannerPreprocessing'
 import type {
   UpperSweepCoverage,
@@ -90,6 +92,7 @@ export function useScannerTripReconstruction() {
   const lastUpperSweepsRefreshAt = ref(0)
 
   const thicknessCfg = ref<ThicknessConfig>({ airAD: 50300, gain: 1.0 })
+  const angleOffsetDeg = ref(0)
   const calResults = ref<ICalibrationResults>({})
 
   async function loadConfigs() {
@@ -100,6 +103,8 @@ export function useScannerTripReconstruction() {
       if (dev?.airAD) thicknessCfg.value.airAD = Number(dev.airAD) || 50300
       if (dev?.materialGain)
         thicknessCfg.value.gain = Number(dev.materialGain) || 1.0
+      if (dev?.angleOffsetDeg)
+        angleOffsetDeg.value = Number(dev.angleOffsetDeg) || 0
     } catch {
       /* 默认值即可 */
     }
@@ -544,14 +549,14 @@ export function useScannerTripReconstruction() {
         measurements,
         p.thetaMaxDeg
       )
-      if (thetaCoverage.ratio < 0.65) {
+      if (thetaCoverage.ratio < HARD_MIN_THETA_COVERAGE_RATIO) {
         reconstructionHint.value = `上旋覆盖不足（θ p05=${thetaCoverage.p05.toFixed(0)}°, p95=${thetaCoverage.p95.toFixed(0)}°, 覆盖=${(thetaCoverage.ratio * 100).toFixed(1)}%）`
         console.warn(
           `[B(φ)] 跳过重构: 上旋覆盖严重不足 (thetaSpan=${thetaCoverage.span.toFixed(1)}°, ratio=${(thetaCoverage.ratio * 100).toFixed(1)}%, meas=${measurements.length})`
         )
         return null
       }
-      if (thetaCoverage.ratio < 0.75) {
+      if (thetaCoverage.ratio < MIN_THETA_COVERAGE_RATIO) {
         console.warn(
           `[B(φ)] 上旋覆盖偏低但继续重构: thetaSpan=${thetaCoverage.span.toFixed(1)}°, ratio=${(thetaCoverage.ratio * 100).toFixed(1)}%, meas=${measurements.length}`
         )
@@ -598,6 +603,12 @@ export function useScannerTripReconstruction() {
       const mStd = Math.sqrt(
         mThick.reduce((s, v) => s + (v - mMean) ** 2, 0) / mThick.length
       )
+      // 避免 Math.min/max(...largeArray) 栈溢出（measurements 可能 >100K）
+      let mMin = mThick[0] ?? 0, mMax = mThick[0] ?? 0
+      for (let i = 1; i < mThick.length; i++) {
+        if (mThick[i] < mMin) mMin = mThick[i]
+        if (mThick[i] > mMax) mMax = mThick[i]
+      }
       const pMin = Math.min(...result.profile)
       const pMax = Math.max(...result.profile)
       const pRange = pMax - pMin
@@ -615,7 +626,7 @@ window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) /
       )
       console.log(
         `[B(φ)] 测量: mean=${mMean.toFixed(2)}μm σ=${mStd.toFixed(2)}μm 
- 范围[${Math.min(...mThick).toFixed(1)},${Math.max(...mThick).toFixed(1)}]`
+ 范围[${mMin.toFixed(1)},${mMax.toFixed(1)}]`
       )
       console.log(
         `[B(φ)] 剖面: mean=${pMean.toFixed(2)}μm 范围[${pMin.toFixed(1)},${pMax.toFixed(1)}] 
@@ -964,6 +975,7 @@ window=${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) /
     lastUpdatedAt,
     errorMessage,
     thicknessCfg,
+    angleOffsetDeg,
     calResults,
     // actions
     prevTrip,

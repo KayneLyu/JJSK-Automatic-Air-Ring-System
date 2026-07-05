@@ -4,8 +4,7 @@
  * 替代原 sweepQueries.ts 的 6-CTE SQL 实时切分方案。
  * 所有扫描趟摘要查询直接走 scan_pass 表，O(log N) 索引查询替代 O(N) CTE。
  *
- * 扫描趟由 DataPipeline.scanPassDetector 在数据接收路径上实时写入，
- * 历史数据由 backfillScanPassesHistory() 一次性从 thickness_raw 回填。
+ * 扫描趟由 DataPipeline.scanPassDetector 在数据接收路径上实时写入。
  */
 import { desc, sql } from 'drizzle-orm'
 import type { drizzle } from 'drizzle-orm/better-sqlite3'

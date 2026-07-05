@@ -79,9 +79,6 @@ export const scanPass = sqliteTable(
   'scan_pass',
   {
     id: integer().primaryKey({ autoIncrement: true }),
-    rotationTripId: integer('rotation_trip_id').references(
-      () => rotationTrip.id
-    ),
     startTs: integer('start_ts').notNull(),
     endTs: integer('end_ts').notNull(),
     scannerDirection: integer('scanner_direction').notNull(), // 1=正向扫描, 0=反向扫描
@@ -98,7 +95,6 @@ export const scanPass = sqliteTable(
   (t) => [
     index('idx_scan_pass_ts').on(t.startTs, t.endTs),
     index('idx_scan_pass_status').on(t.status),
-    index('idx_scan_pass_rt').on(t.rotationTripId),
   ]
 )
 

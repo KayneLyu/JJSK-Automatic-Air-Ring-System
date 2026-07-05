@@ -672,6 +672,7 @@ function registerIpcHandlers() {
       upperObjectiveMode: store?.get('upperObjectiveMode') ?? 'auto',
       airDuctCount: store?.get('airDuctCount') ?? '48',
       systemAirDuct1Angle: store?.get('systemAirDuct1Angle') ?? '0',
+      angleOffsetDeg: store?.get('angleOffsetDeg') ?? '0',
     }),
     'config-set-device-constants': async (_event: unknown, params: unknown) => {
       const p = params as {
@@ -685,6 +686,7 @@ function registerIpcHandlers() {
         upperObjectiveMode?: string
         airDuctCount?: string
         systemAirDuct1Angle?: string
+        angleOffsetDeg?: string
       }
       if (p.rollerMode !== undefined) store?.set('rollerMode', p.rollerMode)
       if (p.rollerValue !== undefined) store?.set('rollerValue', p.rollerValue)
@@ -703,6 +705,8 @@ function registerIpcHandlers() {
         store?.set('airDuctCount', p.airDuctCount)
       if (p.systemAirDuct1Angle !== undefined)
         store?.set('systemAirDuct1Angle', p.systemAirDuct1Angle)
+      if (p.angleOffsetDeg !== undefined)
+        store?.set('angleOffsetDeg', p.angleOffsetDeg)
       return { success: true }
     },
 

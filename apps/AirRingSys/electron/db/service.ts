@@ -6,11 +6,11 @@
  * - 批量缓冲写入（500ms flush 间隔）thickness_raw / rotation_raw / airRing_raw
  * - 原始数据查询委托给 rawQueries、扫描趟查询委托给 scanPassQueries
  * - 双趟模型写入：scan_pass（约 30s/趟）、rotation_trip（约 6-8min/趟）
- * - 首次启动自动回填历史 scan_pass 数据（6-CTE → scan_pass 一次性迁移）
  *
  * 运行在 Electron utilityProcess 中，不阻塞 UI 线程。
  */
 import Database from 'better-sqlite3'
+import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
@@ -28,7 +28,6 @@ import {
   queryAllSweepSummaries,
 } from './scanPassQueries'
 import { importSweep, cleanup, queryFramesByTimeRange } from './sweepExport'
-import { backfillScanPassesHistory } from './backfillHistory'
 import {
   queryThicknessRaw,
   countThicknessRawInRange,
@@ -41,15 +40,11 @@ import {
   queryLatestRotationRaw,
   queryLatestDirectionChanges,
 } from './rawQueries'
-import { detectBimodalThreshold } from '@jjsk/air-ring-server/electron'
-import {
-  MIN_MEMBRANE_PULSE_SPAN,
-  MIN_SCAN_PULSE_SPAN,
-} from './scanPassDetector'
 import migrationSql from './migrations/0000_glossy_bloodstrike.sql?raw'
 import migrationSqlV1 from './migrations/0001_double_trip_model.sql?raw'
 import migrationSqlV2 from './migrations/0002_pos1_remove_calib.sql?raw'
 import migrationSqlV3 from './migrations/0003_membrane_pulse_bounds.sql?raw'
+import migrationSqlV4 from './migrations/0004_drop_scan_pass_fk.sql?raw'
 import { FrameRow, RotationRawRow } from './types'
 import type { ThicknessRawRow } from '@/types/ipc'
 import type { RotationTripSummaryRow } from '@/types/ipc'
@@ -105,8 +100,7 @@ export class SQLiteService {
   /**
    * 初始化数据库：
    * 1. 创建目录 + 打开 SQLite
-   * 2. 执行 v0 + v1 迁移（IF NOT EXISTS，幂等）
-   * 3. 首次启动时从 thickness_raw 回填历史 scan_pass 数据（setImmediate 异步）
+ * 2. 执行 v0-v4 幂等迁移
    */
   init(dbDir: string): void {
     mkdirSync(dbDir, { recursive: true })
@@ -175,6 +169,19 @@ export class SQLiteService {
       }
     }
 
+    // v4: 移除 scan_pass.rotation_trip_id（死 FK，从无消费者）
+    for (const chunk of migrationSqlV4.split('--> statement-breakpoint\n')) {
+      const trimmed = chunk.trim()
+      if (trimmed && !trimmed.startsWith('--')) {
+        if (shouldSkipV2Chunk(this.sqliteDb, trimmed)) continue
+        try {
+          this.sqliteDb.exec(trimmed)
+        } catch (e) {
+          console.error('[SQLite] v4 migration error:', e)
+        }
+      }
+    }
+
     // Post-migration repair: ensure pos1 exists in thickness_raw.
     // The v0 migration was modified in-place (commit eb32fa3) to include pos1.
     // Existing databases that predate this may have the v2 ADD COLUMN
@@ -218,26 +225,6 @@ export class SQLiteService {
 
     this.db = drizzle(this.sqliteDb, { schema })
     this.ready = true
-
-    // 首次启动：回填历史 scan_pass 数据
-    // backfillScanPassesHistory 自身幂等（scan_pass 非空时立即返回 0）。
-    try {
-      backfillScanPassesHistory(this.sqliteDb)
-    } catch (e) {
-      console.error('[Backfill] 历史回填失败:', e)
-    }
-
-    try {
-      this.revalidateBackfilledScanPassesByBimodal()
-    } catch (e) {
-      console.error('[Backfill] scan_pass 双峰复核失败:', e)
-    }
-
-    try {
-      this.backfillRotationTripsFromDirectionChanges()
-    } catch (e) {
-      console.error('[Backfill] rotation_trip 回填失败:', e)
-    }
   }
 
   /** 关闭数据库：先 flush 缓冲区，再关闭连接 */
@@ -258,67 +245,6 @@ export class SQLiteService {
       | { id: number }
       | undefined
     return row?.id ?? 0
-  }
-
-  /**
-   * 从 rotation_raw 的方向变化事件回填 rotation_trip。
-   *
-   * 适配历史导入场景：旧导入链路仅写 rotation_raw，不会落 rotation_trip。
-   * 每次启动都会运行，只插入尚不存在的 trip（按 start_ts 去重）。
-   */
-  private backfillRotationTripsFromDirectionChanges(): number {
-    const dirChangeCount = (this.sqliteDb
-      .prepare(
-        'SELECT COUNT(*) AS cnt FROM rotation_raw WHERE forwardDirChange > 0 OR reverseDirChange > 0'
-      )
-      .get() as { cnt: number } | undefined)?.cnt ?? 0
-    if (dirChangeCount < 2) return 0
-
-    const now = Date.now()
-    const result = this.sqliteDb
-      .prepare(
-        `
-        WITH filtered AS (
-          SELECT timestamp AS ts,
-            CASE WHEN forwardDirChange > 0 THEN 1 WHEN reverseDirChange > 0 THEN 0 END AS direction
-          FROM rotation_raw
-          WHERE forwardDirChange > 0 OR reverseDirChange > 0
-        ),
-        unique_changes AS (
-          SELECT ts, direction FROM (
-            SELECT ts, direction, LAG(direction) OVER (ORDER BY ts) AS prev
-            FROM filtered
-          ) WHERE prev IS NULL OR direction != prev
-        ),
-        pairs AS (
-          SELECT ts AS start_ts, direction, LEAD(ts) OVER (ORDER BY ts) AS end_ts
-          FROM unique_changes
-        )
-        INSERT INTO rotation_trip (start_ts, end_ts, direction, status, created_at)
-        SELECT start_ts, end_ts, direction, 'estimated', ?
-        FROM pairs
-        WHERE end_ts IS NOT NULL
-          AND (end_ts - start_ts) >= ?
-          AND (end_ts - start_ts) <= ?
-          AND NOT EXISTS (SELECT 1 FROM rotation_trip rt WHERE rt.start_ts = pairs.start_ts)
-        `
-      )
-      .run(now, MIN_VALID_ROTATION_TRIP_MS, MAX_VALID_ROTATION_TRIP_MS)
-
-    const inserted = result.changes
-    if (inserted > 0) {
-      this.sqliteDb.exec(`
-        UPDATE scan_pass SET rotation_trip_id = (
-          SELECT rt.id FROM rotation_trip rt
-          WHERE scan_pass.start_ts >= rt.start_ts AND scan_pass.end_ts <= rt.end_ts
-          ORDER BY rt.start_ts ASC LIMIT 1
-        )
-        WHERE rotation_trip_id IS NULL
-      `)
-      console.log(`[Backfill] 从 rotation_raw 方向变化回填 rotation_trip: ${inserted} 条`)
-    }
-
-    return inserted
   }
 
   // ══ 批量缓冲写入 ══
@@ -555,104 +481,9 @@ export class SQLiteService {
   }
 
   /**
-   * 对历史/导入得到的 scan_pass 做双峰完整性复核，不满足则标记为 rejected。
-   *
-   * 复核两类行：
-   * 1) status=complete 且 valid_ratio=0（典型历史回填）
-   * 2) status=complete 且 pulse_span 过小（窄幅抖动误标 complete）
-   */
-  private revalidateBackfilledScanPassesByBimodal(): number {
-    const candidates = this.sqliteDb
-      .prepare(
-        `SELECT id, start_ts, end_ts, pulse_min, pulse_max
-         FROM scan_pass
-         WHERE status = 'complete'
-           AND (
-             valid_ratio = 0
-             OR (pulse_max - pulse_min) < ?
-           )
-         ORDER BY start_ts ASC`
-      )
-      .all(MIN_SCAN_PULSE_SPAN) as Array<{
-      id: number
-      start_ts: number
-      end_ts: number
-      pulse_min: number
-      pulse_max: number
-    }>
-    if (candidates.length === 0) return 0
-
-    const queryPoints = this.sqliteDb.prepare(
-      'SELECT pulse, ad FROM thickness_raw WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC'
-    )
-    const markRejected = this.sqliteDb.prepare(
-      "UPDATE scan_pass SET status = 'rejected' WHERE id = ?"
-    )
-
-    let rejected = 0
-    this.sqliteDb.exec('BEGIN')
-    try {
-      for (const row of candidates) {
-        if (row.pulse_max - row.pulse_min < MIN_SCAN_PULSE_SPAN) {
-          markRejected.run(row.id)
-          rejected += 1
-          continue
-        }
-        const points = queryPoints.all(row.start_ts, row.end_ts) as Array<{
-          pulse: number
-          ad: number
-        }>
-        if (points.length < 100) {
-          markRejected.run(row.id)
-          rejected += 1
-          continue
-        }
-        const ads = points.map((p) => p.ad)
-        const threshold = detectBimodalThreshold(ads)
-        if (threshold === null) {
-          markRejected.run(row.id)
-          rejected += 1
-          continue
-        }
-        let leadingPulse: number | null = null
-        let trailingPulse: number | null = null
-        for (let i = 0; i < points.length; i++) {
-          if (points[i].ad <= threshold) {
-            leadingPulse = points[i].pulse
-            break
-          }
-        }
-        for (let i = points.length - 1; i >= 0; i--) {
-          if (points[i].ad <= threshold) {
-            trailingPulse = points[i].pulse
-            break
-          }
-        }
-        if (leadingPulse === null || trailingPulse === null) {
-          markRejected.run(row.id)
-          rejected += 1
-          continue
-        }
-        if (Math.abs(trailingPulse - leadingPulse) < MIN_MEMBRANE_PULSE_SPAN) {
-          markRejected.run(row.id)
-          rejected += 1
-        }
-      }
-      this.sqliteDb.exec('COMMIT')
-    } catch (e) {
-      this.sqliteDb.exec('ROLLBACK')
-      throw e
-    }
-
-    if (rejected > 0) {
-      console.log(`[Backfill] scan_pass 双峰复核: rejected=${rejected}/${candidates.length}`)
-    }
-    return rejected
-  }
-
-  /**
-   * 写入一个已完成的上旋旋转趟（~6-8min）。
-   * 由 DataPipeline 在接收到 ForwardDirectionChange / ReverseDirectionChange 时调用。
+   * 写入一个新的上旋旋转趟（~6-8min）。
+   * 由 DataPipeline 在接收到 ForwardDirectionChange / ReverseDirectionChange 时调用，
+   * 初始状态为 pending，关闭时由 updateRotationTrip 更新 endTs 和 status。
    *
    * @returns 新插入行的 ID，失败返回 0
    */
@@ -671,21 +502,18 @@ export class SQLiteService {
   }
 
   /**
-   * 回填 scan_pass 的 rotation_trip_id。
+   * 更新旋转趟的结束时间和状态。
+   * 由 DataPipeline 在趟关闭时（下一次方向变化 / shutdown / Reset）调用。
    */
-  backfillScanPassRotationTrip(
-    rotationTripId: number,
-    startTs: number,
-    endTs: number
-  ): number {
-    if (!this.ready) return 0
-    const result = this.sqliteDb
-      .prepare(
-        `UPDATE scan_pass SET rotation_trip_id = ? WHERE rotation_trip_id IS NULL AND start_ts >= ? AND end_ts <= ?`
-      )
-      .run(rotationTripId, startTs, endTs)
-    return result.changes
+  updateRotationTrip(id: number, endTs: number, status: 'completed' | 'failed'): void {
+    if (!this.ready) return
+    this.db
+      .update(schema.rotationTrip)
+      .set({ endTs, status })
+      .where(eq(schema.rotationTrip.id, id))
+      .run()
   }
+
 }
 
 export { schema }

@@ -99,6 +99,8 @@ export type IDeviceConstants = {
   upperObjectiveMode: string
   airDuctCount: string
   systemAirDuct1Angle: string
+  /** B(φ) 剖面的角度偏移校准值（°），用于对齐重建 bin[0] 与实测膜泡 0° 参考点 */
+  angleOffsetDeg: string
 }
 
 export type ICalibrationResults = {

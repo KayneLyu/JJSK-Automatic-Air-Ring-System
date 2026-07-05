@@ -48,6 +48,7 @@ export class DataPipeline {
   private readonly scanPassDetector = createScanPassDetector()
 
   // ── 上旋旋转趟实时检测 ──
+  private currentTripId: number | null = null
   private rotationTripStartTs: number | null = null
   private rotationTripDirection: number | null = null
   private lastDirectionSignalTs: number | null = null
@@ -136,23 +137,10 @@ export class DataPipeline {
     }
 
     // 关闭当前上旋趟
-    if (
-      this.rotationTripStartTs !== null &&
-      this.rotationTripDirection !== null
-    ) {
+    if (this.currentTripId !== null) {
       const now = Date.now()
-      const tripId = this.sqlite.insertRotationTrip({
-        startTs: this.rotationTripStartTs,
-        endTs: now,
-        direction: this.rotationTripDirection,
-      })
-      if (tripId > 0) {
-        this.sqlite.backfillScanPassRotationTrip(
-          tripId,
-          this.rotationTripStartTs,
-          now
-        )
-      }
+      this.sqlite.updateRotationTrip(this.currentTripId, now, 'completed')
+      this.currentTripId = null
     }
 
     this.sqlite.flush()
@@ -255,6 +243,10 @@ export class DataPipeline {
 
     // 6. 上旋旋转趟实时检测
     if (data.Reset) {
+      if (this.currentTripId !== null) {
+        this.sqlite.updateRotationTrip(this.currentTripId, ts, 'failed')
+      }
+      this.currentTripId = null
       this.rotationTripStartTs = null
       this.rotationTripDirection = null
       this.lastDirectionSignalTs = null
@@ -282,10 +274,10 @@ export class DataPipeline {
       this.lastDirectionSignal = directionSignal
       this.lastDirectionSignalTs = ts
 
-      // 前一趟结束
+      // 前一趟结束：更新已写入的 pending 行
       if (
+        this.currentTripId !== null &&
         this.rotationTripStartTs !== null &&
-        this.rotationTripDirection !== null &&
         ts > this.rotationTripStartTs
       ) {
         const durationMs = ts - this.rotationTripStartTs
@@ -293,26 +285,21 @@ export class DataPipeline {
           durationMs >= this.MIN_ROTATION_TRIP_DURATION_MS &&
           durationMs <= this.MAX_ROTATION_TRIP_DURATION_MS
         ) {
-          const tripId = this.sqlite.insertRotationTrip({
-            startTs: this.rotationTripStartTs,
-            endTs: ts,
-            direction: this.rotationTripDirection,
-          })
-          // 回填该上旋趟时间范围内的 scan_pass
-          if (tripId > 0) {
-            this.sqlite.backfillScanPassRotationTrip(
-              tripId,
-              this.rotationTripStartTs,
-              ts
-            )
-          }
+          this.sqlite.updateRotationTrip(this.currentTripId, ts, 'completed')
         } else {
+          this.sqlite.updateRotationTrip(this.currentTripId, ts, 'failed')
           console.warn(
-            `[RotationTrip] 忽略异常趟: ${durationMs}ms (valid=[${this.MIN_ROTATION_TRIP_DURATION_MS},${this.MAX_ROTATION_TRIP_DURATION_MS}]ms)`
+            `[RotationTrip] 异常趟: ${durationMs}ms (valid=[${this.MIN_ROTATION_TRIP_DURATION_MS},${this.MAX_ROTATION_TRIP_DURATION_MS}]ms)`
           )
         }
       }
-      // 新一趟开始
+      // 新一趟开始：立即写入 pending 行
+      this.currentTripId = this.sqlite.insertRotationTrip({
+        startTs: ts,
+        endTs: ts,
+        direction: directionSignal,
+        status: 'pending',
+      })
       this.rotationTripStartTs = ts
       this.rotationTripDirection = directionSignal
     }

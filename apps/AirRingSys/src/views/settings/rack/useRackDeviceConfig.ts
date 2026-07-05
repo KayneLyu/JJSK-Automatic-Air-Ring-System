@@ -12,6 +12,8 @@ export interface RollerConfig {
 export interface ThicknessConfig {
   airAD: string
   materialGain: string
+  /** B(φ) 剖面角度偏移校准值（°） */
+  angleOffsetDeg: string
 }
 
 export interface UpperConfig {
@@ -55,6 +57,7 @@ export function useRackDeviceConfig() {
   const thicknessConfig = ref<ThicknessConfig>({
     airAD: '2048',
     materialGain: '1.0',
+    angleOffsetDeg: '0',
   })
   const upperConfig = ref<UpperConfig>({
     deltaMin: '180',
@@ -88,6 +91,7 @@ export function useRackDeviceConfig() {
       thicknessConfig.value = {
         airAD: params.airAD,
         materialGain: params.materialGain,
+        angleOffsetDeg: params.angleOffsetDeg,
       }
       upperConfig.value = {
         deltaMin: params.upperDeltaMin,
@@ -151,6 +155,7 @@ export function useRackDeviceConfig() {
         rollerNumCycles: rollerConfig.value.numCycles,
         airAD: thicknessConfig.value.airAD,
         materialGain: thicknessConfig.value.materialGain,
+        angleOffsetDeg: thicknessConfig.value.angleOffsetDeg,
         upperDeltaMin: upperConfig.value.deltaMin,
         upperDeltaMax: upperConfig.value.deltaMax,
         upperObjectiveMode: upperConfig.value.objectiveMode,

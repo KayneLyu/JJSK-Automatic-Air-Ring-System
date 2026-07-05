@@ -1,39 +1,40 @@
 /**
  * 构建角度-时间映射函数
+ *
+ * 运动模型：上旋往返旋转，每端加减速时间固定（约 20s），
+ * 中间匀速，而非旧版按行程时长的百分比分配。
  * */
 export const buildTimeToAngle = (
   thetaMaxDeg: number,
   T_half: number,
-  K: number
+  K: number,
+  accelTimePerEndMs: number = 20_000
 ) => {
   const totalAngle = (thetaMaxDeg * Math.PI) / 180
   const segmentAngle = totalAngle / K
 
-  // 改进1: 考虑加速减速的实际运动特性
-  // 假设：加速段占总时间的20%，匀速段60%，减速段20%
-  const accelRatio = 0.2
-  const constantRatio = 0.6
-  const decelRatio = 0.2
+  // 固定加减速时间，上限不超过行程的 30%（防止极短行程退化）
+  const rawAccelTime = accelTimePerEndMs
+  const maxAccelTime = T_half * 0.3
+  const accelTime = Math.min(rawAccelTime, maxAccelTime)
+  const constantTime = T_half - 2 * accelTime
 
-  // 改进2: 分段计算实际时间分配
-  const accelTime = T_half * accelRatio
-  const constantTime = T_half * constantRatio
-  const decelTime = T_half * decelRatio
+  const accelSegments = K * 0.2 // 前 20% 段用于加速
+  const constSegments = K * 0.6  // 中间 60% 段匀速
 
-  // 改进3: 每段的时间不再是固定的，而是根据运动特性分配
   const segmentTimes: number[] = []
   for (let i = 0; i < K; i++) {
-    if (i < K * 0.2) {
+    if (i < accelSegments) {
       // 前20%段：加速阶段，时间逐渐减少
-      const accelProgress = i / (K * 0.2)
-      segmentTimes.push((accelTime * (1.5 - 0.5 * accelProgress)) / (K * 0.2))
-    } else if (i < K * 0.8) {
+      const accelProgress = i / accelSegments
+      segmentTimes.push((accelTime * (1.5 - 0.5 * accelProgress)) / accelSegments)
+    } else if (i < accelSegments + constSegments) {
       // 中间60%段：匀速阶段
-      segmentTimes.push(constantTime / (K * 0.6))
+      segmentTimes.push(constantTime / constSegments)
     } else {
       // 后20%段：减速阶段，时间逐渐增加
-      const decelProgress = (i - K * 0.8) / (K * 0.2)
-      segmentTimes.push((decelTime * (1 + decelProgress)) / (K * 0.2))
+      const decelProgress = (i - accelSegments - constSegments) / accelSegments
+      segmentTimes.push((accelTime * (1 + decelProgress)) / accelSegments)
     }
   }
 
@@ -82,9 +83,9 @@ export const buildAdaptiveTimeToAngle = (
   const totalAngle = (thetaMaxDeg * Math.PI) / 180
   const segmentAngle = totalAngle / K
 
-  // 使用提供的运动参数或默认值
-  const accelTime = motionProfile?.accelerationTime || T_half * 0.2
-  const decelTime = motionProfile?.decelerationTime || T_half * 0.2
+  // 使用提供的运动参数或默认固定加减速时间
+  const accelTime = motionProfile?.accelerationTime || 20_000
+  const decelTime = motionProfile?.decelerationTime || 20_000
   const constantTime = Math.max(0, T_half - accelTime - decelTime)
 
   // 动态计算每段的时间分配

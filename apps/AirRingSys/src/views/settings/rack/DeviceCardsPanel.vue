@@ -221,6 +221,14 @@ function onMembraneWidthMmBlur() {
           >
             <template #prepend>补偿倍率</template>
           </el-input>
+          <el-input
+            v-model="thicknessConfig.angleOffsetDeg"
+            size="small"
+            placeholder="角度校准偏移（°）"
+            @blur="onConstantBlur"
+          >
+            <template #prepend>角度偏移（°）</template>
+          </el-input>
         </div>
         <div class="device-constants">
           <el-input

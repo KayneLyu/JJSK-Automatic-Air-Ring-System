@@ -33,7 +33,7 @@ export const MIN_P95_PHI_SEPARATION_DEG = 18
 /** θ 覆盖比例下限：低于该值说明上旋时间轴覆盖不足 */
 export const MIN_THETA_COVERAGE_RATIO = 0.75
 /** θ 覆盖比例硬下限：低于该值说明上旋覆盖严重不足，直接拒绝重构 */
-export const HARD_MIN_THETA_COVERAGE_RATIO = 0.65
+export const HARD_MIN_THETA_COVERAGE_RATIO = 0.50
 /** 时延上限（ms）：只拦截明显失真的配置值，避免把长距离合法时延误判为异常 */
 export const MAX_EFFECTIVE_TRANSPORT_DELAY_MS = 15 * 60_000
 /** 扫描趟摘要默认拉取数量（首屏） */
@@ -48,6 +48,9 @@ export const RECON_REFRESH_INTERVAL_MS = 5_000
 export const GAP_WARNING_SUMMARY_INTERVAL_MS = 15_000
 
 const TIME_TO_ANGLE_SEGMENTS = 60
+
+/** 上旋行程单端加减速时间（ms），物理上约 20 秒，不随行程时长缩放 */
+const ACCEL_TIME_PER_END_MS = 20_000
 
 interface InternalGapStats {
   droppedLateCount: number
@@ -68,7 +71,8 @@ let lastGapSummaryWarnAt = 0
 
 /**
  * 仿 packages/AirRingServer/algorithms/timeToAngle.ts::buildTimeToAngle
- * 简化版:采用与后端相同的 20/60/20 加减速分段 + S 形平滑
+ * 采用固定加减速时间（约 20s/端）+ 匀速段 + S 形平滑
+ * 而非旧版的 accelRatio=0.2（占比模型，与实际物理不匹配）
  */
 const timeToAngle = (
   t: number,
@@ -79,25 +83,28 @@ const timeToAngle = (
   const totalAngleDeg = thetaMaxDeg
   const segmentAngleDeg = totalAngleDeg / TIME_TO_ANGLE_SEGMENTS
 
-  const accelRatio = 0.2
-  const constantRatio = 0.6
-  const accelTime = tHalf * accelRatio
-  const constantTime = tHalf * constantRatio
+  // 固定加减速时间，上限不超过行程的 30%（防止极短行程退化）
+  const rawAccelTime = ACCEL_TIME_PER_END_MS
+  const maxAccelTime = tHalf * 0.3
+  const accelTime = Math.min(rawAccelTime, maxAccelTime)
+  const constantTime = tHalf - 2 * accelTime
+
+  const accelSegments = TIME_TO_ANGLE_SEGMENTS * 0.2 // 12
+  const constSegments = TIME_TO_ANGLE_SEGMENTS * 0.6 // 36
   const segmentTimes: number[] = []
   for (let i = 0; i < TIME_TO_ANGLE_SEGMENTS; i++) {
-    if (i < TIME_TO_ANGLE_SEGMENTS * 0.2) {
-      const accelProgress = i / (TIME_TO_ANGLE_SEGMENTS * 0.2)
+    if (i < accelSegments) {
+      const accelProgress = i / accelSegments
       segmentTimes.push(
-        (accelTime * (1.5 - 0.5 * accelProgress)) /
-          (TIME_TO_ANGLE_SEGMENTS * 0.2)
+        (accelTime * (1.5 - 0.5 * accelProgress)) / accelSegments
       )
-    } else if (i < TIME_TO_ANGLE_SEGMENTS * 0.8) {
-      segmentTimes.push(constantTime / (TIME_TO_ANGLE_SEGMENTS * 0.6))
+    } else if (i < accelSegments + constSegments) {
+      segmentTimes.push(constantTime / constSegments)
     } else {
       const decelProgress =
-        (i - TIME_TO_ANGLE_SEGMENTS * 0.8) / (TIME_TO_ANGLE_SEGMENTS * 0.2)
+        (i - accelSegments - constSegments) / accelSegments
       segmentTimes.push(
-        (accelTime * (1 + decelProgress)) / (TIME_TO_ANGLE_SEGMENTS * 0.2)
+        (accelTime * (1 + decelProgress)) / accelSegments
       )
     }
   }
