@@ -19,8 +19,6 @@ import type {
 
 /** 滑动窗口最大包含的扫描趟数 */
 export const SCANNER_SLIDING_WINDOW = 640
-/** 滑动窗口最大时间跨度 (ms)：超出此范围的趟不参与重构，防止跨工艺状态数据混杂 */
-export const WINDOW_MAX_TIME_SPAN_MS = 10 * 60_000
 /** 上旋趟匹配容忍间隙 (ms)：超过该值则丢弃该测点，避免错配到过时上旋趟 */
 export const UPPER_SWEEP_GAP_TOLERANCE_MS = 1_000
 /** 极小时间抖动忽略阈值 (ms)：避免 5~20ms 级别日志噪声 */
@@ -546,32 +544,11 @@ export const buildMeasurementsFromReversal = (
     }
   }
 
-  if (
-    emitDiagnostics &&
-    (skippedOutOfRange > 0 || skippedNoReversal > 0 || skippedAccelZone > 0)
-  ) {
-    console.warn(
-      `[buildMeasurementsFromReversal] skipped: outOfRange=${skippedOutOfRange} noReversal=${skippedNoReversal} accelZone=${skippedAccelZone} totalSamples=${samples.length} estimatedTHalf=${estimatedTHalf.toFixed(0)}ms accelEnd=${accelZoneEnd.toFixed(0)}ms decelStart=${decelZoneStart.toFixed(0)}ms`
-    )
-  }
-
   // ---- δ 居中 + 边外过滤（与 buildMeasurements 相同逻辑） ----
   const width = params.membraneWidthMm
   const deltas = all.map((m) => (m.scannerPosMm / width) * 180)
   deltas.sort((a, b) => a - b)
   const deltaCenter = deltas[Math.floor(deltas.length / 2)] ?? 0
-  const minDelta = deltas[0] ?? 0
-  const maxDelta = deltas[deltas.length - 1] ?? 0
-  const halfSpan = Math.max(
-    Math.abs(minDelta - deltaCenter),
-    Math.abs(maxDelta - deltaCenter)
-  )
-  if (emitDiagnostics) {
-    console.log(
-      `[buildMeasurementsFromReversal] δ 中位数=${deltaCenter.toFixed(1)}° 半跨=${halfSpan.toFixed(1)}° (${minDelta.toFixed(0)}~${maxDelta.toFixed(0)})`
-    )
-  }
-
   // 异常批次过滤：δ 中位数偏移 >20° 说明该批次样本被匹配到错误的换向点，θ 系统性偏差
   if (Math.abs(deltaCenter) > 20) {
     if (emitDiagnostics) {
@@ -608,12 +585,6 @@ export const buildMeasurementsFromReversal = (
     const centeredX = (deltaCentered / 180) * width
     triples.push({ ...m, scannerPosMm: centeredX })
   }
-  if (emitDiagnostics && edgeRejected > 0) {
-    console.log(
-      `[buildMeasurementsFromReversal] δ 居中后过滤 ${edgeRejected} 条边外测量(|δ|>90°)`
-    )
-  }
-
   return {
     measurements: triples,
     stats: {
@@ -705,8 +676,12 @@ export const estimateThetaCoverageStats = (
   const max = thetas[thetas.length - 1] ?? 0
   const p05 = thetas[p05Idx] ?? 0
   const p95 = thetas[p95Idx] ?? 0
-  const span = Math.max(0, p95 - p05)
-  return { min, max, p05, p95, span, ratio: span / thetaMaxDeg }
+  const span = Math.max(0, max - min)
+  // θ 和 θ+180° 测膜泡同一组经线（上旋杆跨直径，180° 即覆盖全周）
+  // coverage 只需 span/180°，θ_max 超过 180° 的部分是冗余覆盖
+  const effectiveMaxDeg = Math.min(thetaMaxDeg, 180)
+  const effectiveSpan = Math.min(span, effectiveMaxDeg)
+  return { min, max, p05, p95, span, ratio: effectiveSpan / effectiveMaxDeg }
 }
 
 /** 根据样本 ad 分布推测回退 airAD */
@@ -738,7 +713,8 @@ export const suggestFallbackAirAD = (
 /** 滑动窗口: baseline + 前 N-1 趟,受时间跨度约束 */
 export const getWindowTrips = <T extends Pick<SweepSummaryLike, 'sweepId' | 'startTs' | 'endTs'>>(
   allTrips: readonly T[],
-  baseline: T
+  baseline: T,
+  maxTimeSpanMs: number
 ): T[] => {
   const idx = allTrips.findIndex((sweep) => sweep.sweepId === baseline.sweepId)
   if (idx < 0) return [baseline]
@@ -747,7 +723,7 @@ export const getWindowTrips = <T extends Pick<SweepSummaryLike, 'sweepId' | 'sta
   let timeStart = countStart
   while (
     timeStart < idx &&
-    baselineStart - (allTrips[timeStart]?.startTs ?? baselineStart) > WINDOW_MAX_TIME_SPAN_MS
+    baselineStart - (allTrips[timeStart]?.startTs ?? baselineStart) > maxTimeSpanMs
   ) {
     timeStart += 1
   }

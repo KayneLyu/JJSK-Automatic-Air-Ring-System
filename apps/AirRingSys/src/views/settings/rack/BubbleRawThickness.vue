@@ -71,11 +71,7 @@ const syntheticSweep = computed<ExtendedBubbleSweepResult | null>(() => {
     const rotatedCov = new Array<number>(N)
     for (let i = 0; i < N; i++) rotatedCov[(i + binShift + N) % N] = binCoverage[i]
     binCoverage = rotatedCov
-    console.log(
-      `[B(φ) 显示] 角度校准: offset=${offDeg}° → 旋转 ${binShift}/${N} bin, ` +
-      `剖面均值=${(profile.reduce((a,b)=>a+b,0)/N).toFixed(1)}μm, ` +
-      `范围[${Math.min(...profile).toFixed(1)},${Math.max(...profile).toFixed(1)}]`
-    )
+
   }
 
   cachedSyntheticSweep = {

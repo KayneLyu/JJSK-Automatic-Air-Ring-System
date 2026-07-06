@@ -66,6 +66,9 @@ interface ReconstructedSweep {
   shiftedProfile?: number[]
 }
 
+/** 冷启动回退窗口：未加载上旋数据时，用 10 分钟保证首次重构有足够 θ 覆盖 */
+const COLD_START_WINDOW_MS = 10 * 60_000
+
 export function useScannerTripReconstruction() {
   // 上旋趟(用于 θ_max / 起始时间)
   const upperSweeps = ref<RotationTripSummaryRow[]>([])
@@ -87,6 +90,15 @@ export function useScannerTripReconstruction() {
   const errorMessage = ref<string | null>(null)
   const reconstructionHint = ref<string | null>(null)
   const transportDelayStatus = ref<string | null>(null)
+
+  /** 格式化时延显示：秒数 + T_half 占比 */
+  const fmtDelay = (delayMs: number, tHalfMs: number | null): string => {
+    const s = (delayMs / 1000).toFixed(0)
+    if (tHalfMs != null && tHalfMs > 0) {
+      return `τ = ${s}s / T½ ${(tHalfMs / 1000).toFixed(0)}s (${((delayMs / tHalfMs) * 100).toFixed(0)}%)`
+    }
+    return `τ = ${s}s`
+  }
   const isConnected = ref(false)
   const hasOlderData = ref(true)
   const lastUpperSweepsRefreshAt = ref(0)
@@ -346,12 +358,51 @@ export function useScannerTripReconstruction() {
     transportDelayStatus.value = null
     isReconstructing.value = true
     try {
-      const windowTrips = collectWindowTrips(sortedScannerTrips.value, baseline)
+      // 估算 T_half 决定滑动窗口时间跨度（至少 1.5 个半周期，保证 θ 覆盖完整）
+      await ensureUpperSweepsCoverage(
+        sortedScannerTrips.value[0]?.startTs ?? baseline.startTs - COLD_START_WINDOW_MS,
+        baseline.endTs
+      )
+      const estimatedTHalf = estimateAverageTHalf(upperSweeps.value)
+      const effectiveMaxSpan = estimatedTHalf != null && estimatedTHalf > 0
+        ? estimatedTHalf * 1.5
+        : COLD_START_WINDOW_MS
+      const windowTrips = collectWindowTrips(sortedScannerTrips.value, baseline, effectiveMaxSpan)
       const windowStartTs = windowTrips[0]?.startTs ?? baseline.startTs
       const windowEndTs = baseline.endTs
       await ensureUpperSweepsCoverage(windowStartTs, windowEndTs)
       // 并行加载窗口内所有 trips 的 samples(本地 SQLite,64 路并发 OK)
-      const batches = await Promise.all(windowTrips.map((t) => loadSamples(t)))
+      const rawBatches = await Promise.all(windowTrips.map((t) => loadSamples(t)))
+
+      // 过滤不完整扫描趟：脉冲实际跨度不到膜宽脉冲范围的 60% 视为不完整
+      // 不完整趟的扫描仪未完成双向横移，测量集中在单侧，会导致 δ 中位数偏移 → 批次拒绝
+      const MIN_BATCH_PULSE_SPAN_RATIO = 0.60
+      const validIndices: number[] = []
+      const skippedSpanRatios: string[] = []
+      for (let i = 0; i < rawBatches.length; i++) {
+        const pts = rawBatches[i]!
+        if (pts.length === 0) continue
+        const trip = windowTrips[i]!
+        const pMin = trip.membranePulseMin
+        const pMax = trip.membranePulseMax
+        if (pMin != null && pMax != null && pMax > pMin) {
+          const pulses = pts.map((p) => p.pos)
+          const actualSpan = Math.max(...pulses) - Math.min(...pulses)
+          const ratio = actualSpan / (pMax - pMin)
+          if (ratio < MIN_BATCH_PULSE_SPAN_RATIO) {
+            skippedSpanRatios.push(`${trip.sweepId.slice(-8)}(${(ratio * 100).toFixed(0)}%)`)
+            continue
+          }
+        }
+        validIndices.push(i)
+      }
+      const batches = validIndices.map((i) => rawBatches[i]!)
+      const validWindowTrips = validIndices.map((i) => windowTrips[i]!)
+      if (skippedSpanRatios.length > 0) {
+        console.warn(
+          `[B(φ)] 跳过 ${skippedSpanRatios.length} 趟不完整扫描（脉冲跨度<${MIN_BATCH_PULSE_SPAN_RATIO * 100}%）: ${skippedSpanRatios.join(', ')}`
+        )
+      }
       const allSamples: SweepPoint[] = []
       for (const pts of batches) allSamples.push(...pts)
       const transportDelayMs = getEffectiveTransportDelayMs()
@@ -375,7 +426,7 @@ export function useScannerTripReconstruction() {
         Number.isFinite(rawDelayMs) &&
         rawDelayMs > MAX_EFFECTIVE_TRANSPORT_DELAY_MS
       ) {
-        delayStatusPrefix = `delay异常 ${rawDelayMs.toFixed(0)}ms（>${MAX_EFFECTIVE_TRANSPORT_DELAY_MS}ms），已按0ms`
+        delayStatusPrefix = `τ 异常（>${(MAX_EFFECTIVE_TRANSPORT_DELAY_MS / 1000 / 60).toFixed(0)}min），已按 0s`
       }
       const mParams = measurementParams.value
       const sweeps = upperSweeps.value
@@ -397,7 +448,7 @@ export function useScannerTripReconstruction() {
               delayMs,
               sweeps,
               mParams,
-              windowTrips[idx],
+              validWindowTrips[idx],
               diagnostics
             )
           )
@@ -463,7 +514,7 @@ export function useScannerTripReconstruction() {
             `[B(φ)] transportDelay 搜索: ${preferredDelayMs.toFixed(0)}ms -> ${bestDelay.toFixed(0)}ms ` +
               `(meas=${primaryBuild.measurements.length}->${chosenBuild.measurements.length}, edgeReject=${(primaryBuild.stats.edgeRejectedRatio * 100).toFixed(1)}%->${(chosenBuild.stats.edgeRejectedRatio * 100).toFixed(1)}%, thetaCov=${(estimateThetaCoverageStats(primaryBuild.measurements, p.thetaMaxDeg).ratio * 100).toFixed(1)}%->${(bestThetaCoverageRatio * 100).toFixed(1)}%)`
           )
-          transportDelayStatus.value = `delay搜索 ${preferredDelayMs.toFixed(0)}ms→${bestDelay.toFixed(0)}ms（meas ${primaryBuild.measurements.length}→${chosenBuild.measurements.length}）`
+          transportDelayStatus.value = `τ 搜索 ${fmtDelay(preferredDelayMs, baseTHalf)}→${fmtDelay(bestDelay, baseTHalf)}（meas ${primaryBuild.measurements.length}→${chosenBuild.measurements.length}）`
         }
       }
 
@@ -482,17 +533,17 @@ export function useScannerTripReconstruction() {
                 `(droppedLate=${primaryBuild.stats.droppedLateCount}/${primaryBuild.stats.totalSamples}, ` +
                 `meas=${primaryBuild.measurements.length}->${zeroDelayBuild.measurements.length})`
             )
-            transportDelayStatus.value = `delay回退 ${preferredDelayMs.toFixed(0)}ms→0ms（meas ${primaryBuild.measurements.length}→${zeroDelayBuild.measurements.length}）`
+            transportDelayStatus.value = `τ 回退 ${fmtDelay(preferredDelayMs, baseTHalf)}→0s（meas ${primaryBuild.measurements.length}→${zeroDelayBuild.measurements.length}）`
             chosenBuild = zeroDelayBuild
           } else {
-            transportDelayStatus.value = `delay保持 ${preferredDelayMs.toFixed(0)}ms（回退收益不足）`
+            transportDelayStatus.value = `τ 保持 ${fmtDelay(preferredDelayMs, baseTHalf)}（收益不足）`
           }
         } else {
           transportDelayStatus.value =
-            delayStatusPrefix ?? `delay ${preferredDelayMs.toFixed(0)}ms`
+            delayStatusPrefix ?? fmtDelay(preferredDelayMs, baseTHalf)
         }
       } else {
-        transportDelayStatus.value = delayStatusPrefix ?? 'delay 0ms'
+        transportDelayStatus.value = delayStatusPrefix ?? 'τ = 0s'
       }
 
       if (chosenBuild.measurements.length === 0) {
@@ -539,9 +590,6 @@ export function useScannerTripReconstruction() {
       }
 
       const initialVariance = computeThetaBinVariance(chosenBuild.measurements)
-      console.warn(
-        `[B(φ)] T_half校准检查: initialVariance=${initialVariance.toFixed(2)}, meas=${chosenBuild.measurements.length}, baseTHalf=${baseTHalf !== null ? (baseTHalf / 1000).toFixed(1) + 's' : 'null'}`
-      )
       let bestTHalf = baseTHalf
       let bestVariance = initialVariance
       let bestBuild = chosenBuild
@@ -572,7 +620,7 @@ export function useScannerTripReconstruction() {
                   delayMs,
                   sweeps,
                   mParams,
-                  windowTrips[idx],
+              validWindowTrips[idx],
                   false,
                   candidateTHalf
                 )
@@ -587,9 +635,6 @@ export function useScannerTripReconstruction() {
           if (candidateBuild.measurements.length < 500) continue
 
           const candidateVariance = computeThetaBinVariance(candidateBuild.measurements)
-          console.warn(
-            `[B(φ)] T_half候选: ${(candidateTHalf / 1000).toFixed(1)}s, variance=${candidateVariance.toFixed(2)}`
-          )
 
           if (candidateVariance < bestVariance) {
             bestVariance = candidateVariance
@@ -713,21 +758,22 @@ export function useScannerTripReconstruction() {
         return profile
       })()
 
-      // ---- θmax 保持默认值（不再搜索候选）----
-      let thetaMaxCalStr = `θmax ${p.thetaMaxDeg}°`
-
       // ══════════════════════════════════════════════════════════
-      // 角度对齐：重建剖面的最薄 bin → bin0（与参考对齐）
-      // 假设：重建最薄处 = 物理最薄处 = 参考的 bin0
-      // 后续物理标定可替换此自动对齐逻辑
+      // 角度对齐：按 angleOffsetDeg 旋转剖面使 bin[0] 对齐参考点
+      // 默认 0° = 不旋转，保持物理顺序
       // ══════════════════════════════════════════════════════════
 
-      const lsMinBin = result.profile.reduce(
-        (minIdx, v, i, arr) => (v < arr[minIdx]! ? i : minIdx), 0
-      )
-      const offsetBins = lsMinBin // 使 org[lsMinBin] → shifted[0]
+      const offDeg = angleOffsetDeg.value
+      const offsetBins = Math.abs(offDeg) > 0.5
+        ? Math.round((offDeg / 360) * result.numBins)
+        : 0
+      const alignNote = offsetBins !== 0
+        ? `旋转 ${offsetBins}bin(offset=${offDeg}°)`
+        : `未旋转(offset=0°)`
       const shiftProfile = (p: number[]): number[] =>
-        p.map((_, j) => p[(j + offsetBins + result.numBins) % result.numBins]!)
+        offsetBins !== 0
+          ? p.map((_, j) => p[(j + offsetBins + result.numBins) % result.numBins]!)
+          : p
       const shiftedLSProfile = shiftProfile(result.profile)
       const shiftedDirectProfile = shiftProfile(directProfile)
 
@@ -825,12 +871,12 @@ export function useScannerTripReconstruction() {
         // ---- 综合诊断日志 (单 block) ----
         const L: string[] = []
         L.push(`══════ [B(φ) 偏差诊断] ══════`)
-        L.push(`窗口: trip=${baseline.sweepId.slice(-8)} ${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) / 60_000).toFixed(1)}min) samples=${allSamples.length}→${samplesForReconstruction.length}→${n}`)
-        L.push(`配置: W=${p.membraneWidthMm.toFixed(0)}mm θmax=${p.thetaMaxDeg.toFixed(0)}° η=${eta} bins=${result.numBins} airAD=${chosenAirAD} gain=${p.gain.toFixed(3)} 对齐=bin${lsMinBin}→0`)
+        L.push(`窗口: trip=${baseline.sweepId.slice(-8)} ${validWindowTrips.length}趟(${((baseline.startTs - validWindowTrips[0]!.startTs) / 60_000).toFixed(1)}min) samples=${allSamples.length}→${samplesForReconstruction.length}→${n}`)
+        L.push(`配置: W=${p.membraneWidthMm.toFixed(0)}mm θmax=${p.thetaMaxDeg.toFixed(0)}° η=${eta} bins=${result.numBins} airAD=${chosenAirAD} gain=${p.gain.toFixed(3)} 对齐=${alignNote}`)
         const tHalfStr = bestTHalf !== baseTHalf && baseTHalf !== null && bestTHalf !== null
           ? `T_half ${(baseTHalf / 1000).toFixed(1)}s→${(bestTHalf / 1000).toFixed(1)}s`
           : `T_half ${(baseTHalf !== null ? (baseTHalf / 1000).toFixed(1) + 's' : 'N/A')}`
-        L.push(`校准: ${tHalfStr} | τ ${chosenBuild.stats.transportDelayMs.toFixed(0)}ms | ${thetaMaxCalStr}`)
+        L.push(`校准: ${tHalfStr} | τ ${chosenBuild.stats.transportDelayMs.toFixed(0)}ms | θmax ${p.thetaMaxDeg}°`)
         L.push(`几何: θ∈[${thetaMin.toFixed(1)}, ${thetaMax.toFixed(1)}]° P10=${thetaP10.toFixed(1)}° P90=${thetaP90.toFixed(1)}° | δ∈[${dMin.toFixed(0)}, ${dMax.toFixed(0)}]° | 覆盖 ${coveredBins}/${result.numBins}bin`)
         const dS = stats(directProfile)
         L.push(`实测单层: mean=${mS.mean.toFixed(2)} std=${mS.std.toFixed(2)} [${mS.min.toFixed(1)}, ${mS.max.toFixed(1)}]`)
@@ -843,7 +889,7 @@ export function useScannerTripReconstruction() {
         const colWidth = 7
         const pad = (s: string, w: number) => s.padStart(w)
         const headerIndices = sampleIndices.map((idx) => pad(`bin${idx}`, colWidth)).join('')
-        L.push(`[实测 vs Profile] ${' '.repeat(18)}${headerIndices}  (最薄自动对齐→bin${lsMinBin}移至bin0)`)
+        L.push(`[实测 vs Profile] ${' '.repeat(18)}${headerIndices}  (${alignNote})`)
         L.push(`参考(独立):        ${measStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
         L.push(`LS-Profile:        ${profileStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
         L.push(`残差(参考-LS):     ${residCompStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)

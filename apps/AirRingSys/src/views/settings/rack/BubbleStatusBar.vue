@@ -83,13 +83,19 @@ function membraneWidthMmLabel(): string {
       {{ selectedProfileMinThickness == null ? '--' : `${selectedProfileMinThickness.toFixed(1)}μm` }}
       / 最大
       {{ selectedProfileMaxThickness == null ? '--' : `${selectedProfileMaxThickness.toFixed(1)}μm` }}
+      <template
+        v-if="selectedProfileMinThickness != null && selectedProfileMaxThickness != null"
+      >
+        / 差
+        {{ (selectedProfileMaxThickness - selectedProfileMinThickness).toFixed(1) }}μm
+      </template>
     </span>
     <span class="param-text" v-if="hasSelectedSweep" style="color: #e6a23c">
       可观测性：θ覆盖 {{ thetaCoverageText }} · δ带宽 {{ deltaBandwidthText }} ·
       约束bin {{ (effectiveConstraintBinRatio * 100).toFixed(1) }}%
     </span>
-    <span class="param-text" v-if="transportDelayStatus" style="color: #f56c6c">
-      时延映射：{{ transportDelayStatus }}
+    <span class="param-text" v-if="transportDelayStatus" style="color: #909399">
+      {{ transportDelayStatus }}
     </span>
     <div class="actions">
       <label class="toggle" v-if="dataMode === 'live'">
