@@ -13,14 +13,13 @@
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
 import type {
   BubbleWindowReconstructionResult,
-  ICalibrationResults,
   RotationTripSummaryRow,
   SweepPoint,
   SweepSummaryRow,
 } from '@/types/ipc'
+import { useDeviceConfig } from './useDeviceConfig'
 import {
   REFRESH_INTERVAL_MS,
-  DEFAULT_MEMBRANE_WIDTH_MM,
   DEFAULT_NUM_BINS,
   DEFAULT_PROCESS_DEFORMATION,
   type DataMode,
@@ -41,6 +40,9 @@ import type {
   MeasurementParams,
 } from '@jjsk/air-ring-server/algorithms/scannerPreprocessing.types'
 import {
+  computePhiPair,
+} from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
+import {
   getUpperSweepsCoverage,
   buildMeasurementsFromReversal,
   mergeMeasurementBuildResults,
@@ -50,7 +52,6 @@ import {
   getWindowTrips as collectWindowTrips,
   estimateAverageTHalf,
 } from '@jjsk/air-ring-server/algorithms/scannerPreprocessing'
-import type { ThicknessConfig } from './utiles'
 
 /** baseline 的重构结果 */
 interface ReconstructedSweep {
@@ -59,11 +60,10 @@ interface ReconstructedSweep {
   result: BubbleWindowReconstructionResult
   /** 重构用的样本数 */
   numSamples: number
-}
-
-interface DeviceConstants {
-  airAD?: string
-  materialGain?: string
+  /** 方案B：直接分箱 B(φ)（中位数去偏，保留方差） */
+  directProfile?: number[]
+  /** 角度偏移校准后的 LS 剖面（用于风环控制的风道映射） */
+  shiftedProfile?: number[]
 }
 
 export function useScannerTripReconstruction() {
@@ -91,35 +91,11 @@ export function useScannerTripReconstruction() {
   const hasOlderData = ref(true)
   const lastUpperSweepsRefreshAt = ref(0)
 
-  const thicknessCfg = ref<ThicknessConfig>({ airAD: 50300, gain: 1.0 })
-  const angleOffsetDeg = ref(0)
-  const calResults = ref<ICalibrationResults>({})
-
-  async function loadConfigs() {
-    try {
-      const dev = (await window.ipcApi.invoke(
-        'config-get-device-constants'
-      )) as DeviceConstants
-      if (dev?.airAD) thicknessCfg.value.airAD = Number(dev.airAD) || 50300
-      if (dev?.materialGain)
-        thicknessCfg.value.gain = Number(dev.materialGain) || 1.0
-      if (dev?.angleOffsetDeg)
-        angleOffsetDeg.value = Number(dev.angleOffsetDeg) || 0
-    } catch {
-      /* 默认值即可 */
-    }
-    try {
-      const cal = (await window.ipcApi.invoke(
-        'config-get-calibration-results'
-      )) as ICalibrationResults
-      calResults.value = cal
-    } catch {
-      /* 默认值即可 */
-    }
-  }
+  const { thicknessCfg, angleOffsetDeg, calResults, loadConfigs } = useDeviceConfig(errorMessage)
 
   /** 几何/标定参数 */
   const params = computed(() => {
+    const cal = calResults.value ?? {}
     const {
       frameLengthMM,
       frameLengthPulse,
@@ -128,7 +104,9 @@ export function useScannerTripReconstruction() {
       upperMaxAngle,
       upperDistance,
       rollerTractionSpeed,
-    } = calResults.value
+    } = cal
+
+    // mmPerPulse: 必须从标定中获取，无默认回退
     const mmPerPulse =
       storedMmPerPulse !== undefined &&
       Number.isFinite(storedMmPerPulse) &&
@@ -136,16 +114,38 @@ export function useScannerTripReconstruction() {
         ? storedMmPerPulse
         : frameLengthMM && frameLengthPulse && frameLengthPulse > 0
           ? frameLengthMM / frameLengthPulse
-          : 0.1
-    const airADNum =
-      Number(thicknessCfg.value.airAD) > 0
-        ? Number(thicknessCfg.value.airAD)
-        : 50300
+          : 0
+    if (mmPerPulse <= 0) {
+      errorMessage.value = 'mm/脉冲 未标定，请先标定膜宽与脉冲数'
+    }
+
+    const airADNum = Number(thicknessCfg.value.airAD)
+    if (!Number.isFinite(airADNum) || airADNum <= 0) {
+      errorMessage.value = 'airAD 未配置或无效，请在设置页填写'
+    }
     const gainNum =
       thicknessCfg.value.gain !== undefined &&
       Number.isFinite(thicknessCfg.value.gain)
         ? thicknessCfg.value.gain
         : 1.0
+
+    // membraneWidthMm: 必须从标定中获取，无默认回退
+    const membraneWidthMm =
+      storedMembraneWidthMm !== undefined && storedMembraneWidthMm > 0
+        ? storedMembraneWidthMm
+        : frameLengthMM && frameLengthMM > 0
+          ? frameLengthMM
+          : 0
+    if (membraneWidthMm <= 0) {
+      errorMessage.value = '膜宽未标定，请先标定膜宽'
+    }
+
+    // thetaMaxDeg: 必须从标定中获取，无默认回退
+    const thetaMaxDeg = upperMaxAngle && upperMaxAngle > 0 ? upperMaxAngle : 0
+    if (thetaMaxDeg <= 0) {
+      errorMessage.value = '上旋最大角度未标定，请先标定上旋角度'
+    }
+
     const transportDelayMs =
       upperDistance != null &&
       upperDistance > 0 &&
@@ -154,13 +154,8 @@ export function useScannerTripReconstruction() {
         ? (upperDistance / rollerTractionSpeed) * 1000
         : undefined
     return {
-      membraneWidthMm:
-        storedMembraneWidthMm !== undefined && storedMembraneWidthMm > 0
-          ? storedMembraneWidthMm
-          : frameLengthMM && frameLengthMM > 0
-            ? frameLengthMM
-            : DEFAULT_MEMBRANE_WIDTH_MM,
-      thetaMaxDeg: upperMaxAngle && upperMaxAngle > 0 ? upperMaxAngle : 300,
+      membraneWidthMm,
+      thetaMaxDeg,
       mmPerPulse,
       airAD: airADNum,
       gain: gainNum,
@@ -672,8 +667,69 @@ export function useScannerTripReconstruction() {
       }
       reconstructionHint.value = null
 
+      // ══════════════════════════════════════════════════════════
+      // 方案B：直接分箱 B(φ) — 逐点 ŝ_k = T_k/(2η) 分箱取中位数 + 去偏
+      // 绕过最小二乘系统，保留完整方差（不向均值坍缩）
+      // ══════════════════════════════════════════════════════════
+      const directProfile: number[] = (() => {
+        const eta = p.processDeformationFactor
+        const binWidth = 360 / p.numBins
+        const binValues: number[][] = Array.from({ length: p.numBins }, () => [])
+
+        for (const m of measurements) {
+          const s = m.thickness / (2 * eta)
+          const { phi1Deg, phi2Deg } = computePhiPair(
+            m.upperAngleDeg, m.scannerPosMm, p.membraneWidthMm
+          )
+          const b1 = Math.floor(phi1Deg / binWidth) % p.numBins
+          const b2 = Math.floor(phi2Deg / binWidth) % p.numBins
+          binValues[b1]!.push(s)
+          if (b2 !== b1) binValues[b2]!.push(s)
+        }
+
+        // 全局中位数：取所有非空 bin 的中位数的中位数
+        const binMedians: number[] = []
+        for (let j = 0; j < p.numBins; j++) {
+          const vs = binValues[j]!
+          if (vs.length === 0) continue
+          vs.sort((a, b) => a - b)
+          binMedians.push(vs[Math.floor(vs.length / 2)]!)
+        }
+        binMedians.sort((a, b) => a - b)
+        const globalMedian = binMedians[Math.floor(binMedians.length / 2)]!
+
+        const profile = new Array<number>(p.numBins)
+        for (let j = 0; j < p.numBins; j++) {
+          const vs = binValues[j]!
+          if (vs.length > 0) {
+            vs.sort((a, b) => a - b)
+            const binMedian = vs[Math.floor(vs.length / 2)]!
+            // 去偏：bin_j 的 ŝ 均值 = (B[j] + B̄_other)/2 → B[j] ≈ 2*ŝ_j − B̄
+            profile[j] = Math.max(0, 2 * binMedian - globalMedian)
+          } else {
+            profile[j] = globalMedian
+          }
+        }
+        return profile
+      })()
+
       // ---- θmax 保持默认值（不再搜索候选）----
       let thetaMaxCalStr = `θmax ${p.thetaMaxDeg}°`
+
+      // ══════════════════════════════════════════════════════════
+      // 角度对齐：重建剖面的最薄 bin → bin0（与参考对齐）
+      // 假设：重建最薄处 = 物理最薄处 = 参考的 bin0
+      // 后续物理标定可替换此自动对齐逻辑
+      // ══════════════════════════════════════════════════════════
+
+      const lsMinBin = result.profile.reduce(
+        (minIdx, v, i, arr) => (v < arr[minIdx]! ? i : minIdx), 0
+      )
+      const offsetBins = lsMinBin // 使 org[lsMinBin] → shifted[0]
+      const shiftProfile = (p: number[]): number[] =>
+        p.map((_, j) => p[(j + offsetBins + result.numBins) % result.numBins]!)
+      const shiftedLSProfile = shiftProfile(result.profile)
+      const shiftedDirectProfile = shiftProfile(directProfile)
 
       // ---- 偏差诊断: 实测单层 vs 重建 Profile ----
       {
@@ -741,15 +797,22 @@ export function useScannerTripReconstruction() {
         const MEASURED_REF: number[] = [61, 62, 63, 65, 64, 67, 68, 70, 72]
         const NUM_SAMPLES = 9
         const binCount = result.profile.length
+
         const sampleIndices: number[] = []
         for (let k = 0; k < NUM_SAMPLES; k++) {
           sampleIndices.push(Math.round((k / NUM_SAMPLES) * binCount) % binCount)
         }
-        const profileValues: number[] = sampleIndices.map((idx) => result.profile[idx]!)
+        const profileValues: number[] = sampleIndices.map((idx) => shiftedLSProfile[idx]!)
         const profileStr = profileValues.map((v) => v.toFixed(1)).join(', ')
+        const directValues: number[] = sampleIndices.map((idx) => shiftedDirectProfile[idx]!)
+        const directStr = directValues.map((v) => v.toFixed(1)).join(', ')
         const measStr = MEASURED_REF.map((v) => v.toFixed(1)).join(', ')
         const residCompStr = MEASURED_REF.map((v, i) => {
           const diff = v - profileValues[i]!
+          return diff.toFixed(1)
+        }).join(', ')
+        const residDirectStr = MEASURED_REF.map((v, i) => {
+          const diff = v - directValues[i]!
           return diff.toFixed(1)
         }).join(', ')
 
@@ -763,25 +826,29 @@ export function useScannerTripReconstruction() {
         const L: string[] = []
         L.push(`══════ [B(φ) 偏差诊断] ══════`)
         L.push(`窗口: trip=${baseline.sweepId.slice(-8)} ${windowTrips.length}趟(${((baseline.startTs - windowTrips[0].startTs) / 60_000).toFixed(1)}min) samples=${allSamples.length}→${samplesForReconstruction.length}→${n}`)
-        L.push(`配置: W=${p.membraneWidthMm.toFixed(0)}mm θmax=${p.thetaMaxDeg.toFixed(0)}° η=${eta} bins=${result.numBins} airAD=${chosenAirAD} gain=${p.gain.toFixed(3)}`)
+        L.push(`配置: W=${p.membraneWidthMm.toFixed(0)}mm θmax=${p.thetaMaxDeg.toFixed(0)}° η=${eta} bins=${result.numBins} airAD=${chosenAirAD} gain=${p.gain.toFixed(3)} 对齐=bin${lsMinBin}→0`)
         const tHalfStr = bestTHalf !== baseTHalf && baseTHalf !== null && bestTHalf !== null
           ? `T_half ${(baseTHalf / 1000).toFixed(1)}s→${(bestTHalf / 1000).toFixed(1)}s`
           : `T_half ${(baseTHalf !== null ? (baseTHalf / 1000).toFixed(1) + 's' : 'N/A')}`
         L.push(`校准: ${tHalfStr} | τ ${chosenBuild.stats.transportDelayMs.toFixed(0)}ms | ${thetaMaxCalStr}`)
         L.push(`几何: θ∈[${thetaMin.toFixed(1)}, ${thetaMax.toFixed(1)}]° P10=${thetaP10.toFixed(1)}° P90=${thetaP90.toFixed(1)}° | δ∈[${dMin.toFixed(0)}, ${dMax.toFixed(0)}]° | 覆盖 ${coveredBins}/${result.numBins}bin`)
+        const dS = stats(directProfile)
         L.push(`实测单层: mean=${mS.mean.toFixed(2)} std=${mS.std.toFixed(2)} [${mS.min.toFixed(1)}, ${mS.max.toFixed(1)}]`)
-        L.push(`Profile:   mean=${pS.mean.toFixed(2)} std=${pS.std.toFixed(2)} [${pS.min.toFixed(1)}, ${pS.max.toFixed(1)}]`)
-        L.push(`偏差: Δmean=${(mS.mean - pS.mean).toFixed(2)}μm (${((mS.mean - pS.mean) / mS.mean * 100).toFixed(1)}%) 波动比=${(pS.std / Math.max(mS.std, 0.01)).toFixed(3)} RMS残差=${rmsResid.toFixed(2)}μm θ相关=${thetaResidCorr.toFixed(2)}`)
+        L.push(`Profile:   mean=${pS.mean.toFixed(2)} std=${pS.std.toFixed(2)} [${pS.min.toFixed(1)}, ${pS.max.toFixed(1)}] 波动比=${(pS.std / Math.max(mS.std, 0.01)).toFixed(3)}`)
+        L.push(`直分箱:    mean=${dS.mean.toFixed(2)} std=${dS.std.toFixed(2)} [${dS.min.toFixed(1)}, ${dS.max.toFixed(1)}] 波动比=${(dS.std / Math.max(mS.std, 0.01)).toFixed(3)}`)
+        L.push(`偏差: Δmean=${(mS.mean - pS.mean).toFixed(2)}μm (${((mS.mean - pS.mean) / mS.mean * 100).toFixed(1)}%) RMS残差=${rmsResid.toFixed(2)}μm θ相关=${thetaResidCorr.toFixed(2)}`)
         L.push(`残差: mean=${rS.mean.toFixed(2)} std=${rS.std.toFixed(2)} P25=${rP25.toFixed(2)} P50=${rP50.toFixed(2)} P75=${rP75.toFixed(2)} [${rS.min.toFixed(1)}, ${rS.max.toFixed(1)}]`)
 
         // 实测 vs Profile 对照表
         const colWidth = 7
         const pad = (s: string, w: number) => s.padStart(w)
         const headerIndices = sampleIndices.map((idx) => pad(`bin${idx}`, colWidth)).join('')
-        L.push(`[实测 vs Profile] ${' '.repeat(18)}${headerIndices}`)
-        L.push(`实测(单层):        ${measStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
-        L.push(`Profile(单层):     ${profileStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
-        L.push(`残差(实测-Pro):    ${residCompStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
+        L.push(`[实测 vs Profile] ${' '.repeat(18)}${headerIndices}  (最薄自动对齐→bin${lsMinBin}移至bin0)`)
+        L.push(`参考(独立):        ${measStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
+        L.push(`LS-Profile:        ${profileStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
+        L.push(`残差(参考-LS):     ${residCompStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
+        L.push(`直分箱Profile:     ${directStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
+        L.push(`残差(参考-直):     ${residDirectStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
         L.push(`══════════════════════════════`)
         console.log(L.join('\n'))
       }
@@ -790,6 +857,8 @@ export function useScannerTripReconstruction() {
         windowIds: windowTrips.map((t) => t.sweepId),
         result,
         numSamples: measurements.length,
+        directProfile,
+        shiftedProfile: shiftedLSProfile,
       }
       reconstructionCache.value.set(baseline.sweepId, entry)
       return entry
@@ -1076,7 +1145,6 @@ export function useScannerTripReconstruction() {
   })
 
   return {
-    // state — consumed by BubbleRawThickness.vue
     dataMode,
     scannerTrips,
     upperSweeps,
@@ -1093,7 +1161,6 @@ export function useScannerTripReconstruction() {
     thicknessCfg,
     angleOffsetDeg,
     calResults,
-    // actions
     prevTrip,
     nextTrip,
   }

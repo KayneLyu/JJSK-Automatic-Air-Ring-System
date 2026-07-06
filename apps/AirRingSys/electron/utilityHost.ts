@@ -33,6 +33,10 @@ export interface UtilityHostOptions {
   margin: number
   /** 应用配置对象 */
   config: Record<string, unknown>
+  /** 空气 AD 值（扫描仪出膜判定阈值） */
+  airAD?: number
+  /** 扫描仪出膜容错窗口 (ms) */
+  scannerToleranceMs?: number
 }
 
 export type RendererSendFn = (channel: string, data: unknown) => void
@@ -123,6 +127,8 @@ export class UtilityHost {
               maxPulse: options.maxPulse,
               margin: options.margin,
               config: options.config,
+              airAD: options.airAD,
+              scannerToleranceMs: options.scannerToleranceMs,
             } satisfies InitPayload,
           })
           return

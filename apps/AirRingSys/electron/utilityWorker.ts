@@ -247,10 +247,15 @@ function initCalibrationBridge(): void {
 // ═══════════════════════════════════════════════════════════════
 
 function initScannerMotionControl(configuredAirAD?: number, configuredToleranceMs?: number): void {
-  // 使用传入的配置值，fallback 到合理的默认值
   const airAD = (configuredAirAD !== undefined && Number.isFinite(configuredAirAD) && configuredAirAD > 0)
     ? configuredAirAD
-    : 2048
+    : 0
+  if (airAD <= 0) {
+    console.error('[UtilityWorker] scannerMotionControl 初始化失败：airAD 未配置，请先在设置页填写')
+    scannerCtrl = null
+    scannerMotionEnabled = false
+    return
+  }
   const toleranceMs = (configuredToleranceMs !== undefined && Number.isFinite(configuredToleranceMs) && configuredToleranceMs > 0)
     ? configuredToleranceMs
     : 200
@@ -270,16 +275,19 @@ function initScannerMotionControl(configuredAirAD?: number, configuredToleranceM
   )
 }
 
+let feedScannerDiagLastLog = 0
+let feedScannerDiagCount = 0
+
 function feedScannerMotionControl(sample: {
   timestamp: number
   ProbeValue: number
   HorizontalPulse: number
 }): void {
   // ── 诊断：每5秒输出一次 guard 状态（限前30次避免刷屏） ──
-  if (!feedScannerMotionControl._diagLastLog || Date.now() - feedScannerMotionControl._diagLastLog > 5000) {
-    feedScannerMotionControl._diagLastLog = Date.now()
-    feedScannerMotionControl._diagCount = (feedScannerMotionControl._diagCount ?? 0) + 1
-    if (feedScannerMotionControl._diagCount <= 30) {
+  if (!feedScannerDiagLastLog || Date.now() - feedScannerDiagLastLog > 5000) {
+    feedScannerDiagLastLog = Date.now()
+    feedScannerDiagCount += 1
+    if (feedScannerDiagCount <= 30) {
       post({
         type: 'error',
         message: `[ScannerMotion-DEBUG] guard: scannerCtrl=${!!scannerCtrl} enabled=${scannerMotionEnabled}`,

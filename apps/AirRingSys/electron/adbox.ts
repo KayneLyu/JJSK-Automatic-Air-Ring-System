@@ -163,14 +163,14 @@ export async function initMotionControl(win: BrowserWindow) {
       maxPulse: 7000,
       margin: 300,
       rollerMode: 'circumference',
-      rollerValue: '314',
+      rollerValue: '',           // 必须标定，无默认值
       rollerNumCycles: '10',
-      airAD: '2048',
+      airAD: '',                 // 必须标定，无默认值
       materialGain: '1.0',
       upperDeltaMin: '180',
       upperDeltaMax: '359',
       upperObjectiveMode: 'auto',
-      airDuctCount: '48',
+      airDuctCount: '',          // 必须标定，无默认值
       systemAirDuct1Angle: '0',
     },
   })
@@ -581,7 +581,7 @@ function setMargin(value: number) {
 }
 
 function getMargin(): number {
-  return store?.get('margin') || 300
+  return store?.get('margin') ?? 300
 }
 
 function setScanRangeByWebWidth(webWidth: number) {
@@ -663,14 +663,14 @@ function registerIpcHandlers() {
     // 设备常量
     'config-get-device-constants': async () => ({
       rollerMode: store?.get('rollerMode') ?? 'circumference',
-      rollerValue: store?.get('rollerValue') ?? '314',
+      rollerValue: store?.get('rollerValue') ?? '',
       rollerNumCycles: store?.get('rollerNumCycles') ?? '10',
-      airAD: store?.get('airAD') ?? '2048',
+      airAD: store?.get('airAD') ?? '',
       materialGain: store?.get('materialGain') ?? '1.0',
       upperDeltaMin: store?.get('upperDeltaMin') ?? '180',
       upperDeltaMax: store?.get('upperDeltaMax') ?? '359',
       upperObjectiveMode: store?.get('upperObjectiveMode') ?? 'auto',
-      airDuctCount: store?.get('airDuctCount') ?? '48',
+      airDuctCount: store?.get('airDuctCount') ?? '',
       systemAirDuct1Angle: store?.get('systemAirDuct1Angle') ?? '0',
       angleOffsetDeg: store?.get('angleOffsetDeg') ?? '0',
     }),
