@@ -20,6 +20,24 @@
 └── skills/             ← Agent OS 技能定义（agent-os, agent-task-lifecycle）
 ```
 
+---
+
+## Agent 行为契约（按场景主动读取）
+
+> ⚠️ **不读 = 违规**：以下每个场景对应的文件是 Agent 执行任务的**强制前置读取**。跳过即违规。
+
+| 场景（可判断） | 必须读取 | 核心约束 |
+|---------------|----------|----------|
+| 开始任何代码修改任务 | `guide/execution.md` | 先探索代码库 → 先写 Plan → 最小化变更范围；禁止任务范围外重构 |
+| 添加新模块/文件、修改命名或目录结构 | `guide/patterns.md` | 复用项目已有模式与目录结构；遵循命名约定（camelCase/PascalCase/UPPER_SNAKE_CASE） |
+| 涉及设备控制、文件删除、配置修改、安全操作 | `guide/safety.md` | 设备指令须边界校验；高风险操作需用户确认；禁止 `git push --force` / `git add .` |
+| 引入新依赖或选择技术方案 | `guide/dependencies.md` | Third-Party First：已有依赖 > 社区成熟库 > 自研；决策必须写入 decisions.md |
+| 修改 UI 文案、添加用户可见文本 | `guide/i18n.md` | 禁止硬编码中文；必须使用 `t()`/`$t()`；key 用点分格式；同步更新 zh-CN + en-US |
+
+> 路径相对于 `.agents/` 根目录。
+
+---
+
 ## Script First 最佳实践
 
 | 场景 | 做法 |
@@ -60,3 +78,15 @@
 # 删除上旋算法历史指令（已迁移到 .agents/memory/）
 # rm -rf packages/AirRingServer/algorithms/upperRotation/.instructions/
 ```
+
+---
+
+## 集成说明
+
+- **`AGENTS.md`** 是入口路由器：告知 Agent 工作前先读什么、核心规则是什么、去哪里找更详细的约束。
+- **本 `README.md`** 是行为契约与基础设施说明的核心枢纽：通过场景→必读文件的契约表约束 Agent 行为；通过 Script First 规则约束脚本生成与输出管理。
+- Agent 按场景按需读取 `guide/` 文件，而非全量加载，避免上下文膨胀。
+
+---
+
+`♻️ 已补齐` 行为契约表、集成路由说明
