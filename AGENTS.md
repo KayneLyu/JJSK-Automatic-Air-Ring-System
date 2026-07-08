@@ -11,6 +11,12 @@ packages/core/            # 核心共享代码
 packages/Simulation/      # 设备仿真系统
 ```
 
+## 开始工作前
+
+⚠️ 在开始任何工作前，你必须**首先读取以下文件**：
+1. `README.md`（如存在）— 理解项目目标、结构和技术栈
+2. `.agents/README.md` — 理解 Agent OS 目录结构与场景化的行为契约
+
 ## 核心规则
 
 - TypeScript 严格模式，pnpm 管理依赖，ESLint + Prettier
@@ -18,15 +24,3 @@ packages/Simulation/      # 设备仿真系统
 - 优先使用成熟第三方库，不重复造轮子
 - 除非明确要求，不自动执行测试
 - 设备控制指令必须边界校验，避免频繁调整损坏设备
-
-## 导航
-
-| 文档 | 说明 |
-|------|------|
-| [execution.md](.agents/guide/execution.md) | 执行协议：最小 diff、Plan First、Script First |
-| [patterns.md](.agents/guide/patterns.md) | 项目约定：结构、命名、组件模式 |
-| [safety.md](.agents/guide/safety.md) | 安全约束：禁止操作与高风险确认清单 |
-| [dependencies.md](.agents/guide/dependencies.md) | 依赖策略：Third-Party First 优先级 |
-| [i18n.md](.agents/guide/i18n.md) | 国际化规则 |
-| [context.md](.agents/memory/context.md) | 长期上下文：物理模型与技术约定 |
-| [decisions.md](.agents/memory/decisions.md) | 技术决策记录 |
