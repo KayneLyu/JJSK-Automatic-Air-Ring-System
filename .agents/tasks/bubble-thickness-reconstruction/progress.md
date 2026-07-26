@@ -1,4 +1,4 @@
-# Progress: 推算膜泡原始厚度
+# Progress: 纵向单层膜厚重建
 
 ## 2026-06-11 23:00
 完成项目评审，确认需要线性系统求解方法。发现现有 `thicknessReverseCalculation.ts` 物理模型不准确（只修正总和，未分离双层），`upperRotation.a.ts` 中的分箱方法方向正确但未完成反卷积。
@@ -138,3 +138,26 @@
 
 **原因**：现场需要分别观察上下两层膜的厚度差异，以评估膜泡均匀性和重建质量。
 
+## 2026-07-26 描述与注释统一：明确单层膜厚语义
+
+**背景**：前后端代码及文档中多处使用"膜泡厚度"、"Profile"等模糊术语，未明确标注数据为从双层测厚数据重建的**单层膜厚剖面 B(φ)**，容易造成理解偏差。
+
+**变更内容**：
+- **UI 组件**：
+  - `useBubblePolarChart.ts`：新增文件级 JSDoc 说明单层数据流；图表标题增加"膜泡单层厚度"前缀；Y轴改为"上层单层膜厚"/"下层单层膜厚"；图表副标题增加"单层剖面 B(φ)"标注；tooltip 系列名改"上层单层"/"下层单层"，压合总厚标注为"压合双层总厚"
+  - `BubbleStatusBar.vue`：状态栏"膜泡厚度"→"单层膜厚"，"可观测性"→"重建条件"
+  - `BubbleRawThickness.vue`：完善合成数据注释（说明单层剖面数据流），loading 提示改"正在重建单层膜厚剖面 B(φ)…"，诊断注释"极坐标图"→"膜泡厚度图表"
+  - `bubbleRawThickness.constants.ts`：常量注释"极坐标图 B(φ)"→"单层膜厚剖面 B(φ)"，空图表标题更具体
+- **算法管线**：`useScannerTripReconstruction.ts` 顶部注释补充双层→单层数据流说明，诊断日志新增"LS单层Profile"/"直分箱单层"等标注
+- **IPC 类型**：`ipc.d.ts` 为 `BubbleReconstructionResult`/`BubbleSweepResult`/`BinDecompositionRow`/`SampleDecompositionRow` 新增 JSDoc，明确 `profile[]` 是单层膜厚、`b1/b2` 是前后层单层膜厚
+- **任务文档**：`context.md` 涉及文件列表更新为新模块结构（`bubbleReconstruction/`），增补 UI 组件文件
+
+**原则**：仅调整描述/注释/文档文案，不改变任何逻辑或数据结构。所有"厚度"前明确标注"单层"或"双层"，B(φ) 统一称为"单层膜厚剖面"。
+
+## 2026-07-26 审查问题修复：实时刷新、当前趟语义与算法后处理
+
+- live 模式以 `sweepId:endTs:pointCount` 识别扫描趟版本；同一趟增长时失效 sample/profile 两级缓存并重新求解。
+- 滑动窗口继续用于求解 B(φ)，图表仅使用当前 baseline 时间范围内的 `sampleDecompositions`，避免跨趟混合。
+- 重建结果携带 `processDeformationFactor`，tooltip 的压合双层预测厚度改为 `η×(b1+b2)`。
+- 隐式自动缩放与固定五点显示平滑改为显式选项，默认关闭；新增 `rawProfile` / `rawRmsError` 诊断字段。
+- `pnpm lint` 通过（仅既有 warning）；TypeScript 检查仍被仓库既有 `fft-js` 声明、旧测试 import assertion、`confirmCount` 类型等错误阻断。本次未运行单元测试。

@@ -337,7 +337,7 @@ export interface IpcChannelMap {
     output: number
   }
 
-  // ═══ 膜泡原始厚度重建（reconstructBubbleThickness）═══
+  // ═══ 纵向单层膜厚重建（reconstructBubbleThickness） ═══
   'bubble-reconstruct': {
     args: [
       params: {
@@ -491,21 +491,30 @@ export interface IHistoricalCalibrationProgress {
   total: number
 }
 
-// ═══ reconstructBubbleThickness 输出类型 ═══
+// ═══ 膜泡单层厚度重建结果（reconstructBubbleThickness 输出） ═══
+// 正模型：T_k = η × (B(φ₁_k) + B(φ₂_k))
+// profile[] 为求解出的单层膜厚分布 B(φ)，单位 μm
 export interface BubbleReconstructionResult {
+  /** 单层膜厚剖面 B[0..N-1] (μm) */
   profile: number[]
+  /** 求解器直接输出（仅做非负截断） */
+  rawProfile?: number[]
   numBins: number
   binWidthDeg: number
   rmsError: number
   maxError: number
+  /** rawProfile 对应的均方根误差 (μm) */
+  rawRmsError?: number
   numMeasurements: number
   binCoverage: number[]
+  /** 正模型使用的工艺变形因子 η */
+  processDeformationFactor?: number
   binTimestamps?: number[]
   rawThickness?: number[]
   predictedThickness?: number[]
 }
 
-// ═══ 一趟扫描（forward 或 reverse）的完整重建结果 ═══
+// ═══ 一趟扫描（forward 或 reverse）的单层膜厚重建结果 ═══
 export interface BubbleSweepResult extends BubbleReconstructionResult {
   id: string // 唯一 id：`sweep-{timestamp}-{direction}`
   time: number // 这一趟的起点时间戳 (ms)
@@ -521,16 +530,24 @@ export interface MeasurementTripleInput {
   timestamp: number
 }
 
+/** 单条测量的双层→单层分解：b1/b2 为从 B(φ) 插值得出的前/后层单层膜厚 */
 export interface BinDecompositionRow {
   ts: number
+  /** 前层膜泡角度 */
   phi1: number
+  /** 后层膜泡角度 */
   phi2: number
+  /** 前层单层膜厚 (μm)，从 B(φ₁) 插值 */
   b1: number
+  /** 后层单层膜厚 (μm)，从 B(φ₂) 插值 */
   b2: number
+  /** 测厚仪实测双层总厚度 T_k (μm) */
   tMeasured: number
+  /** 模型预测双层总厚度 η×(b1+b2) (μm) */
   tPredicted: number
 }
 
+/** 与 BinDecompositionRow 相同结构，per-sample 级别 */
 export interface SampleDecompositionRow {
   ts: number
   phi1: number
@@ -541,6 +558,7 @@ export interface SampleDecompositionRow {
   tPredicted: number
 }
 
+/** 滑动窗口重建结果：在单层剖面基础上附加逐点双层分解 */
 export interface BubbleWindowReconstructionResult extends BubbleReconstructionResult {
   binDecompositions?: BinDecompositionRow[]
   sampleDecompositions?: SampleDecompositionRow[]

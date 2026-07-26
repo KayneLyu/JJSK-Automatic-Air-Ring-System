@@ -211,6 +211,8 @@ export const reconstructBubbleThickness = (
   const forgettingFactor = options?.forgettingFactor ?? 0.995
   const smoothMu = options?.smoothMu ?? 0.1
   const solverMode = options?.solverMode ?? 'batch'
+  const autoScaleToMeasurementMean = options?.autoScaleToMeasurementMean ?? false
+  const applyDisplaySmoothing = options?.applyDisplaySmoothing ?? false
   const preferAfterTs = options?.preferAfterTs
   const binWidthDeg = 360 / numBins
 
@@ -245,20 +247,33 @@ export const reconstructBubbleThickness = (
       ? solveRLS(sparse, forgettingFactor, smoothMu)
       : solveBatch(sparse, lambda, mu)
 
-  const profile = smoothProfileCircular(
-    autoScaleProfile(rawProfile, validMeasurements, processFactor)
-  )
+  const nonNegativeProfile = clampProfilePositive(rawProfile)
+  const scaledProfile = autoScaleToMeasurementMean
+    ? autoScaleProfile(nonNegativeProfile, validMeasurements, processFactor)
+    : nonNegativeProfile
+  const profile = applyDisplaySmoothing
+    ? smoothProfileCircular(scaledProfile)
+    : scaledProfile
 
   const predicted = predictAll(profile, validMeasurements, membraneWidthMm, processFactor)
+  const rawPredicted = predictAll(
+    nonNegativeProfile,
+    validMeasurements,
+    membraneWidthMm,
+    processFactor
+  )
 
   let sumSq = 0,
+    rawSumSq = 0,
     maxErr = 0
   for (let k = 0; k < validMeasurements.length; k++) {
     const measurement = validMeasurements[k]
     const predictedThickness = predicted[k]
     if (measurement === undefined || predictedThickness === undefined) continue
     const err = Math.abs(measurement.thickness - predictedThickness)
+    const rawErr = measurement.thickness - (rawPredicted[k] ?? 0)
     sumSq += err * err
+    rawSumSq += rawErr * rawErr
     if (err > maxErr) maxErr = err
   }
 
@@ -287,12 +302,15 @@ export const reconstructBubbleThickness = (
 
   return {
     profile,
+    rawProfile: nonNegativeProfile,
     numBins,
     binWidthDeg,
     rmsError: Math.sqrt(sumSq / validMeasurements.length),
     maxError: maxErr,
+    rawRmsError: Math.sqrt(rawSumSq / validMeasurements.length),
     numMeasurements: validMeasurements.length,
     binCoverage: computeBinCoverage(validMeasurements, membraneWidthMm, numBins),
+    processDeformationFactor: processFactor,
     ...decompositionFields,
     predictedThickness: predicted,
   }

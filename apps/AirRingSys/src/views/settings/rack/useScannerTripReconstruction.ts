@@ -1,13 +1,16 @@
 /**
- * 测厚仪扫描趟 → B(φ) 重构
+ * 测厚仪扫描趟 → 单层膜厚剖面 B(φ) 重建
  *
  * 流程:
  *   1. 加载所有测厚仪扫描趟 (db-get-sweep-summaries)
  *   2. 用户选中某趟作为 baseline
- *   3. 取 baseline + 前 N-1 趟 (滑动窗口) 的所有样本
+ *   3. 取 baseline + 前 N-1 趟 (滑动窗口) 的所有样本（双层测厚数据 T_k）
  *   4. 对每个样本: 由 ts 反查上旋趟 → timeToAngle 算 θ
- *   5. reconstructBubbleThickness → B(φ)
+ *   5. reconstructBubbleThickness → B(φ)（从双层 T_k 求解单层剖面）
  *   6. 缓存 B(φ) per baseline, 导航时优先命中缓存
+ *
+ * 输出：B(φ) 为膜泡各角度的单层膜厚分布；
+ *      sampleDecompositions 进一步将每条测量分解为前层 (b1, φ₁) 和后层 (b2, φ₂)
  */
 
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
@@ -713,8 +716,8 @@ export function useScannerTripReconstruction() {
       reconstructionHint.value = null
 
       // ══════════════════════════════════════════════════════════
-      // 方案B：直接分箱 B(φ) — 逐点 ŝ_k = T_k/(2η) 分箱取中位数 + 去偏
-      // 绕过最小二乘系统，保留完整方差（不向均值坍缩）
+      // 方案B：直接分箱单层厚度 — 逐点 ŝ_k = T_k/(2η) 分箱取中位数 + 去偏
+      // 绕过最小二乘系统，保留完整方差（不向均值坍缩），用于与 LS 结果对比
       // ══════════════════════════════════════════════════════════
       const directProfile: number[] = (() => {
         const eta = p.processDeformationFactor
@@ -777,13 +780,13 @@ export function useScannerTripReconstruction() {
       const shiftedLSProfile = shiftProfile(result.profile)
       const shiftedDirectProfile = shiftProfile(directProfile)
 
-      // ---- 偏差诊断: 实测单层 vs 重建 Profile ----
+      // ---- 偏差诊断: 实测单层 vs 重建单层 Profile ----
       {
         const eta = p.processDeformationFactor
         const predicted = result.predictedThickness ?? []
         const n = measurements.length
 
-        // 实测单层 = T_double / (2η)
+        // 实测单层近似 = T_double / (2η)（假设两侧对称的简化估算）
         const measSingle = measurements.map((m) => m.thickness / (2 * eta))
         // Profile 预测单层 = T_predicted / (2η)
         const predSingle = predicted.map((t) => t / (2 * eta))
@@ -880,8 +883,8 @@ export function useScannerTripReconstruction() {
         L.push(`几何: θ∈[${thetaMin.toFixed(1)}, ${thetaMax.toFixed(1)}]° P10=${thetaP10.toFixed(1)}° P90=${thetaP90.toFixed(1)}° | δ∈[${dMin.toFixed(0)}, ${dMax.toFixed(0)}]° | 覆盖 ${coveredBins}/${result.numBins}bin`)
         const dS = stats(directProfile)
         L.push(`实测单层: mean=${mS.mean.toFixed(2)} std=${mS.std.toFixed(2)} [${mS.min.toFixed(1)}, ${mS.max.toFixed(1)}]`)
-        L.push(`Profile:   mean=${pS.mean.toFixed(2)} std=${pS.std.toFixed(2)} [${pS.min.toFixed(1)}, ${pS.max.toFixed(1)}] 波动比=${(pS.std / Math.max(mS.std, 0.01)).toFixed(3)}`)
-        L.push(`直分箱:    mean=${dS.mean.toFixed(2)} std=${dS.std.toFixed(2)} [${dS.min.toFixed(1)}, ${dS.max.toFixed(1)}] 波动比=${(dS.std / Math.max(mS.std, 0.01)).toFixed(3)}`)
+        L.push(`LS单层Profile: mean=${pS.mean.toFixed(2)} std=${pS.std.toFixed(2)} [${pS.min.toFixed(1)}, ${pS.max.toFixed(1)}] 波动比=${(pS.std / Math.max(mS.std, 0.01)).toFixed(3)}`)
+        L.push(`直分箱单层: mean=${dS.mean.toFixed(2)} std=${dS.std.toFixed(2)} [${dS.min.toFixed(1)}, ${dS.max.toFixed(1)}] 波动比=${(dS.std / Math.max(mS.std, 0.01)).toFixed(3)}`)
         L.push(`偏差: Δmean=${(mS.mean - pS.mean).toFixed(2)}μm (${((mS.mean - pS.mean) / mS.mean * 100).toFixed(1)}%) RMS残差=${rmsResid.toFixed(2)}μm θ相关=${thetaResidCorr.toFixed(2)}`)
         L.push(`残差: mean=${rS.mean.toFixed(2)} std=${rS.std.toFixed(2)} P25=${rP25.toFixed(2)} P50=${rP50.toFixed(2)} P75=${rP75.toFixed(2)} [${rS.min.toFixed(1)}, ${rS.max.toFixed(1)}]`)
 
@@ -889,12 +892,12 @@ export function useScannerTripReconstruction() {
         const colWidth = 7
         const pad = (s: string, w: number) => s.padStart(w)
         const headerIndices = sampleIndices.map((idx) => pad(`bin${idx}`, colWidth)).join('')
-        L.push(`[实测 vs Profile] ${' '.repeat(18)}${headerIndices}  (${alignNote})`)
+        L.push(`[实测 vs LS单层Profile] ${' '.repeat(18)}${headerIndices}  (${alignNote})`)
         L.push(`参考(独立):        ${measStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
-        L.push(`LS-Profile:        ${profileStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
+        L.push(`LS单层Profile:        ${profileStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
         L.push(`残差(参考-LS):     ${residCompStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
-        L.push(`直分箱Profile:     ${directStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
-        L.push(`残差(参考-直):     ${residDirectStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
+        L.push(`直分箱单层Profile:     ${directStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
+        L.push(`残差(参考-直分箱):     ${residDirectStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
         L.push(`══════════════════════════════`)
         console.log(L.join('\n'))
       }
@@ -1001,6 +1004,28 @@ export function useScannerTripReconstruction() {
       scheduleReconstruction(id)
     },
     { immediate: true }
+  )
+
+  // live 模式下，进行中的扫描趟会保持同一个 sweepId，但 endTs/pointCount
+  // 持续增长。版本变化时同时失效样本与重建缓存，确保自动刷新读取新增数据。
+  watch(
+    () => {
+      const baseline = selectedBaseline.value
+      return baseline
+        ? `${baseline.sweepId}:${baseline.endTs}:${baseline.pointCount}`
+        : null
+    },
+    (newVersion, oldVersion) => {
+      if (!newVersion || !oldVersion || dataMode.value !== 'live') return
+      const newId = newVersion.split(':', 1)[0]
+      const oldId = oldVersion.split(':', 1)[0]
+      if (!newId || newId !== oldId) return
+
+      samplesCache.value.delete(newId)
+      reconstructionCache.value.delete(newId)
+      currentReconstruction.value = null
+      scheduleReconstruction(newId)
+    }
   )
 
   /** 加载上旋趟(用于 timeToAngle 算 θ) */

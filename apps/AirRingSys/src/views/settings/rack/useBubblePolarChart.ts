@@ -1,3 +1,14 @@
+/**
+ * useBubblePolarChart — 膜泡单层厚度上下双层笛卡尔折线图
+ *
+ * 从 `BubbleReconstructionResult`（单层膜厚剖面 B(φ)）分解出前层（b1）
+ * 和后层（b2）分别按探头脉冲位置分箱，以蓝/橙上下双子图展示。
+ *
+ * 数据流：
+ *   T_k（测厚仪双层读数）→ reconstructBubbleThickness → B(φ)（单层剖面）
+ *   → sampleDecompositions 分解为 (φ₁,b1) + (φ₂,b2)
+ *   → 按探头脉冲位置分箱取中位数 → 上下两层折线
+ */
 import { computed, isRef, ref, type Ref } from 'vue'
 import { use } from 'echarts/core'
 import {
@@ -50,7 +61,7 @@ const MAX_BRIDGE_GAP_BINS = 3
 const DEFAULT_POSITION_BINS = 200
 
 // ═══════════════════════════════════════════════════════════════
-// 探头脉冲位置计算 & 上下层剖面按脉冲分箱
+// 探头脉冲位置计算 & 上下层单层膜厚按脉冲分箱
 // ═══════════════════════════════════════════════════════════════
 
 interface LayerProfiles {
@@ -62,8 +73,9 @@ interface LayerProfiles {
 /**
  * 由 φ₁、φ₂ 计算测厚仪探头原始脉冲位置（仅限膜宽范围内）
  *
- * membraneWidthPulse = membraneWidthMm / mmPerPulse
- * pulse = frameCenterPulse + membraneWidthPulse × δ/180°
+ * 反推公式（从 sampleDecompositions 的 φ₁/φ₂ 反算探头位置）：
+ *   membraneWidthPulse = membraneWidthMm / mmPerPulse
+ *   pulse = frameCenterPulse + membraneWidthPulse × δ/180°
  *   其中 δ = (φ₁ − φ₂)/2, frameCenterPulse = frameLengthPulse / 2
  */
 function scannerPulseFromPhiPair(
@@ -197,13 +209,11 @@ export function useBubblePolarChart(
       cycleDurationMs,
       numMeasurements,
       rmsError,
-      maxError,
     } = sweep
     const inProgress = isInProgress(sweep, Date.now())
     const durMin = (cycleDurationMs / 60_000).toFixed(1)
-    const titleText = `${directionLabel(direction)}向扫描 · ${formatTime(time)} · ${durMin} min${inProgress ? ' · 进行中' : ''}`
+    const titleText = `膜泡单层厚度 · ${directionLabel(direction)}向扫描 · ${formatTime(time)} · ${durMin} min${inProgress ? ' · 进行中' : ''}`
 
-    const numBins = profile.length
     const numPosBins = DEFAULT_POSITION_BINS
 
     const meanCov =
@@ -259,14 +269,14 @@ export function useBubblePolarChart(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const series: any[] = [
       {
-        name: '上层', type: 'line', xAxisIndex: 0, yAxisIndex: 0,
+        name: '上层单层', type: 'line', xAxisIndex: 0, yAxisIndex: 0,
         data: upperLine,
         lineStyle: { width: 2, color: '#409EFF' },
         itemStyle: { color: '#409EFF' },
         showSymbol: false, connectNulls: false, z: 10,
       },
       {
-        name: '下层', type: 'line', xAxisIndex: 1, yAxisIndex: 1,
+        name: '下层单层', type: 'line', xAxisIndex: 1, yAxisIndex: 1,
         data: lowerLine,
         lineStyle: { width: 2, color: '#E6A23C' },
         itemStyle: { color: '#E6A23C' },
@@ -308,6 +318,7 @@ export function useBubblePolarChart(
       title: {
         text: titleText,
         subtext:
+          `单层剖面 B(φ) · ` +
           `测量 ${numMeasurements} 点 · RMS ${(rmsError ?? 0).toFixed(2)}μm · ` +
           `覆盖率 ${meanCov}/bin (最少 ${minCov}) · ` +
           `膜宽 ${Wmm.toFixed(0)} mm / ${membraneWidthPulse.toFixed(0)} 脉冲`,
@@ -334,7 +345,6 @@ export function useBubblePolarChart(
         },
         {
           gridIndex: 1, type: 'value',
-          name: '探头位置',
           nameLocation: 'center', nameGap: 30,
           position: 'top',
           min: xMin, max: xMax,
@@ -345,14 +355,14 @@ export function useBubblePolarChart(
       ],
       yAxis: [
         {
-          gridIndex: 0, type: 'value', name: '上层膜厚 (μm)',
+          gridIndex: 0, type: 'value', name: '上层单层膜厚 (μm)',
           min: upperRange.min, max: upperRange.max,
           axisLabel: { fontSize: 11, color: '#409EFF', formatter: (v: number) => v.toFixed(1) },
           nameTextStyle: { color: '#409EFF', fontSize: 12 },
           splitLine: { lineStyle: { color: '#ebeef5' } },
         },
         {
-          gridIndex: 1, type: 'value', name: '下层膜厚 (μm)',
+          gridIndex: 1, type: 'value', name: '下层单层膜厚 (μm)',
           min: lowerRange.min, max: lowerRange.max, inverse: true,
           axisLabel: { fontSize: 11, color: '#E6A23C', formatter: (v: number) => v.toFixed(1) },
           nameTextStyle: { color: '#E6A23C', fontSize: 12 },
@@ -377,25 +387,27 @@ export function useBubblePolarChart(
             Math.max(0, Math.floor((pulse - xMin) / membraneWidthPulse * numPosBins)),
           )
 
-          const upperVal = arr.find((s) => s.seriesName === '上层')?.value[1]
-          const lowerVal = arr.find((s) => s.seriesName === '下层')?.value[1]
+          const upperVal = arr.find((s) => s.seriesName === '上层单层')?.value[1]
+          const lowerVal = arr.find((s) => s.seriesName === '下层单层')?.value[1]
 
           let html = `<div style="font-weight:600;margin-bottom:4px">探头位置：${pulse.toFixed(0)} 脉冲</div>`
 
           if (upperVal != null) {
             html += `<div style="display:flex;align-items:center;gap:6px">
               <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#409EFF"></span>
-              上层：<b>${Number(upperVal).toFixed(2)} μm</b></div>`
+              上层单层：<b>${Number(upperVal).toFixed(2)} μm</b></div>`
           }
           if (lowerVal != null) {
             html += `<div style="display:flex;align-items:center;gap:6px">
               <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#E6A23C"></span>
-              下层：<b>${Number(lowerVal).toFixed(2)} μm</b></div>`
+              下层单层：<b>${Number(lowerVal).toFixed(2)} μm</b></div>`
           }
           if (upperVal != null && lowerVal != null) {
-            const pressing = Number(upperVal) + Number(lowerVal)
+            const pressing =
+              (sweep.processDeformationFactor ?? 1.02) *
+              (Number(upperVal) + Number(lowerVal))
             html += `<div style="margin-top:4px;padding-top:4px;border-top:1px solid #ebeef5;font-size:11px;color:#606266">
-              压合厚度 (上+下): <b>${pressing.toFixed(2)} μm</b></div>`
+              压合双层预测厚度 η×(上层+下层): <b>${pressing.toFixed(2)} μm</b></div>`
           }
           if (upperProfile[binIdx] == null || lowerProfile[binIdx] == null) {
             html += '<div style="color:#e6a23c;font-size:11px;margin-top:4px">当前位置覆盖不足，数据来自桥接估计</div>'

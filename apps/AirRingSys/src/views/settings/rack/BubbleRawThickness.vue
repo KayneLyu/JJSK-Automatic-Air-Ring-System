@@ -27,8 +27,13 @@ const {
 } = useScannerTripReconstruction()
 
 /**
- * 把重构结果打包成 BubbleSweepResult 形状,
- * 喂给 BubbleNavBar / BubbleStatusBar / BubblePolarChart(它们接口不变)
+ * 把重构结果（单层膜厚剖面 B(φ) + sampleDecompositions）打包成 BubbleSweepResult 形状,
+ * 喂给 BubbleNavBar / BubbleStatusBar / BubblePolarChart（子组件接口不变）。
+ *
+ * 数据流：
+ *   T_k（测厚仪双层读数）→ reconstructBubbleThickness → B(φ)（单层剖面）
+ *   → sampleDecompositions 分解每点为 (φ₁,b1) + (φ₂,b2)
+ *   → 图表按探头脉冲位置分箱，上下两层独立展示
  */
 let cachedSyntheticSweep: ExtendedBubbleSweepResult | null = null
 let cachedResultRef: object | null = null
@@ -44,7 +49,7 @@ const syntheticSweep = computed<ExtendedBubbleSweepResult | null>(() => {
     return null
   }
 
-  const baselineKey = `${b.sweepId}:${b.startTs}:${b.endTs}:${b.direction}`
+  const baselineKey = `${b.sweepId}:${b.startTs}:${b.endTs}:${b.direction}:${dataMode.value}`
   const resultRef = r.result as object
   if (
     cachedSyntheticSweep &&
@@ -57,25 +62,32 @@ const syntheticSweep = computed<ExtendedBubbleSweepResult | null>(() => {
   cachedBaselineKey = baselineKey
   cachedResultRef = resultRef
 
+  // 滑动窗口负责稳定求解 B(φ)，图表只展示当前选中扫描趟的样本，
+  // 避免把多趟、多个上旋角度混合后误标成当前趟。
+  const baselineSampleDecompositions = r.result.sampleDecompositions?.filter(
+    (sample) => sample.ts >= b.startTs && sample.ts <= b.endTs
+  )
+
   cachedSyntheticSweep = {
     ...r.result,
+    sampleDecompositions: baselineSampleDecompositions,
     id: b.sweepId,
     time: b.startTs,
     direction: b.direction === 'forward' ? 'forward' : 'reverse',
     cycleDurationMs: b.endTs - b.startTs,
-    inProgress: false,
+    inProgress: dataMode.value === 'live',
   }
   return cachedSyntheticSweep
 })
 
 /**
- * 诊断: 为什么极坐标图显示空状态
+ * 诊断: 为什么膜泡厚度图表显示空状态
  * 返回 null 表示正常(有数据), 否则返回原因描述
  */
 const chartDiagnostic = computed<string | null>(() => {
   if (errorMessage.value) return errorMessage.value
   if (syntheticSweep.value) return null // 有数据,正常
-  if (isReconstructing.value) return '正在重构 B(φ)…'
+  if (isReconstructing.value)       return '正在重建单层膜厚剖面 B(φ)…'
   if (scannerTrips.value.length === 0) {
     if (calResults.value && Object.keys(calResults.value).length === 0)
       return '缺少标定参数 (airAD / membraneWidth / upperMaxAngle)，无法加载扫描趟'
@@ -189,7 +201,7 @@ function onAutoRefreshChange(v: boolean) {
     />
 
     <div v-if="isReconstructing" class="reconstructing-hint">
-      正在重构 B(φ)…
+      正在重建单层膜厚剖面 B(φ)…
     </div>
   </div>
 </template>

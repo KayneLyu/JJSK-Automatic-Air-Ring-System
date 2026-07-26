@@ -79,7 +79,7 @@ function membraneWidthMmLabel(): string {
       {{ selectedMinCoverage.toFixed(1) }}
     </span>
     <span class="param-text" v-if="hasSelectedSweep" style="color: #409eff">
-      膜泡厚度：最小
+      单层膜厚：最小
       {{ selectedProfileMinThickness == null ? '--' : `${selectedProfileMinThickness.toFixed(1)}μm` }}
       / 最大
       {{ selectedProfileMaxThickness == null ? '--' : `${selectedProfileMaxThickness.toFixed(1)}μm` }}
@@ -91,7 +91,7 @@ function membraneWidthMmLabel(): string {
       </template>
     </span>
     <span class="param-text" v-if="hasSelectedSweep" style="color: #e6a23c">
-      可观测性：θ覆盖 {{ thetaCoverageText }} · δ带宽 {{ deltaBandwidthText }} ·
+      重建条件：θ覆盖 {{ thetaCoverageText }} · δ带宽 {{ deltaBandwidthText }} ·
       约束bin {{ (effectiveConstraintBinRatio * 100).toFixed(1) }}%
     </span>
     <span class="param-text" v-if="transportDelayStatus" style="color: #909399">

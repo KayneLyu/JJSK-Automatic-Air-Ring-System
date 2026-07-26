@@ -20,7 +20,7 @@ export type BubbleReconstructionOptions = {
   numBins?: number
   /** L2 正则化系数 λ (默认 1e-4) */
   lambda?: number
-  /** Tikhonov 二阶差分平滑系数 μ (默认 0.00625) */
+  /** Tikhonov 二阶差分平滑系数 μ (默认 0.0005) */
   mu?: number
   /** 工艺变形因子 η (默认 1.0) */
   processDeformationFactor?: number
@@ -28,8 +28,12 @@ export type BubbleReconstructionOptions = {
   forgettingFactor?: number
   /** RLS 二阶差分平滑系数 μ_s (默认 0.1, 每 200 步应用) */
   smoothMu?: number
-  /** 求解模式 (默认 'rls') */
+  /** 求解模式 (默认 'batch') */
   solverMode?: 'batch' | 'rls'
+  /** 是否按测量均值自动缩放求解结果（默认 false，仅用于兼容旧显示） */
+  autoScaleToMeasurementMean?: boolean
+  /** 是否对最终 profile 应用固定五点圆周平滑（默认 false） */
+  applyDisplaySmoothing?: boolean
   /** tooltip 反解时优先选择 ts >= 此值的样本 */
   preferAfterTs?: number
 }
@@ -60,6 +64,8 @@ export interface SampleDecomposition {
 export type BubbleReconstructionResult = {
   /** 重建后的膜泡圆周厚度分布 B[0..N-1] (μm) */
   profile: number[]
+  /** 求解器直接输出（仅做非负截断），用于诊断后处理影响 */
+  rawProfile?: number[]
   /** 分箱数 */
   numBins: number
   /** 每 bin 宽度 (°) */
@@ -68,10 +74,14 @@ export type BubbleReconstructionResult = {
   rmsError: number
   /** 最大误差 (μm) */
   maxError: number
+  /** rawProfile 对应的均方根误差 (μm) */
+  rawRmsError?: number
   /** 测量数 */
   numMeasurements: number
   /** 每 bin 覆盖度 (等效观测次数) */
   binCoverage: number[]
+  /** 本次正模型使用的工艺变形因子 η */
+  processDeformationFactor: number
   /** 每个 bin 的贡献样本平均时间戳 (ms)，无贡献为 0 */
   binTimestamps?: number[]
   /** 每个 bin 的代表样本反解 */

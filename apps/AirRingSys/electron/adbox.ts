@@ -810,7 +810,7 @@ function registerProxiedIpcHandlers(): void {
     'db-get-pipeline-stats',
     'db-import-sweep',
 
-    // 膜泡原始厚度重建
+    // 纵向单层膜厚重建
     'bubble-reconstruct',
     'bubble-reconstruct-window',
     'bubble-get-sweeps',

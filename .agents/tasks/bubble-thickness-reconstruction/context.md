@@ -1,4 +1,4 @@
-# Task: 推算膜泡原始厚度
+# Task: 纵向单层膜厚重建
 
 ## 背景
 
@@ -9,20 +9,32 @@
 ## 涉及文件
 
 ### 新建
-- `packages/AirRingServer/algorithms/bubbleThicknessReconstruction.ts` — 线性系统求解器（Phase 1b 已实现）
-- `packages/AirRingServer/algorithms/bubbleThicknessReconstruction.test.ts` — 仿真器验证测试
+- `packages/AirRingServer/algorithms/bubbleReconstruction/` — 单层膜厚重建算法模块（线性系统求解 + 双层分解）
+  - `index.ts` — 主入口 `reconstructBubbleThickness()`：从双层测厚数据求解单层膜厚剖面 B(φ)
+  - `types.ts` — MeasurementTriple / BubbleReconstructionResult / SparseSystem 等核心类型
+  - `measurementModel.ts` — 前向测量模型 T_k = η×(B(φ₁_k)+B(φ₂_k))，构建稀疏线性系统
+  - `geometry.ts` — 几何模型：φ₁/φ₂ = θ+90°±δ
+  - `matrixBuilder.ts` — 正规方程 + Cholesky 分解
+  - `decompositions.ts` — 双层→单层分解（b1/b2 分离）
+  - `solvers/` — Batch (Cholesky) + RLS 在线求解器
+  - `simulation/` — 膜泡剖面生成器 + 测量仿真器
+  - `verification/` — 验证运行器
+- `packages/AirRingServer/algorithms/bubbleReconstruction/bubbleReconstruction.test.ts` — 仿真器验证测试
 
-### UI 层（展示重建结果）
-- `apps/AirRingSys/src/views/settings/rack/BubbleRawThickness.vue` — 膜泡原始厚度展示主页面（状态栏 + 导航栏 + 图表）
-- `apps/AirRingSys/src/views/settings/rack/useBubblePolarChart.ts` — 图表 composable：上下双层笛卡尔折线图（x=0-360°角度，y=单层膜厚 μm）
+### UI 层（展示单层膜厚重建结果）
+- `apps/AirRingSys/src/views/settings/rack/BubbleRawThickness.vue` — 膜泡单层厚度展示主页面（状态栏 + 导航栏 + 图表）
+- `apps/AirRingSys/src/views/settings/rack/BubbleStatusBar.vue` — 状态栏：标定参数、单层膜厚 min/max、重建条件指标
+- `apps/AirRingSys/src/views/settings/rack/BubbleNavBar.vue` — 导航栏：扫描趟方向、时间、翻页
+- `apps/AirRingSys/src/views/settings/rack/BubblePolarChart.vue` — 图表容器（ECharts 挂载）
+- `apps/AirRingSys/src/views/settings/rack/useBubblePolarChart.ts` — 图表 composable：上下双层笛卡尔折线图（x=探头脉冲位置，y=单层膜厚 μm）
   - 上层（蓝 #409EFF）：b1 按 φ1 分箱取中位数
   - 下层（橙 #E6A23C）：b2 按 φ2 分箱取中位数
   - `axisPointer.link` 联动两图 tooltip
   - 下图 y 轴 `inverse: true`（0 在顶部，与上图 0 在中间对称）
-  - 回退：无 sampleDecompositions 时用 LS 剖面填充两层
-- `apps/AirRingSys/src/views/settings/rack/useScannerTripReconstruction.ts` — 数据加载与重构管线 composable
+  - 回退：无 sampleDecompositions 时用 LS 单层剖面填充两层
+- `apps/AirRingSys/src/views/settings/rack/useScannerTripReconstruction.ts` — 数据加载与单层膜厚重建管线 composable
 - `apps/AirRingSys/src/views/settings/rack/bubbleRawThickness.constants.ts` — 常量与辅助函数
-- `apps/AirRingSys/src/types/ipc.d.ts` — BubbleSweepResult 等 IPC 类型
+- `apps/AirRingSys/src/types/ipc.d.ts` — BubbleSweepResult / BubbleWindowReconstructionResult 等 IPC 类型
 
 ### 读取/参考
 - `packages/Simulation/mocks/blowFilm.mock.ts` — 仿真器正模型，提供 ground truth（`bubbleThicknessAtScanner`）

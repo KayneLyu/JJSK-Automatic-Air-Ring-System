@@ -324,7 +324,7 @@ export class DataPipeline {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 膜泡原始厚度重建（Bubble Thickness Reconstruction）
+  // 纵向单层膜厚重建（Bubble Thickness Reconstruction）
   // ═══════════════════════════════════════════════════════════════
 
   getBubbleProfile(params: {

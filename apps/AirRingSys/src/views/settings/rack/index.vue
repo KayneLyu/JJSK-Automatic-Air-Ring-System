@@ -116,7 +116,7 @@ onMounted(() => {
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="膜泡原始厚度" name="bubble-raw-thickness">
+        <el-tab-pane label="纵向（单层）" name="bubble-raw-thickness">
           <div class="tab-pane-body">
             <div class="chart-container">
               <BubbleRawThickness v-if="activeTab === 'bubble-raw-thickness'" />
