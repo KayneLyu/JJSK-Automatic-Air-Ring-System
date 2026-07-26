@@ -40,12 +40,16 @@
 - `tasks/.../outputs/lambda-mu-sweep.csv`（25 组参数）
 - `tasks/.../outputs/numbins-sweep.csv`（5 组 bin 数）
 
-### Phase 3 — 实时化（待启动）
+### Phase 3 — 实时化（进行中）
 1. [ ] 增量更新：每完成一个扫描仪行程追加方程
 2. [ ] 滑动窗口：仅用最近 N 个行程
-3. [ ] 置信度评估：分箱样本覆盖率
+3. [x] 置信度评估：分箱样本覆盖率（由 `binCoverage` + bridgeShortGaps 实现）
 4. [ ] 在 Worker 线程运行（避免阻塞主进程）
-5. [ ] 接入真实 calibrated µm 数据 + 出界过滤（降低 RMS 至合理范围）
+5. [x] 接入真实 calibrated µm 数据 + 出界过滤（降低 RMS 至合理范围）
+6. [x] 前端展示：双层膜上下层厚度独立显示
+   - 极坐标图 → 笛卡尔上下双子图折线图（`useBubblePolarChart.ts`）
+   - 上层（b1/φ1）/ 下层（b2/φ2）分别分箱取中位数
+   - `axisPointer.link` 联动两图 tooltip，下图 y 轴 inverse + position: top
 
 ### Phase 4 — 工程化
 1. [ ] 集成到 calibration session（与 maxAngle 并行）

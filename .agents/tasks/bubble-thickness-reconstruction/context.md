@@ -12,6 +12,18 @@
 - `packages/AirRingServer/algorithms/bubbleThicknessReconstruction.ts` — 线性系统求解器（Phase 1b 已实现）
 - `packages/AirRingServer/algorithms/bubbleThicknessReconstruction.test.ts` — 仿真器验证测试
 
+### UI 层（展示重建结果）
+- `apps/AirRingSys/src/views/settings/rack/BubbleRawThickness.vue` — 膜泡原始厚度展示主页面（状态栏 + 导航栏 + 图表）
+- `apps/AirRingSys/src/views/settings/rack/useBubblePolarChart.ts` — 图表 composable：上下双层笛卡尔折线图（x=0-360°角度，y=单层膜厚 μm）
+  - 上层（蓝 #409EFF）：b1 按 φ1 分箱取中位数
+  - 下层（橙 #E6A23C）：b2 按 φ2 分箱取中位数
+  - `axisPointer.link` 联动两图 tooltip
+  - 下图 y 轴 `inverse: true`（0 在顶部，与上图 0 在中间对称）
+  - 回退：无 sampleDecompositions 时用 LS 剖面填充两层
+- `apps/AirRingSys/src/views/settings/rack/useScannerTripReconstruction.ts` — 数据加载与重构管线 composable
+- `apps/AirRingSys/src/views/settings/rack/bubbleRawThickness.constants.ts` — 常量与辅助函数
+- `apps/AirRingSys/src/types/ipc.d.ts` — BubbleSweepResult 等 IPC 类型
+
 ### 读取/参考
 - `packages/Simulation/mocks/blowFilm.mock.ts` — 仿真器正模型，提供 ground truth（`bubbleThicknessAtScanner`）
 - `packages/AirRingServer/algorithms/upperRotation/upperRotation.a.ts` — 历史分箱方法 `evaluateDeltaTheta()`

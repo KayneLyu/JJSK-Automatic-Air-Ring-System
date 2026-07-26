@@ -120,3 +120,21 @@
 - `outputs/numbins-sweep.csv` — 5 组 bin 数扫描结果
 - 两个对应测试用例 `bubbleThicknessAlignment.test.ts`
 
+## 2026-07-26 展示层重构：极坐标图 → 上下双层笛卡尔折线图
+
+**背景**：需求变更——要求实时显示双层膜对应的上下两层单层膜厚，并将极坐标图改为上下两条折线图。
+
+**变更内容**：
+- **文件**：`apps/AirRingSys/src/views/settings/rack/useBubblePolarChart.ts`（唯一修改文件）
+- **坐标系**：极坐标 (polar) → 笛卡尔双 grid（x=0-360°角度，y=膜厚 μm）
+- **数据源**：LS 重建剖面 B(φ) → `sampleDecompositions` 按 φ1/φ2 分别分箱 b1/b2 取中位数
+- **图表布局**：上下两个独立子图（grid[0]=上层 蓝色，grid[1]=下层 橙色）
+- **y 轴**：上图正常方向（0 在底部），下图 inverse（0 在顶部，两图 0 点在中间对称）
+- **x 轴**：下图 `position: 'top'`（标签在两图之间）
+- **联动**：`axisPointer.link: [{ xAxisIndex: 'all' }]`（悬停任一图同时显示两图 tooltip）
+- **回退**：无 `sampleDecompositions` 时用 LS 剖面填充两层（两条线重合）
+- **新增**：`computeLayerProfiles()` 函数 — 分箱 b1/phi1→上层、b2/phi2→下层，中位数 + bridgeShortGaps
+- **未改动**：`BubblePolarChart.vue`、`BubbleRawThickness.vue`、`useScannerTripReconstruction.ts`、后端算法
+
+**原因**：现场需要分别观察上下两层膜的厚度差异，以评估膜泡均匀性和重建质量。
+
