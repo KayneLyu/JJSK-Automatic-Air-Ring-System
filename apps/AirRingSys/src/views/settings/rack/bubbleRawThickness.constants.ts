@@ -15,7 +15,7 @@ export const SLIDING_WINDOW_TRIPS = 5
 // timeToAngle 的角度分段数（沿用 packages/AirRingServer 的默认值）
 export const TIME_TO_ANGLE_SEGMENTS = 10
 
-export const EMPTY_POLAR_OPTION: EChartsCoreOption = {
+export const EMPTY_CHART_OPTION: EChartsCoreOption = {
   title: {
     text: '等待扫描数据…',
     left: 'center',

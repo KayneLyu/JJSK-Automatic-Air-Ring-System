@@ -7,6 +7,9 @@ import { useBubblePolarChart, type ExtendedBubbleSweepResult } from './useBubble
 const props = defineProps<{
   selectedSweep: ExtendedBubbleSweepResult | null
   errorMessage: string | null
+  frameLengthPulse: number
+  membraneWidthMm: number
+  mmPerPulse: number
   compareSweep?: ExtendedBubbleSweepResult | null
 }>()
 
@@ -18,8 +21,15 @@ const isPaneReady = computed(
   () => paneSize.width.value > 0 && paneSize.height.value > 0
 )
 
+const framePulseRef = computed(() => props.frameLengthPulse || 0)
+const widthMmRef = computed(() => props.membraneWidthMm || 0)
+const mmPerPulseRef = computed(() => props.mmPerPulse || 0)
+
 const chart = useBubblePolarChart(
   toRef(props, 'selectedSweep'),
+  framePulseRef,
+  widthMmRef,
+  mmPerPulseRef,
   compareSweepNonNull
 )
 

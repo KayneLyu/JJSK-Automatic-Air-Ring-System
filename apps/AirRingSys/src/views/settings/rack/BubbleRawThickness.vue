@@ -20,7 +20,6 @@ const {
   transportDelayStatus,
   calResults,
   thicknessCfg,
-  angleOffsetDeg,
   scannerTrips,
   upperSweeps,
   prevTrip,
@@ -38,7 +37,6 @@ let cachedBaselineKey = ''
 const syntheticSweep = computed<ExtendedBubbleSweepResult | null>(() => {
   const r = currentReconstruction.value
   const b = selectedBaseline.value
-  const offDeg = angleOffsetDeg.value
   if (!r || !b) {
     cachedSyntheticSweep = null
     cachedResultRef = null
@@ -46,7 +44,7 @@ const syntheticSweep = computed<ExtendedBubbleSweepResult | null>(() => {
     return null
   }
 
-  const baselineKey = `${b.sweepId}:${b.startTs}:${b.endTs}:${b.direction}:${offDeg}`
+  const baselineKey = `${b.sweepId}:${b.startTs}:${b.endTs}:${b.direction}`
   const resultRef = r.result as object
   if (
     cachedSyntheticSweep &&
@@ -59,25 +57,8 @@ const syntheticSweep = computed<ExtendedBubbleSweepResult | null>(() => {
   cachedBaselineKey = baselineKey
   cachedResultRef = resultRef
 
-  // 角度校准：旋转剖面使 bin[0] 对齐实测 0° 参考点
-  let profile = r.result.profile
-  let binCoverage = r.result.binCoverage
-  if (Math.abs(offDeg) > 0.5) {
-    const N = profile.length
-    const binShift = Math.round((offDeg / 360) * N)
-    const rotated = new Array<number>(N)
-    for (let i = 0; i < N; i++) rotated[(i + binShift + N) % N] = profile[i]
-    profile = rotated
-    const rotatedCov = new Array<number>(N)
-    for (let i = 0; i < N; i++) rotatedCov[(i + binShift + N) % N] = binCoverage[i]
-    binCoverage = rotatedCov
-
-  }
-
   cachedSyntheticSweep = {
     ...r.result,
-    profile,
-    binCoverage,
     id: b.sweepId,
     time: b.startTs,
     direction: b.direction === 'forward' ? 'forward' : 'reverse',
@@ -168,9 +149,7 @@ function onAutoRefreshChange(v: boolean) {
   autoRefresh.value = v
 }
 
-function onAngleOffsetInput(e: Event) {
-  angleOffsetDeg.value = Number((e.target as HTMLInputElement).value)
-}
+
 </script>
 
 <template>
@@ -203,25 +182,11 @@ function onAngleOffsetInput(e: Event) {
 
     <BubblePolarChart
       :selected-sweep="syntheticSweep"
+      :frame-length-pulse="calResults.frameLengthPulse ?? 0"
+      :membrane-width-mm="calResults.membraneWidthMm ?? 0"
+      :mm-per-pulse="calResults.mmPerPulse ?? 0"
       :error-message="chartDiagnostic"
     />
-
-    <div
-      v-if="syntheticSweep"
-      style="display:flex;align-items:center;gap:12px;padding:4px 12px;background:#f5f7fa;border-radius:6px;margin:4px 0"
-    >
-      <span style="font-size:13px;white-space:nowrap;color:#606266">角度偏移</span>
-      <input
-        type="range"
-        :value="angleOffsetDeg"
-        min="0"
-        max="360"
-        step="1"
-        style="flex:1"
-        @input="onAngleOffsetInput"
-      />
-      <span style="font-size:13px;min-width:40px;text-align:right;color:#303133">{{ angleOffsetDeg }}°</span>
-    </div>
 
     <div v-if="isReconstructing" class="reconstructing-hint">
       正在重构 B(φ)…
