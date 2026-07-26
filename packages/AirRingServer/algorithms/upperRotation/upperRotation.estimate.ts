@@ -3,7 +3,11 @@
  */
 
 import { goldenSectionSearch } from '../../utils'
-import { TripSegment, UpperRotationDeltaRange, ValidThicknessData } from '../../types'
+import {
+  TripSegment,
+  UpperRotationDeltaRange,
+  ValidThicknessData,
+} from '../../types'
 import {
   ADAPTIVE_RULES_BASE,
   resolveAdaptiveRules,
@@ -71,13 +75,19 @@ const validateParams = () => ({
     return true
   },
   validateRange: (min: number, max: number, step: number): boolean => {
-    if (min < 0 || max > 360 || min >= max) {
+    if (
+      !Number.isFinite(min) ||
+      !Number.isFinite(max) ||
+      min < 0 ||
+      max > 360 ||
+      min >= max
+    ) {
       console.error(
         `[UpperRotation] 角度范围无效: [${min}, ${max}]，应为 [0, 360) 且 min < max`
       )
       return false
     }
-    if (step <= 0 || step > max - min) {
+    if (!Number.isFinite(step) || step <= 0 || step > max - min) {
       console.error(`[UpperRotation] 搜索步长无效: ${step}`)
       return false
     }
@@ -88,7 +98,7 @@ const validateParams = () => ({
 /**
  * 过滤不完整的行程片段
  */
-const filterPartialSegments = (
+export const filterPartialSegments = (
   segments: TripSegment[],
   minThreshold = 0.8,
   minPoints = 10
@@ -113,8 +123,8 @@ const filterPartialSegments = (
     }
 
     durations.sort((a, b) => a - b)
-    const median = durations[Math.floor(durations.length / 2)]
-    const minDuration = median * minThreshold
+    const upperQuartile = durations[Math.ceil(durations.length * 0.75) - 1]
+    const minDuration = upperQuartile * minThreshold
 
     const filtered = segments.filter((s) => {
       const isValid =
@@ -127,11 +137,10 @@ const filterPartialSegments = (
       return isValid
     })
 
-    const result = filtered.length >= 2 ? filtered : segments
     console.info(
-      `[UpperRotation] 片段过滤完成: ${segments.length} → ${result.length} 个有效片段`
+      `[UpperRotation] 片段过滤完成: ${segments.length} → ${filtered.length} 个有效片段`
     )
-    return result
+    return filtered
   } catch (err) {
     console.error('[UpperRotation] 片段过滤异常:', err)
     return segments
@@ -195,7 +204,7 @@ const estimateWithScannerExpansion = (
   tripSegments: TripSegment[],
   min: number,
   max: number,
-  _step: number,
+  step: number,
   segments: number,
   accelDecelMs?: number,
   debugOptions: UpperRotationDebugOptions = {},
@@ -226,7 +235,11 @@ const estimateWithScannerExpansion = (
       const flipped = flippedMeasurements[segIdx]
       result =
         flipped.length > 0
-          ? expandWithScannerOffset(flipped, mode, tripSegments[segIdx].isForward)
+          ? expandWithScannerOffset(
+              flipped,
+              mode,
+              tripSegments[segIdx].isForward
+            )
           : []
       expandedCache.set(key, result)
       return result
@@ -266,7 +279,9 @@ const estimateWithScannerExpansion = (
 
     const resolveAccelRatio = (duration: number, ms?: number): number => {
       const effectiveMs = ms ?? Math.min(20000, duration * 0.45)
-      return Math.max(0, Math.min(1, effectiveMs / duration))
+      return Number.isFinite(effectiveMs)
+        ? Math.max(0, Math.min(0.49, effectiveMs / duration))
+        : 0
     }
 
     // 根据给定 accelMs（可选）快速构建 normalized（仅改变 accelRatio）
@@ -340,7 +355,7 @@ const estimateWithScannerExpansion = (
         const rangeSize = (max - min) / NUM_STARTS
         const searchEnd = Math.min(max, start + rangeSize + 10) // +10 为了有重叠
 
-        for (let theta = start; theta < searchEnd; theta += 0.5) {
+        for (let theta = start; theta < searchEnd; theta += step) {
           const loss = evalLoss(theta)
           if (collectSamples) {
             lossSamples.push({ theta, loss })
@@ -357,7 +372,8 @@ const estimateWithScannerExpansion = (
       // 精搜索（0.1° 步长，±5° 范围）
       const fineMin = Math.max(min, bestTheta - 5)
       const fineMax = Math.min(max, bestTheta + 5)
-      for (let theta = fineMin; theta <= fineMax; theta += 0.1) {
+      const fineStep = Math.min(0.1, step)
+      for (let theta = fineMin; theta <= fineMax; theta += fineStep) {
         const loss = evalLoss(theta)
         if (loss < bestLoss) {
           bestLoss = loss
@@ -368,15 +384,25 @@ const estimateWithScannerExpansion = (
       return { theta: bestTheta, loss: bestLoss, samples: lossSamples }
     }
 
-    const expandedResult = searchBest(
-      evaluateFn,
-      normalized,
-      objectiveMode === 'auto' &&
-        offsetMode === 'auto' &&
-        evaluateFn === evaluateExpanded
-    )
+    const hasLossContrast = (samples: readonly LossSample[]): boolean => {
+      let minLoss = Infinity
+      let maxLoss = -Infinity
+      for (const sample of samples) {
+        if (!Number.isFinite(sample.loss)) continue
+        minLoss = Math.min(minLoss, sample.loss)
+        maxLoss = Math.max(maxLoss, sample.loss)
+      }
+      if (!Number.isFinite(minLoss) || !Number.isFinite(maxLoss)) return false
+      return maxLoss - minLoss > Math.max(1e-12, Math.abs(minLoss) * 1e-6)
+    }
+
+    const expandedResult = searchBest(evaluateFn, normalized, true)
     if (!expandedResult) {
       console.warn('[UpperRotation] 多起点搜索未找到最优点')
+      return null
+    }
+    if (!hasLossContrast(expandedResult.samples)) {
+      console.warn('[UpperRotation] loss 曲线缺少区分度，无法可靠估算最大角度')
       return null
     }
 
@@ -407,9 +433,9 @@ const estimateWithScannerExpansion = (
       0
     )
 
-    let pulseCoverageSignatureCache:
-      | ReturnType<typeof extractPulseCoverageSignature>
-      | null = null
+    let pulseCoverageSignatureCache: ReturnType<
+      typeof extractPulseCoverageSignature
+    > | null = null
     const getPulseCoverageSignature = (): ReturnType<
       typeof extractPulseCoverageSignature
     > => {
@@ -533,10 +559,13 @@ const estimateWithScannerExpansion = (
           bestTheta < adaptiveRules.lowAngle.thetaUpperBound &&
           groupDefaultResult.theta >
             adaptiveRules.lowAngle.h2.groupDefaultLowerBound &&
-          pulseCoverageSignature.covP10 >= adaptiveRules.lowAngle.h2.covP10Min &&
+          pulseCoverageSignature.covP10 >=
+            adaptiveRules.lowAngle.h2.covP10Min &&
           pulseCoverageSignature.covP10 < adaptiveRules.lowAngle.h2.covP10Max &&
-          pulseCoverageSignature.narrowRate >= adaptiveRules.lowAngle.h2.narrowRateMin &&
-          pulseCoverageSignature.narrowRate < adaptiveRules.lowAngle.h2.narrowRateMax
+          pulseCoverageSignature.narrowRate >=
+            adaptiveRules.lowAngle.h2.narrowRateMin &&
+          pulseCoverageSignature.narrowRate <
+            adaptiveRules.lowAngle.h2.narrowRateMax
 
         if (h1Trigger) {
           const correctedTheta =
@@ -867,6 +896,29 @@ export const estimateThetaMaxWithPhaseCorrection = (
 
   if (fullSegments.length === 0) {
     console.error('[UpperRotation] 过滤后无有效行程片段')
+    return null
+  }
+
+  let signalCount = 0
+  let signalMean = 0
+  let signalM2 = 0
+  for (const segment of fullSegments) {
+    for (const point of segment.measurements) {
+      if (!Number.isFinite(point.y)) continue
+      signalCount++
+      const delta = point.y - signalMean
+      signalMean += delta / signalCount
+      signalM2 += delta * (point.y - signalMean)
+    }
+  }
+  const signalVariance = signalCount > 1 ? signalM2 / signalCount : 0
+  const signalScale = Math.max(1, Math.abs(signalMean))
+  if (
+    signalCount < 2 ||
+    !Number.isFinite(signalVariance) ||
+    signalVariance <= Number.EPSILON * signalScale * signalScale
+  ) {
+    console.warn('[UpperRotation] 厚度信号缺少有效变化，无法估算最大角度')
     return null
   }
 

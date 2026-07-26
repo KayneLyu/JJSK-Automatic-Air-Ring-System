@@ -11,18 +11,24 @@ export const trapezoidalPosition = (
   progress: number,
   accelRatio: number
 ): number => {
-  const normFactor = 1 / (1 - accelRatio)
+  const safeProgress = Number.isFinite(progress)
+    ? Math.max(0, Math.min(1, progress))
+    : 0
+  const safeAccelRatio = Number.isFinite(accelRatio)
+    ? Math.max(0, Math.min(0.49, accelRatio))
+    : 0
+  const normFactor = 1 / (1 - safeAccelRatio)
   let raw: number
-  if (progress < accelRatio) {
-    raw = 0.5 * (progress / accelRatio) ** 2 * accelRatio
-  } else if (progress > 1 - accelRatio) {
-    const lp = (progress - (1 - accelRatio)) / accelRatio
+  if (safeAccelRatio > 0 && safeProgress < safeAccelRatio) {
+    raw = 0.5 * (safeProgress / safeAccelRatio) ** 2 * safeAccelRatio
+  } else if (safeAccelRatio > 0 && safeProgress > 1 - safeAccelRatio) {
+    const lp = (safeProgress - (1 - safeAccelRatio)) / safeAccelRatio
     raw =
-      0.5 * accelRatio +
-      (1 - 2 * accelRatio) +
-      (lp - 0.5 * lp * lp) * accelRatio
+      0.5 * safeAccelRatio +
+      (1 - 2 * safeAccelRatio) +
+      (lp - 0.5 * lp * lp) * safeAccelRatio
   } else {
-    raw = 0.5 * accelRatio + (progress - accelRatio)
+    raw = 0.5 * safeAccelRatio + (safeProgress - safeAccelRatio)
   }
   return raw * normFactor
 }
@@ -178,7 +184,9 @@ export const countTotalPoints = (
   segs: Array<{ data: readonly ExpandedPoint[] }>
 ): number => segs.reduce((acc, seg) => acc + seg.data.length, 0)
 
-export const buildFlippedMeasurements = (seg: TripSegment): TripSegment['measurements'] =>
+export const buildFlippedMeasurements = (
+  seg: TripSegment
+): TripSegment['measurements'] =>
   seg.isForward
     ? seg.measurements
     : seg.measurements.map((point) => ({ ...point, t: seg.duration - point.t }))
