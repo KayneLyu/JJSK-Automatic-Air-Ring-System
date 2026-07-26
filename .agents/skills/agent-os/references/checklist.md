@@ -49,7 +49,9 @@
 - [ ] `dependencies.md` 明确 Third-Party First 优先级
 - [ ] `dependencies.md` 明确 ORM First 与 ORM Schema First 仅在后端数据库相关任务中生效
 - [ ] `i18n.md` 处理正确：文件始终已生成；有国际化需求时已读取并执行；无国际化需求时可按规则跳过读取
-- [ ] `decisions.md` 的新记录时间精确到分钟（`YYYY-MM-DD HH:mm`）
+- [ ] `decisions.md` 的新记录时间精确到分钟（`YYYY-MM-DD HH:mm`），且时间来自真实系统时间（通过 `date` 命令获取），非编造
+- [ ] `decisions.md` 新记录插入在文件顶部（时间倒序，最新在前），`progress.md` 新记录追加在文件底部（时间正序，只追加）
+- [ ] 所有时间记录按声明方向排序，无乱序插入
 
 ---
 
@@ -70,6 +72,7 @@
 - [ ] 无 i18n 违规（项目有国际化需求时：无硬编码文案，无 fallback）
 - [ ] 未引入不必要复杂度
 - [ ] 未在本 skill 中混入超出 Agent OS 基线范围的内容
+- [ ] 所有时间戳来自真实系统时间（通过 `date` 或等效方式获取），未编造时间
 
 ---
 
