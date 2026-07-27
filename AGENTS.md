@@ -22,5 +22,5 @@ packages/Simulation/      # 设备仿真系统
 - TypeScript 严格模式，pnpm 管理依赖，ESLint + Prettier
 - 算法命名：camelCase 文件，PascalCase 类型，UPPER_SNAKE_CASE 常量
 - 优先使用成熟第三方库，不重复造轮子
-- 除非明确要求，不自动执行测试
+- 代码修改后主动执行与风险相称的相关测试，阶段验收时运行对应测试矩阵
 - 设备控制指令必须边界校验，避免频繁调整损坏设备

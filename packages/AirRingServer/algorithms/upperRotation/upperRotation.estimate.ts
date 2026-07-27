@@ -17,6 +17,7 @@ import {
   type UpperRotationDebugOptions,
   type UpperRotationObjectiveMode,
   type UpperRotationOffsetMode,
+  type UpperRotationStrategyProfile,
   upperRotationRuntimeLimits,
 } from './upperRotation.config'
 import {
@@ -34,6 +35,51 @@ import {
   extractPulseCoverageSignature,
 } from './upperRotation.offset'
 import { estimateWithPulseExpansion } from './upperRotation.pulse'
+
+export type UpperRotationEstimateOptions = {
+  harmonics?: number
+  segments?: number
+  deltaRange?: UpperRotationDeltaRange
+  objectiveMode?: UpperRotationObjectiveMode
+  debug?: UpperRotationDebugOptions
+  adaptiveRules?: UpperRotationAdaptiveRulesOverride
+  adaptiveTuning?: UpperRotationAdaptiveTuningOverride
+}
+
+export type UpperRotationEstimateDiagnostics = {
+  status: 'running' | 'success' | 'rejected'
+  strategyProfile: UpperRotationStrategyProfile
+  objectiveMode: UpperRotationObjectiveMode
+  offsetMode: UpperRotationOffsetMode
+  objectiveUsed: 'direct' | 'expanded' | 'pulseFallback' | null
+  inputSegments: number
+  completeSegments: number
+  filteredSegments: number
+  totalPoints: number
+  baseThetaDeg: number | null
+  finalThetaDeg: number | null
+  finalLoss: number | null
+  triggeredRules: string[]
+  rejectReason: string | null
+  elapsedMs: number
+}
+
+export type UpperRotationDetailedEstimate = {
+  thetaMaxDeg: number | null
+  diagnostics: UpperRotationEstimateDiagnostics
+}
+
+export type UpperRotationStrategyComparison = {
+  /** 迁移期间仍作为生产选择的历史调优路径。 */
+  production: UpperRotationDetailedEstimate
+  /** 不含 H1/H2/C5/DS05-like 的通用影子路径。 */
+  shadow: UpperRotationDetailedEstimate
+  selectedThetaDeg: number | null
+  angleDeltaDeg: number | null
+  absoluteAngleDeltaDeg: number | null
+  elapsedDeltaMs: number
+  comparable: boolean
+}
 
 /**
  * 性能监测和日志工具
@@ -208,12 +254,22 @@ const estimateWithScannerExpansion = (
   segments: number,
   accelDecelMs?: number,
   debugOptions: UpperRotationDebugOptions = {},
-  adaptiveRules: UpperRotationAdaptiveRules = ADAPTIVE_RULES_BASE
+  adaptiveRules: UpperRotationAdaptiveRules = ADAPTIVE_RULES_BASE,
+  diagnostics?: UpperRotationEstimateDiagnostics
 ): number | null => {
   try {
     const objectiveMode = debugOptions.objectiveMode ?? 'auto'
     const offsetMode = debugOptions.offsetMode ?? 'auto'
-    const strategyProfile = debugOptions.strategyProfile ?? 'generic'
+    // 迁移期间保持旧生产行为；generic 作为无历史样本定向规则的影子基线。
+    const strategyProfile =
+      debugOptions.strategyProfile ?? 'datasetTuned2026Q1'
+    const enableDatasetTunedRules =
+      strategyProfile === 'datasetTuned2026Q1'
+    if (diagnostics) {
+      diagnostics.strategyProfile = strategyProfile
+      diagnostics.objectiveMode = objectiveMode
+      diagnostics.offsetMode = offsetMode
+    }
 
     // ── 缓存层：flipped measurements 和 expanded results 只计算一次 ──
     const flippedMeasurements: readonly (readonly ValidThicknessData[])[] =
@@ -269,6 +325,7 @@ const estimateWithScannerExpansion = (
     }
     if (preExpanded.length < 2) {
       console.warn('[UpperRotation] 扫描展开后片段数不足')
+      if (diagnostics) diagnostics.rejectReason = 'scannerSegmentsInsufficient'
       return null
     }
 
@@ -315,6 +372,10 @@ const estimateWithScannerExpansion = (
           : hasValidOffset
             ? evaluateExpanded
             : evaluateDirect
+    if (diagnostics) {
+      diagnostics.objectiveUsed =
+        evaluateFn === evaluateExpanded ? 'expanded' : 'direct'
+    }
 
     console.debug(
       `[UpperRotation] 选择目标函数: ${
@@ -399,6 +460,7 @@ const estimateWithScannerExpansion = (
     const expandedResult = searchBest(evaluateFn, normalized, true)
     if (!expandedResult) {
       console.warn('[UpperRotation] 多起点搜索未找到最优点')
+      if (diagnostics) diagnostics.rejectReason = 'searchResultMissing'
       return null
     }
     if (!hasLossContrast(expandedResult.samples)) {
@@ -408,6 +470,7 @@ const estimateWithScannerExpansion = (
 
     let bestTheta = expandedResult.theta
     let bestLoss = expandedResult.loss
+    if (diagnostics) diagnostics.baseThetaDeg = bestTheta
     let finalEvaluateFn: typeof evaluateExpanded = evaluateFn
     let finalNormalized = normalized
     const landscapeFeature =
@@ -432,6 +495,7 @@ const estimateWithScannerExpansion = (
       (acc, seg) => acc + seg.data.length,
       0
     )
+    if (diagnostics) diagnostics.totalPoints = totalPoints
 
     let pulseCoverageSignatureCache: ReturnType<
       typeof extractPulseCoverageSignature
@@ -476,6 +540,7 @@ const estimateWithScannerExpansion = (
         bestTheta = directResult.theta
         bestLoss = directResult.loss
         finalEvaluateFn = evaluateDirect
+        if (diagnostics) diagnostics.triggeredRules.push('directFallback')
       } else if (
         expandedLeansBoundary &&
         thetaGap >= upperRotationRuntimeLimits.SOLUTION_GAP_THRESHOLD_DEG &&
@@ -522,6 +587,7 @@ const estimateWithScannerExpansion = (
     // - H1: 默认 group 映射偏低，但高加速 group 显著抬升
     // - H2: 默认 group 映射偏高，可作为上拉锚点
     if (
+      enableDatasetTunedRules &&
       objectiveMode === 'auto' &&
       offsetMode === 'auto' &&
       hasValidOffset &&
@@ -576,6 +642,7 @@ const estimateWithScannerExpansion = (
           bestLoss = evaluateExpanded(groupFastNorm, bestTheta, segments)
           finalEvaluateFn = evaluateExpanded
           finalNormalized = groupFastNorm
+          if (diagnostics) diagnostics.triggeredRules.push('lowAngleH1')
           console.warn(
             `[UpperRotation] 低角度模式修正(H1): corrected θ=${bestTheta.toFixed(2)}° (base=${expandedResult.theta.toFixed(2)}°, group13000=${groupFastResult.theta.toFixed(2)}°)`
           )
@@ -588,6 +655,7 @@ const estimateWithScannerExpansion = (
           bestLoss = evaluateExpanded(groupDefaultNorm, bestTheta, segments)
           finalEvaluateFn = evaluateExpanded
           finalNormalized = groupDefaultNorm
+          if (diagnostics) diagnostics.triggeredRules.push('lowAngleH2')
           console.warn(
             `[UpperRotation] 低角度模式修正(H2): corrected θ=${bestTheta.toFixed(2)}° (base=${expandedResult.theta.toFixed(2)}°, groupDefault=${groupDefaultResult.theta.toFixed(2)}°)`
           )
@@ -663,10 +731,13 @@ const estimateWithScannerExpansion = (
           const lossGain =
             (bestLoss - groupPulseResult.loss) / Math.max(bestLoss, 1e-9)
           const thetaShift = Math.abs(groupPulseResult.theta - bestTheta)
-          ds05GroupTheta = groupPulseResult.theta
+          ds05GroupTheta = enableDatasetTunedRules
+            ? groupPulseResult.theta
+            : null
           const minGainForSwitch = 0.015
           // C5(obs) 受控放宽：特征窗口触发，避免标准门控遗漏的高角度修正。
           const c5RelaxedSwitch =
+            enableDatasetTunedRules &&
             pulseCoverageSignature.validGroups >=
               adaptiveRules.highAngle.c5.minValidGroups &&
             thetaShift > adaptiveRules.highAngle.c5.thetaShiftMinExclusive &&
@@ -692,6 +763,11 @@ const estimateWithScannerExpansion = (
             bestLoss = groupPulseResult.loss
             finalEvaluateFn = evaluateExpanded
             finalNormalized = normalizedGroupPulse
+            if (diagnostics) {
+              diagnostics.triggeredRules.push(
+                usedC5RelaxedSwitch ? 'highAngleC5' : 'groupPulseChallenger'
+              )
+            }
           }
         }
       }
@@ -736,6 +812,9 @@ const estimateWithScannerExpansion = (
             bestLoss = timeResult.loss
             finalEvaluateFn = evaluateExpanded
             finalNormalized = normalizedTime
+            if (diagnostics) {
+              diagnostics.triggeredRules.push('timeChallenger')
+            }
           }
         }
       }
@@ -810,6 +889,9 @@ const estimateWithScannerExpansion = (
               bestLoss = fastGlobalPulseResult.loss
               finalEvaluateFn = evaluateExpanded
               finalNormalized = normalizedGlobalPulseFast
+              if (diagnostics) {
+                diagnostics.triggeredRules.push('highAngleOverEstimation')
+              }
             }
           }
         }
@@ -825,19 +907,26 @@ const estimateWithScannerExpansion = (
     )
 
     // 黄金分割最终收敛
-    return goldenSectionSearch(
+    const finalTheta = goldenSectionSearch(
       (th) => finalEvaluateFn(finalNormalized, th, segments),
       Math.max(min, bestTheta - 1),
       Math.min(max, bestTheta + 1),
       0.01
     )
+    if (diagnostics) {
+      diagnostics.finalThetaDeg = finalTheta
+      diagnostics.finalLoss = finalEvaluateFn(finalNormalized, finalTheta, segments)
+      diagnostics.rejectReason = null
+    }
+    return finalTheta
   } catch (err) {
     console.error('[UpperRotation] 扫描展开异常:', err)
+    if (diagnostics) diagnostics.rejectReason = 'scannerExpansionException'
     return null
   }
 }
 
-export const estimateThetaMaxWithPhaseCorrection = (
+const estimateThetaMaxWithPhaseCorrectionCore = (
   tripSegments: TripSegment[],
   {
     segments = 36,
@@ -846,15 +935,8 @@ export const estimateThetaMaxWithPhaseCorrection = (
     debug = {},
     adaptiveRules,
     adaptiveTuning,
-  }: {
-    harmonics?: number
-    segments?: number
-    deltaRange?: UpperRotationDeltaRange
-    objectiveMode?: UpperRotationObjectiveMode
-    debug?: UpperRotationDebugOptions
-    adaptiveRules?: UpperRotationAdaptiveRulesOverride
-    adaptiveTuning?: UpperRotationAdaptiveTuningOverride
-  } = {}
+  }: UpperRotationEstimateOptions = {},
+  diagnostics?: UpperRotationEstimateDiagnostics
 ): number | null => {
   const logger = createLogger()
   const validator = validateParams()
@@ -862,6 +944,7 @@ export const estimateThetaMaxWithPhaseCorrection = (
   const runtimeDebug: UpperRotationDebugOptions = objectiveMode
     ? { ...debug, objectiveMode }
     : debug
+  if (diagnostics) diagnostics.inputSegments = tripSegments.length
 
   // 参数验证
   logger.startTimer('validation')
@@ -880,22 +963,26 @@ export const estimateThetaMaxWithPhaseCorrection = (
   // 这通常发生在实时流数据中，当采集仍在进行时
   logger.startTimer('filterIncompleteSegments')
   const completeSegments = tripSegments.filter((seg) => seg.duration > 0)
+  if (diagnostics) diagnostics.completeSegments = completeSegments.length
   logger.endTimer('filterIncompleteSegments', 10)
 
   if (completeSegments.length === 0) {
     console.error(
       '[UpperRotation] 无有效的已完成行程片段（所有片段 duration <= 0）'
     )
+    if (diagnostics) diagnostics.rejectReason = 'completeSegmentsMissing'
     return null
   }
 
   // 过滤不完整的首尾片段，避免错误的时间→角度映射
   logger.startTimer('filterPartialSegments')
   const fullSegments = filterPartialSegments(completeSegments)
+  if (diagnostics) diagnostics.filteredSegments = fullSegments.length
   logger.endTimer('filterPartialSegments')
 
   if (fullSegments.length === 0) {
     console.error('[UpperRotation] 过滤后无有效行程片段')
+    if (diagnostics) diagnostics.rejectReason = 'filteredSegmentsMissing'
     return null
   }
 
@@ -932,7 +1019,8 @@ export const estimateThetaMaxWithPhaseCorrection = (
     segments,
     runtimeDebug.accelDecelMs,
     runtimeDebug,
-    resolveAdaptiveRules(adaptiveRules, adaptiveTuning)
+    resolveAdaptiveRules(adaptiveRules, adaptiveTuning),
+    diagnostics
   )
   logger.endTimer('estimateWithScannerExpansion')
   if (result !== null) return result
@@ -947,6 +1035,94 @@ export const estimateThetaMaxWithPhaseCorrection = (
     segments,
     runtimeDebug.accelDecelMs
   )
+  if (diagnostics) {
+    diagnostics.objectiveUsed = 'pulseFallback'
+    diagnostics.finalThetaDeg = pulseFallback
+    diagnostics.rejectReason =
+      pulseFallback === null ? 'allEstimatorsFailed' : null
+  }
   logger.endTimer('estimateWithPulseExpansionFallback')
   return pulseFallback
+}
+
+export const estimateThetaMaxWithPhaseCorrection = (
+  tripSegments: TripSegment[],
+  options: UpperRotationEstimateOptions = {}
+): number | null => estimateThetaMaxWithPhaseCorrectionCore(tripSegments, options)
+
+export const estimateThetaMaxWithPhaseCorrectionDetailed = (
+  tripSegments: TripSegment[],
+  options: UpperRotationEstimateOptions = {}
+): UpperRotationDetailedEstimate => {
+  const startedAt = performance.now()
+  const diagnostics: UpperRotationEstimateDiagnostics = {
+    status: 'running',
+    strategyProfile:
+      options.debug?.strategyProfile ?? 'datasetTuned2026Q1',
+    objectiveMode:
+      options.objectiveMode ?? options.debug?.objectiveMode ?? 'auto',
+    offsetMode: options.debug?.offsetMode ?? 'auto',
+    objectiveUsed: null,
+    inputSegments: tripSegments.length,
+    completeSegments: 0,
+    filteredSegments: 0,
+    totalPoints: 0,
+    baseThetaDeg: null,
+    finalThetaDeg: null,
+    finalLoss: null,
+    triggeredRules: [],
+    rejectReason: null,
+    elapsedMs: 0,
+  }
+  const thetaMaxDeg = estimateThetaMaxWithPhaseCorrectionCore(
+    tripSegments,
+    options,
+    diagnostics
+  )
+  diagnostics.status = thetaMaxDeg === null ? 'rejected' : 'success'
+  diagnostics.elapsedMs = performance.now() - startedAt
+  return { thetaMaxDeg, diagnostics }
+}
+
+/**
+ * 显式运行生产 tuned 与 generic 影子路径，供离线/影子诊断使用。
+ * 现有生产入口不会自动调用本函数，因此不会引入双倍计算开销。
+ */
+export const compareUpperRotationStrategies = (
+  tripSegments: TripSegment[],
+  options: UpperRotationEstimateOptions = {}
+): UpperRotationStrategyComparison => {
+  const production = estimateThetaMaxWithPhaseCorrectionDetailed(
+    tripSegments,
+    {
+      ...options,
+      debug: {
+        ...(options.debug ?? {}),
+        strategyProfile: 'datasetTuned2026Q1',
+      },
+    }
+  )
+  const shadow = estimateThetaMaxWithPhaseCorrectionDetailed(tripSegments, {
+    ...options,
+    debug: {
+      ...(options.debug ?? {}),
+      strategyProfile: 'generic',
+    },
+  })
+  const comparable =
+    production.thetaMaxDeg !== null && shadow.thetaMaxDeg !== null
+  const angleDeltaDeg = comparable
+    ? (shadow.thetaMaxDeg ?? 0) - (production.thetaMaxDeg ?? 0)
+    : null
+  return {
+    production,
+    shadow,
+    selectedThetaDeg: production.thetaMaxDeg,
+    angleDeltaDeg,
+    absoluteAngleDeltaDeg:
+      angleDeltaDeg === null ? null : Math.abs(angleDeltaDeg),
+    elapsedDeltaMs:
+      shadow.diagnostics.elapsedMs - production.diagnostics.elapsedMs,
+    comparable,
+  }
 }

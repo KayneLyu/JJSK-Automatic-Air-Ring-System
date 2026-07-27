@@ -146,7 +146,7 @@ pnpm start
 
 ## 重要约束（代码未表达）
 
-- 不要自动执行测试（除非用户明确要求）
+- 代码修改后主动执行与风险相称的相关测试；单步迭代运行最小相关测试集，阶段验收运行对应测试矩阵
 - 不要手动修复 lint 问题（oxlint 是类型感知 linter, 真实 type-safety 警告请保留为 warning）
 - `.instructions/` 目录是历史遗留，已迁移到 `.agents/`
 - `.github/copilot-instructions.md` 已迁移到 `.agents/guide/`
