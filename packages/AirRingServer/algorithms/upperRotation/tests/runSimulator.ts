@@ -1,10 +1,70 @@
+import { randomBytes } from 'node:crypto'
 import { expect, vi } from 'vitest'
 import { createBlowFilmSimulator } from '@jjsk/simulation'
 import { TripSegment } from '../../../types'
 import { buildTripSegment } from '../../buildTripSegment'
 import { estimateThetaMaxWithPhaseCorrection } from '../upperRotation'
 
-export const fn = async (UpperMaxAngle: number) => {
+export type SimulatorScenario = {
+  seed: number
+  maxAngleDeg: number
+  upperTripDurationSec: number
+  scannerTripDurationSec: number
+  measurementNoise: number
+  flowDeviation: number
+}
+
+const UINT32_MAX = 0xffffffff
+
+const mulberry32 = (seed: number): (() => number) => {
+  let state = seed >>> 0
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0
+    let value = state
+    value = Math.imul(value ^ (value >>> 15), value | 1)
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
+    return ((value ^ (value >>> 14)) >>> 0) / 0x100000000
+  }
+}
+
+const randomBetween = (
+  random: () => number,
+  min: number,
+  max: number,
+  decimals: number
+): number => Number((min + random() * (max - min)).toFixed(decimals))
+
+const parseReplaySeed = (): number | undefined => {
+  const raw = process.env.UPPER_ROTATION_REPLAY_SEED
+  if (raw === undefined || raw.trim() === '') return undefined
+  const parsed = Number(raw)
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > UINT32_MAX) {
+    throw new Error(
+      `UPPER_ROTATION_REPLAY_SEED 必须是 0～${UINT32_MAX} 的整数，收到: ${raw}`
+    )
+  }
+  return parsed >>> 0
+}
+
+export const createSimulatorScenario = (seed?: number): SimulatorScenario => {
+  const effectiveSeed =
+    seed === undefined ? randomBytes(4).readUInt32LE(0) : seed >>> 0
+  const random = mulberry32(effectiveSeed)
+  return {
+    seed: effectiveSeed,
+    maxAngleDeg: randomBetween(random, 181, 359, 2),
+    upperTripDurationSec: randomBetween(random, 360, 480, 1),
+    scannerTripDurationSec: randomBetween(random, 25, 35, 1),
+    measurementNoise: randomBetween(random, 0.05, 0.2, 3),
+    flowDeviation: randomBetween(random, 0.002, 0.01, 4),
+  }
+}
+
+export const fn = async (scenarioIndex: number) => {
+  const scenario = createSimulatorScenario(parseReplaySeed())
+  const simulatorRandomSpy = vi
+    .spyOn(Math, 'random')
+    .mockImplementation(mulberry32(scenario.seed ^ 0xa5a5a5a5))
   vi.useFakeTimers()
   const startTime = new Date('2025-11-18T12:00:00Z').getTime()
   vi.setSystemTime(startTime)
@@ -31,7 +91,7 @@ export const fn = async (UpperMaxAngle: number) => {
       channelCount: CHANNEL_COUNT,
       baseAirFlow,
       installationOffset: 0,
-      flowDeviation: 0.005,
+      flowDeviation: scenario.flowDeviation,
     },
     bubble: {
       nominalThickness: 100,
@@ -40,14 +100,14 @@ export const fn = async (UpperMaxAngle: number) => {
       thicknessResolution: 0.5,
     },
     upperRotation: {
-      maxAngle: UpperMaxAngle,
-      tripDuration: 360,
+      maxAngle: scenario.maxAngleDeg,
+      tripDuration: scenario.upperTripDurationSec,
     },
     scanner: {
       membraneWidth: 1200,
-      tripDuration: 30,
+      tripDuration: scenario.scannerTripDurationSec,
       pulseToDistance: 0.1,
-      measurementNoise: 0.1,
+      measurementNoise: scenario.measurementNoise,
     },
     roller: {
       speed,
@@ -73,8 +133,10 @@ export const fn = async (UpperMaxAngle: number) => {
 
   const maxAngle = estimateThetaMaxWithPhaseCorrection(tripSegment) || 0
   console.log(
-    `模拟器用例 ${UpperMaxAngle}°: expected=${UpperMaxAngle}°, got=${maxAngle.toFixed(2)}°, rounded=${Math.round(maxAngle!)}`
+    `[simulator-random] index=${scenarioIndex} scenario=${JSON.stringify(scenario)} got=${maxAngle.toFixed(2)}° error=${Math.abs(scenario.maxAngleDeg - maxAngle).toFixed(2)}° replay="UPPER_ROTATION_REPLAY_SEED=${scenario.seed}"`
   )
-  const diff = Math.abs(UpperMaxAngle - maxAngle)
+  const diff = Math.abs(scenario.maxAngleDeg - maxAngle)
+  simulatorRandomSpy.mockRestore()
+  vi.useRealTimers()
   expect(diff).toBeLessThan(5)
 }
