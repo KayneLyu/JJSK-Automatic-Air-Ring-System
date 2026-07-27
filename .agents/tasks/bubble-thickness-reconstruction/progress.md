@@ -154,6 +154,22 @@
 
 **原则**：仅调整描述/注释/文档文案，不改变任何逻辑或数据结构。所有"厚度"前明确标注"单层"或"双层"，B(φ) 统一称为"单层膜厚剖面"。
 
+## 2026-07-27 图表重构：上下双层 → 单曲线角度域 B(φ)
+
+**背景**：需求变更——X 轴改为膜泡角度 (0-360°)，无需区分上下两层独立展示，直接展示重建的单层膜厚剖面 B(φ)。
+
+**变更内容**：
+- **`useBubblePolarChart.ts`**：完全重写，移除 `computeLayerProfilesByPulse`/`scannerPulseFromPhiPair`/`buildPulseLineData` 等探头脉冲分箱逻辑，改为 `buildAngleLineData` 直接使用 LS 剖面 B(φ) 按角度展示
+  - X 轴：膜泡角度 0-360°（`360 / numBins` °/bin）
+  - Y 轴：单层膜厚 (μm)
+  - 单条曲线（`#409EFF`），低覆盖率 bin 由 `bridgeShortGaps` 补齐
+  - 函数签名简化：移除 `frameLengthPulse`/`mmPerPulse` 参数
+- **`BubblePolarChart.vue`**：props 移除 `frameLengthPulse`/`mmPerPulse`，适配简化签名
+- **`BubbleRawThickness.vue`**：模板移除 `frame-length-pulse`/`mm-per-pulse` 传参，注释更新
+- **Tab 名称**：`index.vue` 标签从"膜泡原始厚度"改为"纵向（单层）"
+- **全仓库**："膜泡原始厚度"文案替换为"纵向单层膜厚"
+- **文档**：`context.md` 图表描述更新为单曲线角度域说明
+
 ## 2026-07-26 审查问题修复：实时刷新、当前趟语义与算法后处理
 
 - live 模式以 `sweepId:endTs:pointCount` 识别扫描趟版本；同一趟增长时失效 sample/profile 两级缓存并重新求解。

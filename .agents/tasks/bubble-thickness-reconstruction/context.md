@@ -26,12 +26,10 @@
 - `apps/AirRingSys/src/views/settings/rack/BubbleStatusBar.vue` — 状态栏：标定参数、单层膜厚 min/max、重建条件指标
 - `apps/AirRingSys/src/views/settings/rack/BubbleNavBar.vue` — 导航栏：扫描趟方向、时间、翻页
 - `apps/AirRingSys/src/views/settings/rack/BubblePolarChart.vue` — 图表容器（ECharts 挂载）
-- `apps/AirRingSys/src/views/settings/rack/useBubblePolarChart.ts` — 图表 composable：上下双层笛卡尔折线图（x=探头脉冲位置，y=单层膜厚 μm）
-  - 上层（蓝 #409EFF）：b1 按 φ1 分箱取中位数
-  - 下层（橙 #E6A23C）：b2 按 φ2 分箱取中位数
-  - `axisPointer.link` 联动两图 tooltip
-  - 下图 y 轴 `inverse: true`（0 在顶部，与上图 0 在中间对称）
-  - 回退：无 sampleDecompositions 时用 LS 单层剖面填充两层
+- `apps/AirRingSys/src/views/settings/rack/useBubblePolarChart.ts` — 图表 composable：单层膜厚剖面 B(φ) 折线图（x=膜泡角度 0-360°，y=单层膜厚 μm）
+  - 数据源：`result.profile`（LS 重建单层剖面 B(φ)）
+  - 低覆盖率 bin 由 `bridgeShortGaps` 桥接补齐
+  - 支持对比模式（叠加其他扫描趟的剖面）
 - `apps/AirRingSys/src/views/settings/rack/useScannerTripReconstruction.ts` — 数据加载与单层膜厚重建管线 composable
 - `apps/AirRingSys/src/views/settings/rack/bubbleRawThickness.constants.ts` — 常量与辅助函数
 - `apps/AirRingSys/src/types/ipc.d.ts` — BubbleSweepResult / BubbleWindowReconstructionResult 等 IPC 类型

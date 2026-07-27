@@ -27,13 +27,12 @@ const {
 } = useScannerTripReconstruction()
 
 /**
- * 把重构结果（单层膜厚剖面 B(φ) + sampleDecompositions）打包成 BubbleSweepResult 形状,
- * 喂给 BubbleNavBar / BubbleStatusBar / BubblePolarChart（子组件接口不变）。
+ * 把重构结果（单层膜厚剖面 B(φ)）打包成 BubbleSweepResult 形状,
+ * 喂给 BubbleNavBar / BubbleStatusBar / BubblePolarChart。
  *
  * 数据流：
  *   T_k（测厚仪双层读数）→ reconstructBubbleThickness → B(φ)（单层剖面）
- *   → sampleDecompositions 分解每点为 (φ₁,b1) + (φ₂,b2)
- *   → 图表按探头脉冲位置分箱，上下两层独立展示
+ *   → 图表按角度 (0-360°) 展示单层膜厚分布
  */
 let cachedSyntheticSweep: ExtendedBubbleSweepResult | null = null
 let cachedResultRef: object | null = null
@@ -194,9 +193,7 @@ function onAutoRefreshChange(v: boolean) {
 
     <BubblePolarChart
       :selected-sweep="syntheticSweep"
-      :frame-length-pulse="calResults.frameLengthPulse ?? 0"
       :membrane-width-mm="calResults.membraneWidthMm ?? 0"
-      :mm-per-pulse="calResults.mmPerPulse ?? 0"
       :error-message="chartDiagnostic"
     />
 
