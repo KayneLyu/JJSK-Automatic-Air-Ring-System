@@ -17,6 +17,26 @@ export type FeatureTrackingConfidenceEvidence = {
   equivalentPeakCount: number
 }
 
+export type FeatureTrackingConfidenceLimits = {
+  minimumCorrelation: number
+  minimumOverlapRatio: number
+  minimumPeakProminence?: number
+  minimumFisherPeakSeparation?: number
+}
+
+export type FeatureTrackingConfidenceViolation =
+  | 'correlation'
+  | 'overlapRatio'
+  | 'peakProminence'
+  | 'fisherPeakSeparation'
+  | 'fisherPeakSeparationUnavailable'
+
+export type FeatureTrackingConfidenceEvaluation = {
+  accepted: boolean
+  violations: FeatureTrackingConfidenceViolation[]
+  rejectReason: 'invalidEvidence' | 'invalidLimits' | 'lowConfidence' | null
+}
+
 export type FeatureTrackingResult = {
   accepted: boolean
   elapsedMs: number | null
@@ -112,6 +132,88 @@ const buildConfidenceEvidence = (
     fisherPeakSeparation,
     peakAtSearchBoundary: Math.abs(bestShift) === maxShift,
     equivalentPeakCount,
+  }
+}
+
+/**
+ * 使用调用方显式提供的证据门限评价特征追踪置信度。
+ * 没有竞争次峰时，可选的突出度与 Fisher 门限不参与拒绝。
+ */
+export const evaluateFeatureTrackingConfidence = (
+  evidence: FeatureTrackingConfidenceEvidence,
+  {
+    minimumCorrelation,
+    minimumOverlapRatio,
+    minimumPeakProminence,
+    minimumFisherPeakSeparation,
+  }: FeatureTrackingConfidenceLimits
+): FeatureTrackingConfidenceEvaluation => {
+  if (
+    !Number.isFinite(evidence.correlation) ||
+    evidence.correlation < -1 ||
+    evidence.correlation > 1 ||
+    !Number.isFinite(evidence.overlapRatio) ||
+    evidence.overlapRatio < 0 ||
+    evidence.overlapRatio > 1 ||
+    (evidence.peakProminence !== null &&
+      (!Number.isFinite(evidence.peakProminence) ||
+        evidence.peakProminence < 0)) ||
+    (evidence.fisherPeakSeparation !== null &&
+      !Number.isFinite(evidence.fisherPeakSeparation))
+  ) {
+    return {
+      accepted: false,
+      violations: [],
+      rejectReason: 'invalidEvidence',
+    }
+  }
+  if (
+    !Number.isFinite(minimumCorrelation) ||
+    minimumCorrelation < -1 ||
+    minimumCorrelation > 1 ||
+    !Number.isFinite(minimumOverlapRatio) ||
+    minimumOverlapRatio <= 0 ||
+    minimumOverlapRatio > 1 ||
+    (minimumPeakProminence !== undefined &&
+      (!Number.isFinite(minimumPeakProminence) || minimumPeakProminence < 0)) ||
+    (minimumFisherPeakSeparation !== undefined &&
+      (!Number.isFinite(minimumFisherPeakSeparation) ||
+        minimumFisherPeakSeparation < 0))
+  ) {
+    return {
+      accepted: false,
+      violations: [],
+      rejectReason: 'invalidLimits',
+    }
+  }
+
+  const violations: FeatureTrackingConfidenceViolation[] = []
+  if (evidence.correlation < minimumCorrelation) {
+    violations.push('correlation')
+  }
+  if (evidence.overlapRatio < minimumOverlapRatio) {
+    violations.push('overlapRatio')
+  }
+  const hasCompetingPeak = evidence.peakProminence !== null
+  if (
+    hasCompetingPeak &&
+    minimumPeakProminence !== undefined &&
+    (evidence.peakProminence as number) < minimumPeakProminence
+  ) {
+    violations.push('peakProminence')
+  }
+  if (hasCompetingPeak && minimumFisherPeakSeparation !== undefined) {
+    if (evidence.fisherPeakSeparation === null) {
+      violations.push('fisherPeakSeparationUnavailable')
+    } else if (evidence.fisherPeakSeparation < minimumFisherPeakSeparation) {
+      violations.push('fisherPeakSeparation')
+    }
+  }
+
+  return {
+    accepted: violations.length === 0,
+    violations,
+    rejectReason: violations.length === 0 ? null : 'lowConfidence',
   }
 }
 

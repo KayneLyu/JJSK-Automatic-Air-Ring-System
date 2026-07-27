@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest'
-import { trackProfileShift } from '../upperRotation.featureTracking'
+import {
+  evaluateFeatureTrackingConfidence,
+  trackProfileShift,
+  type FeatureTrackingConfidenceEvidence,
+} from '../upperRotation.featureTracking'
 
 const createRandom = (seed: number): (() => number) => {
   let state = seed >>> 0
@@ -228,5 +232,82 @@ describe('动态搜索窗口特征追踪', () => {
     expect(mean(cleanCorrelations)).toBeGreaterThan(mean(noisyCorrelations))
     expect(mean(completeOverlaps)).toBeGreaterThan(mean(missingOverlaps))
     expect(mean(uniqueSeparations)).toBeGreaterThan(mean(periodicSeparations))
+  })
+
+  test('显式置信度策略逐项暴露低质量证据', () => {
+    const evidence: FeatureTrackingConfidenceEvidence = {
+      correlation: 0.7,
+      overlapRatio: 0.75,
+      peakProminence: 0.03,
+      fisherPeakSeparation: 1.2,
+      peakAtSearchBoundary: false,
+      equivalentPeakCount: 1,
+    }
+    const result = evaluateFeatureTrackingConfidence(evidence, {
+      minimumCorrelation: 0.8,
+      minimumOverlapRatio: 0.8,
+      minimumPeakProminence: 0.05,
+      minimumFisherPeakSeparation: 2,
+    })
+
+    expect(result).toEqual({
+      accepted: false,
+      violations: [
+        'correlation',
+        'overlapRatio',
+        'peakProminence',
+        'fisherPeakSeparation',
+      ],
+      rejectReason: 'lowConfidence',
+    })
+  })
+
+  test('仅在存在竞争峰时要求可用的 Fisher 分离度', () => {
+    const baseEvidence: FeatureTrackingConfidenceEvidence = {
+      correlation: 0.95,
+      overlapRatio: 0.9,
+      peakProminence: null,
+      fisherPeakSeparation: null,
+      peakAtSearchBoundary: false,
+      equivalentPeakCount: 1,
+    }
+    const limits = {
+      minimumCorrelation: 0.9,
+      minimumOverlapRatio: 0.8,
+      minimumFisherPeakSeparation: 2,
+    }
+
+    expect(
+      evaluateFeatureTrackingConfidence(baseEvidence, limits).accepted
+    ).toBe(true)
+    expect(
+      evaluateFeatureTrackingConfidence(
+        { ...baseEvidence, peakProminence: 0.1 },
+        limits
+      ).violations
+    ).toEqual(['fisherPeakSeparationUnavailable'])
+  })
+
+  test('拒绝非法证据和非法置信度门限', () => {
+    const evidence: FeatureTrackingConfidenceEvidence = {
+      correlation: 0.9,
+      overlapRatio: 0.9,
+      peakProminence: null,
+      fisherPeakSeparation: null,
+      peakAtSearchBoundary: false,
+      equivalentPeakCount: 1,
+    }
+    expect(
+      evaluateFeatureTrackingConfidence(
+        { ...evidence, correlation: Number.NaN },
+        { minimumCorrelation: 0.8, minimumOverlapRatio: 0.8 }
+      ).rejectReason
+    ).toBe('invalidEvidence')
+    expect(
+      evaluateFeatureTrackingConfidence(evidence, {
+        minimumCorrelation: 0.8,
+        minimumOverlapRatio: 0,
+      }).rejectReason
+    ).toBe('invalidLimits')
   })
 })
