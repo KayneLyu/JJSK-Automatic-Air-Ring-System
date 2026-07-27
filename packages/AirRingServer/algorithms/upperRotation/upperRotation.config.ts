@@ -22,8 +22,10 @@ export type UpperRotationDebugOptions = {
   accelDecelMs?: number
   /**
    * 策略配置：
-   * - generic: 通用优先（默认）
+   * - generic: 通用优先，不启用历史数据集定向修正
    * - datasetTuned2026Q1: 启用历史数据集定向修正分支
+   *
+   * 迁移期间默认保持 datasetTuned2026Q1，以避免未验收前改变生产结果。
    */
   strategyProfile?: UpperRotationStrategyProfile
 }

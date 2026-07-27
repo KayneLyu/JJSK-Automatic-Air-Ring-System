@@ -15,4 +15,52 @@ export {
   resolveAdaptiveRules,
 } from './upperRotation.config'
 
-export { estimateThetaMaxWithPhaseCorrection } from './upperRotation.estimate'
+export type {
+  UpperRotationDetailedEstimate,
+  UpperRotationEstimateDiagnostics,
+  UpperRotationEstimateOptions,
+  UpperRotationStrategyComparison,
+} from './upperRotation.estimate'
+
+export type {
+  NormalizedScannerProfile,
+  ScannerProfileOptions,
+  ScannerProfilePoint,
+  ScannerProfileQuality,
+} from './upperRotation.scanProfile'
+
+export { normalizeScannerProfile } from './upperRotation.scanProfile'
+
+export type {
+  AngularVelocityAggregate,
+  AngularVelocityAggregationOptions,
+  AngularVelocityObservation,
+  ExpectedRotationDirection,
+} from './upperRotation.angularVelocity'
+
+export {
+  aggregateAngularVelocityObservations,
+  calculateAngularVelocityObservation,
+} from './upperRotation.angularVelocity'
+
+export type {
+  FeatureTrackingConfidenceEvidence,
+  FeatureTrackingOptions,
+  FeatureTrackingResult,
+} from './upperRotation.featureTracking'
+
+export { trackProfileShift } from './upperRotation.featureTracking'
+
+export type {
+  ZnccOptions,
+  ZnccResult,
+  ZnccShiftScore,
+} from './upperRotation.zncc'
+
+export { calculateZncc } from './upperRotation.zncc'
+
+export {
+  compareUpperRotationStrategies,
+  estimateThetaMaxWithPhaseCorrection,
+  estimateThetaMaxWithPhaseCorrectionDetailed,
+} from './upperRotation.estimate'
