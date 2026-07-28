@@ -18,6 +18,7 @@ export type DynamicLocalSearchWindowResult = {
   actualLeftRadiusDeg: number | null
   actualRightRadiusDeg: number | null
   spanDeg: number | null
+  searchStepDeg: number | null
   plannedSearchPointCount: number | null
   clippedAtMinimum: boolean
   clippedAtMaximum: boolean
@@ -55,6 +56,7 @@ export const buildDynamicLocalSearchWindow = ({
     actualLeftRadiusDeg: null,
     actualRightRadiusDeg: null,
     spanDeg: null,
+    searchStepDeg: null,
     plannedSearchPointCount: null,
     clippedAtMinimum: false,
     clippedAtMaximum: false,
@@ -105,6 +107,7 @@ export const buildDynamicLocalSearchWindow = ({
     actualLeftRadiusDeg: featureAngleDeg - minimumAngleDeg,
     actualRightRadiusDeg: maximumAngleDeg - featureAngleDeg,
     spanDeg,
+    searchStepDeg,
     plannedSearchPointCount:
       spanDeg > 0 ? Math.ceil(spanDeg / searchStepDeg) + 1 : 0,
     clippedAtMinimum: minimumAngleDeg > requestedMinimum,
