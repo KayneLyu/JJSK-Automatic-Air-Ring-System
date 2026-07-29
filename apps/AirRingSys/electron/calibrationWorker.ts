@@ -9,7 +9,7 @@
  */
 import { parentPort } from 'node:worker_threads'
 import {
-  estimateThetaMaxWithPhaseCorrection,
+  estimateThetaMaxWithPhaseCorrectionDetailed,
   type TripSegment,
   type UpperRotationObjectiveMode,
 } from '@jjsk/air-ring-server/electron'
@@ -33,13 +33,17 @@ if (!parentPort) {
 
 parentPort.on('message', (req: CalibrationWorkerRequest) => {
   try {
-    const maxAngle = estimateThetaMaxWithPhaseCorrection(
+    const estimate = estimateThetaMaxWithPhaseCorrectionDetailed(
       req.tripSegments,
       req.options
     )
-    const response: CalibrationWorkerResponse = maxAngle != null
-      ? { id: req.id, ok: true, maxAngle }
-      : { id: req.id, ok: false, error: 'estimateThetaMaxWithPhaseCorrection returned null' }
+    const response: CalibrationWorkerResponse = estimate.thetaMaxDeg != null
+      ? { id: req.id, ok: true, maxAngle: estimate.thetaMaxDeg }
+      : {
+          id: req.id,
+          ok: false,
+          error: `角度估算被拒绝（原因=${estimate.diagnostics.rejectReason ?? 'signalInsufficient'}，完整行程=${estimate.diagnostics.completeSegments}，过滤后行程=${estimate.diagnostics.filteredSegments}，有效测点=${estimate.diagnostics.totalPoints}）`,
+        }
     parentPort!.postMessage(response)
   } catch (err) {
     const response: CalibrationWorkerResponse = {

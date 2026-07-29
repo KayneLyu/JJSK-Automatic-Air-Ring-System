@@ -13,15 +13,17 @@
  */
 import { parentPort } from 'node:worker_threads'
 import { createReadOnlyConnection } from './db/service'
-import { createCalibrationSession } from '@jjsk/air-ring-server/electron'
+import {
+  buildTripSegment,
+  createCalibrationSession,
+} from '@jjsk/air-ring-server/electron'
 import type {
   CalibrationConfig,
   Scalar,
-  RingData,
   PendingAngleEstimate,
+  TripSegment,
 } from '@jjsk/air-ring-server/electron'
 import {
-  queryThicknessRawPage,
   countThicknessRawInRange,
   countRotationRawInRange,
   queryRotationRaw,
@@ -43,6 +45,8 @@ export type HistoricalCalibrationRequest = {
   manualTractionSpeed?: number
   /** 可选的扰动时间戳 */
   disturbanceTs?: number
+  /** 仅构建上旋行程并估算最大角度，不依赖完整标定前置项 */
+  angleOnly?: boolean
   /** 标定配置 */
   config: CalibrationConfig
   /** 标准化参数 */
@@ -75,6 +79,13 @@ export type HistoricalCalibrationWorkerResponse =
 
 type WorkerMessage = HistoricalCalibrationRequest
 
+type HistoricalThicknessRow = {
+  id: number
+  timestamp: number
+  pulse: number
+  ad: number
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 常量
 // ═══════════════════════════════════════════════════════════════
@@ -90,7 +101,17 @@ if (!parentPort) {
 }
 
 parentPort.on('message', async (msg: WorkerMessage) => {
-  const { id, dbPath, startMs, endMs, manualTractionSpeed, disturbanceTs, config, standardized } = msg
+  const {
+    id,
+    dbPath,
+    startMs,
+    endMs,
+    manualTractionSpeed,
+    disturbanceTs,
+    angleOnly,
+    config,
+    standardized,
+  } = msg
 
   try {
     // ── 打开只读 SQLite 连接（WAL 模式，不阻塞主线程写入） ──
@@ -114,65 +135,42 @@ parentPort.on('message', async (msg: WorkerMessage) => {
 
       const total = totalThickness + totalRotation
 
-      // ── 读取厚度数据 ──
-      type FeedEvent = {
-        timestamp: number
-        thickness?: {
-          timestamp: number
-          ProbeValue: number
-          HorizontalPulse: number
-          MotionDirection: boolean
-        }
-        airRing?: RingData
-      }
-      const events: FeedEvent[] = []
-
-      let prevPulse: number | undefined
-      for (let offset = 0; offset < totalThickness; offset += PAGE_SIZE) {
-        const rows = queryThicknessRawPage(ro.db, startMs, endMs, PAGE_SIZE, offset)
-        for (const r of rows) {
-          const md = prevPulse === undefined ? true : r.pulse >= prevPulse
-          prevPulse = r.pulse
-          events.push({
-            timestamp: r.timestamp,
-            thickness: {
-              timestamp: r.timestamp,
-              ProbeValue: r.ad,
-              HorizontalPulse: r.pulse,
-              MotionDirection: md,
-            },
-          })
-        }
-
-        // 报告进度
+      // ── 游标分页读取厚度数据，避免 OFFSET 深分页 ──
+      const thicknessRows: HistoricalThicknessRow[] = []
+      const thicknessPageStatement = ro.sqliteDb.prepare(`
+        SELECT id, timestamp, pulse, ad
+        FROM thickness_raw
+        WHERE timestamp >= ? AND timestamp < ?
+          AND (timestamp > ? OR (timestamp = ? AND id > ?))
+        ORDER BY timestamp ASC, id ASC
+        LIMIT ?
+      `)
+      let cursorTimestamp = startMs - 1
+      let cursorId = 0
+      while (thicknessRows.length < totalThickness) {
+        const rows = thicknessPageStatement.all(
+          startMs,
+          endMs,
+          cursorTimestamp,
+          cursorTimestamp,
+          cursorId,
+          PAGE_SIZE
+        ) as HistoricalThicknessRow[]
+        if (rows.length === 0) break
+        thicknessRows.push(...rows)
+        const last = rows[rows.length - 1]
+        cursorTimestamp = last.timestamp
+        cursorId = last.id
         parentPort!.postMessage({
           type: 'progress',
           id,
-          processed: events.length,
+          processed: thicknessRows.length,
           total,
         } satisfies HistoricalCalibrationWorkerProgress)
       }
 
       // ── 读取旋转数据 ──
       const rotationRows = queryRotationRaw(ro.db, startMs, endMs)
-      for (const r of rotationRows) {
-        events.push({
-          timestamp: r.timestamp,
-          airRing: {
-            timestamp: r.timestamp,
-            ForwardRotation: r.forwardRotation === 1,
-            ReverseRotation: r.reverseRotation === 1,
-            MotorFrequency: r.motorFrequency,
-            ForwardDirectionChange: r.forwardDirChange === 1,
-            ReverseDirectionChange: r.reverseDirChange === 1,
-            Reset: r.reset === 1,
-            Heats: JSON.parse(r.heats || '[]') as number[],
-          },
-        })
-      }
-
-      // 事件排序
-      events.sort((a, b) => a.timestamp - b.timestamp)
 
       // ── 运行标定会话 ──
       const session = createCalibrationSession({
@@ -185,44 +183,123 @@ parentPort.on('message', async (msg: WorkerMessage) => {
         session.setManualTractionSpeed(manualTractionSpeed, disturbanceTs)
       }
 
+      const tripSegmentBuilder = angleOnly ? buildTripSegment() : null
+      let angleOnlySegments: TripSegment[] = []
       let pending: PendingAngleEstimate | null = null
       let processed = 0
-
-      for (let offset = 0; offset < events.length; offset += PAGE_SIZE) {
-        const batch = events.slice(offset, offset + PAGE_SIZE)
-        for (const ev of batch) {
-          if (ev.thickness) {
-            const ret = session.feedThickness(ev.thickness)
-            if (ret.pendingAngleEstimate) pending = ret.pendingAngleEstimate
+      let thicknessIndex = 0
+      let rotationIndex = 0
+      let previousPulse: number | undefined
+      while (
+        thicknessIndex < thicknessRows.length ||
+        rotationIndex < rotationRows.length
+      ) {
+        const thickness = thicknessRows[thicknessIndex]
+        const rotation = rotationRows[rotationIndex]
+        if (
+          thickness !== undefined &&
+          (rotation === undefined || thickness.timestamp <= rotation.timestamp)
+        ) {
+          const motionDirection =
+            previousPulse === undefined || thickness.pulse >= previousPulse
+          previousPulse = thickness.pulse
+          const thicknessData = {
+            timestamp: thickness.timestamp,
+            ProbeValue: thickness.ad,
+            HorizontalPulse: thickness.pulse,
+            MotionDirection: motionDirection,
           }
-          if (ev.airRing) {
-            const ret2 = session.feedAirRing(ev.airRing)
-            if (ret2.pendingAngleEstimate) pending = ret2.pendingAngleEstimate
+          if (tripSegmentBuilder) {
+            angleOnlySegments = tripSegmentBuilder.next({
+              thickness: thicknessData,
+            })
+          } else {
+            const result = session.feedThickness(thicknessData)
+            if (result.pendingAngleEstimate) {
+              pending = result.pendingAngleEstimate
+            }
           }
+          thicknessIndex++
+        } else if (rotation !== undefined) {
+          const airRingData = {
+            timestamp: rotation.timestamp,
+            ForwardRotation: rotation.forwardRotation === 1,
+            ReverseRotation: rotation.reverseRotation === 1,
+            MotorFrequency: rotation.motorFrequency,
+            ForwardDirectionChange: rotation.forwardDirChange === 1,
+            ReverseDirectionChange: rotation.reverseDirChange === 1,
+            Reset: rotation.reset === 1,
+            Heats: JSON.parse(rotation.heats || '[]') as number[],
+          }
+          if (tripSegmentBuilder) {
+            angleOnlySegments = tripSegmentBuilder.next({
+              airRing: airRingData,
+            })
+          } else {
+            const result = session.feedAirRing(airRingData)
+            if (result.pendingAngleEstimate) {
+              pending = result.pendingAngleEstimate
+            }
+          }
+          rotationIndex++
         }
 
-        processed += batch.length
+        processed++
+        if (processed % PAGE_SIZE === 0 || processed === total) {
+          parentPort!.postMessage({
+            type: 'progress',
+            id,
+            processed,
+            total,
+          } satisfies HistoricalCalibrationWorkerProgress)
+        }
+      }
+
+      if (angleOnly) {
+        const usableSegments = angleOnlySegments.filter(
+          (segment) => segment.duration > 0 && segment.measurements.length > 0
+        )
+        if (usableSegments.length < 2) {
+          parentPort!.postMessage({
+            type: 'result',
+            id,
+            ok: false,
+            disturbanceTs: disturbanceTs ?? Date.now(),
+            error: `未能构建至少 2 个有效上旋行程（完整有效行程=${usableSegments.length}，旋转记录=${rotationRows.length}，厚度记录=${thicknessRows.length}）`,
+          } satisfies HistoricalCalibrationWorkerResponse)
+          return
+        }
+
+        const upperRotation = config.upperRotation ?? {}
+        const maxAngle = await runCalibrationAngleEstimate({
+          tripSegments: usableSegments,
+          options: {
+            deltaRange: upperRotation.deltaRange ?? {
+              min: 180,
+              max: 359,
+              step: 1,
+            },
+            objectiveMode: upperRotation.objectiveMode,
+          },
+        })
         parentPort!.postMessage({
-          type: 'progress',
+          type: 'result',
           id,
-          processed,
-          total,
-        } satisfies HistoricalCalibrationWorkerProgress)
+          ok: true,
+          manualTractionSpeed,
+          disturbanceTs: disturbanceTs ?? Date.now(),
+          result: { maxAngle },
+        } satisfies HistoricalCalibrationWorkerResponse)
+        return
       }
 
       // ── 角度估算（委托给 calibrationWorker） ──
       if (pending) {
-        try {
-          const maxAngle = await runCalibrationAngleEstimate({
-            tripSegments: pending.tripSegments,
-            options: pending.options,
-          })
-          if (maxAngle != null) {
-            session.applyAngleEstimate(maxAngle)
-          }
-        } catch (e) {
-          console.error('[HistoricalCalibrationWorker] 角度估算失败:', e)
-        }
+        const maxAngle = await runCalibrationAngleEstimate({
+          tripSegments: pending.tripSegments,
+          options: pending.options,
+        })
+        session.applyAngleEstimate(maxAngle)
       }
 
       // ── 返回结果 ──

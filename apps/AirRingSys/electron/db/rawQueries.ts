@@ -54,6 +54,26 @@ export function countThicknessRawInRange(
   return result?.count ?? 0
 }
 
+/** 统计能进入上旋行程构建器的有效厚度记录数。 */
+export function countUsableThicknessRawInRange(
+  db: ReturnType<typeof drizzle<typeof schema>>,
+  startMs: number,
+  endMs: number
+): number {
+  const result = db
+    .select({ count: sql<number>`count(*)` })
+    .from(schema.thicknessRaw)
+    .where(
+      and(
+        gte(schema.thicknessRaw.timestamp, startMs),
+        lt(schema.thicknessRaw.timestamp, endMs),
+        sql`${schema.thicknessRaw.ad} > 0`
+      )
+    )
+    .get()
+  return result?.count ?? 0
+}
+
 /**
  * 按时间区间分页查询测厚原始数据，按时间戳升序。
  *

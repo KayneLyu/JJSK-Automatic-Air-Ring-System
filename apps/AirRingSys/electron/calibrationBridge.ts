@@ -130,12 +130,12 @@ const runAngleEstimateInWorker = (
  *
  * 与 runAngleEstimateInWorker 共用同一把互斥锁，确保同一时刻只有一个 Worker。
  *
- * @returns 估算的最大角度，失败时返回 null
+ * @returns 估算的最大角度；失败时拒绝并保留具体原因
  */
 export const runCalibrationAngleEstimate = (
   req: Omit<CalibrationWorkerRequest, 'id'>
-): Promise<number | null> => {
-  return new Promise((resolve) => {
+): Promise<number> => {
+  return new Promise((resolve, reject) => {
     if (workerBusy) {
       console.debug('[CalibrationBridge] Worker 正在运行，等待中...')
       // 轮询等待 Worker 释放
@@ -160,7 +160,11 @@ export const runCalibrationAngleEstimate = (
         worker = new Worker(workerPath)
       } catch (err) {
         workerBusy = false
-        resolve(null)
+        reject(
+          err instanceof Error
+            ? err
+            : new Error(`角度估算 Worker 创建失败: ${String(err)}`)
+        )
         return
       }
 
@@ -169,7 +173,7 @@ export const runCalibrationAngleEstimate = (
         settled = true
         worker.terminate().catch(() => {})
         workerBusy = false
-        resolve(null)
+        reject(new Error('角度估算超时 (120s)'))
       }, 120_000) // 2min 超时
 
       worker.on('message', (res: CalibrationWorkerResponse) => {
@@ -178,16 +182,20 @@ export const runCalibrationAngleEstimate = (
         settled = true
         clearTimeout(timeout)
         workerBusy = false
-        resolve(res.ok ? res.maxAngle : null)
+        if (res.ok) {
+          resolve(res.maxAngle)
+        } else {
+          reject(new Error(res.error))
+        }
         worker.terminate().catch(() => {})
       })
 
-      worker.on('error', () => {
+      worker.on('error', (err) => {
         if (settled) return
         settled = true
         clearTimeout(timeout)
         workerBusy = false
-        resolve(null)
+        reject(new Error(`角度估算 Worker 错误: ${err.message}`))
         worker.terminate().catch(() => {})
       })
 
@@ -196,7 +204,7 @@ export const runCalibrationAngleEstimate = (
         settled = true
         clearTimeout(timeout)
         workerBusy = false
-        resolve(code === 0 ? null : null)
+        reject(new Error(`角度估算 Worker 异常退出 (code=${code})`))
         worker.terminate().catch(() => {})
       })
 

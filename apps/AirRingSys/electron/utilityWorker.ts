@@ -106,6 +106,25 @@ function mergeDirectionChanges(
   return [...merged.values()].sort((a, b) => a.timestamp - b.timestamp)
 }
 
+function normalizeDirectionChanges(
+  rows: DirectionChangeLike[]
+): DirectionChangeLike[] {
+  const normalized: DirectionChangeLike[] = []
+  let previousDirection: 'forward' | 'reverse' | null = null
+  for (const row of [...rows].sort((a, b) => a.timestamp - b.timestamp)) {
+    const direction =
+      row.forwardDirChange > 0 && row.reverseDirChange <= 0
+        ? 'forward'
+        : row.reverseDirChange > 0 && row.forwardDirChange <= 0
+          ? 'reverse'
+          : null
+    if (direction === null || direction === previousDirection) continue
+    normalized.push(row)
+    previousDirection = direction
+  }
+  return normalized
+}
+
 function inferDirectionChangesFromRotationRaw(
   rows: Array<{
     id: number
@@ -146,25 +165,24 @@ function inferDirectionChangesFromRotationRaw(
 function getDirectionChangesWithFallback(
   db: SQLiteService,
   limit: number,
-  beforeTs: number
+  beforeTs: number,
+  minimumChanges = 2,
+  includeInferred = false
 ): DirectionChangeLike[] {
   const explicit = db.queryLatestDirectionChanges(limit + 1, beforeTs)
-  if (explicit.length >= 2) {
-    return explicit.map((row) => ({
+  const normalizedExplicit = normalizeDirectionChanges(
+    explicit.map((row) => ({
       id: row.id,
       timestamp: row.timestamp,
       forwardDirChange: row.forwardDirChange,
       reverseDirChange: row.reverseDirChange,
     }))
+  )
+  if (!includeInferred && normalizedExplicit.length >= minimumChanges) {
+    return normalizedExplicit
   }
 
   if (beforeTs > 0) {
-    const explicitMapped = explicit.map((row) => ({
-      id: row.id,
-      timestamp: row.timestamp,
-      forwardDirChange: row.forwardDirChange,
-      reverseDirChange: row.reverseDirChange,
-    }))
     const historyKey = Math.floor(beforeTs / 60_000)
     const now = Date.now()
     if (
@@ -182,20 +200,20 @@ function getDirectionChangesWithFallback(
       cachedHistoricalInferredKey = historyKey
       if (cachedHistoricalInferredChanges.length > 0) {
         console.warn(
-          `[loadUpperSweeps] 历史窗口推断方向变化: beforeTs=${beforeTs} inferred=${cachedHistoricalInferredChanges.length} explicit=${explicitMapped.length}`
+          `[loadUpperSweeps] 历史窗口推断方向变化: beforeTs=${beforeTs} inferred=${cachedHistoricalInferredChanges.length} explicit=${normalizedExplicit.length}`
         )
       }
     }
 
     if (cachedHistoricalInferredChanges.length === 0) {
-      return explicitMapped
+      return normalizedExplicit
     }
 
     const merged = mergeDirectionChanges(
-      explicitMapped,
+      normalizedExplicit,
       cachedHistoricalInferredChanges
     )
-    return merged.slice(-(limit + 1))
+    return normalizeDirectionChanges(merged).slice(-(limit + 1))
   }
 
   const now = Date.now()
@@ -212,7 +230,7 @@ function getDirectionChangesWithFallback(
     }
   }
 
-  return cachedInferredChanges.slice(-(limit + 1))
+  return normalizeDirectionChanges(cachedInferredChanges).slice(-(limit + 1))
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -624,6 +642,116 @@ function registerAllIpcHandlers(): void {
         }
       }
       return { success: true, mutationWindowSize: Math.round(windowSize) }
+    }
+  )
+
+  registerIpcHandler(
+    'calibration-max-angle-historical',
+    async ([rawInput]: unknown[]) => {
+      const input = (rawInput ?? {}) as {
+        deltaMin?: number
+        deltaMax?: number
+        objectiveMode?: string
+      }
+      const deltaMin = input.deltaMin ?? 180
+      const deltaMax = input.deltaMax ?? 359
+      const objectiveMode = input.objectiveMode ?? 'auto'
+      if (
+        !Number.isFinite(deltaMin) ||
+        !Number.isFinite(deltaMax) ||
+        deltaMin < 180 ||
+        deltaMax > 359 ||
+        deltaMin >= deltaMax
+      ) {
+        return {
+          success: false,
+          error: '上旋角度范围无效，必须满足 180 ≤ 最小值 < 最大值 ≤ 359',
+        }
+      }
+      if (
+        objectiveMode !== 'auto' &&
+        objectiveMode !== 'direct' &&
+        objectiveMode !== 'expanded'
+      ) {
+        return { success: false, error: '上旋目标模式无效' }
+      }
+      if (!sqliteDb) return { success: false, error: '数据库未初始化' }
+
+      const latestTs = sqliteDb.getLatestThicknessTimestamp()
+      if (latestTs === null) {
+        return { success: false, error: '没有厚度历史数据' }
+      }
+
+      const directionChanges = getDirectionChangesWithFallback(
+        sqliteDb,
+        12,
+        latestTs + 1,
+        3,
+        true
+      ).sort((left, right) => left.timestamp - right.timestamp)
+      if (directionChanges.length < 3) {
+        return {
+          success: false,
+          error: `数据不足以完成标定（只找到 ${directionChanges.length} 个换向边界，需要至少 3 个）`,
+        }
+      }
+      const usableTrips: Array<{ startIndex: number; sampleCount: number }> = []
+      for (let index = directionChanges.length - 2; index >= 0; index--) {
+        const start = directionChanges[index].timestamp
+        const end = directionChanges[index + 1].timestamp + 1
+        const sampleCount = sqliteDb.countUsableThicknessRawInRange(start, end)
+        if (sampleCount >= 100) {
+          usableTrips.push({ startIndex: index, sampleCount })
+          if (usableTrips.length === 2) break
+        }
+      }
+      if (usableTrips.length < 2) {
+        return {
+          success: false,
+          error: `数据不足以完成标定（${directionChanges.length} 个换向边界中只找到 ${usableTrips.length} 个含至少 100 条有效厚度记录的行程）`,
+        }
+      }
+
+      // 从较早有效行程的起点回放到较晚有效行程的结束边界。
+      // 中间无数据行程不会进入最终估算，但保留其换向事件以维持状态连续。
+      const olderTrip = usableTrips[1]
+      const newerTrip = usableTrips[0]
+      const startMs = directionChanges[olderTrip.startIndex].timestamp
+      const endMs = directionChanges[newerTrip.startIndex + 1].timestamp + 1
+
+      try {
+        const replay = await runHistoricalCalibrationInWorker({
+          dbPath: sqliteDb.getDbPath(),
+          startMs,
+          endMs,
+          angleOnly: true,
+          config: {
+            ...DEFAULT_CONFIG,
+            upperRotation: {
+              deltaRange: { min: deltaMin, max: deltaMax, step: 1 },
+              objectiveMode,
+            },
+          },
+          standardized: DEFAULT_STANDARDIZED,
+          onProgress: (progress) => {
+            sendToRenderer('calibration-historical-progress', progress)
+          },
+        })
+        if (!replay.success) {
+          return { success: false, error: replay.error }
+        }
+        const maxAngle = (replay.result as { maxAngle?: unknown }).maxAngle
+        if (typeof maxAngle !== 'number' || !Number.isFinite(maxAngle)) {
+          return { success: false, error: '历史数据未能生成有效的上旋角度' }
+        }
+        return { success: true, maxAngle: Math.round(maxAngle * 10) / 10 }
+      } catch (error) {
+        return {
+          success: false,
+          error:
+            error instanceof Error ? error.message : '历史上旋角度标定失败',
+        }
+      }
     }
   )
 

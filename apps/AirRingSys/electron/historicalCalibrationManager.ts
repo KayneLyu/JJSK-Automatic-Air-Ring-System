@@ -18,7 +18,7 @@ import type { IHistoricalCalibrationProgress } from '@/types/ipc'
 const moduleDirname = dirname(fileURLToPath(import.meta.url))
 const WORKER_PATH = pathToFileURL(join(moduleDirname, 'historicalCalibrationWorker.js'))
 
-const WORKER_TIMEOUT_MS = 120_000 // 2 分钟超时
+const WORKER_TIMEOUT_MS = 180_000 // 含数据加载 + 最长 120 秒角度 Worker
 
 // ── 互斥锁 ──
 let isBusy = false
@@ -34,6 +34,7 @@ export function runHistoricalCalibrationInWorker(params: {
   endMs: number
   manualTractionSpeed?: number
   disturbanceTs?: number
+  angleOnly?: boolean
   config: CalibrationConfig
   standardized: Scalar
   onProgress?: (progress: IHistoricalCalibrationProgress) => void
@@ -70,7 +71,7 @@ export function runHistoricalCalibrationInWorker(params: {
       settled = true
       worker.terminate().catch(() => {})
       isBusy = false
-      reject(new Error('历史标定超时 (120s)'))
+      reject(new Error('历史标定超时 (180s)'))
     }, WORKER_TIMEOUT_MS)
 
     worker.on('message', (msg: HistoricalCalibrationWorkerProgress | HistoricalCalibrationWorkerResponse) => {
@@ -131,6 +132,7 @@ export function runHistoricalCalibrationInWorker(params: {
       endMs: params.endMs,
       manualTractionSpeed: params.manualTractionSpeed,
       disturbanceTs: params.disturbanceTs,
+      angleOnly: params.angleOnly,
       config: params.config,
       standardized: params.standardized,
     } satisfies HistoricalCalibrationRequest)

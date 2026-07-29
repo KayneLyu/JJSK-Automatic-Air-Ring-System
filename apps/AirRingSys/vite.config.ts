@@ -77,6 +77,24 @@ export default defineConfig({
           },
         },
       },
+      // 历史标定回放 Worker，输出到 dist-electron/historicalCalibrationWorker.js
+      {
+        entry: 'electron/historicalCalibrationWorker.ts',
+        vite: {
+          resolve: { alias: resolveAirRingServer() },
+          build: {
+            outDir: 'dist-electron',
+            lib: {
+              entry: 'electron/historicalCalibrationWorker.ts',
+              formats: ['es'],
+              fileName: () => 'historicalCalibrationWorker.js',
+            },
+            rollupOptions: {
+              external: ['node:worker_threads', 'electron', 'better-sqlite3'],
+            },
+          },
+        },
+      },
       // 膜泡重建 Worker，输出到 dist-electron/bubbleWorker.js
       {
         entry: 'electron/bubbleWorker.ts',

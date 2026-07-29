@@ -88,6 +88,8 @@ const continuousCoverageOptions = {
   rotationSpeedBinEdgesDegPerSecond: [0, 0.75, 1.25, 2],
   selectedAngleBinEdgesDeg: [280, 300, 320, 340],
   filmWidthBinEdgesMm: [800, 1000, 1200, 1400],
+  minimumRecordsPerConditionBin: 2,
+  minimumRecordsPerConditionCell: 2,
 }
 
 describe('三路径影子记录与批量统计', () => {
@@ -156,6 +158,110 @@ describe('三路径影子记录与批量统计', () => {
     expect(result.selectedAngleCoverage.binCounts).toEqual([0, 4, 0])
     expect(result.filmWidthCoverage.binCounts).toEqual([1, 3, 0])
     expect(result.recordsByConditionSource).toEqual({ measured: 4 })
+    expect(
+      result.rotationSpeedBinStatistics.map((bin) => ({
+        count: bin.recordCount,
+        candidateRate: bin.candidateAcceptanceRate,
+      }))
+    ).toEqual([
+      { count: 1, candidateRate: 0 },
+      { count: 2, candidateRate: 0.5 },
+      { count: 1, candidateRate: 1 },
+    ])
+    expect(
+      result.rotationSpeedBinStatistics[1].candidateMinusProductionAbsoluteDeg
+    ).toEqual({ count: 1, median: 1, p95: 1, maximum: 1 })
+    expect(
+      result.rotationSpeedBinStatistics[1].candidateRejectionCounts
+    ).toEqual({ 'featureCandidate:aggregationRejected': 1 })
+    expect(result.selectedAngleBinStatistics[1].recordCount).toBe(4)
+    expect(result.selectedAngleBinStatistics[1].candidateAcceptanceRate).toBe(
+      0.5
+    )
+    expect(result.filmWidthBinStatistics[2]).toMatchObject({
+      recordCount: 0,
+      candidateAcceptanceRate: null,
+      maximumInclusive: true,
+      minimumRequiredRecordCount: 2,
+      recordCountDeficit: 2,
+      coverageStatus: 'empty',
+    })
+    expect(
+      result.rotationSpeedBinStatistics.map((bin) => bin.coverageStatus)
+    ).toEqual(['insufficient', 'sufficient', 'insufficient'])
+    expect(result.conditionCoverageGaps).toHaveLength(6)
+    expect(result.conditionCoverageGaps).toContainEqual({
+      dimension: 'filmWidth',
+      binIndex: 2,
+      minimumInclusive: 1200,
+      maximum: 1400,
+      maximumInclusive: true,
+      recordCount: 0,
+      minimumRequiredRecordCount: 2,
+      recordCountDeficit: 2,
+      coverageStatus: 'empty',
+    })
+    expect(result.rotationSpeedBySelectedAngleMatrix).toMatchObject({
+      rowDimension: 'rotationSpeed',
+      columnDimension: 'selectedAngle',
+      rowBinCount: 3,
+      columnBinCount: 3,
+    })
+    expect(result.rotationSpeedBySelectedAngleMatrix.cells).toHaveLength(9)
+    expect(
+      result.rotationSpeedBySelectedAngleMatrix.cells.reduce(
+        (total, cell) => total + cell.recordCount,
+        0
+      )
+    ).toBe(4)
+    expect(result.rotationSpeedBySelectedAngleMatrix.coverageGaps).toHaveLength(
+      8
+    )
+    expect(result.coverageCollectionTargets).toHaveLength(14)
+    expect(result.coverageCollectionTargets[0]).toMatchObject({
+      priority: 1,
+      targetKind: 'crossCell',
+      rowBinIndex: 0,
+      columnBinIndex: 0,
+      coverageStatus: 'empty',
+      additionalRecordsNeeded: 2,
+    })
+    expect(
+      result.coverageCollectionTargets.map((target) => target.priority)
+    ).toEqual(Array.from({ length: 14 }, (_, index) => index + 1))
+    expect(result.coverageReadiness).toMatchObject({
+      status: 'incomplete',
+      coverageRequirementsSatisfied: false,
+      targetCount: 14,
+      emptyTargetCount: 9,
+      insufficientTargetCount: 5,
+      conditionBinTargetCount: 6,
+      crossCellTargetCount: 8,
+      highestPriorityTarget: result.coverageCollectionTargets[0],
+    })
+    expect(result.rotationSpeedBySelectedAngleMatrix.cells[4]).toMatchObject({
+      rowBinIndex: 1,
+      columnBinIndex: 1,
+      recordCount: 2,
+      recordCountDeficit: 0,
+      coverageStatus: 'sufficient',
+      candidateAcceptanceRate: 0.5,
+      candidateRejectionCounts: {
+        'featureCandidate:aggregationRejected': 1,
+      },
+    })
+    expect(result.rotationSpeedBySelectedAngleMatrix.cells[0]).toMatchObject({
+      rowBinIndex: 0,
+      columnBinIndex: 0,
+      recordCount: 0,
+      recordCountDeficit: 2,
+      coverageStatus: 'empty',
+      candidateAcceptanceRate: null,
+    })
+    expect(result.rotationSpeedBySelectedAngleMatrix.cells[8]).toMatchObject({
+      rowMaximumInclusive: true,
+      columnMaximumInclusive: true,
+    })
   })
 
   test('拒绝非法记录元数据、候选耗时和不一致候选结果', () => {
@@ -205,15 +311,33 @@ describe('三路径影子记录与批量统计', () => {
         requireCompleteCoverageMetadata: false,
       }).rejectReason
     ).toBe('invalidOptions')
+    const insufficient = aggregateUpperRotationShadowRecords(records, {
+      ...continuousCoverageOptions,
+      minimumRecordCount: 2,
+      minimumMachineCount: 0,
+      minimumRecipeCount: 0,
+      requireCompleteCoverageMetadata: false,
+    })
+    expect(insufficient.rejectReason).toBe('insufficientRecords')
+    expect(insufficient.coverageReadiness).toEqual({
+      status: 'notEvaluated',
+      coverageRequirementsSatisfied: null,
+      targetCount: null,
+      emptyTargetCount: null,
+      insufficientTargetCount: null,
+      conditionBinTargetCount: null,
+      crossCellTargetCount: null,
+      highestPriorityTarget: null,
+    })
     expect(
       aggregateUpperRotationShadowRecords(records, {
         ...continuousCoverageOptions,
-        minimumRecordCount: 2,
+        minimumRecordCount: 1,
         minimumMachineCount: 0,
         minimumRecipeCount: 0,
         requireCompleteCoverageMetadata: false,
-      }).rejectReason
-    ).toBe('insufficientRecords')
+      }).coverageReadiness.status
+    ).toBe('incomplete')
   })
 
   test('拒绝重复窗口和非严格递增观测时间', () => {
@@ -347,6 +471,18 @@ describe('三路径影子记录与批量统计', () => {
       aggregateUpperRotationShadowRecords(records, {
         ...baseOptions,
         filmWidthBinEdgesMm: [800, 1000, 1000],
+      }).rejectReason
+    ).toBe('invalidOptions')
+    expect(
+      aggregateUpperRotationShadowRecords(records, {
+        ...baseOptions,
+        minimumRecordsPerConditionBin: 0,
+      }).rejectReason
+    ).toBe('invalidOptions')
+    expect(
+      aggregateUpperRotationShadowRecords(records, {
+        ...baseOptions,
+        minimumRecordsPerConditionCell: 0,
       }).rejectReason
     ).toBe('invalidOptions')
   })

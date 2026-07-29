@@ -790,6 +790,7 @@ function registerProxiedIpcHandlers(): void {
     'calibration-run-traction-speed',
     'calibration-auto-traction-speed',
     'calibration-run-mutation-window',
+    'calibration-max-angle-historical',
     'calibration-run-distance',
     'calibration-run-membrane-width',
 

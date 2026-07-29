@@ -68,7 +68,12 @@ interface PendingIpcRequest {
   timer: NodeJS.Timeout
 }
 
-const IPC_REQUEST_TIMEOUT_MS = 60_000 // 1 分钟超时（历史数据回放可能较慢）
+const DEFAULT_IPC_REQUEST_TIMEOUT_MS = 60_000
+const HISTORICAL_CALIBRATION_TIMEOUT_MS = 190_000
+const HISTORICAL_CALIBRATION_CHANNELS = new Set([
+  'calibration-feed-historical',
+  'calibration-max-angle-historical',
+])
 
 // ═══════════════════════════════════════════════════════════════
 
@@ -221,12 +226,15 @@ export class UtilityHost {
     }
 
     const id = `ipc-${++this.requestIdCounter}-${Date.now()}`
+    const timeoutMs = HISTORICAL_CALIBRATION_CHANNELS.has(channel)
+      ? HISTORICAL_CALIBRATION_TIMEOUT_MS
+      : DEFAULT_IPC_REQUEST_TIMEOUT_MS
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingRequests.delete(id)
         reject(new Error(`IPC 请求超时: ${channel}`))
-      }, IPC_REQUEST_TIMEOUT_MS)
+      }, timeoutMs)
 
       this.pendingRequests.set(id, { resolve, reject, timer })
       this.send({ type: 'ipc-request', id, channel, args })

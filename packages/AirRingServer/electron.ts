@@ -11,6 +11,7 @@ export {
   type PendingAngleEstimate,
   type CreateCalibrationSessionOptions,
 } from './controllers/calibration'
+export { buildTripSegment } from './algorithms/buildTripSegment'
 export {
   createS7Connector,
   S7Connector,
@@ -26,6 +27,7 @@ export type { ThicknessData } from './connections/thickness/types'
 export type { CalibrationConfig, Scalar, TripSegment } from './types'
 export {
   estimateThetaMaxWithPhaseCorrection,
+  estimateThetaMaxWithPhaseCorrectionDetailed,
   type UpperRotationAdaptiveRulesOverride,
   type UpperRotationAdaptiveTuningOverride,
   type UpperRotationDebugOptions,

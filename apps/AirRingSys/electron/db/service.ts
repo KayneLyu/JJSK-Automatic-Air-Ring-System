@@ -31,6 +31,7 @@ import { importSweep, cleanup, queryFramesByTimeRange } from './sweepExport'
 import {
   queryThicknessRaw,
   countThicknessRawInRange,
+  countUsableThicknessRawInRange,
   queryThicknessRawPage,
   countRotationRawInRange,
   queryRotationRawPage,
@@ -329,6 +330,11 @@ export class SQLiteService {
   }
   countThicknessRawInRange(startMs: number, endMs: number): number {
     return this.ready ? countThicknessRawInRange(this.db, startMs, endMs) : 0
+  }
+  countUsableThicknessRawInRange(startMs: number, endMs: number): number {
+    return this.ready
+      ? countUsableThicknessRawInRange(this.db, startMs, endMs)
+      : 0
   }
   queryThicknessRawPage(startMs: number, endMs: number, limit: number, offset: number): ThicknessRawRow[] {
     return this.ready ? queryThicknessRawPage(this.db, startMs, endMs, limit, offset) : []

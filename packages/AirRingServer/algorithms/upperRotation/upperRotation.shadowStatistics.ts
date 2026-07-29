@@ -1,5 +1,20 @@
 import type { OfflineUpperRotationRefinementResult } from './upperRotation.offlineRefinement'
 import type { UpperRotationStrategyComparison } from './upperRotation.estimate'
+import {
+  buildShadowConditionBinStatistics,
+  buildRotationSpeedBySelectedAngleMatrix,
+  collectShadowConditionCoverageGaps,
+  type ShadowConditionBinStatistics,
+  type ShadowConditionCrossMatrix,
+  type ShadowConditionCoverageGap,
+} from './upperRotation.shadowConditionStatistics'
+import {
+  buildShadowCoverageCollectionTargets,
+  buildShadowCoverageReadinessSummary,
+  createUnevaluatedShadowCoverageReadinessSummary,
+  type ShadowCoverageCollectionTarget,
+  type ShadowCoverageReadinessSummary,
+} from './upperRotation.shadowCoverageTargets'
 
 export type UpperRotationShadowRecordMetadata = {
   windowId: string
@@ -58,6 +73,8 @@ export type UpperRotationShadowBatchOptions = {
   rotationSpeedBinEdgesDegPerSecond: readonly number[]
   selectedAngleBinEdgesDeg: readonly number[]
   filmWidthBinEdgesMm: readonly number[]
+  minimumRecordsPerConditionBin: number
+  minimumRecordsPerConditionCell: number
 }
 
 export type ShadowNumericCoverage = {
@@ -97,6 +114,13 @@ export type UpperRotationShadowBatchStatistics = {
   filmWidthCoverage: ShadowNumericCoverage
   recordsByConditionSource: Readonly<Record<string, number>>
   missingConditionSourceCount: number
+  rotationSpeedBinStatistics: readonly ShadowConditionBinStatistics[]
+  selectedAngleBinStatistics: readonly ShadowConditionBinStatistics[]
+  filmWidthBinStatistics: readonly ShadowConditionBinStatistics[]
+  conditionCoverageGaps: readonly ShadowConditionCoverageGap[]
+  rotationSpeedBySelectedAngleMatrix: ShadowConditionCrossMatrix
+  coverageCollectionTargets: readonly ShadowCoverageCollectionTarget[]
+  coverageReadiness: ShadowCoverageReadinessSummary
   rejectReason:
     | 'invalidOptions'
     | 'insufficientRecords'
@@ -328,6 +352,25 @@ export const aggregateUpperRotationShadowRecords = (
     filmWidthCoverage: emptyCoverage(options.filmWidthBinEdgesMm),
     recordsByConditionSource: {},
     missingConditionSourceCount: 0,
+    rotationSpeedBinStatistics: [],
+    selectedAngleBinStatistics: [],
+    filmWidthBinStatistics: [],
+    conditionCoverageGaps: [],
+    rotationSpeedBySelectedAngleMatrix: {
+      rowDimension: 'rotationSpeed' as const,
+      columnDimension: 'selectedAngle' as const,
+      rowBinEdges: [...options.rotationSpeedBinEdgesDegPerSecond],
+      columnBinEdges: [...options.selectedAngleBinEdgesDeg],
+      rowBinCount: Math.max(
+        0,
+        options.rotationSpeedBinEdgesDegPerSecond.length - 1
+      ),
+      columnBinCount: Math.max(0, options.selectedAngleBinEdgesDeg.length - 1),
+      cells: [],
+      coverageGaps: [],
+    },
+    coverageCollectionTargets: [],
+    coverageReadiness: createUnevaluatedShadowCoverageReadinessSummary(),
   }
   if (
     !Number.isInteger(options.minimumRecordCount) ||
@@ -338,6 +381,10 @@ export const aggregateUpperRotationShadowRecords = (
     options.minimumRecipeCount < 0 ||
     typeof options.requireCompleteCoverageMetadata !== 'boolean' ||
     typeof options.requireCompleteContinuousConditions !== 'boolean' ||
+    !Number.isInteger(options.minimumRecordsPerConditionBin) ||
+    options.minimumRecordsPerConditionBin < 1 ||
+    !Number.isInteger(options.minimumRecordsPerConditionCell) ||
+    options.minimumRecordsPerConditionCell < 1 ||
     !validBinEdges(options.rotationSpeedBinEdgesDegPerSecond) ||
     !validBinEdges(options.selectedAngleBinEdgesDeg) ||
     !validBinEdges(options.filmWidthBinEdgesMm)
@@ -417,6 +464,49 @@ export const aggregateUpperRotationShadowRecords = (
     records.map((record) => record.metadata.filmWidthMm),
     options.filmWidthBinEdgesMm
   )
+  const rotationSpeedBinStatistics = buildShadowConditionBinStatistics(
+    records,
+    options.rotationSpeedBinEdgesDegPerSecond,
+    options.minimumRecordsPerConditionBin,
+    (record) => record.metadata.rotationSpeedDegPerSecond
+  )
+  const selectedAngleBinStatistics = buildShadowConditionBinStatistics(
+    records,
+    options.selectedAngleBinEdgesDeg,
+    options.minimumRecordsPerConditionBin,
+    (record) => record.selectedAngleDeg
+  )
+  const filmWidthBinStatistics = buildShadowConditionBinStatistics(
+    records,
+    options.filmWidthBinEdgesMm,
+    options.minimumRecordsPerConditionBin,
+    (record) => record.metadata.filmWidthMm
+  )
+  const conditionCoverageGaps = [
+    ...collectShadowConditionCoverageGaps(
+      'rotationSpeed',
+      rotationSpeedBinStatistics
+    ),
+    ...collectShadowConditionCoverageGaps(
+      'selectedAngle',
+      selectedAngleBinStatistics
+    ),
+    ...collectShadowConditionCoverageGaps('filmWidth', filmWidthBinStatistics),
+  ]
+  const rotationSpeedBySelectedAngleMatrix =
+    buildRotationSpeedBySelectedAngleMatrix(
+      records,
+      options.rotationSpeedBinEdgesDegPerSecond,
+      options.selectedAngleBinEdgesDeg,
+      options.minimumRecordsPerConditionCell
+    )
+  const coverageCollectionTargets = buildShadowCoverageCollectionTargets(
+    conditionCoverageGaps,
+    rotationSpeedBySelectedAngleMatrix.coverageGaps
+  )
+  const coverageReadiness = buildShadowCoverageReadinessSummary(
+    coverageCollectionTargets
+  )
   const coverage = {
     firstObservedAtMs: records[0].metadata.observedAtMs,
     lastObservedAtMs: records[records.length - 1].metadata.observedAtMs,
@@ -434,6 +524,13 @@ export const aggregateUpperRotationShadowRecords = (
     filmWidthCoverage,
     recordsByConditionSource,
     missingConditionSourceCount,
+    rotationSpeedBinStatistics,
+    selectedAngleBinStatistics,
+    filmWidthBinStatistics,
+    conditionCoverageGaps,
+    rotationSpeedBySelectedAngleMatrix,
+    coverageCollectionTargets,
+    coverageReadiness,
   }
   if (
     options.requireCompleteCoverageMetadata &&
