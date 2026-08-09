@@ -1,0 +1,481 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-02T06:25:20.174Z",
+  "gitRevision": "a5c6e97ec73f48f057110c9b09e1f3f4e108ff3c",
+  "configuration": {
+    "warmup": 1,
+    "repeat": 3,
+    "ipcSampleCount": 100000,
+    "garbageCollectionExposed": false
+  },
+  "environment": {
+    "hostname": "DESKTOP-E22IC7H",
+    "platform": "win32",
+    "osRelease": "10.0.26200",
+    "architecture": "x64",
+    "node": "v24.18.0",
+    "v8": "13.6.233.17-node.50",
+    "vitestPool": "forks",
+    "cpuModel": "AMD Ryzen 9 9950X3D 16-Core Processor          ",
+    "logicalCpuCount": 32,
+    "totalMemoryBytes": 50633121792,
+    "freeMemoryBytesAtReport": 25549549568
+  },
+  "upperRotation": [
+    {
+      "dataset": "01",
+      "inputRows": 14764,
+      "segmentCount": 4,
+      "pointCount": 12768,
+      "expectedThetaDeg": 335.6,
+      "actualThetaDeg": 335.3507764050049,
+      "errorDeg": 0.24922359499510094,
+      "withinFiveDegreeTolerance": true,
+      "segmentBuild": {
+        "timing": {
+          "samplesMs": [
+            4.973,
+            3.318,
+            3.555
+          ],
+          "minMs": 3.318,
+          "medianMs": 3.555,
+          "p95Ms": 4.973,
+          "maxMs": 4.973,
+          "meanMs": 3.949,
+          "standardDeviationMs": 0.73
+        },
+        "memoryDelta": {
+          "rssBytes": 20426752,
+          "heapUsedBytes": 1890896,
+          "externalBytes": 40,
+          "arrayBuffersBytes": 0
+        }
+      },
+      "estimate": {
+        "timing": {
+          "samplesMs": [
+            130.052,
+            127.311,
+            124.043
+          ],
+          "minMs": 124.043,
+          "medianMs": 127.311,
+          "p95Ms": 130.052,
+          "maxMs": 130.052,
+          "meanMs": 127.136,
+          "standardDeviationMs": 2.457
+        },
+        "memoryDelta": {
+          "rssBytes": 5545984,
+          "heapUsedBytes": -1977976,
+          "externalBytes": 300240,
+          "arrayBuffersBytes": 300240
+        },
+        "diagnostics": {
+          "status": "success",
+          "strategyProfile": "datasetTuned2026Q1",
+          "objectiveMode": "auto",
+          "offsetMode": "auto",
+          "objectiveUsed": "expanded",
+          "inputSegments": 4,
+          "completeSegments": 4,
+          "filteredSegments": 2,
+          "totalPoints": 7787,
+          "baseThetaDeg": 310.4000000000008,
+          "finalThetaDeg": 335.3507764050049,
+          "finalLoss": 0.9651278262703403,
+          "triggeredRules": [
+            "lowAngleH1"
+          ],
+          "rejectReason": null,
+          "elapsedMs": 124.0347999999999
+        }
+      }
+    },
+    {
+      "dataset": "02",
+      "inputRows": 25752,
+      "segmentCount": 6,
+      "pointCount": 21209,
+      "expectedThetaDeg": 320.2,
+      "actualThetaDeg": 309.74781741247705,
+      "errorDeg": 10.452182587522941,
+      "withinFiveDegreeTolerance": false,
+      "segmentBuild": {
+        "timing": {
+          "samplesMs": [
+            5.159,
+            5.944,
+            8.242
+          ],
+          "minMs": 5.159,
+          "medianMs": 5.944,
+          "p95Ms": 8.242,
+          "maxMs": 8.242,
+          "meanMs": 6.448,
+          "standardDeviationMs": 1.308
+        },
+        "memoryDelta": {
+          "rssBytes": 26255360,
+          "heapUsedBytes": -13506736,
+          "externalBytes": -800640,
+          "arrayBuffersBytes": -1440
+        }
+      },
+      "estimate": {
+        "timing": {
+          "samplesMs": [
+            231.854,
+            234.107,
+            230.688
+          ],
+          "minMs": 230.688,
+          "medianMs": 231.854,
+          "p95Ms": 234.107,
+          "maxMs": 234.107,
+          "meanMs": 232.216,
+          "standardDeviationMs": 1.419
+        },
+        "memoryDelta": {
+          "rssBytes": 8384512,
+          "heapUsedBytes": 9629456,
+          "externalBytes": 788400,
+          "arrayBuffersBytes": 788400
+        },
+        "diagnostics": {
+          "status": "success",
+          "strategyProfile": "datasetTuned2026Q1",
+          "objectiveMode": "auto",
+          "offsetMode": "auto",
+          "objectiveUsed": "expanded",
+          "inputSegments": 6,
+          "completeSegments": 6,
+          "filteredSegments": 4,
+          "totalPoints": 14346,
+          "baseThetaDeg": 309.6000000000013,
+          "finalThetaDeg": 309.74781741247705,
+          "finalLoss": 0.9805675424767104,
+          "triggeredRules": [],
+          "rejectReason": null,
+          "elapsedMs": 230.67510000000016
+        }
+      }
+    },
+    {
+      "dataset": "03",
+      "inputRows": 19124,
+      "segmentCount": 4,
+      "pointCount": 17116,
+      "expectedThetaDeg": 333.5,
+      "actualThetaDeg": 337.935334840065,
+      "errorDeg": 4.435334840065025,
+      "withinFiveDegreeTolerance": true,
+      "segmentBuild": {
+        "timing": {
+          "samplesMs": [
+            5.725,
+            2.813,
+            2.831
+          ],
+          "minMs": 2.813,
+          "medianMs": 2.831,
+          "p95Ms": 5.725,
+          "maxMs": 5.725,
+          "meanMs": 3.79,
+          "standardDeviationMs": 1.368
+        },
+        "memoryDelta": {
+          "rssBytes": -4022272,
+          "heapUsedBytes": -2718968,
+          "externalBytes": 0,
+          "arrayBuffersBytes": -1576800
+        }
+      },
+      "estimate": {
+        "timing": {
+          "samplesMs": [
+            104.842,
+            105.152,
+            104.519
+          ],
+          "minMs": 104.519,
+          "medianMs": 104.842,
+          "p95Ms": 105.152,
+          "maxMs": 105.152,
+          "meanMs": 104.838,
+          "standardDeviationMs": 0.258
+        },
+        "memoryDelta": {
+          "rssBytes": 6205440,
+          "heapUsedBytes": 19332880,
+          "externalBytes": 1121040,
+          "arrayBuffersBytes": 1121040
+        },
+        "diagnostics": {
+          "status": "success",
+          "strategyProfile": "datasetTuned2026Q1",
+          "objectiveMode": "auto",
+          "offsetMode": "auto",
+          "objectiveUsed": "expanded",
+          "inputSegments": 4,
+          "completeSegments": 4,
+          "filteredSegments": 2,
+          "totalPoints": 13934,
+          "baseThetaDeg": 337.70000000000107,
+          "finalThetaDeg": 337.935334840065,
+          "finalLoss": 0.9488487974607723,
+          "triggeredRules": [],
+          "rejectReason": null,
+          "elapsedMs": 104.50550000000021
+        }
+      }
+    },
+    {
+      "dataset": "04",
+      "inputRows": 22483,
+      "segmentCount": 6,
+      "pointCount": 20200,
+      "expectedThetaDeg": 320.5,
+      "actualThetaDeg": 316.1038387574522,
+      "errorDeg": 4.396161242547805,
+      "withinFiveDegreeTolerance": true,
+      "segmentBuild": {
+        "timing": {
+          "samplesMs": [
+            4.722,
+            3.373,
+            5.874
+          ],
+          "minMs": 3.373,
+          "medianMs": 4.722,
+          "p95Ms": 5.874,
+          "maxMs": 5.874,
+          "meanMs": 4.656,
+          "standardDeviationMs": 1.022
+        },
+        "memoryDelta": {
+          "rssBytes": 2646016,
+          "heapUsedBytes": -29372080,
+          "externalBytes": -1494720,
+          "arrayBuffersBytes": -1494720
+        }
+      },
+      "estimate": {
+        "timing": {
+          "samplesMs": [
+            173.263,
+            175.124,
+            176.908
+          ],
+          "minMs": 173.263,
+          "medianMs": 175.124,
+          "p95Ms": 176.908,
+          "maxMs": 176.908,
+          "meanMs": 175.098,
+          "standardDeviationMs": 1.488
+        },
+        "memoryDelta": {
+          "rssBytes": 37515264,
+          "heapUsedBytes": 51878256,
+          "externalBytes": 1684800,
+          "arrayBuffersBytes": 1684800
+        },
+        "diagnostics": {
+          "status": "success",
+          "strategyProfile": "datasetTuned2026Q1",
+          "objectiveMode": "auto",
+          "offsetMode": "auto",
+          "objectiveUsed": "expanded",
+          "inputSegments": 6,
+          "completeSegments": 6,
+          "filteredSegments": 4,
+          "totalPoints": 15143,
+          "baseThetaDeg": 334.70000000000107,
+          "finalThetaDeg": 316.1038387574522,
+          "finalLoss": 0.9940033669888634,
+          "triggeredRules": [
+            "highAngleC5"
+          ],
+          "rejectReason": null,
+          "elapsedMs": 176.90239999999994
+        }
+      }
+    },
+    {
+      "dataset": "05",
+      "inputRows": 19607,
+      "segmentCount": 6,
+      "pointCount": 18977,
+      "expectedThetaDeg": 321.8,
+      "actualThetaDeg": 319.6285971824375,
+      "errorDeg": 2.171402817562523,
+      "withinFiveDegreeTolerance": true,
+      "segmentBuild": {
+        "timing": {
+          "samplesMs": [
+            3.063,
+            3.022,
+            3.518
+          ],
+          "minMs": 3.022,
+          "medianMs": 3.063,
+          "p95Ms": 3.518,
+          "maxMs": 3.518,
+          "meanMs": 3.201,
+          "standardDeviationMs": 0.225
+        },
+        "memoryDelta": {
+          "rssBytes": 9203712,
+          "heapUsedBytes": 31833680,
+          "externalBytes": 0,
+          "arrayBuffersBytes": 0
+        }
+      },
+      "estimate": {
+        "timing": {
+          "samplesMs": [
+            323.153,
+            313.296,
+            338.371
+          ],
+          "minMs": 313.296,
+          "medianMs": 323.153,
+          "p95Ms": 338.371,
+          "maxMs": 338.371,
+          "meanMs": 324.94,
+          "standardDeviationMs": 10.315
+        },
+        "memoryDelta": {
+          "rssBytes": 32100352,
+          "heapUsedBytes": 5227768,
+          "externalBytes": 1149120,
+          "arrayBuffersBytes": 1149120
+        },
+        "diagnostics": {
+          "status": "success",
+          "strategyProfile": "datasetTuned2026Q1",
+          "objectiveMode": "auto",
+          "offsetMode": "auto",
+          "objectiveUsed": "expanded",
+          "inputSegments": 6,
+          "completeSegments": 6,
+          "filteredSegments": 5,
+          "totalPoints": 15774,
+          "baseThetaDeg": 316.10000000000116,
+          "finalThetaDeg": 319.6285971824375,
+          "finalLoss": 0.9829172245998397,
+          "triggeredRules": [
+            "timeChallenger",
+            "highAngleOverEstimation"
+          ],
+          "rejectReason": null,
+          "elapsedMs": 338.3689999999997
+        }
+      }
+    }
+  ],
+  "correctness": {
+    "upperRotationAllWithinFiveDegrees": false,
+    "failingUpperRotationDatasets": [
+      "02"
+    ]
+  },
+  "bubbleReconstruction": [
+    {
+      "solverMode": "batch",
+      "measurementCount": 2881,
+      "numBins": 360,
+      "rmse": 0.15281169642320863,
+      "timing": {
+        "samplesMs": [
+          9.713,
+          7.225,
+          6.771
+        ],
+        "minMs": 6.771,
+        "medianMs": 7.225,
+        "p95Ms": 9.713,
+        "maxMs": 9.713,
+        "meanMs": 7.903,
+        "standardDeviationMs": 1.293
+      },
+      "memoryDelta": {
+        "rssBytes": 2297856,
+        "heapUsedBytes": -51778976,
+        "externalBytes": 2462592,
+        "arrayBuffersBytes": 2462592
+      }
+    },
+    {
+      "solverMode": "rls",
+      "measurementCount": 2881,
+      "numBins": 360,
+      "rmse": 2.1466247587979277,
+      "timing": {
+        "samplesMs": [
+          1.695,
+          1.663,
+          1.105
+        ],
+        "minMs": 1.105,
+        "medianMs": 1.663,
+        "p95Ms": 1.695,
+        "maxMs": 1.695,
+        "meanMs": 1.488,
+        "standardDeviationMs": 0.271
+      },
+      "memoryDelta": {
+        "rssBytes": -159744,
+        "heapUsedBytes": 11072112,
+        "externalBytes": 724968,
+        "arrayBuffersBytes": 724968
+      }
+    }
+  ],
+  "workerThreadIpc": {
+    "sampleCount": 100000,
+    "objectStructuredClone": {
+      "timing": {
+        "samplesMs": [
+          65.966,
+          51.781,
+          59.52
+        ],
+        "minMs": 51.781,
+        "medianMs": 59.52,
+        "p95Ms": 65.966,
+        "maxMs": 65.966,
+        "meanMs": 59.089,
+        "standardDeviationMs": 5.799
+      },
+      "memoryDelta": {
+        "rssBytes": -2387968,
+        "heapUsedBytes": 59264,
+        "externalBytes": -7824942,
+        "arrayBuffersBytes": -325
+      }
+    },
+    "typedArrayTransfer": {
+      "timing": {
+        "samplesMs": [
+          18.277,
+          16.614,
+          16.724
+        ],
+        "minMs": 16.614,
+        "medianMs": 16.724,
+        "p95Ms": 18.277,
+        "maxMs": 18.277,
+        "meanMs": 17.205,
+        "standardDeviationMs": 0.759
+      },
+      "memoryDelta": {
+        "rssBytes": -2756608,
+        "heapUsedBytes": 337808,
+        "externalBytes": 0,
+        "arrayBuffersBytes": 0
+      }
+    }
+  }
+}

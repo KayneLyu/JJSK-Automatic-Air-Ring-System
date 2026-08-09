@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-05T14:25:43.334Z",
+  "sourceFile": "rust-shadow-history-20260805-222523.ndjson",
+  "recordCount": 1,
+  "statusCounts": {
+    "success": 1
+  },
+  "stateCounts": {
+    "maxRunsReached": 1
+  },
+  "finalState": "maxRunsReached",
+  "policy": {
+    "everyN": 1,
+    "maxRuns": 1,
+    "maxConsecutiveFailures": 1,
+    "maxDeltaDeg": 1e-9
+  },
+  "metrics": {
+    "absoluteAngleDeltaDeg": {
+      "count": 1,
+      "min": 0,
+      "mean": 0,
+      "median": 0,
+      "p95": 0,
+      "max": 0
+    },
+    "nativeElapsedMs": {
+      "count": 1,
+      "min": 92.1361,
+      "mean": 92.1361,
+      "median": 92.1361,
+      "p95": 92.1361,
+      "max": 92.1361
+    },
+    "totalElapsedMs": {
+      "count": 1,
+      "min": 125.6758,
+      "mean": 125.6758,
+      "median": 125.6758,
+      "p95": 125.6758,
+      "max": 125.6758
+    }
+  }
+}

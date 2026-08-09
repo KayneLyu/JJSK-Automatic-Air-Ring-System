@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-08-09T11:56:44.0048800+08:00",
+  "databaseFile": "jjsk.db",
+  "databaseMode": "read-only",
+  "databaseUnchanged": true,
+  "processExitCode": 1,
+  "configuration": {
+    "startMs": 1,
+    "endMs": 1786247801437,
+    "sweepLimit": 10,
+    "membraneWidthMm": 1016.0,
+    "thetaMaxDeg": 256.4,
+    "mmPerPulse": 0.05976470588235294,
+    "airAD": 52000.0,
+    "gain": 1.45,
+    "transportDelayMs": 139815.0,
+    "numBins": 48,
+    "processDeformationFactor": 1.02
+  },
+  "observation": {
+    "queriedSweepCount": 0,
+    "validProfileCount": 0,
+    "rejectedProfileCount": 0,
+    "failedProfileCount": 0,
+    "bubbleWorkerCreateCount": 0,
+    "shadowSuccessCount": 0,
+    "shadowFailureCount": 0,
+    "maxAbsProfileDelta": null,
+    "medianTsSolveMs": null,
+    "medianRustSolveMs": null,
+    "historicalSolverSpeedup": null,
+    "syntheticEndToEndSpeedup": 1.129593467069071
+  },
+  "decision": "no-go",
+  "dataShortage": true,
+  "artifacts": {
+    "stdoutFile": "phase-8b-history-20260809-115641.stdout.txt",
+    "stderrFile": "phase-8b-history-20260809-115641.stderr.txt"
+  }
+}

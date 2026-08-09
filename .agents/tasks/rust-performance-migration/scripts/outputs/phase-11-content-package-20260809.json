@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "phase": 11,
+  "ok": true,
+  "artifact": {
+    "fileName": "JJSK-Content-1.2.7-a5c6e97e-dirty-20260809T150756Z-electron-36.9.5-win-x64.7z",
+    "bytes": 24286956,
+    "sha256": "3d6585e9ca63f4115936058240d11f428553ae941f09054dcab3d94380ea7b97"
+  },
+  "payload": {
+    "bytes": 269549687,
+    "fileCount": 51,
+    "replacementUnit": "resources"
+  },
+  "requiredRuntime": {
+    "platform": "win32",
+    "arch": "x64",
+    "electron": "36.9.5",
+    "modules": "135",
+    "napi": "10"
+  },
+  "comparison": {
+    "fullArchiveBytes": 103169923,
+    "transferPercent": 23.54,
+    "reductionPercent": 76.46
+  },
+  "verification": {
+    "archiveIntegrityTested": true,
+    "verifyOnlyPassed": true,
+    "applyPassed": true,
+    "backupPreserved": true,
+    "runtimeUnchanged": true,
+    "postApplySelfTestPassed": true,
+    "incompatibleRuntimeRejected": true,
+    "deviceInitialization": false
+  },
+  "productionSignatureRequired": true
+}

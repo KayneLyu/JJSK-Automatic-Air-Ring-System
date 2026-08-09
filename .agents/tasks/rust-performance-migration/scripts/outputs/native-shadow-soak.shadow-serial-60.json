@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-02T11:05:57.839Z",
+  "configuration": {
+    "cycles": 12,
+    "datasets": [
+      "01",
+      "02",
+      "03",
+      "04",
+      "05"
+    ],
+    "requestCountPerScenario": 60,
+    "threadLimit": 4,
+    "requestTimeoutMs": 120000,
+    "maxConcurrency": 1,
+    "workerTopology": "persistent-single-worker-fifo"
+  },
+  "environment": {
+    "platform": "win32",
+    "architecture": "x64",
+    "node": "v24.18.0",
+    "cpuModel": "AMD Ryzen 9 9950X3D 16-Core Processor          ",
+    "logicalCpuCount": 32,
+    "availableParallelism": 32
+  },
+  "productionAngles": {
+    "01": 335.3507764050049,
+    "02": 309.74781741247705,
+    "03": 337.935334840065,
+    "04": 316.1038387574522,
+    "05": 319.6285971824375
+  },
+  "scenarios": [
+    {
+      "name": "shadow-serial",
+      "shadowEnabled": true,
+      "concurrency": 1,
+      "workerCreateCount": 1,
+      "warmupRequestCount": 0,
+      "requestCount": 60,
+      "successfulRequests": 60,
+      "failedRequests": 0,
+      "productionMismatchCount": 0,
+      "nativeMismatchCount": 0,
+      "telemetryFailureCount": 0,
+      "threadLimitMismatchCount": 0,
+      "telemetryStatusCounts": {
+        "success": 60
+      },
+      "wallElapsedMs": 13286.904,
+      "throughputPerSecond": 4.516,
+      "requestLatency": {
+        "minMs": 119.953,
+        "medianMs": 212.195,
+        "p95Ms": 360.639,
+        "maxMs": 365.514,
+        "meanMs": 221.355,
+        "standardDeviationMs": 81.047
+      },
+      "nativeLatency": {
+        "minMs": 5.291,
+        "medianMs": 10.471,
+        "p95Ms": 17.271,
+        "maxMs": 18.654,
+        "meanMs": 11.464,
+        "standardDeviationMs": 3.537
+      },
+      "shadowTotalLatency": {
+        "minMs": 5.798,
+        "medianMs": 11.365,
+        "p95Ms": 18.466,
+        "maxMs": 19.334,
+        "meanMs": 12.42,
+        "standardDeviationMs": 3.609
+      },
+      "cpu": {
+        "userMs": 14344,
+        "systemMs": 1547,
+        "coreEquivalent": 1.196
+      },
+      "memory": {
+        "rssStartBytes": 131043328,
+        "rssEndBytes": 210518016,
+        "rssPeakBytes": 282124288,
+        "rssDeltaBytes": 79474688
+      },
+      "eventLoop": {
+        "p95Ms": 28.983,
+        "maxMs": 38.076
+      }
+    }
+  ],
+  "gates": {
+    "allRequestsSucceeded": true,
+    "productionOutputStable": true,
+    "nativeThetaEquivalent": true,
+    "telemetrySuccessful": true,
+    "threadLimitStable": true,
+    "singleWorkerReused": true,
+    "eventLoopP95Under100Ms": true
+  }
+}

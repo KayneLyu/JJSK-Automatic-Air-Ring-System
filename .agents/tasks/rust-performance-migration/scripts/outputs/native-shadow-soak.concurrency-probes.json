@@ -1,0 +1,14 @@
+[
+    {
+        "scenario":  "shadow-concurrency-2",
+        "exitCode":  0,
+        "passed":  true,
+        "outputVariant":  "shadow-concurrency-2"
+    },
+    {
+        "scenario":  "shadow-concurrency-4",
+        "exitCode":  0,
+        "passed":  true,
+        "outputVariant":  "shadow-concurrency-4"
+    }
+]

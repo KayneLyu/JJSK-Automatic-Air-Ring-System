@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-02T09:33:42.714Z",
+  "configuration": {
+    "cycles": 1,
+    "datasets": [
+      "01",
+      "02",
+      "03",
+      "04",
+      "05"
+    ],
+    "requestCountPerScenario": 5,
+    "threadLimit": 4,
+    "requestTimeoutMs": 120000,
+    "maxConcurrency": 4
+  },
+  "environment": {
+    "platform": "win32",
+    "architecture": "x64",
+    "node": "v24.18.0",
+    "cpuModel": "AMD Ryzen 9 9950X3D 16-Core Processor          ",
+    "logicalCpuCount": 32,
+    "availableParallelism": 32
+  },
+  "productionAngles": {
+    "01": 335.3507764050049,
+    "02": 309.74781741247705,
+    "03": 337.935334840065,
+    "04": 316.1038387574522,
+    "05": 319.6285971824375
+  },
+  "scenarios": [
+    {
+      "name": "shadow-concurrency-4",
+      "shadowEnabled": true,
+      "concurrency": 4,
+      "warmupRequestCount": 1,
+      "requestCount": 5,
+      "successfulRequests": 5,
+      "failedRequests": 0,
+      "productionMismatchCount": 0,
+      "nativeMismatchCount": 0,
+      "telemetryFailureCount": 0,
+      "threadLimitMismatchCount": 0,
+      "telemetryStatusCounts": {
+        "success": 5
+      },
+      "wallElapsedMs": 1111.817,
+      "throughputPerSecond": 4.497,
+      "requestLatency": {
+        "samplesMs": [
+          462.804,
+          628.357,
+          455.129,
+          521.565,
+          644.234
+        ],
+        "minMs": 455.129,
+        "medianMs": 521.565,
+        "p95Ms": 644.234,
+        "maxMs": 644.234,
+        "meanMs": 542.418,
+        "standardDeviationMs": 80.18
+      },
+      "nativeLatency": {
+        "samplesMs": [
+          23.399,
+          15.941,
+          22.022,
+          17.259,
+          17.774
+        ],
+        "minMs": 15.941,
+        "medianMs": 17.774,
+        "p95Ms": 23.399,
+        "maxMs": 23.399,
+        "meanMs": 19.279,
+        "standardDeviationMs": 2.898
+      },
+      "shadowTotalLatency": {
+        "samplesMs": [
+          25.543,
+          20.286,
+          28.019,
+          20.921,
+          22.901
+        ],
+        "minMs": 20.286,
+        "medianMs": 22.901,
+        "p95Ms": 28.019,
+        "maxMs": 28.019,
+        "meanMs": 23.534,
+        "standardDeviationMs": 2.896
+      },
+      "cpu": {
+        "userMs": 2703,
+        "systemMs": 563,
+        "coreEquivalent": 2.938
+      },
+      "memory": {
+        "rssStartBytes": 183787520,
+        "rssEndBytes": 276856832,
+        "rssPeakBytes": 329572352,
+        "rssDeltaBytes": 93069312
+      },
+      "eventLoop": {
+        "p95Ms": 19.169,
+        "maxMs": 24.74
+      }
+    }
+  ],
+  "gates": {
+    "allRequestsSucceeded": true,
+    "productionOutputStable": true,
+    "nativeThetaEquivalent": true,
+    "telemetrySuccessful": true,
+    "threadLimitStable": true,
+    "eventLoopP95Under100Ms": true
+  }
+}

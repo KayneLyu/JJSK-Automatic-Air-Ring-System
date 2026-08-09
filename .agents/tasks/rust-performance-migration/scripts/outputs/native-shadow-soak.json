@@ -1,0 +1,348 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-02T11:06:05.652Z",
+  "configuration": {
+    "cyclesPerScenario": 3,
+    "longSerialCycles": 12,
+    "datasets": [
+      "01",
+      "02",
+      "03",
+      "04",
+      "05"
+    ],
+    "requestsPerScenario": 15,
+    "longSerialRequestCount": 60,
+    "threadLimit": 4,
+    "maxConcurrencyProbe": 4,
+    "processIsolation": "one-process-per-scenario",
+    "workerTopology": "persistent-single-worker-fifo",
+    "concurrentNativeWarmupRequests": 1
+  },
+  "environment": {
+    "platform": "win32",
+    "architecture": "x64",
+    "node": "v24.18.0",
+    "cpuModel": "AMD Ryzen 9 9950X3D 16-Core Processor          ",
+    "logicalCpuCount": 32,
+    "availableParallelism": 32
+  },
+  "productionAngles": {
+    "01": 335.3507764050049,
+    "02": 309.74781741247705,
+    "03": 337.935334840065,
+    "04": 316.1038387574522,
+    "05": 319.6285971824375
+  },
+  "scenarios": [
+    {
+      "name": "disabled-serial",
+      "shadowEnabled": false,
+      "concurrency": 1,
+      "workerCreateCount": 1,
+      "warmupRequestCount": 0,
+      "requestCount": 15,
+      "successfulRequests": 15,
+      "failedRequests": 0,
+      "productionMismatchCount": 0,
+      "nativeMismatchCount": 0,
+      "telemetryFailureCount": 0,
+      "threadLimitMismatchCount": 0,
+      "telemetryStatusCounts": {},
+      "wallElapsedMs": 3152.992,
+      "throughputPerSecond": 4.757,
+      "requestLatency": {
+        "minMs": 111.128,
+        "medianMs": 201.443,
+        "p95Ms": 338.987,
+        "maxMs": 338.987,
+        "meanMs": 209.842,
+        "standardDeviationMs": 76.088
+      },
+      "nativeLatency": null,
+      "shadowTotalLatency": null,
+      "cpu": {
+        "userMs": 3218,
+        "systemMs": 109,
+        "coreEquivalent": 1.055
+      },
+      "memory": {
+        "rssStartBytes": 156135424,
+        "rssEndBytes": 255086592,
+        "rssPeakBytes": 274092032,
+        "rssDeltaBytes": 98951168
+      },
+      "eventLoop": {
+        "p95Ms": 27.591,
+        "maxMs": 35.815
+      }
+    },
+    {
+      "name": "shadow-serial",
+      "shadowEnabled": true,
+      "concurrency": 1,
+      "workerCreateCount": 1,
+      "warmupRequestCount": 0,
+      "requestCount": 15,
+      "successfulRequests": 15,
+      "failedRequests": 0,
+      "productionMismatchCount": 0,
+      "nativeMismatchCount": 0,
+      "telemetryFailureCount": 0,
+      "threadLimitMismatchCount": 0,
+      "telemetryStatusCounts": {
+        "success": 15
+      },
+      "wallElapsedMs": 3346.619,
+      "throughputPerSecond": 4.482,
+      "requestLatency": {
+        "minMs": 122.516,
+        "medianMs": 216.571,
+        "p95Ms": 365.716,
+        "maxMs": 365.716,
+        "meanMs": 222.87,
+        "standardDeviationMs": 77.5
+      },
+      "nativeLatency": {
+        "minMs": 5.527,
+        "medianMs": 10.044,
+        "p95Ms": 19.121,
+        "maxMs": 19.121,
+        "meanMs": 10.463,
+        "standardDeviationMs": 3.575
+      },
+      "shadowTotalLatency": {
+        "minMs": 6.107,
+        "medianMs": 11.095,
+        "p95Ms": 20.104,
+        "maxMs": 20.104,
+        "meanMs": 11.55,
+        "standardDeviationMs": 3.53
+      },
+      "cpu": {
+        "userMs": 3563,
+        "systemMs": 312,
+        "coreEquivalent": 1.158
+      },
+      "memory": {
+        "rssStartBytes": 132091904,
+        "rssEndBytes": 244621312,
+        "rssPeakBytes": 261074944,
+        "rssDeltaBytes": 112529408
+      },
+      "eventLoop": {
+        "p95Ms": 25.739,
+        "maxMs": 35.521
+      }
+    }
+  ],
+  "concurrencyProbes": [
+    {
+      "scenario": "shadow-concurrency-2",
+      "exitCode": 0,
+      "passed": true,
+      "outputVariant": "shadow-concurrency-2",
+      "measurement": {
+        "name": "shadow-concurrency-2",
+        "shadowEnabled": true,
+        "concurrency": 2,
+        "workerCreateCount": 1,
+        "warmupRequestCount": 1,
+        "requestCount": 15,
+        "successfulRequests": 15,
+        "failedRequests": 0,
+        "productionMismatchCount": 0,
+        "nativeMismatchCount": 0,
+        "telemetryFailureCount": 0,
+        "threadLimitMismatchCount": 0,
+        "telemetryStatusCounts": {
+          "success": 15
+        },
+        "wallElapsedMs": 3188.096,
+        "throughputPerSecond": 4.705,
+        "requestLatency": {
+          "minMs": 144.868,
+          "medianMs": 393.99,
+          "p95Ms": 556.469,
+          "maxMs": 556.469,
+          "meanMs": 402.257,
+          "standardDeviationMs": 101.336
+        },
+        "nativeLatency": {
+          "minMs": 5.443,
+          "medianMs": 9.828,
+          "p95Ms": 12.173,
+          "maxMs": 12.173,
+          "meanMs": 9.337,
+          "standardDeviationMs": 1.972
+        },
+        "shadowTotalLatency": {
+          "minMs": 6.001,
+          "medianMs": 10.875,
+          "p95Ms": 13.364,
+          "maxMs": 13.364,
+          "meanMs": 10.602,
+          "standardDeviationMs": 2.108
+        },
+        "cpu": {
+          "userMs": 3297,
+          "systemMs": 344,
+          "coreEquivalent": 1.142
+        },
+        "memory": {
+          "rssStartBytes": 179249152,
+          "rssEndBytes": 270389248,
+          "rssPeakBytes": 285790208,
+          "rssDeltaBytes": 91140096
+        },
+        "eventLoop": {
+          "p95Ms": 26.526,
+          "maxMs": 34.701
+        }
+      }
+    },
+    {
+      "scenario": "shadow-concurrency-4",
+      "exitCode": 0,
+      "passed": true,
+      "outputVariant": "shadow-concurrency-4",
+      "measurement": {
+        "name": "shadow-concurrency-4",
+        "shadowEnabled": true,
+        "concurrency": 4,
+        "workerCreateCount": 1,
+        "warmupRequestCount": 1,
+        "requestCount": 15,
+        "successfulRequests": 15,
+        "failedRequests": 0,
+        "productionMismatchCount": 0,
+        "nativeMismatchCount": 0,
+        "telemetryFailureCount": 0,
+        "threadLimitMismatchCount": 0,
+        "telemetryStatusCounts": {
+          "success": 15
+        },
+        "wallElapsedMs": 3148.954,
+        "throughputPerSecond": 4.763,
+        "requestLatency": {
+          "minMs": 142.176,
+          "medianMs": 808.118,
+          "p95Ms": 936.529,
+          "maxMs": 936.529,
+          "meanMs": 738.013,
+          "standardDeviationMs": 217.612
+        },
+        "nativeLatency": {
+          "minMs": 5.386,
+          "medianMs": 9.721,
+          "p95Ms": 10.596,
+          "maxMs": 10.596,
+          "meanMs": 9.119,
+          "standardDeviationMs": 1.853
+        },
+        "shadowTotalLatency": {
+          "minMs": 6.095,
+          "medianMs": 10.721,
+          "p95Ms": 12.564,
+          "maxMs": 12.564,
+          "meanMs": 10.366,
+          "standardDeviationMs": 1.946
+        },
+        "cpu": {
+          "userMs": 3484,
+          "systemMs": 219,
+          "coreEquivalent": 1.176
+        },
+        "memory": {
+          "rssStartBytes": 178425856,
+          "rssEndBytes": 269172736,
+          "rssPeakBytes": 279953408,
+          "rssDeltaBytes": 90746880
+        },
+        "eventLoop": {
+          "p95Ms": 25.002,
+          "maxMs": 30.409
+        }
+      }
+    }
+  ],
+  "longRun": {
+    "name": "shadow-serial",
+    "shadowEnabled": true,
+    "concurrency": 1,
+    "workerCreateCount": 1,
+    "warmupRequestCount": 0,
+    "requestCount": 60,
+    "successfulRequests": 60,
+    "failedRequests": 0,
+    "productionMismatchCount": 0,
+    "nativeMismatchCount": 0,
+    "telemetryFailureCount": 0,
+    "threadLimitMismatchCount": 0,
+    "telemetryStatusCounts": {
+      "success": 60
+    },
+    "wallElapsedMs": 13286.904,
+    "throughputPerSecond": 4.516,
+    "requestLatency": {
+      "minMs": 119.953,
+      "medianMs": 212.195,
+      "p95Ms": 360.639,
+      "maxMs": 365.514,
+      "meanMs": 221.355,
+      "standardDeviationMs": 81.047
+    },
+    "nativeLatency": {
+      "minMs": 5.291,
+      "medianMs": 10.471,
+      "p95Ms": 17.271,
+      "maxMs": 18.654,
+      "meanMs": 11.464,
+      "standardDeviationMs": 3.537
+    },
+    "shadowTotalLatency": {
+      "minMs": 5.798,
+      "medianMs": 11.365,
+      "p95Ms": 18.466,
+      "maxMs": 19.334,
+      "meanMs": 12.42,
+      "standardDeviationMs": 3.609
+    },
+    "cpu": {
+      "userMs": 14344,
+      "systemMs": 1547,
+      "coreEquivalent": 1.196
+    },
+    "memory": {
+      "rssStartBytes": 131043328,
+      "rssEndBytes": 210518016,
+      "rssPeakBytes": 282124288,
+      "rssDeltaBytes": 79474688
+    },
+    "eventLoop": {
+      "p95Ms": 28.983,
+      "maxMs": 38.076
+    }
+  },
+  "comparison": {
+    "maxCpuCoreEquivalent": 1.176,
+    "maxEventLoopP95Ms": 27.591,
+    "maxPeakRssBytes": 274092032
+  },
+  "gates": {
+    "allRequestsSucceeded": true,
+    "productionOutputStable": true,
+    "nativeThetaEquivalent": true,
+    "telemetrySuccessful": true,
+    "threadLimitStable": true,
+    "singleWorkerReused": true,
+    "eventLoopP95Under100Ms": true,
+    "longSerial60Succeeded": true
+  },
+  "decision": {
+    "serializedShadowObservationAllowed": true,
+    "concurrentSubmissionsAllowed": true,
+    "concurrentWorkersAllowed": false,
+    "reason": "持久单 Worker + FIFO 拓扑通过串行与并发提交耐久；不允许恢复每请求创建并强制终止或并行 Native Worker。"
+  }
+}

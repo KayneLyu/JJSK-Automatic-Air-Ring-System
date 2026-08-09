@@ -1,5 +1,15 @@
 # context.md — 长期上下文
 
+- 2026-08-02：Rust 性能迁移阶段 4 通过。用户授权后，Calibration Bridge 改为持久单 Worker + FIFO，实时入口忙时仍跳过、Promise 入口排队；正常响应不再 `terminate()`，历史嵌套 Worker 使用 shutdown/ack 自然退出。正式 120 请求加 300 请求长跑全部成功，每进程只创建 1 个 Worker，事件循环 P95 26.755ms、CPU 约 1.136 核，未再复现 `0xC0000005`。允许显式开关下扩大串行 shadow 观测，但默认关闭、禁止并行 Native Worker和生产接管。
+
+- 2026-08-02：Rust 性能迁移阶段 3 实际 Calibration Worker 耐久评估判定 no-go。短跑的生产输出、Native/base theta、4 线程上限和事件循环延迟均通过，Rust 核心/端到端仍有 8.85–13.95/7.91–14.19 倍加速；但每请求创建 Worker 并在响应后立即 `terminate()` 时，60 请求串行及 2 路并发可非确定性触发 Windows `0xC0000005` Native 卸载崩溃。Rust shadow 必须继续默认关闭；修改高风险 `calibrationBridge.ts` 为持久 Worker 队列或 graceful shutdown 前须用户明确授权。
+
+- 2026-08-02：Rust 性能迁移阶段 1 完成。mise 固定 Node 24.18.0、pnpm 10.18.3 与 Rust 1.88.0，napi-rs 3 + Node-API 8 + Rayon 1.12.0 的上旋搜索 PoC 在 DS01..05 最终复跑获得核心 17.66–19.10 倍、含 TypedArray DTO 端到端 16.49–18.65 倍加速；7/7 数值等价测试通过。PoC 未接入生产，阶段 2 采用特性开关 + TypeScript 回退的影子集成，并先限制 Rayon 线程数。
+
+- 2026-08-02：Rust 性能迁移阶段 0（Windows x64 / Node 24.18 / Ryzen 9 9950X3D，1 warmup + 3 repeats）基线：上旋 DS01..05 估算中位数 131.564/236.516/105.057/173.847/338.005ms，均超过 100ms；膜泡 Batch/RLS 为 7.163/1.988ms。100k 点 run-once Worker 端到端对象克隆 82.435ms、TypedArray transfer 17.501ms。阶段 1 优先上旋目标函数/搜索并采用 TypedArray DTO。
+
+- 2026-08-02：DS02 当前生产入口结果约 309.748°，相对标称 320.2° 误差 10.452°，既有真实数据回归同步失败；Rust 等价和领域精度必须作为两个独立门槛，性能迁移不得静默改变算法结果。
+
 - 2026-07-29：现场历史角度结果对选段/目标模式高度不稳定：最新短+正常两趟 auto=256.43°、direct=260.00°；两组正常双行程 direct=340.32°/330.03°、expanded=180.00°/180.50°；四个正常行程 direct=310.04°。正常行程 pulse 恒为 0，expanded 用合成 offset 却被 auto 当成有效位置；双行程还会跳过部分片段过滤。当前数据不可直接产出可信唯一角度。
 
 - 2026-07-29：现场库 `rotation_trip` 可能为空，且一次换向的 `forwardDirChange/reverseDirChange` 会在约 7 条连续记录中重复为真；历史边界必须对连续同向事件去重，并合并由正反转状态推断的变化。现场库只读回放最近两趟 697,811 个事件约 8 秒得到 `maxAngle=256.429°`。
@@ -135,6 +145,21 @@
 | 2026-06-11 | 修复百万级数据栈溢出；flipped/expanded 缓存；searchBest 去重缓存；索引 for 循环；惰性 pulseCoverageSignature |
 | 2026-06-11 | 将算法迁移到 Worker 线程，添加互斥锁保护                                                                     |
 | 2026-06-11 | validThickness 上限 200k→2M，修复 6-10 数据截断                                                              |
+| 2026-08-02 | Rust Node-API 上旋热点 PoC 与默认关闭的 Worker 影子集成；TS 仍为唯一输出，Native 端到端加速 15.48–19.59×     |
+| 2026-08-03 | Rust shadow 增加确定性采样、100 次默认上限、连续异常熔断与可选有序 NDJSON；实际 Worker 离线观测 3/3 等价     |
+
+## Rust 上旋影子模式
+
+- mise 固定 Node 24.18.0、pnpm 10.18.3、Rust 1.88.0；Windows x64 Native 位于 `packages/AirRingNative`。
+- `AIR_RING_RUST_SHADOW=1` 显式开启，默认关闭；`AIR_RING_RUST_SHADOW_THREADS` 限制 1–32，默认最多 4。
+- 受控观测默认每次采样、每 Worker 最多 100 次、连续 3 次失败/不可比/超差后熔断；采样间隔、次数、阈值与可选绝对日志路径均由 `AIR_RING_RUST_SHADOW_*` 环境变量显式配置。
+- NDJSON 只包含观测状态与既有 telemetry，不包含原始测点；Worker shutdown/ack 前刷新，离线汇总只输出聚合统计。
+- 安装包从 `resources/native/air-ring-native.win32-x64-msvc.node` 动态加载；失败只写 telemetry，不影响 TypeScript `maxAngle`。
+- DS01–DS05 Rust 主搜索与 TypeScript base theta 等价；DS02 生产领域误差 10.452° 仍是切换阻断项。
+- 2026-08-03 阶段 6 预检确认：完整 Electron 应用启动会自动初始化 ADBox 并尝试连接上旋 S7，不能当作无副作用观测命令；联机 shadow 必须经过现场人工门禁。
+- 阶段 6 技术预检在 mise 固定版本、构建产物、无活动应用进程、无残留 shadow 环境变量和绝对日志路径五项门槛上通过；该结论仅表示可进入人工确认，不表示允许启动设备连接。
+- 2026-08-05 本机阶段 6 验收范围调整为 SQLite 历史数据只读回放；历史 Native 路径需要至少 3 个真实方向状态边界来闭合 2 个有效行程。当前 `jjsk.db` 只有一次 reverse→forward 变化，回放只能形成 1 个有效行程，尚未触发 Native telemetry；不得用 `rotation_trip.end_ts` 伪造换向。
+- 2026-08-05 更换为 1.26 GB 旧历史库后，697,811 事件只读回放成功触发 Rust Native：角度差 0°，Native 92.1361 ms、shadow 总耗时 125.6758 ms。非 WAL 历史库的只读连接必须沿用现有 journal mode 并设置 `query_only=ON`，不得尝试切换 WAL；复测后数据库文件元数据和 `delete` 模式未变化。
 
 ## 上旋估算质量保护
 
@@ -203,3 +228,32 @@ pnpm start
 - 不要手动修复 lint 问题（oxlint 是类型感知 linter, 真实 type-safety 警告请保留为 warning）
 - `.instructions/` 目录是历史遗留，已迁移到 `.agents/`
 - `.github/copilot-instructions.md` 已迁移到 `.agents/guide/`
+
+## 2026-08-09 Phase 8B 历史 Bubble Shadow
+
+- 1.26 GB 旧历史库按生产 `bubbleQueryWorker → sweepProfileBuilder → persistent bubbleWorker` 链路完成只读 Bubble shadow；13 个有效 48-bin profile 的 Rust/TypeScript 最大差异为 0，Native failure 为 0，Worker 创建数为 1。
+- Rust Cholesky 不得在回代过程中提前截断负分量；必须先完成无约束回代再统一做非负约束。提前截断在历史病态矩阵上曾造成最高 11.56μm 差异，现有 Rust 回归测试覆盖此顺序。
+- 旧历史库可能缺少 `thickness_raw.pos1`，方向列可能为驼峰或下划线命名；离线只读查询只选择稳定必要列，并用 `PRAGMA table_info` 识别方向列，禁止依赖 `select(*)`。
+- 真实完整重建中位耗时 TypeScript/Rust 为 0.2642/0.0869ms（3.0403 倍），求解中位加速 1.5798 倍；数据库与 rollback journal 格式、主文件及 sidecar 哈希均未变化。
+- Phase 8B 判定 `go-primary-candidate`，但 Bubble primary 尚未启用。下一步必须先实现默认关闭且与 shadow 互斥的 primary、TypeScript 完整回退、历史双跑和 300 次持久 Worker 长跑；RLS 与安装包继续使用 TypeScript。
+
+## 2026-08-09 Phase 8C Bubble Batch Primary
+
+- Bubble Batch Rust primary 已通过同一历史窗口 30 趟双跑：13 个有效 profile 哈希全部精确匹配，拒绝/失败语义一致，Native 13/13 success、0 fallback，历史中位重建加速 1.2992 倍。
+- 300 次持久 Worker 长跑（另 5 次预热）全部走 Rust、0 fallback、单 Worker、最大 profile 差异 0；事件循环 P95 15.3846ms，RSS 未呈线性增长。
+- 仅 mise 开发环境设置 `AIR_RING_BUBBLE_RUST_PRIMARY=1`；`AIR_RING_BUBBLE_RUST_PRIMARY_DISABLE=1` 禁用优先。非 mise、安装包和 RLS 继续走 TypeScript。
+- primary 与 shadow 互斥；Native 加载、执行、返回校验或领域后处理失败必须在同一请求内完整重跑 TypeScript。
+
+## 2026-08-09 Phase 9 Bubble 历史长跑与查询内存
+
+- 单个历史库的 13 个唯一有效 profile 经 77 次回放产生 1001 次 Rust primary success，0 fallback、0 hash 漂移、单持久 Worker；事件循环 P95 16.0809ms。
+- 历史 Query Worker 不得先 `.all()` 物化完整扫描行再跨线程复制。当前在同一只读事务中 COUNT + iterator，按 `floor(i*N/target)` 最多保留 2000 点，并单独返回 `sourceRowCount`。
+- 有界查询保持优化前后 13/13 profile 哈希一致，长跑峰值 RSS 从 4,122,468,352 降至 149,807,104 bytes；结束 RSS 增量约 4.1MiB，趋势约 94KiB/pass。
+- 重复稳定性与数据集广度必须分开验收；安装包候选至少需要 3 个独立历史数据库，当前只有 1 个。mise primary 保持启用，安装包和 RLS 保持 TypeScript。
+
+## 2026-08-09 Phase 10 现场发布方式
+
+- mise 仅是个人开发环境管理工具；团队现场构建不得调用 mise，Node/pnpm/Cargo 从 PATH 获取，版本管理器不限。
+- `pnpm build:field` 在开发机生成 Windows x64 `win-unpacked`、electron-builder 原生 7z 和 SHA-256 manifest；工控机无需 Node、pnpm、Rust、Visual Studio 或 mise。
+- `better-sqlite3` 使用 `prebuild-install` 下载当前 Electron ABI 的预编译 addon，electron-builder 设置 `npmRebuild=false`，预编译缺失时构建失败而非本地编译。
+- 打包态默认启用上旋与 Bubble Batch Rust primary，线程默认 4；两个 disable 环境变量优先，Native 故障继续完整回退 TypeScript，RLS 不迁移。

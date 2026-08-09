@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-08-05T22:25:27.6100723+08:00",
+  "databaseFile": "jjsk.db",
+  "startMs": 1782373215220,
+  "endMs": 1782373983412,
+  "objectiveMode": "auto",
+  "observationLogPath": "C:\\Users\\zane\\AppData\\Local\\JJSK\\logs\\rust-shadow-history-20260805-222523.ndjson",
+  "stdoutPath": "C:\\Users\\zane\\Projects\\JJSK-Automatic-Air-Ring-System\\.agents\\tasks\\rust-performance-migration\\scripts\\outputs\\stage-6-history-20260805-222523.stdout.txt",
+  "stderrPath": "C:\\Users\\zane\\Projects\\JJSK-Automatic-Air-Ring-System\\.agents\\tasks\\rust-performance-migration\\scripts\\outputs\\stage-6-history-20260805-222523.stderr.txt",
+  "configuration": {
+    "threadLimit": 4,
+    "everyN": 1,
+    "maxRuns": 1,
+    "maxConsecutiveFailures": 1,
+    "maxDeltaDeg": 1E-09,
+    "databaseMode": "read-only"
+  }
+}

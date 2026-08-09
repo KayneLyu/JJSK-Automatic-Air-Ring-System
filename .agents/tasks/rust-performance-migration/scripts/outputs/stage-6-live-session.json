@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "status": "running",
+  "startedAt": "2026-08-05T22:11:23.5873974+08:00",
+  "processId": 36420,
+  "operatorGateConfirmed": true,
+  "observationLogPath": "C:\\Users\\zane\\AppData\\Local\\JJSK\\logs\\rust-shadow-live-20260805-221120.ndjson",
+  "stdoutPath": "C:\\Users\\zane\\Projects\\JJSK-Automatic-Air-Ring-System\\.agents\\tasks\\rust-performance-migration\\scripts\\outputs\\stage-6-live-20260805-221120.stdout.txt",
+  "stderrPath": "C:\\Users\\zane\\Projects\\JJSK-Automatic-Air-Ring-System\\.agents\\tasks\\rust-performance-migration\\scripts\\outputs\\stage-6-live-20260805-221120.stderr.txt",
+  "configuration": {
+    "threadLimit": 4,
+    "everyN": 5,
+    "maxRuns": 100,
+    "maxConsecutiveFailures": 3,
+    "maxDeltaDeg": 1E-09,
+    "workerTopology": "persistent-single-worker-fifo"
+  }
+}

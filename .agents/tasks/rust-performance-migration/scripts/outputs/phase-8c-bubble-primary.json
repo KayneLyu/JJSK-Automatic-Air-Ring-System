@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-09T05:15:26.636Z",
+  "environment": {
+    "platform": "win32",
+    "architecture": "x64",
+    "node": "v24.18.0"
+  },
+  "configuration": {
+    "numBins": 48,
+    "measurementCount": 1201,
+    "warmupRequests": 5,
+    "baselineRequests": 30,
+    "primarySoakRequests": 300,
+    "shadowEnabled": false,
+    "primaryEnabled": true
+  },
+  "baseline": {
+    "timing": {
+      "minMs": 0.7828999999999837,
+      "medianMs": 0.9225999999999885,
+      "p95Ms": 1.3567000000000462,
+      "maxMs": 1.950400000000002,
+      "meanMs": 1.021803333333336
+    },
+    "measuredRequestCount": 30,
+    "warmupRequestCount": 5,
+    "primarySuccessCount": 0,
+    "fallbackCount": 0,
+    "maxProfileDelta": 0,
+    "workerCreateCount": 1
+  },
+  "primary": {
+    "timing": {
+      "minMs": 0.740600000000029,
+      "medianMs": 0.8634000000000128,
+      "p95Ms": 1.2542000000000257,
+      "maxMs": 2.2205000000000155,
+      "meanMs": 0.9154016666666672
+    },
+    "measuredRequestCount": 300,
+    "warmupRequestCount": 5,
+    "primarySuccessCount": 305,
+    "fallbackCount": 0,
+    "maxProfileDelta": 0,
+    "workerCreateCount": 1,
+    "medianSpeedup": 1.0685661338892458,
+    "eventLoopP95Ms": 15.384575,
+    "startRssBytes": 103436288,
+    "peakRssBytes": 117407744,
+    "endRssBytes": 106901504
+  },
+  "decision": "pass"
+}

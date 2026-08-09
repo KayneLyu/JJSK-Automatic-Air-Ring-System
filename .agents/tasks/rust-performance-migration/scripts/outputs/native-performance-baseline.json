@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-02T15:44:45.447Z",
+  "configuration": {
+    "warmup": 1,
+    "repeat": 3
+  },
+  "environment": {
+    "platform": "win32",
+    "architecture": "x64",
+    "node": "v24.18.0",
+    "cpuModel": "AMD Ryzen 9 9950X3D 16-Core Processor          ",
+    "logicalCpuCount": 32,
+    "rust": "1.88.0",
+    "napiRs": "3.12.0"
+  },
+  "datasets": [
+    {
+      "dataset": "01",
+      "pointCount": 7787,
+      "theta": 310.4000000000008,
+      "loss": 0.9719861905009378,
+      "typescript": {
+        "samplesMs": [
+          30.972,
+          31.178,
+          30.92
+        ],
+        "minMs": 30.92,
+        "medianMs": 30.972,
+        "p95Ms": 31.178,
+        "maxMs": 31.178,
+        "meanMs": 31.023,
+        "standardDeviationMs": 0.111
+      },
+      "rustCore": {
+        "samplesMs": [
+          2.693,
+          2.805,
+          2.707
+        ],
+        "minMs": 2.693,
+        "medianMs": 2.707,
+        "p95Ms": 2.805,
+        "maxMs": 2.805,
+        "meanMs": 2.735,
+        "standardDeviationMs": 0.05
+      },
+      "rustEndToEnd": {
+        "samplesMs": [
+          3.119,
+          2.574,
+          2.586
+        ],
+        "minMs": 2.574,
+        "medianMs": 2.586,
+        "p95Ms": 3.119,
+        "maxMs": 3.119,
+        "meanMs": 2.76,
+        "standardDeviationMs": 0.254
+      },
+      "coreSpeedup": 11.441448097524937,
+      "endToEndSpeedup": 11.976798143851509
+    },
+    {
+      "dataset": "02",
+      "pointCount": 14346,
+      "theta": 309.6000000000013,
+      "loss": 0.9809531286311817,
+      "typescript": {
+        "samplesMs": [
+          57.586,
+          57.301,
+          57.056
+        ],
+        "minMs": 57.056,
+        "medianMs": 57.301,
+        "p95Ms": 57.586,
+        "maxMs": 57.586,
+        "meanMs": 57.314,
+        "standardDeviationMs": 0.217
+      },
+      "rustCore": {
+        "samplesMs": [
+          3.419,
+          3.582,
+          3.462
+        ],
+        "minMs": 3.419,
+        "medianMs": 3.462,
+        "p95Ms": 3.582,
+        "maxMs": 3.582,
+        "meanMs": 3.488,
+        "standardDeviationMs": 0.069
+      },
+      "rustEndToEnd": {
+        "samplesMs": [
+          3.611,
+          3.735,
+          3.561
+        ],
+        "minMs": 3.561,
+        "medianMs": 3.611,
+        "p95Ms": 3.735,
+        "maxMs": 3.735,
+        "meanMs": 3.636,
+        "standardDeviationMs": 0.073
+      },
+      "coreSpeedup": 16.551415366839976,
+      "endToEndSpeedup": 15.868457490999722
+    },
+    {
+      "dataset": "03",
+      "pointCount": 13934,
+      "theta": 337.70000000000107,
+      "loss": 0.9489338216766483,
+      "typescript": {
+        "samplesMs": [
+          54.092,
+          54.191,
+          54.082
+        ],
+        "minMs": 54.082,
+        "medianMs": 54.092,
+        "p95Ms": 54.191,
+        "maxMs": 54.191,
+        "meanMs": 54.122,
+        "standardDeviationMs": 0.049
+      },
+      "rustCore": {
+        "samplesMs": [
+          3.187,
+          3.565,
+          3.257
+        ],
+        "minMs": 3.187,
+        "medianMs": 3.257,
+        "p95Ms": 3.565,
+        "maxMs": 3.565,
+        "meanMs": 3.336,
+        "standardDeviationMs": 0.164
+      },
+      "rustEndToEnd": {
+        "samplesMs": [
+          3.452,
+          3.482,
+          3.514
+        ],
+        "minMs": 3.452,
+        "medianMs": 3.482,
+        "p95Ms": 3.514,
+        "maxMs": 3.514,
+        "meanMs": 3.483,
+        "standardDeviationMs": 0.025
+      },
+      "coreSpeedup": 16.607921400061404,
+      "endToEndSpeedup": 15.534750143595634
+    },
+    {
+      "dataset": "04",
+      "pointCount": 15143,
+      "theta": 334.70000000000107,
+      "loss": 0.9948816321589186,
+      "typescript": {
+        "samplesMs": [
+          60.084,
+          60.684,
+          59.958
+        ],
+        "minMs": 59.958,
+        "medianMs": 60.084,
+        "p95Ms": 60.684,
+        "maxMs": 60.684,
+        "meanMs": 60.242,
+        "standardDeviationMs": 0.317
+      },
+      "rustCore": {
+        "samplesMs": [
+          4.01,
+          3.725,
+          3.793
+        ],
+        "minMs": 3.725,
+        "medianMs": 3.793,
+        "p95Ms": 4.01,
+        "maxMs": 4.01,
+        "meanMs": 3.843,
+        "standardDeviationMs": 0.122
+      },
+      "rustEndToEnd": {
+        "samplesMs": [
+          3.719,
+          3.855,
+          3.512
+        ],
+        "minMs": 3.512,
+        "medianMs": 3.719,
+        "p95Ms": 3.855,
+        "maxMs": 3.855,
+        "meanMs": 3.695,
+        "standardDeviationMs": 0.141
+      },
+      "coreSpeedup": 15.840759293435276,
+      "endToEndSpeedup": 16.15595590212423
+    },
+    {
+      "dataset": "05",
+      "pointCount": 15774,
+      "theta": 316.10000000000116,
+      "loss": 0.9872572325139539,
+      "typescript": {
+        "samplesMs": [
+          61.663,
+          61.794,
+          61.603
+        ],
+        "minMs": 61.603,
+        "medianMs": 61.663,
+        "p95Ms": 61.794,
+        "maxMs": 61.794,
+        "meanMs": 61.687,
+        "standardDeviationMs": 0.08
+      },
+      "rustCore": {
+        "samplesMs": [
+          3.802,
+          3.675,
+          3.641
+        ],
+        "minMs": 3.641,
+        "medianMs": 3.675,
+        "p95Ms": 3.802,
+        "maxMs": 3.802,
+        "meanMs": 3.706,
+        "standardDeviationMs": 0.069
+      },
+      "rustEndToEnd": {
+        "samplesMs": [
+          3.57,
+          3.674,
+          3.893
+        ],
+        "minMs": 3.57,
+        "medianMs": 3.674,
+        "p95Ms": 3.893,
+        "maxMs": 3.893,
+        "meanMs": 3.713,
+        "standardDeviationMs": 0.135
+      },
+      "coreSpeedup": 16.77904761904762,
+      "endToEndSpeedup": 16.78361458900381
+    }
+  ],
+  "gates": {
+    "coreAtLeastThreeTimes": true,
+    "endToEndAtLeastTwoTimes": true
+  }
+}

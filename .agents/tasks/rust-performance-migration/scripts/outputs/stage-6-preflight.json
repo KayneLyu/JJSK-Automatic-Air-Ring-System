@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-05T22:11:21.4800531+08:00",
+  "technicalReadyForOperatorConfirmation": true,
+  "toolVersions": {
+    "node": "v24.18.0",
+    "pnpm": "10.18.3",
+    "rust": "rustc 1.88.0 (6b00bc388 2025-06-23)"
+  },
+  "artifacts": [
+    {
+      "path": "packages/AirRingNative/air-ring-native.win32-x64-msvc.node",
+      "exists": true,
+      "lengthBytes": 367104,
+      "lastWriteTime": "2026-08-02T17:38:24.0257496+08:00",
+      "sha256": "F18C4026E4FF11075DE9AF82438F8C0A2FAFD62DB9D51A2669FB76B22AD8FA68"
+    },
+    {
+      "path": "apps/AirRingSys/dist-electron/calibrationWorker.js",
+      "exists": true,
+      "lengthBytes": 664305,
+      "lastWriteTime": "2026-08-03T23:19:32.1222369+08:00",
+      "sha256": "D01EFF788D62C5FD4454864F214FE16FCE5159FA9709EDAB36F4717F268E4065"
+    },
+    {
+      "path": "apps/AirRingSys/dist-electron/main.js",
+      "exists": true,
+      "lengthBytes": 1056663,
+      "lastWriteTime": "2026-08-03T23:19:32.2005631+08:00",
+      "sha256": "2A910054199EB00B53FA260B254FBAB9B56E8AB04E5B1F9FF5726F5846AA3C5C"
+    }
+  ],
+  "activeApplicationProcesses": [],
+  "shadowEnvironment": [
+    {
+      "name": "AIR_RING_RUST_SHADOW",
+      "isSet": false
+    },
+    {
+      "name": "AIR_RING_RUST_SHADOW_THREADS",
+      "isSet": false
+    },
+    {
+      "name": "AIR_RING_RUST_NATIVE_PATH",
+      "isSet": false
+    },
+    {
+      "name": "AIR_RING_RUST_SHADOW_EVERY_N",
+      "isSet": false
+    },
+    {
+      "name": "AIR_RING_RUST_SHADOW_MAX_RUNS",
+      "isSet": false
+    },
+    {
+      "name": "AIR_RING_RUST_SHADOW_MAX_CONSECUTIVE_FAILURES",
+      "isSet": false
+    },
+    {
+      "name": "AIR_RING_RUST_SHADOW_MAX_DELTA_DEG",
+      "isSet": false
+    },
+    {
+      "name": "AIR_RING_RUST_SHADOW_LOG_PATH",
+      "isSet": false
+    }
+  ],
+  "observationLog": {
+    "path": "C:\\Users\\zane\\AppData\\Local\\JJSK\\logs\\rust-shadow.ndjson",
+    "exists": false,
+    "lengthBytes": 0,
+    "lastWriteTime": null
+  },
+  "deviceRisk": {
+    "applicationStartupAutoConnectsDevices": true,
+    "manualOperatorConfirmationRequired": true,
+    "evidence": [
+      "apps/AirRingSys/electron/main.ts:initMotionControl",
+      "apps/AirRingSys/electron/adbox.ts:initADBox",
+      "apps/AirRingSys/electron/adbox.ts:getUpperRotationConnection().connect"
+    ]
+  },
+  "gates": {
+    "miseToolVersionsMatch": true,
+    "requiredArtifactsPresent": true,
+    "noActiveApplicationProcess": true,
+    "shadowEnvironmentClean": true,
+    "observationLogPathAbsolute": true
+  }
+}

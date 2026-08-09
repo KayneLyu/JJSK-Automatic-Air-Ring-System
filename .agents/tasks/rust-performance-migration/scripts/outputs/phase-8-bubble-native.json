@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-09T04:03:35.789Z",
+  "environment": {
+    "platform": "win32",
+    "architecture": "x64",
+    "node": "v24.18.0"
+  },
+  "configuration": {
+    "solverWarmup": 3,
+    "solverRepeat": 20,
+    "endToEndWarmup": 2,
+    "endToEndRepeat": 10,
+    "soakRequests": 300,
+    "shadowEnabled": true
+  },
+  "solverResults": [
+    {
+      "numBins": 48,
+      "measurementCount": 1201,
+      "solver": {
+        "typescript": {
+          "minMs": 0.04269999999999641,
+          "medianMs": 0.132000000000005,
+          "p95Ms": 0.35779999999999745,
+          "maxMs": 0.42089999999998895,
+          "meanMs": 0.13943499999999887
+        },
+        "rust": {
+          "minMs": 0.022999999999996135,
+          "medianMs": 0.02369999999999095,
+          "p95Ms": 0.033899999999988495,
+          "maxMs": 0.034099999999995134,
+          "meanMs": 0.025354999999997574
+        },
+        "medianSpeedup": 5.569620253166895,
+        "comparison": {
+          "maxAbsProfileDelta": 0,
+          "rmsProfileDelta": 0
+        }
+      },
+      "endToEnd": {
+        "typescript": {
+          "minMs": 1.2713999999999999,
+          "medianMs": 1.3001000000000147,
+          "p95Ms": 1.6543999999999812,
+          "maxMs": 1.6543999999999812,
+          "meanMs": 1.3540999999999968
+        },
+        "rust": {
+          "minMs": 1.0476999999999919,
+          "medianMs": 1.1259000000000015,
+          "p95Ms": 1.4633999999999787,
+          "maxMs": 1.4633999999999787,
+          "meanMs": 1.1876999999999953
+        },
+        "medianSpeedup": 1.1547206679101278,
+        "comparison": {
+          "maxAbsProfileDelta": 0,
+          "rmsProfileDelta": 0
+        }
+      }
+    },
+    {
+      "numBins": 96,
+      "measurementCount": 1201,
+      "solver": {
+        "typescript": {
+          "minMs": 0.16779999999999973,
+          "medianMs": 0.17650000000003274,
+          "p95Ms": 0.18659999999999854,
+          "maxMs": 0.24439999999998463,
+          "meanMs": 0.1803300000000064
+        },
+        "rust": {
+          "minMs": 0.06900000000001683,
+          "medianMs": 0.06920000000002346,
+          "p95Ms": 0.07130000000000791,
+          "maxMs": 0.07370000000003074,
+          "meanMs": 0.06954500000000507
+        },
+        "medianSpeedup": 2.5505780346816893,
+        "comparison": {
+          "maxAbsProfileDelta": 0,
+          "rmsProfileDelta": 0
+        }
+      },
+      "endToEnd": {
+        "typescript": {
+          "minMs": 1.1824999999999477,
+          "medianMs": 1.2250999999999976,
+          "p95Ms": 1.631399999999985,
+          "maxMs": 1.631399999999985,
+          "meanMs": 1.3172199999999918
+        },
+        "rust": {
+          "minMs": 1.072499999999991,
+          "medianMs": 1.079400000000021,
+          "p95Ms": 1.199700000000007,
+          "maxMs": 1.199700000000007,
+          "meanMs": 1.1053700000000048
+        },
+        "medianSpeedup": 1.1349823976282878,
+        "comparison": {
+          "maxAbsProfileDelta": 0,
+          "rmsProfileDelta": 0
+        }
+      }
+    },
+    {
+      "numBins": 180,
+      "measurementCount": 1201,
+      "solver": {
+        "typescript": {
+          "minMs": 0.6852000000000089,
+          "medianMs": 0.8640000000000327,
+          "p95Ms": 0.9276999999999589,
+          "maxMs": 0.9490000000000123,
+          "meanMs": 0.8432699999999983
+        },
+        "rust": {
+          "minMs": 0.3447999999999638,
+          "medianMs": 0.3464000000000169,
+          "p95Ms": 0.35110000000003083,
+          "maxMs": 0.3658999999999537,
+          "meanMs": 0.3474849999999975
+        },
+        "medianSpeedup": 2.4942263279445456,
+        "comparison": {
+          "maxAbsProfileDelta": 0,
+          "rmsProfileDelta": 0
+        }
+      },
+      "endToEnd": {
+        "typescript": {
+          "minMs": 1.7413999999999987,
+          "medianMs": 1.8467999999999734,
+          "p95Ms": 2.5464999999999804,
+          "maxMs": 2.5464999999999804,
+          "meanMs": 1.9037399999999878
+        },
+        "rust": {
+          "minMs": 1.355700000000013,
+          "medianMs": 1.3625000000000114,
+          "p95Ms": 1.5679000000000087,
+          "maxMs": 1.5679000000000087,
+          "meanMs": 1.4121900000000096
+        },
+        "medianSpeedup": 1.3554495412843728,
+        "comparison": {
+          "maxAbsProfileDelta": 0,
+          "rmsProfileDelta": 0
+        }
+      }
+    },
+    {
+      "numBins": 360,
+      "measurementCount": 1201,
+      "solver": {
+        "typescript": {
+          "minMs": 4.651999999999987,
+          "medianMs": 4.865599999999972,
+          "p95Ms": 5.299699999999973,
+          "maxMs": 5.41579999999999,
+          "meanMs": 4.9354400000000025
+        },
+        "rust": {
+          "minMs": 2.649599999999964,
+          "medianMs": 2.6673999999999296,
+          "p95Ms": 2.886099999999999,
+          "maxMs": 3.122100000000046,
+          "meanMs": 2.750094999999996
+        },
+        "medianSpeedup": 1.8240983729474771,
+        "comparison": {
+          "maxAbsProfileDelta": 0,
+          "rmsProfileDelta": 0
+        }
+      },
+      "endToEnd": {
+        "typescript": {
+          "minMs": 5.9375,
+          "medianMs": 6.131599999999935,
+          "p95Ms": 6.613000000000056,
+          "maxMs": 6.613000000000056,
+          "meanMs": 6.210640000000012
+        },
+        "rust": {
+          "minMs": 3.9711000000000922,
+          "medianMs": 3.988999999999919,
+          "p95Ms": 4.1843000000000075,
+          "maxMs": 4.1843000000000075,
+          "meanMs": 4.015479999999968
+        },
+        "medianSpeedup": 1.537127099523705,
+        "comparison": {
+          "maxAbsProfileDelta": 0,
+          "rmsProfileDelta": 0
+        }
+      }
+    }
+  ],
+  "workerSoak": {
+    "successCount": 300,
+    "shadowSuccessCount": 300,
+    "workerCreateCount": 1,
+    "maxProfileDelta": 0,
+    "requestTiming": {
+      "minMs": 0.9664000000000215,
+      "medianMs": 1.059699999999907,
+      "p95Ms": 1.490099999999984,
+      "maxMs": 59.8198000000001,
+      "meanMs": 1.3051513333333367
+    },
+    "eventLoopP95Ms": 12.115967,
+    "startRssBytes": 89141248,
+    "peakRssBytes": 126570496,
+    "endRssBytes": 115642368
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-08-09T13:54:17.3756826+08:00",
+  "databaseFile": "jjsk.db",
+  "databaseMode": "read-only",
+  "independentDatasetCount": 1,
+  "databaseUnchanged": true,
+  "journalFormatBefore": "rollback",
+  "journalFormatAfter": "rollback",
+  "journalFormatUnchanged": true,
+  "configuration": {
+    "startMs": 1,
+    "endMs": 1786248384435,
+    "sweepLimit": 50,
+    "repeatCount": 77,
+    "minPrimarySuccess": 1000,
+    "numBins": 48
+  },
+  "coverage": {
+    "queriedSweepCount": 30,
+    "attemptedSweepCount": 2310,
+    "firstPassValidProfileCount": 13,
+    "uniqueSuccessfulProfileHashCount": 13,
+    "directionCoverage": [
+      "forward",
+      "reverse"
+    ],
+    "totalValidProfileCount": 1001,
+    "totalRejectedProfileCount": 1001,
+    "totalFailedProfileCount": 308
+  },
+  "primary": {
+    "successCount": 1001,
+    "fallbackCount": 0,
+    "profileHashDriftCount": 0,
+    "workerCreateCount": 1,
+    "medianRustReconstructionMs": 0.1022000000011758,
+    "p95RustReconstructionMs": 0.48879999999917345,
+    "medianPrimaryTotalMs": 0.1029000000016822,
+    "p95PrimaryTotalMs": 0.48949999999967986,
+    "medianProductionChainMs": 1.4602000000013504,
+    "p95ProductionChainMs": 2.351199999997334
+  },
+  "runtime": {
+    "eventLoopP95Ms": 16.097279,
+    "replayStartRssBytes": 2360557568,
+    "firstRepeatRssBytes": 2288771072,
+    "lastRepeatRssBytes": 2287636480,
+    "endRssBytes": 2284285952,
+    "peakRssBytes": 4122468352,
+    "endReplayDeltaBytes": -76271616,
+    "repeatRssSlopeBytesPerPass": 32.95062831904937,
+    "memorySlopeLimitBytesPerPass": 1048576,
+    "memoryDeltaLimitBytes": 134217728
+  },
+  "stabilityDecision": "pass",
+  "deploymentDecision": "keep-installer-default-off-insufficient-independent-datasets",
+  "artifacts": {
+    "stdoutFile": "phase-9-history-soak-20260809-135354.stdout.txt",
+    "stderrFile": "phase-9-history-soak-20260809-135354.stderr.txt"
+  }
+}

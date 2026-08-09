@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-08-09T14:06:10.9794403+08:00",
+  "databaseFile": "jjsk.db",
+  "databaseMode": "read-only",
+  "databaseUnchanged": true,
+  "journalFormatBefore": "rollback",
+  "journalFormatAfter": "rollback",
+  "journalFormatUnchanged": true,
+  "configuration": {
+    "startMs": 1,
+    "endMs": 1786248384435,
+    "sweepLimit": 50,
+    "membraneWidthMm": 1016.0,
+    "thetaMaxDeg": 256.4,
+    "mmPerPulse": 0.05976470588235294,
+    "airAD": 52000.0,
+    "gain": 1.45,
+    "transportDelayMs": 139815.0,
+    "numBins": 48,
+    "processDeformationFactor": 1.02
+  },
+  "comparison": {
+    "baselineExitCode": 0,
+    "primaryExitCode": 0,
+    "baselineSweepCount": 30,
+    "primarySweepCount": 30,
+    "baselineSuccessCount": 13,
+    "primarySuccessCount": 13,
+    "exactProfileHashMatchCount": 13,
+    "mismatchCount": 0,
+    "mismatchIndexes": [],
+    "primaryTelemetrySuccessCount": 13,
+    "primaryTelemetryFallbackCount": 0,
+    "baselineWorkerCreateCount": 1,
+    "primaryWorkerCreateCount": 1,
+    "medianBaselineReconstructionMs": 3.25840000000062,
+    "medianPrimaryReconstructionMs": 2.795700000000579,
+    "medianSpeedup": 1.1655041671137623
+  },
+  "decision": "go-enable-mise-development",
+  "artifacts": {
+    "baselineStdoutFile": "phase-8c-history-20260809-140550-typescript.stdout.txt",
+    "baselineStderrFile": "phase-8c-history-20260809-140550-typescript.stderr.txt",
+    "primaryStdoutFile": "phase-8c-history-20260809-140550-rust-primary.stdout.txt",
+    "primaryStderrFile": "phase-8c-history-20260809-140550-rust-primary.stderr.txt"
+  }
+}

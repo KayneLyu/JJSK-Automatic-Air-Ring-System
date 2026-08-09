@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-08-05T22:59:06.3967712+08:00",
+  "databaseFile": "jjsk.db",
+  "startMs": 1782373215220,
+  "endMs": 1782373983412,
+  "objectiveMode": "auto",
+  "databaseMode": "read-only",
+  "threadLimit": 4,
+  "typescriptAngleDeg": 256.42933913413344,
+  "rustPrimaryAngleDeg": 256.42933913413344,
+  "absoluteDeltaDeg": 0.0,
+  "primarySucceeded": false,
+  "withinTolerance": false,
+  "outputs": {
+    "typescriptStdout": "C:\\Users\\zane\\Projects\\JJSK-Automatic-Air-Ring-System\\.agents\\tasks\\rust-performance-migration\\scripts\\outputs\\stage-7-history-20260805-225859.typescript.stdout.txt",
+    "typescriptStderr": "C:\\Users\\zane\\Projects\\JJSK-Automatic-Air-Ring-System\\.agents\\tasks\\rust-performance-migration\\scripts\\outputs\\stage-7-history-20260805-225859.typescript.stderr.txt",
+    "rustStdout": "C:\\Users\\zane\\Projects\\JJSK-Automatic-Air-Ring-System\\.agents\\tasks\\rust-performance-migration\\scripts\\outputs\\stage-7-history-20260805-225859.rust.stdout.txt",
+    "rustStderr": "C:\\Users\\zane\\Projects\\JJSK-Automatic-Air-Ring-System\\.agents\\tasks\\rust-performance-migration\\scripts\\outputs\\stage-7-history-20260805-225859.rust.stderr.txt"
+  }
+}

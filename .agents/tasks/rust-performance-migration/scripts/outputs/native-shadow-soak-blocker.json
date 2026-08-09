@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-02T17:43:00+08:00",
+  "phase": 3,
+  "decision": "no-go",
+  "productionShadowMustRemainDisabled": true,
+  "blocker": {
+    "kind": "native-worker-lifecycle-access-violation",
+    "windowsExitCode": -1073741819,
+    "windowsStatus": "0xC0000005",
+    "observation": "Repeated one-request Worker creation followed by immediate forced termination can crash non-deterministically after a successful Native shadow response.",
+    "reproducedAfterLocalRayonPool": true
+  },
+  "successfulEvidence": {
+    "disabledSerialRequests": 15,
+    "shadowSerialRequests": 15,
+    "shadowConcurrency4Requests": 15,
+    "singleSuccessfulLongRunRequests": 60,
+    "productionMismatchCount": 0,
+    "nativeMismatchCount": 0,
+    "threadLimitMismatchCount": 0,
+    "maxSuccessfulEventLoopP95Ms": 18.792,
+    "rustCoreSpeedupRange": [8.85170639219935, 13.94834232845027],
+    "rustEndToEndSpeedupRange": [7.910015961691941, 14.187165076460595]
+  },
+  "requiredNextChange": {
+    "file": "apps/AirRingSys/electron/calibrationBridge.ts",
+    "risk": "high",
+    "recommendation": "Replace per-request Worker creation plus immediate terminate() with a persistent queued Worker or an explicit graceful-shutdown handshake.",
+    "requiresUserConfirmation": true
+  },
+  "rawMeasurementsIncluded": false
+}

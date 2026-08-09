@@ -29,6 +29,8 @@
 - 避免频繁调整导致设备机械损坏
 - 急停（`stopEmergency`）状态下必须拒绝所有运动指令
 - 修改运动控制逻辑后，必须验证 `handleRunResult` 的状态流转正确性
+- 启动完整 AirRingSys Electron 应用会初始化 ADBox 并尝试连接上旋 S7；真实环境 shadow 观测必须先确认现场值守、急停状态、设备运行窗口、自动控制停用和回滚责任人
+- Rust shadow 技术预检不得启动 Electron 或建立设备连接；预检通过不等于已获联机授权
 
 ## 数据安全
 
