@@ -42,9 +42,7 @@ import type {
   MeasurementBuildResult,
   MeasurementParams,
 } from '@jjsk/air-ring-server/algorithms/scannerPreprocessing.types'
-import {
-  computePhiPair,
-} from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
+import { computePhiPair } from '@jjsk/air-ring-server/algorithms/bubbleReconstruction'
 import {
   getUpperSweepsCoverage,
   buildMeasurementsFromReversal,
@@ -106,7 +104,8 @@ export function useScannerTripReconstruction() {
   const hasOlderData = ref(true)
   const lastUpperSweepsRefreshAt = ref(0)
 
-  const { thicknessCfg, angleOffsetDeg, calResults, loadConfigs } = useDeviceConfig(errorMessage)
+  const { thicknessCfg, angleOffsetDeg, calResults, loadConfigs } =
+    useDeviceConfig(errorMessage)
 
   /** 几何/标定参数 */
   const params = computed(() => {
@@ -363,23 +362,31 @@ export function useScannerTripReconstruction() {
     try {
       // 估算 T_half 决定滑动窗口时间跨度（至少 1.5 个半周期，保证 θ 覆盖完整）
       await ensureUpperSweepsCoverage(
-        sortedScannerTrips.value[0]?.startTs ?? baseline.startTs - COLD_START_WINDOW_MS,
+        sortedScannerTrips.value[0]?.startTs ??
+          baseline.startTs - COLD_START_WINDOW_MS,
         baseline.endTs
       )
       const estimatedTHalf = estimateAverageTHalf(upperSweeps.value)
-      const effectiveMaxSpan = estimatedTHalf != null && estimatedTHalf > 0
-        ? estimatedTHalf * 1.5
-        : COLD_START_WINDOW_MS
-      const windowTrips = collectWindowTrips(sortedScannerTrips.value, baseline, effectiveMaxSpan)
+      const effectiveMaxSpan =
+        estimatedTHalf != null && estimatedTHalf > 0
+          ? estimatedTHalf * 1.5
+          : COLD_START_WINDOW_MS
+      const windowTrips = collectWindowTrips(
+        sortedScannerTrips.value,
+        baseline,
+        effectiveMaxSpan
+      )
       const windowStartTs = windowTrips[0]?.startTs ?? baseline.startTs
       const windowEndTs = baseline.endTs
       await ensureUpperSweepsCoverage(windowStartTs, windowEndTs)
       // 并行加载窗口内所有 trips 的 samples(本地 SQLite,64 路并发 OK)
-      const rawBatches = await Promise.all(windowTrips.map((t) => loadSamples(t)))
+      const rawBatches = await Promise.all(
+        windowTrips.map((t) => loadSamples(t))
+      )
 
       // 过滤不完整扫描趟：脉冲实际跨度不到膜宽脉冲范围的 60% 视为不完整
       // 不完整趟的扫描仪未完成双向横移，测量集中在单侧，会导致 δ 中位数偏移 → 批次拒绝
-      const MIN_BATCH_PULSE_SPAN_RATIO = 0.60
+      const MIN_BATCH_PULSE_SPAN_RATIO = 0.6
       const validIndices: number[] = []
       const skippedSpanRatios: string[] = []
       for (let i = 0; i < rawBatches.length; i++) {
@@ -389,11 +396,18 @@ export function useScannerTripReconstruction() {
         const pMin = trip.membranePulseMin
         const pMax = trip.membranePulseMax
         if (pMin != null && pMax != null && pMax > pMin) {
-          const pulses = pts.map((p) => p.pos)
-          const actualSpan = Math.max(...pulses) - Math.min(...pulses)
+          let actualPulseMin = Number.POSITIVE_INFINITY
+          let actualPulseMax = Number.NEGATIVE_INFINITY
+          for (const point of pts) {
+            actualPulseMin = Math.min(actualPulseMin, point.pos)
+            actualPulseMax = Math.max(actualPulseMax, point.pos)
+          }
+          const actualSpan = actualPulseMax - actualPulseMin
           const ratio = actualSpan / (pMax - pMin)
           if (ratio < MIN_BATCH_PULSE_SPAN_RATIO) {
-            skippedSpanRatios.push(`${trip.sweepId.slice(-8)}(${(ratio * 100).toFixed(0)}%)`)
+            skippedSpanRatios.push(
+              `${trip.sweepId.slice(-8)}(${(ratio * 100).toFixed(0)}%)`
+            )
             continue
           }
         }
@@ -407,7 +421,9 @@ export function useScannerTripReconstruction() {
         )
       }
       const allSamples: SweepPoint[] = []
-      for (const pts of batches) allSamples.push(...pts)
+      for (const pts of batches) {
+        for (const point of pts) allSamples.push(point)
+      }
       const transportDelayMs = getEffectiveTransportDelayMs()
       const coverage = getCoverage()
       const minSampleTs = coverage
@@ -585,7 +601,8 @@ export function useScannerTripReconstruction() {
         for (const bin of bins) {
           if (bin.length < 5) continue // 跳过样本太少的 bin
           const mean = bin.reduce((a, b) => a + b, 0) / bin.length
-          const variance = bin.reduce((sum, v) => sum + (v - mean) ** 2, 0) / bin.length
+          const variance =
+            bin.reduce((sum, v) => sum + (v - mean) ** 2, 0) / bin.length
           totalVariance += variance
           binCount++
         }
@@ -597,16 +614,20 @@ export function useScannerTripReconstruction() {
       let bestVariance = initialVariance
       let bestBuild = chosenBuild
 
-      if (initialVariance > 50 && chosenBuild.measurements.length > 500 && baseTHalf !== null) {
+      if (
+        initialVariance > 50 &&
+        chosenBuild.measurements.length > 500 &&
+        baseTHalf !== null
+      ) {
         // 尝试多个候选 T_half 值
         const candidates = [
-          baseTHalf * 0.85,  // -15%
-          baseTHalf * 0.90,  // -10%
-          baseTHalf * 0.95,  // -5%
-          baseTHalf,         // 0% (当前值)
-          baseTHalf * 1.05,  // +5%
-          baseTHalf * 1.10,  // +10%
-          baseTHalf * 1.15,  // +15%
+          baseTHalf * 0.85, // -15%
+          baseTHalf * 0.9, // -10%
+          baseTHalf * 0.95, // -5%
+          baseTHalf, // 0% (当前值)
+          baseTHalf * 1.05, // +5%
+          baseTHalf * 1.1, // +10%
+          baseTHalf * 1.15, // +15%
         ]
 
         for (const candidateTHalf of candidates) {
@@ -623,7 +644,7 @@ export function useScannerTripReconstruction() {
                   delayMs,
                   sweeps,
                   mParams,
-              validWindowTrips[idx],
+                  validWindowTrips[idx],
                   false,
                   candidateTHalf
                 )
@@ -637,7 +658,9 @@ export function useScannerTripReconstruction() {
 
           if (candidateBuild.measurements.length < 500) continue
 
-          const candidateVariance = computeThetaBinVariance(candidateBuild.measurements)
+          const candidateVariance = computeThetaBinVariance(
+            candidateBuild.measurements
+          )
 
           if (candidateVariance < bestVariance) {
             bestVariance = candidateVariance
@@ -648,7 +671,11 @@ export function useScannerTripReconstruction() {
           if (candidateVariance < 30) break // 足够好，提前退出
         }
 
-        if (bestTHalf !== baseTHalf && baseTHalf !== null && bestTHalf !== null) {
+        if (
+          bestTHalf !== baseTHalf &&
+          baseTHalf !== null &&
+          bestTHalf !== null
+        ) {
           chosenBuild = bestBuild
           const adjustment = bestTHalf - baseTHalf
           console.warn(
@@ -722,12 +749,17 @@ export function useScannerTripReconstruction() {
       const directProfile: number[] = (() => {
         const eta = p.processDeformationFactor
         const binWidth = 360 / p.numBins
-        const binValues: number[][] = Array.from({ length: p.numBins }, () => [])
+        const binValues: number[][] = Array.from(
+          { length: p.numBins },
+          () => []
+        )
 
         for (const m of measurements) {
           const s = m.thickness / (2 * eta)
           const { phi1Deg, phi2Deg } = computePhiPair(
-            m.upperAngleDeg, m.scannerPosMm, p.membraneWidthMm
+            m.upperAngleDeg,
+            m.scannerPosMm,
+            p.membraneWidthMm
           )
           const b1 = Math.floor(phi1Deg / binWidth) % p.numBins
           const b2 = Math.floor(phi2Deg / binWidth) % p.numBins
@@ -767,15 +799,17 @@ export function useScannerTripReconstruction() {
       // ══════════════════════════════════════════════════════════
 
       const offDeg = angleOffsetDeg.value
-      const offsetBins = Math.abs(offDeg) > 0.5
-        ? Math.round((offDeg / 360) * result.numBins)
-        : 0
-      const alignNote = offsetBins !== 0
-        ? `旋转 ${offsetBins}bin(offset=${offDeg}°)`
-        : `未旋转(offset=0°)`
+      const offsetBins =
+        Math.abs(offDeg) > 0.5 ? Math.round((offDeg / 360) * result.numBins) : 0
+      const alignNote =
+        offsetBins !== 0
+          ? `旋转 ${offsetBins}bin(offset=${offDeg}°)`
+          : `未旋转(offset=0°)`
       const shiftProfile = (p: number[]): number[] =>
         offsetBins !== 0
-          ? p.map((_, j) => p[(j + offsetBins + result.numBins) % result.numBins]!)
+          ? p.map(
+              (_, j) => p[(j + offsetBins + result.numBins) % result.numBins]!
+            )
           : p
       const shiftedLSProfile = shiftProfile(result.profile)
       const shiftedDirectProfile = shiftProfile(directProfile)
@@ -801,8 +835,11 @@ export function useScannerTripReconstruction() {
         const stats = (arr: number[]) => {
           if (arr.length === 0) return { mean: 0, std: 0, min: 0, max: 0 }
           const mean = arr.reduce((a, b) => a + b, 0) / arr.length
-          const std = Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length)
-          let min = arr[0]!, max = arr[0]!
+          const std = Math.sqrt(
+            arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length
+          )
+          let min = arr[0]!,
+            max = arr[0]!
           for (let i = 1; i < arr.length; i++) {
             if (arr[i]! < min) min = arr[i]!
             if (arr[i]! > max) max = arr[i]!
@@ -813,7 +850,10 @@ export function useScannerTripReconstruction() {
         const mS = stats(measSingle)
         const pS = stats(result.profile)
         const rS = stats(residuals)
-        const rmsResid = Math.sqrt(residuals.reduce((s, v) => s + v * v, 0) / Math.max(residuals.length, 1))
+        const rmsResid = Math.sqrt(
+          residuals.reduce((s, v) => s + v * v, 0) /
+            Math.max(residuals.length, 1)
+        )
 
         // Bin 覆盖
         const coveredBins = result.binCoverage.filter((c) => c > 0).length
@@ -821,7 +861,8 @@ export function useScannerTripReconstruction() {
         // θ 分布 (采样 200 点)
         const thetaSample: number[] = []
         const thetaStep = Math.max(1, Math.floor(n / 200))
-        for (let i = 0; i < n; i += thetaStep) thetaSample.push(measurements[i]!.upperAngleDeg)
+        for (let i = 0; i < n; i += thetaStep)
+          thetaSample.push(measurements[i]!.upperAngleDeg)
         const thetaSorted = [...thetaSample].sort((a, b) => a - b)
         const thetaMin = thetaSorted[0] ?? 0
         const thetaMax = thetaSorted[thetaSorted.length - 1] ?? 0
@@ -829,12 +870,18 @@ export function useScannerTripReconstruction() {
         const thetaP90 = thetaSorted[Math.floor(thetaSorted.length * 0.9)] ?? 0
 
         // δ 分布
-        const deltas = measurements.map((m) => (m.scannerPosMm / p.membraneWidthMm) * 180)
-        const dMin = Math.min(...deltas)
-        const dMax = Math.max(...deltas)
+        let dMin = Number.POSITIVE_INFINITY
+        let dMax = Number.NEGATIVE_INFINITY
+        for (const measurement of measurements) {
+          const delta = (measurement.scannerPosMm / p.membraneWidthMm) * 180
+          dMin = Math.min(dMin, delta)
+          dMax = Math.max(dMax, delta)
+        }
 
         // 残差与 θ 的相关性
-        const thetaVals = measurements.slice(0, residuals.length).map((m) => m.upperAngleDeg)
+        const thetaVals = measurements
+          .slice(0, residuals.length)
+          .map((m) => m.upperAngleDeg)
         let corrSum = 0
         const thetaCenter = (thetaMin + thetaMax) / 2
         for (let i = 0; i < residuals.length; i++) {
@@ -849,11 +896,17 @@ export function useScannerTripReconstruction() {
 
         const sampleIndices: number[] = []
         for (let k = 0; k < NUM_SAMPLES; k++) {
-          sampleIndices.push(Math.round((k / NUM_SAMPLES) * binCount) % binCount)
+          sampleIndices.push(
+            Math.round((k / NUM_SAMPLES) * binCount) % binCount
+          )
         }
-        const profileValues: number[] = sampleIndices.map((idx) => shiftedLSProfile[idx]!)
+        const profileValues: number[] = sampleIndices.map(
+          (idx) => shiftedLSProfile[idx]!
+        )
         const profileStr = profileValues.map((v) => v.toFixed(1)).join(', ')
-        const directValues: number[] = sampleIndices.map((idx) => shiftedDirectProfile[idx]!)
+        const directValues: number[] = sampleIndices.map(
+          (idx) => shiftedDirectProfile[idx]!
+        )
         const directStr = directValues.map((v) => v.toFixed(1)).join(', ')
         const measStr = MEASURED_REF.map((v) => v.toFixed(1)).join(', ')
         const residCompStr = MEASURED_REF.map((v, i) => {
@@ -874,30 +927,78 @@ export function useScannerTripReconstruction() {
         // ---- 综合诊断日志 (单 block) ----
         const L: string[] = []
         L.push(`══════ [B(φ) 偏差诊断] ══════`)
-        L.push(`窗口: trip=${baseline.sweepId.slice(-8)} ${validWindowTrips.length}趟(${((baseline.startTs - validWindowTrips[0]!.startTs) / 60_000).toFixed(1)}min) samples=${allSamples.length}→${samplesForReconstruction.length}→${n}`)
-        L.push(`配置: W=${p.membraneWidthMm.toFixed(0)}mm θmax=${p.thetaMaxDeg.toFixed(0)}° η=${eta} bins=${result.numBins} airAD=${chosenAirAD} gain=${p.gain.toFixed(3)} 对齐=${alignNote}`)
-        const tHalfStr = bestTHalf !== baseTHalf && baseTHalf !== null && bestTHalf !== null
-          ? `T_half ${(baseTHalf / 1000).toFixed(1)}s→${(bestTHalf / 1000).toFixed(1)}s`
-          : `T_half ${(baseTHalf !== null ? (baseTHalf / 1000).toFixed(1) + 's' : 'N/A')}`
-        L.push(`校准: ${tHalfStr} | τ ${chosenBuild.stats.transportDelayMs.toFixed(0)}ms | θmax ${p.thetaMaxDeg}°`)
-        L.push(`几何: θ∈[${thetaMin.toFixed(1)}, ${thetaMax.toFixed(1)}]° P10=${thetaP10.toFixed(1)}° P90=${thetaP90.toFixed(1)}° | δ∈[${dMin.toFixed(0)}, ${dMax.toFixed(0)}]° | 覆盖 ${coveredBins}/${result.numBins}bin`)
+        L.push(
+          `窗口: trip=${baseline.sweepId.slice(-8)} ${validWindowTrips.length}趟(${((baseline.startTs - validWindowTrips[0]!.startTs) / 60_000).toFixed(1)}min) samples=${allSamples.length}→${samplesForReconstruction.length}→${n}`
+        )
+        L.push(
+          `配置: W=${p.membraneWidthMm.toFixed(0)}mm θmax=${p.thetaMaxDeg.toFixed(0)}° η=${eta} bins=${result.numBins} airAD=${chosenAirAD} gain=${p.gain.toFixed(3)} 对齐=${alignNote}`
+        )
+        const tHalfStr =
+          bestTHalf !== baseTHalf && baseTHalf !== null && bestTHalf !== null
+            ? `T_half ${(baseTHalf / 1000).toFixed(1)}s→${(bestTHalf / 1000).toFixed(1)}s`
+            : `T_half ${baseTHalf !== null ? (baseTHalf / 1000).toFixed(1) + 's' : 'N/A'}`
+        L.push(
+          `校准: ${tHalfStr} | τ ${chosenBuild.stats.transportDelayMs.toFixed(0)}ms | θmax ${p.thetaMaxDeg}°`
+        )
+        L.push(
+          `几何: θ∈[${thetaMin.toFixed(1)}, ${thetaMax.toFixed(1)}]° P10=${thetaP10.toFixed(1)}° P90=${thetaP90.toFixed(1)}° | δ∈[${dMin.toFixed(0)}, ${dMax.toFixed(0)}]° | 覆盖 ${coveredBins}/${result.numBins}bin`
+        )
         const dS = stats(directProfile)
-        L.push(`实测单层: mean=${mS.mean.toFixed(2)} std=${mS.std.toFixed(2)} [${mS.min.toFixed(1)}, ${mS.max.toFixed(1)}]`)
-        L.push(`LS单层Profile: mean=${pS.mean.toFixed(2)} std=${pS.std.toFixed(2)} [${pS.min.toFixed(1)}, ${pS.max.toFixed(1)}] 波动比=${(pS.std / Math.max(mS.std, 0.01)).toFixed(3)}`)
-        L.push(`直分箱单层: mean=${dS.mean.toFixed(2)} std=${dS.std.toFixed(2)} [${dS.min.toFixed(1)}, ${dS.max.toFixed(1)}] 波动比=${(dS.std / Math.max(mS.std, 0.01)).toFixed(3)}`)
-        L.push(`偏差: Δmean=${(mS.mean - pS.mean).toFixed(2)}μm (${((mS.mean - pS.mean) / mS.mean * 100).toFixed(1)}%) RMS残差=${rmsResid.toFixed(2)}μm θ相关=${thetaResidCorr.toFixed(2)}`)
-        L.push(`残差: mean=${rS.mean.toFixed(2)} std=${rS.std.toFixed(2)} P25=${rP25.toFixed(2)} P50=${rP50.toFixed(2)} P75=${rP75.toFixed(2)} [${rS.min.toFixed(1)}, ${rS.max.toFixed(1)}]`)
+        L.push(
+          `实测单层: mean=${mS.mean.toFixed(2)} std=${mS.std.toFixed(2)} [${mS.min.toFixed(1)}, ${mS.max.toFixed(1)}]`
+        )
+        L.push(
+          `LS单层Profile: mean=${pS.mean.toFixed(2)} std=${pS.std.toFixed(2)} [${pS.min.toFixed(1)}, ${pS.max.toFixed(1)}] 波动比=${(pS.std / Math.max(mS.std, 0.01)).toFixed(3)}`
+        )
+        L.push(
+          `直分箱单层: mean=${dS.mean.toFixed(2)} std=${dS.std.toFixed(2)} [${dS.min.toFixed(1)}, ${dS.max.toFixed(1)}] 波动比=${(dS.std / Math.max(mS.std, 0.01)).toFixed(3)}`
+        )
+        L.push(
+          `偏差: Δmean=${(mS.mean - pS.mean).toFixed(2)}μm (${(((mS.mean - pS.mean) / mS.mean) * 100).toFixed(1)}%) RMS残差=${rmsResid.toFixed(2)}μm θ相关=${thetaResidCorr.toFixed(2)}`
+        )
+        L.push(
+          `残差: mean=${rS.mean.toFixed(2)} std=${rS.std.toFixed(2)} P25=${rP25.toFixed(2)} P50=${rP50.toFixed(2)} P75=${rP75.toFixed(2)} [${rS.min.toFixed(1)}, ${rS.max.toFixed(1)}]`
+        )
 
         // 实测 vs Profile 对照表
         const colWidth = 7
         const pad = (s: string, w: number) => s.padStart(w)
-        const headerIndices = sampleIndices.map((idx) => pad(`bin${idx}`, colWidth)).join('')
-        L.push(`[实测 vs LS单层Profile] ${' '.repeat(18)}${headerIndices}  (${alignNote})`)
-        L.push(`参考(独立):        ${measStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
-        L.push(`LS单层Profile:        ${profileStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
-        L.push(`残差(参考-LS):     ${residCompStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
-        L.push(`直分箱单层Profile:     ${directStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
-        L.push(`残差(参考-直分箱):     ${residDirectStr.split(', ').map((v) => pad(v, colWidth)).join('')}`)
+        const headerIndices = sampleIndices
+          .map((idx) => pad(`bin${idx}`, colWidth))
+          .join('')
+        L.push(
+          `[实测 vs LS单层Profile] ${' '.repeat(18)}${headerIndices}  (${alignNote})`
+        )
+        L.push(
+          `参考(独立):        ${measStr
+            .split(', ')
+            .map((v) => pad(v, colWidth))
+            .join('')}`
+        )
+        L.push(
+          `LS单层Profile:        ${profileStr
+            .split(', ')
+            .map((v) => pad(v, colWidth))
+            .join('')}`
+        )
+        L.push(
+          `残差(参考-LS):     ${residCompStr
+            .split(', ')
+            .map((v) => pad(v, colWidth))
+            .join('')}`
+        )
+        L.push(
+          `直分箱单层Profile:     ${directStr
+            .split(', ')
+            .map((v) => pad(v, colWidth))
+            .join('')}`
+        )
+        L.push(
+          `残差(参考-直分箱):     ${residDirectStr
+            .split(', ')
+            .map((v) => pad(v, colWidth))
+            .join('')}`
+        )
         L.push(`══════════════════════════════`)
         console.log(L.join('\n'))
       }
