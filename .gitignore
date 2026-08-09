@@ -28,4 +28,10 @@ dist-electron/*
 # Temporary algorithm data/log artifacts
 packages/AirRingServer/algorithms/thickness/data/*.txt
 packages/AirRingServer/tmp-logReplay-*.out
+.agents/tasks/**/scripts/outputs/*.stdout.txt
+.agents/tasks/**/scripts/outputs/*.stderr.txt
 .omo/
+
+# Rust / napi-rs local build artifacts
+packages/AirRingNative/target/
+packages/AirRingNative/*.node

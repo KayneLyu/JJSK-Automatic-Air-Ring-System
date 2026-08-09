@@ -4,7 +4,7 @@
  * 从 dataPipeline.ts 拆分出的纯函数，不访问实例状态或外部 I/O。
  */
 
-import { BubbleReconstructionResult } from '@/types/ipc'
+import type { BubbleReconstructionResult } from '@/types/ipc'
 
 /**
  * 基于直方图双峰检测，自动识别出界阈值。
@@ -71,7 +71,9 @@ export function detectOutOfBoundsThreshold(values: number[]): number | null {
  *
  * @returns false 如果 profile 为空或包含非数值
  */
-export function isProfilePlausible(result: BubbleReconstructionResult): boolean {
+export function isProfilePlausible(
+  result: BubbleReconstructionResult
+): boolean {
   if (result.profile.length === 0) return false
   return result.profile.every((v) => Number.isFinite(v))
 }

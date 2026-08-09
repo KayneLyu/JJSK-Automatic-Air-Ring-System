@@ -28,7 +28,10 @@ import {
   countRotationRawInRange,
   queryRotationRaw,
 } from './db/rawQueries'
-import { runCalibrationAngleEstimate } from './calibrationBridge'
+import {
+  runCalibrationAngleEstimate,
+  shutdownCalibrationAngleWorker,
+} from './calibrationBridge'
 
 // ═══════════════════════════════════════════════════════════════
 // 类型
@@ -67,7 +70,9 @@ export type HistoricalCalibrationWorkerResponse =
       ok: true
       manualTractionSpeed?: number
       disturbanceTs: number
-      result: ReturnType<ReturnType<typeof createCalibrationSession>['getResult']>
+      result: ReturnType<
+        ReturnType<typeof createCalibrationSession>['getResult']
+      >
     }
   | {
       type: 'result'
@@ -97,7 +102,9 @@ const PAGE_SIZE = 5000
 // ═══════════════════════════════════════════════════════════════
 
 if (!parentPort) {
-  throw new Error('historicalCalibrationWorker must be run as a worker_threads Worker')
+  throw new Error(
+    'historicalCalibrationWorker must be run as a worker_threads Worker'
+  )
 }
 
 parentPort.on('message', async (msg: WorkerMessage) => {
@@ -325,6 +332,14 @@ parentPort.on('message', async (msg: WorkerMessage) => {
       } satisfies HistoricalCalibrationWorkerResponse)
     } finally {
       ro.close()
+      try {
+        await shutdownCalibrationAngleWorker()
+      } catch (error) {
+        console.warn(
+          '[HistoricalCalibrationWorker] Calibration Worker 优雅关闭失败:',
+          error
+        )
+      }
     }
   } catch (err) {
     parentPort!.postMessage({

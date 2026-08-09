@@ -538,14 +538,14 @@ export class SQLiteService {
 export { schema }
 
 // ═══════════════════════════════════════════════════════════
-// WAL 只读连接 — 供 Worker Thread 使用
+// SQLite 只读连接 — 供 Worker Thread 使用
 // ═══════════════════════════════════════════════════════════
 
 /**
  * 为 Worker Thread 打开一个只读 SQLite 连接。
  *
- * WAL 模式下支持一个 writer + 多个 reader 并发，Worker Thread
- * 可以通过此连接执行查询而不阻塞主 utilityProcess 线程的写入。
+ * 沿用数据库现有日志模式；主连接为 WAL 时仍支持 writer + readers 并发。
+ * 只读连接不得尝试切换 journal_mode，否则旧的非 WAL 历史库会报写入错误。
  *
  * 注意：调用方负责在 Worker 退出时 close()。
  */
@@ -555,7 +555,7 @@ export function createReadOnlyConnection(dbPath: string): {
   close: () => void
 } {
   const sqliteDb = new Database(dbPath, { readonly: true })
-  sqliteDb.exec('PRAGMA journal_mode=WAL')
+  sqliteDb.exec('PRAGMA query_only=ON')
   sqliteDb.exec('PRAGMA cache_size=-64000')
   const db = drizzle(sqliteDb, { schema })
   return {

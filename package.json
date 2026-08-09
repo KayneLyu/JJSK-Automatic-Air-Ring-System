@@ -4,6 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build:content": "pnpm --filter @jjsk/ari-ring run build:content",
+    "build:field": "pnpm --filter @jjsk/ari-ring run build:field",
+    "verify:content": "pnpm --filter @jjsk/ari-ring run verify:content",
     "lint": "oxlint --type-aware",
     "lint:fix": "oxlint --type-aware --fix",
     "format": "prettier --write .",

@@ -35,6 +35,10 @@ import {
   extractPulseCoverageSignature,
 } from './upperRotation.offset'
 import { estimateWithPulseExpansion } from './upperRotation.pulse'
+import type {
+  UpperRotationSearchBackend,
+  UpperRotationSearchObjective,
+} from './upperRotation.searchBackend'
 
 export type UpperRotationEstimateOptions = {
   harmonics?: number
@@ -44,6 +48,8 @@ export type UpperRotationEstimateOptions = {
   debug?: UpperRotationDebugOptions
   adaptiveRules?: UpperRotationAdaptiveRulesOverride
   adaptiveTuning?: UpperRotationAdaptiveTuningOverride
+  /** 仅供 Worker 注入的计算后端；不应跨 IPC 序列化。 */
+  searchBackend?: UpperRotationSearchBackend
 }
 
 export type UpperRotationEstimateDiagnostics = {
@@ -255,16 +261,15 @@ const estimateWithScannerExpansion = (
   accelDecelMs?: number,
   debugOptions: UpperRotationDebugOptions = {},
   adaptiveRules: UpperRotationAdaptiveRules = ADAPTIVE_RULES_BASE,
-  diagnostics?: UpperRotationEstimateDiagnostics
+  diagnostics?: UpperRotationEstimateDiagnostics,
+  searchBackend?: UpperRotationSearchBackend
 ): number | null => {
   try {
     const objectiveMode = debugOptions.objectiveMode ?? 'auto'
     const offsetMode = debugOptions.offsetMode ?? 'auto'
     // 迁移期间保持旧生产行为；generic 作为无历史样本定向规则的影子基线。
-    const strategyProfile =
-      debugOptions.strategyProfile ?? 'datasetTuned2026Q1'
-    const enableDatasetTunedRules =
-      strategyProfile === 'datasetTuned2026Q1'
+    const strategyProfile = debugOptions.strategyProfile ?? 'datasetTuned2026Q1'
+    const enableDatasetTunedRules = strategyProfile === 'datasetTuned2026Q1'
     if (diagnostics) {
       diagnostics.strategyProfile = strategyProfile
       diagnostics.objectiveMode = objectiveMode
@@ -398,6 +403,19 @@ const estimateWithScannerExpansion = (
       }[] = normalized,
       collectSamples = false
     ): { theta: number; loss: number; samples: LossSample[] } | null => {
+      const objective: UpperRotationSearchObjective =
+        fn === evaluateExpanded ? 'expanded' : 'direct'
+      if (searchBackend) {
+        return searchBackend.search({
+          objective,
+          segments: segsData,
+          minDegrees: min,
+          maxDegrees: max,
+          stepDegrees: step,
+          numBins: segments,
+          collectSamples,
+        })
+      }
       let bestTheta: number | null = null
       let bestLoss = Infinity
       const lossSamples: LossSample[] = collectSamples ? [] : []
@@ -444,6 +462,24 @@ const estimateWithScannerExpansion = (
 
       return { theta: bestTheta, loss: bestLoss, samples: lossSamples }
     }
+
+    const evaluateLoss = (
+      fn: typeof evaluateExpanded,
+      segsData: {
+        data: ExpandedPoint[]
+        duration: number
+        accelRatio: number
+      }[],
+      theta: number
+    ): number =>
+      searchBackend
+        ? searchBackend.evaluate(
+            fn === evaluateExpanded ? 'expanded' : 'direct',
+            segsData,
+            theta,
+            segments
+          )
+        : fn(segsData, theta, segments)
 
     const hasLossContrast = (samples: readonly LossSample[]): boolean => {
       let minLoss = Infinity
@@ -639,7 +675,7 @@ const estimateWithScannerExpansion = (
             adaptiveRules.lowAngle.h1.blendFactor *
               (groupFastResult.theta - bestTheta)
           bestTheta = Math.max(min + 1, Math.min(max - 1, correctedTheta))
-          bestLoss = evaluateExpanded(groupFastNorm, bestTheta, segments)
+          bestLoss = evaluateLoss(evaluateExpanded, groupFastNorm, bestTheta)
           finalEvaluateFn = evaluateExpanded
           finalNormalized = groupFastNorm
           if (diagnostics) diagnostics.triggeredRules.push('lowAngleH1')
@@ -652,7 +688,7 @@ const estimateWithScannerExpansion = (
             adaptiveRules.lowAngle.h2.blendFactor *
               (groupDefaultResult.theta - bestTheta)
           bestTheta = Math.max(min + 1, Math.min(max - 1, correctedTheta))
-          bestLoss = evaluateExpanded(groupDefaultNorm, bestTheta, segments)
+          bestLoss = evaluateLoss(evaluateExpanded, groupDefaultNorm, bestTheta)
           finalEvaluateFn = evaluateExpanded
           finalNormalized = groupDefaultNorm
           if (diagnostics) diagnostics.triggeredRules.push('lowAngleH2')
@@ -908,14 +944,18 @@ const estimateWithScannerExpansion = (
 
     // 黄金分割最终收敛
     const finalTheta = goldenSectionSearch(
-      (th) => finalEvaluateFn(finalNormalized, th, segments),
+      (th) => evaluateLoss(finalEvaluateFn, finalNormalized, th),
       Math.max(min, bestTheta - 1),
       Math.min(max, bestTheta + 1),
       0.01
     )
     if (diagnostics) {
       diagnostics.finalThetaDeg = finalTheta
-      diagnostics.finalLoss = finalEvaluateFn(finalNormalized, finalTheta, segments)
+      diagnostics.finalLoss = evaluateLoss(
+        finalEvaluateFn,
+        finalNormalized,
+        finalTheta
+      )
       diagnostics.rejectReason = null
     }
     return finalTheta
@@ -935,6 +975,7 @@ const estimateThetaMaxWithPhaseCorrectionCore = (
     debug = {},
     adaptiveRules,
     adaptiveTuning,
+    searchBackend,
   }: UpperRotationEstimateOptions = {},
   diagnostics?: UpperRotationEstimateDiagnostics
 ): number | null => {
@@ -1020,7 +1061,8 @@ const estimateThetaMaxWithPhaseCorrectionCore = (
     runtimeDebug.accelDecelMs,
     runtimeDebug,
     resolveAdaptiveRules(adaptiveRules, adaptiveTuning),
-    diagnostics
+    diagnostics,
+    searchBackend
   )
   logger.endTimer('estimateWithScannerExpansion')
   if (result !== null) return result
@@ -1048,7 +1090,8 @@ const estimateThetaMaxWithPhaseCorrectionCore = (
 export const estimateThetaMaxWithPhaseCorrection = (
   tripSegments: TripSegment[],
   options: UpperRotationEstimateOptions = {}
-): number | null => estimateThetaMaxWithPhaseCorrectionCore(tripSegments, options)
+): number | null =>
+  estimateThetaMaxWithPhaseCorrectionCore(tripSegments, options)
 
 export const estimateThetaMaxWithPhaseCorrectionDetailed = (
   tripSegments: TripSegment[],
@@ -1057,8 +1100,7 @@ export const estimateThetaMaxWithPhaseCorrectionDetailed = (
   const startedAt = performance.now()
   const diagnostics: UpperRotationEstimateDiagnostics = {
     status: 'running',
-    strategyProfile:
-      options.debug?.strategyProfile ?? 'datasetTuned2026Q1',
+    strategyProfile: options.debug?.strategyProfile ?? 'datasetTuned2026Q1',
     objectiveMode:
       options.objectiveMode ?? options.debug?.objectiveMode ?? 'auto',
     offsetMode: options.debug?.offsetMode ?? 'auto',
@@ -1092,16 +1134,13 @@ export const compareUpperRotationStrategies = (
   tripSegments: TripSegment[],
   options: UpperRotationEstimateOptions = {}
 ): UpperRotationStrategyComparison => {
-  const production = estimateThetaMaxWithPhaseCorrectionDetailed(
-    tripSegments,
-    {
-      ...options,
-      debug: {
-        ...(options.debug ?? {}),
-        strategyProfile: 'datasetTuned2026Q1',
-      },
-    }
-  )
+  const production = estimateThetaMaxWithPhaseCorrectionDetailed(tripSegments, {
+    ...options,
+    debug: {
+      ...(options.debug ?? {}),
+      strategyProfile: 'datasetTuned2026Q1',
+    },
+  })
   const shadow = estimateThetaMaxWithPhaseCorrectionDetailed(tripSegments, {
     ...options,
     debug: {

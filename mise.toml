@@ -1,0 +1,14 @@
+[tools]
+node = "24.18.0"
+pnpm = "10.18.3"
+rust = "1.88.0"
+
+[env]
+# Phase 7 已通过 DS01–DS05、历史样本、性能和 300 次持久 Worker 验收。
+# Phase 8C 已通过 30 趟历史双跑和 300 次 Bubble 持久 Worker primary 验收。
+# 仅 mise 管理的项目开发环境默认启用；两个 primary 均保留独立单变量回滚。
+# Worker 仍保留 Native 失败时的完整 TypeScript 回退。
+AIR_RING_RUST_PRIMARY = "1"
+AIR_RING_RUST_PRIMARY_THREADS = "4"
+AIR_RING_BUBBLE_RUST_PRIMARY = "1"
+AIR_RING_RUST_NATIVE_PATH = "{{config_root}}/packages/AirRingNative/air-ring-native.win32-x64-msvc.node"

@@ -7,7 +7,11 @@
 import { Worker } from 'node:worker_threads'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import type { BubbleQueryRequest, BubbleQueryResponse, SweepMeta } from './bubbleQueryWorker'
+import type {
+  BubbleQueryRequest,
+  BubbleQueryResponse,
+  SweepMeta,
+} from './bubbleQueryWorker'
 
 const moduleDirname = dirname(fileURLToPath(import.meta.url))
 const WORKER_PATH = pathToFileURL(join(moduleDirname, 'bubbleQueryWorker.js'))
@@ -21,8 +25,13 @@ let nextId = 0
  *
  * Worker 拥有只读 WAL SQLite 连接，SQL 查询不阻塞主 utilityProcess 线程。
  */
-export function queryBubbleProfileData(dbPath: string, startMs: number, endMs: number): Promise<{
+export function queryBubbleProfileData(
+  dbPath: string,
+  startMs: number,
+  endMs: number
+): Promise<{
   sweep: SweepMeta
+  sourceRowCount: number
   rows: Array<{ timestamp: number; pulse: number; ad: number }>
 }> {
   return new Promise((resolve, reject) => {
@@ -98,6 +107,7 @@ export function queryBubbleSweepsData(
 ): Promise<
   Array<{
     sweep: SweepMeta
+    sourceRowCount: number
     rows: Array<{ timestamp: number; pulse: number; ad: number }>
   }>
 > {

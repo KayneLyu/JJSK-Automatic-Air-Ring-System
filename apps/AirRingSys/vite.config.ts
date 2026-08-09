@@ -20,8 +20,14 @@ const sharedAlias: Record<string, string> = {
 
 function resolveAirRingServer() {
   return [
-    ...Object.entries(sharedAlias).map(([find, replacement]) => ({ find, replacement })),
-    { find: /^@jjsk\/air-ring-server\/(.+)$/, replacement: path.resolve(__dirname, '../../packages/AirRingServer/$1') },
+    ...Object.entries(sharedAlias).map(([find, replacement]) => ({
+      find,
+      replacement,
+    })),
+    {
+      find: /^@jjsk\/air-ring-server\/(.+)$/,
+      replacement: path.resolve(__dirname, '../../packages/AirRingServer/$1'),
+    },
   ]
 }
 
@@ -53,10 +59,7 @@ export default defineConfig({
       preload: {
         input: path.join(__dirname, 'electron/preload.ts'),
       },
-      renderer:
-        process.env.NODE_ENV === 'test'
-          ? undefined
-          : {},
+      renderer: process.env.NODE_ENV === 'test' ? undefined : {},
     }),
     // Worker 线程脚本独立打包，输出到 dist-electron/calibrationWorker.js
     ...electron([
@@ -95,6 +98,24 @@ export default defineConfig({
           },
         },
       },
+      // 膜泡历史查询 Worker，输出到 dist-electron/bubbleQueryWorker.js
+      {
+        entry: 'electron/bubbleQueryWorker.ts',
+        vite: {
+          resolve: { alias: resolveAirRingServer() },
+          build: {
+            outDir: 'dist-electron',
+            lib: {
+              entry: 'electron/bubbleQueryWorker.ts',
+              formats: ['es'],
+              fileName: () => 'bubbleQueryWorker.js',
+            },
+            rollupOptions: {
+              external: ['node:worker_threads', 'electron', 'better-sqlite3'],
+            },
+          },
+        },
+      },
       // 膜泡重建 Worker，输出到 dist-electron/bubbleWorker.js
       {
         entry: 'electron/bubbleWorker.ts',
@@ -106,6 +127,24 @@ export default defineConfig({
               entry: 'electron/bubbleWorker.ts',
               formats: ['es'],
               fileName: () => 'bubbleWorker.js',
+            },
+            rollupOptions: {
+              external: ['node:worker_threads', 'electron'],
+            },
+          },
+        },
+      },
+      // Phase 8B 历史膜泡只读观测入口
+      {
+        entry: 'electron/historicalBubbleObservation.ts',
+        vite: {
+          resolve: { alias: resolveAirRingServer() },
+          build: {
+            outDir: 'dist-electron',
+            lib: {
+              entry: 'electron/historicalBubbleObservation.ts',
+              formats: ['es'],
+              fileName: () => 'historicalBubbleObservation.js',
             },
             rollupOptions: {
               external: ['node:worker_threads', 'electron'],
@@ -127,6 +166,23 @@ export default defineConfig({
             },
             rollupOptions: {
               external: ['electron', 'better-sqlite3'],
+            },
+          },
+        },
+      },
+      // 现场包离线自检；仅加载原生模块和内存 SQLite，不初始化任何设备。
+      {
+        entry: 'electron/fieldSelfTest.ts',
+        vite: {
+          build: {
+            outDir: 'dist-electron',
+            lib: {
+              entry: 'electron/fieldSelfTest.ts',
+              formats: ['es'],
+              fileName: () => 'fieldSelfTest.js',
+            },
+            rollupOptions: {
+              external: ['better-sqlite3'],
             },
           },
         },

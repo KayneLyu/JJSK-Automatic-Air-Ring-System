@@ -51,7 +51,19 @@ export {
 
 // ---- 求解器 ----
 export { solveBatch } from './solvers/batchSolver'
-export { solveRLS, rlsIncrementalUpdate, initRLSState } from './solvers/rlsSolver'
+export {
+  solveRLS,
+  rlsIncrementalUpdate,
+  initRLSState,
+} from './solvers/rlsSolver'
+export {
+  compareBubbleProfiles,
+  createBubbleRustShadowFailure,
+  solveBubbleBatchWithNative,
+  type BubbleNativeBinding,
+  type BubbleRustPrimaryTelemetry,
+  type BubbleRustShadowTelemetry,
+} from './bubbleReconstruction.native'
 
 // ---- 正则化 ----
 export {
@@ -67,8 +79,14 @@ export {
   estimatePhaseHybrid,
   scansToBinVarianceData,
 } from './phaseEstimation/phaseEstimator'
-export { estimateThetaMaxByBinVariance, binVarianceLoss } from './phaseEstimation/binVariance'
-export { estimateShiftByPhaseSlope, pixelsToAngle } from './phaseEstimation/fftPhaseShift'
+export {
+  estimateThetaMaxByBinVariance,
+  binVarianceLoss,
+} from './phaseEstimation/binVariance'
+export {
+  estimateShiftByPhaseSlope,
+  pixelsToAngle,
+} from './phaseEstimation/fftPhaseShift'
 export {
   estimatePhaseByCrossCorrelation,
   estimatePhaseByFFTCrossCorrelation,
@@ -133,7 +151,11 @@ import type {
   BubbleReconstructionOptions,
   BubbleReconstructionResult,
 } from './types'
-import { buildSparseSystem, predictAll, computeBinCoverage } from './measurementModel'
+import {
+  buildSparseSystem,
+  predictAll,
+  computeBinCoverage,
+} from './measurementModel'
 import { solveBatch } from './solvers/batchSolver'
 import { solveRLS } from './solvers/rlsSolver'
 import {
@@ -141,6 +163,8 @@ import {
   buildBinDecompositions,
   buildSampleDecompositions,
 } from './decompositions'
+
+export type BubbleBatchSolver = typeof solveBatch
 
 const MIN_VALID_THICKNESS_UM = 1
 const SMOOTHING_WEIGHTS = [0.1, 0.2, 0.4, 0.2, 0.1] as const
@@ -153,8 +177,11 @@ const autoScaleProfile = (
   measurements: MeasurementTriple[],
   processFactor: number
 ): number[] => {
-  const rawMean = rawProfile.reduce((sum, value) => sum + value, 0) / rawProfile.length
-  const tMean = measurements.reduce((sum, measurement) => sum + measurement.thickness, 0) / measurements.length
+  const rawMean =
+    rawProfile.reduce((sum, value) => sum + value, 0) / rawProfile.length
+  const tMean =
+    measurements.reduce((sum, measurement) => sum + measurement.thickness, 0) /
+    measurements.length
   const bTarget = tMean / (2 * processFactor)
   const autoScale = bTarget / Math.max(rawMean, 1e-6)
 
@@ -199,10 +226,11 @@ const smoothProfileCircular = (profile: number[]): number[] => {
  * @param membraneWidthMm  膜宽 W (mm)
  * @param options          重建选项
  */
-export const reconstructBubbleThickness = (
+export const reconstructBubbleThicknessWithBatchSolver = (
   measurements: MeasurementTriple[],
   membraneWidthMm: number,
-  options?: BubbleReconstructionOptions
+  options: BubbleReconstructionOptions | undefined,
+  batchSolver: BubbleBatchSolver
 ): BubbleReconstructionResult => {
   const numBins = options?.numBins ?? 360
   const lambda = options?.lambda ?? 1e-4
@@ -211,7 +239,8 @@ export const reconstructBubbleThickness = (
   const forgettingFactor = options?.forgettingFactor ?? 0.995
   const smoothMu = options?.smoothMu ?? 0.1
   const solverMode = options?.solverMode ?? 'batch'
-  const autoScaleToMeasurementMean = options?.autoScaleToMeasurementMean ?? false
+  const autoScaleToMeasurementMean =
+    options?.autoScaleToMeasurementMean ?? false
   const applyDisplaySmoothing = options?.applyDisplaySmoothing ?? false
   const preferAfterTs = options?.preferAfterTs
   const binWidthDeg = 360 / numBins
@@ -240,12 +269,17 @@ export const reconstructBubbleThickness = (
     )
   }
 
-  const sparse = buildSparseSystem(validMeasurements, membraneWidthMm, numBins, processFactor)
+  const sparse = buildSparseSystem(
+    validMeasurements,
+    membraneWidthMm,
+    numBins,
+    processFactor
+  )
 
   const rawProfile =
     solverMode === 'rls'
       ? solveRLS(sparse, forgettingFactor, smoothMu)
-      : solveBatch(sparse, lambda, mu)
+      : batchSolver(sparse, lambda, mu)
 
   const nonNegativeProfile = clampProfilePositive(rawProfile)
   const scaledProfile = autoScaleToMeasurementMean
@@ -255,7 +289,12 @@ export const reconstructBubbleThickness = (
     ? smoothProfileCircular(scaledProfile)
     : scaledProfile
 
-  const predicted = predictAll(profile, validMeasurements, membraneWidthMm, processFactor)
+  const predicted = predictAll(
+    profile,
+    validMeasurements,
+    membraneWidthMm,
+    processFactor
+  )
   const rawPredicted = predictAll(
     nonNegativeProfile,
     validMeasurements,
@@ -282,7 +321,11 @@ export const reconstructBubbleThickness = (
   )
   const decompositionFields = hasTimestamps
     ? {
-        binTimestamps: computeBinTimestamps(validMeasurements, membraneWidthMm, numBins),
+        binTimestamps: computeBinTimestamps(
+          validMeasurements,
+          membraneWidthMm,
+          numBins
+        ),
         binDecompositions: buildBinDecompositions(
           validMeasurements,
           profile,
@@ -309,9 +352,25 @@ export const reconstructBubbleThickness = (
     maxError: maxErr,
     rawRmsError: Math.sqrt(rawSumSq / validMeasurements.length),
     numMeasurements: validMeasurements.length,
-    binCoverage: computeBinCoverage(validMeasurements, membraneWidthMm, numBins),
+    binCoverage: computeBinCoverage(
+      validMeasurements,
+      membraneWidthMm,
+      numBins
+    ),
     processDeformationFactor: processFactor,
     ...decompositionFields,
     predictedThickness: predicted,
   }
 }
+
+export const reconstructBubbleThickness = (
+  measurements: MeasurementTriple[],
+  membraneWidthMm: number,
+  options?: BubbleReconstructionOptions
+): BubbleReconstructionResult =>
+  reconstructBubbleThicknessWithBatchSolver(
+    measurements,
+    membraneWidthMm,
+    options,
+    solveBatch
+  )

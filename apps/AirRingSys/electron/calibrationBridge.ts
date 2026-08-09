@@ -1,6 +1,5 @@
 import type { IPollingBatchData } from '@/types/ipc'
 import type { PushData } from '@jjsk/adbox-sdk'
-import { Worker } from 'node:worker_threads'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
@@ -12,10 +11,8 @@ import {
   type CalibrationConfig,
   type Scalar,
 } from '@jjsk/air-ring-server/electron'
-import type {
-  CalibrationWorkerRequest,
-  CalibrationWorkerResponse,
-} from './calibrationWorker'
+import type { CalibrationWorkerRequest } from './calibrationWorker'
+import { createCalibrationWorkerClient } from './calibrationWorkerClient'
 
 const DEFAULT_CALIBRATION_CONFIG: CalibrationConfig = {
   roller: {
@@ -64,11 +61,19 @@ const moduleDirname = dirname(fileURLToPath(import.meta.url))
  * 解析 Worker 脚本路径。
  * 主进程以 ESM 运行时仍需稳定定位到与当前模块同目录的 worker 输出。
  */
-const resolveWorkerPath = () => pathToFileURL(join(moduleDirname, 'calibrationWorker.js'))
+const resolveWorkerPath = () =>
+  pathToFileURL(join(moduleDirname, 'calibrationWorker.js'))
 
-/** 互斥锁：同一时刻只允许一个 Worker 在运行 */
-let workerBusy = false
-let workerIdCounter = 0
+/**
+ * 进程内复用单个 Calibration Worker。
+ * 正常请求完成后保持 Worker 存活；只有异常、超时或显式 shutdown 才回收。
+ */
+const angleWorkerClient = createCalibrationWorkerClient({
+  workerPath: resolveWorkerPath(),
+  onInternalError: (error) => {
+    console.error('[CalibrationBridge] Worker 生命周期错误:', error)
+  },
+})
 
 /**
  * 在独立 Worker 线程中执行上旋角度估算。
@@ -79,139 +84,44 @@ const runAngleEstimateInWorker = (
   req: Omit<CalibrationWorkerRequest, 'id'>,
   onAngle: (maxAngle: number) => void
 ) => {
-  if (workerBusy) {
+  const started = angleWorkerClient.tryRun(
+    req,
+    (response) => {
+      onAngle(response.maxAngle)
+    },
+    (error) => {
+      console.warn('[CalibrationBridge] Worker 角度估算失败:', error.message)
+    }
+  )
+  if (!started) {
     console.debug('[CalibrationBridge] Worker 正在运行，本次角度估算已跳过')
-    return
   }
-
-  workerBusy = true
-  const id = ++workerIdCounter
-  const workerPath = resolveWorkerPath()
-
-  let worker: Worker
-  try {
-    worker = new Worker(workerPath)
-  } catch (err) {
-    workerBusy = false
-    console.error('[CalibrationBridge] Worker 创建失败:', err)
-    return
-  }
-
-  worker.on('message', (res: CalibrationWorkerResponse) => {
-    workerBusy = false
-    if (res.id !== id) return
-    if (res.ok) {
-      onAngle(res.maxAngle)
-    } else {
-      const errRes = res as Extract<CalibrationWorkerResponse, { ok: false }>
-      console.warn('[CalibrationBridge] Worker 角度估算失败:', errRes.error)
-    }
-    worker.terminate().catch(() => {})
-  })
-
-  worker.on('error', (err) => {
-    workerBusy = false
-    console.error('[CalibrationBridge] Worker 运行错误:', err)
-    worker.terminate().catch(() => {})
-  })
-
-  worker.on('exit', (code) => {
-    if (code !== 0) {
-      workerBusy = false
-      console.error(`[CalibrationBridge] Worker 异常退出，code=${code}`)
-    }
-  })
-
-  worker.postMessage({ ...req, id } satisfies CalibrationWorkerRequest)
 }
 
 /**
  * Promise 版角度估算 Worker（用于历史数据标定等需要等待结果的场景）。
  *
- * 与 runAngleEstimateInWorker 共用同一把互斥锁，确保同一时刻只有一个 Worker。
+ * 与 runAngleEstimateInWorker 共用同一个持久 Worker；请求按 FIFO 串行执行。
  *
  * @returns 估算的最大角度；失败时拒绝并保留具体原因
  */
 export const runCalibrationAngleEstimate = (
   req: Omit<CalibrationWorkerRequest, 'id'>
-): Promise<number> => {
-  return new Promise((resolve, reject) => {
-    if (workerBusy) {
-      console.debug('[CalibrationBridge] Worker 正在运行，等待中...')
-      // 轮询等待 Worker 释放
-      const poll = setInterval(() => {
-        if (!workerBusy) {
-          clearInterval(poll)
-          runNow()
-        }
-      }, 100)
-      return
+): Promise<number> =>
+  angleWorkerClient.run(req).then((response) => {
+    if (response.rustPrimary) {
+      console.info(
+        `[CalibrationBridge][RustPrimary] ${JSON.stringify(response.rustPrimary)}`
+      )
     }
-    runNow()
-
-    function runNow() {
-      workerBusy = true
-      const id = ++workerIdCounter
-      const workerPath = resolveWorkerPath()
-      let settled = false
-
-      let worker: Worker
-      try {
-        worker = new Worker(workerPath)
-      } catch (err) {
-        workerBusy = false
-        reject(
-          err instanceof Error
-            ? err
-            : new Error(`角度估算 Worker 创建失败: ${String(err)}`)
-        )
-        return
-      }
-
-      const timeout = setTimeout(() => {
-        if (settled) return
-        settled = true
-        worker.terminate().catch(() => {})
-        workerBusy = false
-        reject(new Error('角度估算超时 (120s)'))
-      }, 120_000) // 2min 超时
-
-      worker.on('message', (res: CalibrationWorkerResponse) => {
-        if (settled) return
-        if (res.id !== id) return
-        settled = true
-        clearTimeout(timeout)
-        workerBusy = false
-        if (res.ok) {
-          resolve(res.maxAngle)
-        } else {
-          reject(new Error(res.error))
-        }
-        worker.terminate().catch(() => {})
-      })
-
-      worker.on('error', (err) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timeout)
-        workerBusy = false
-        reject(new Error(`角度估算 Worker 错误: ${err.message}`))
-        worker.terminate().catch(() => {})
-      })
-
-      worker.on('exit', (code) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timeout)
-        workerBusy = false
-        reject(new Error(`角度估算 Worker 异常退出 (code=${code})`))
-        worker.terminate().catch(() => {})
-      })
-
-      worker.postMessage({ ...req, id } satisfies CalibrationWorkerRequest)
-    }
+    return response.maxAngle
   })
-}
+
+/**
+ * 短生命周期父 Worker（例如历史标定）完成后调用，等待子 Worker 优雅退出。
+ */
+export const shutdownCalibrationAngleWorker = (): Promise<void> =>
+  angleWorkerClient.shutdown()
 
 export const createCalibrationBridge = (
   options: CreateCalibrationBridgeOptions = {}
@@ -359,7 +269,8 @@ export const createCalibrationBridge = (
       return session.getResult()
     }
 
-    const { calibrateResult, pendingAngleEstimate } = session.feedThickness(thicknessSample)
+    const { calibrateResult, pendingAngleEstimate } =
+      session.feedThickness(thicknessSample)
     if (pendingAngleEstimate) {
       handlePendingAngleEstimate(pendingAngleEstimate)
     }
@@ -381,7 +292,8 @@ export const createCalibrationBridge = (
         continue
       }
 
-      const { calibrateResult, pendingAngleEstimate } = session.feedThickness(thicknessSample)
+      const { calibrateResult, pendingAngleEstimate } =
+        session.feedThickness(thicknessSample)
       if (pendingAngleEstimate) {
         handlePendingAngleEstimate(pendingAngleEstimate)
         return calibrateResult
@@ -458,7 +370,8 @@ export const createCalibrationBridge = (
       RollSpeedSignal: rollSpeedSignal || undefined,
     }
 
-    const { calibrateResult, pendingAngleEstimate } = session.feedThickness(thicknessSample)
+    const { calibrateResult, pendingAngleEstimate } =
+      session.feedThickness(thicknessSample)
     if (pendingAngleEstimate) {
       handlePendingAngleEstimate(pendingAngleEstimate)
     }

@@ -28,6 +28,12 @@ export type { CalibrationConfig, Scalar, TripSegment } from './types'
 export {
   estimateThetaMaxWithPhaseCorrection,
   estimateThetaMaxWithPhaseCorrectionDetailed,
+  createUpperRotationNativeSearchBackend,
+  createUpperRotationRustShadowFailure,
+  runUpperRotationRustShadow,
+  type UpperRotationNativeBinding,
+  type UpperRotationSearchBackend,
+  type UpperRotationRustShadowTelemetry,
   type UpperRotationAdaptiveRulesOverride,
   type UpperRotationAdaptiveTuningOverride,
   type UpperRotationDebugOptions,

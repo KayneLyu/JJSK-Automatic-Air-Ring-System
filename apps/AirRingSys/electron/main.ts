@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url'
 import { setupRendererCommunicator } from './renderer.ts'
 import { initMotionControl } from './adbox.ts'
 import { setupConsoleFileLogger } from './consoleFileLogger.ts'
+import { applyPackagedRuntimeDefaults } from './runtimeDefaults.ts'
+
+applyPackagedRuntimeDefaults(app.isPackaged, process.env)
 
 globalThis.__dirname = dirname(fileURLToPath(import.meta.url))
 process.env.APP_ROOT = path.join(globalThis.__dirname, '..')

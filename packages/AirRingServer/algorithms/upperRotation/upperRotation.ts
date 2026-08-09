@@ -23,6 +23,13 @@ export type {
 } from './upperRotation.estimate'
 
 export type {
+  UpperRotationSearchBackend,
+  UpperRotationSearchObjective,
+  UpperRotationSearchRequest,
+  UpperRotationSearchResult,
+} from './upperRotation.searchBackend'
+
+export type {
   NormalizedScannerProfile,
   ScannerProfileOptions,
   ScannerProfilePoint,
@@ -64,3 +71,14 @@ export {
   estimateThetaMaxWithPhaseCorrection,
   estimateThetaMaxWithPhaseCorrectionDetailed,
 } from './upperRotation.estimate'
+
+export { createUpperRotationNativeSearchBackend } from './upperRotation.nativeBackend'
+
+export {
+  createUpperRotationRustShadowFailure,
+  runUpperRotationRustShadow,
+  type RunUpperRotationRustShadowOptions,
+  type UpperRotationNativeBinding,
+  type UpperRotationRustShadowStatus,
+  type UpperRotationRustShadowTelemetry,
+} from './upperRotation.nativeShadow'

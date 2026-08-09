@@ -1,45 +1,47 @@
 // @see - https://www.electron.build/configuration/configuration
 {
-  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "Thk-Gauge-HMI",
-  "asar": true,
-  "productName": "JJSK",
-  "directories": {
-    "output": "release/${version}"
+  $schema: 'https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json',
+  appId: 'Thk-Gauge-HMI',
+  asar: true,
+  productName: 'JJSK',
+  directories: {
+    output: 'release/${version}',
   },
-  "files": [
-    "dist",
-    "dist-electron"
-  ],
-  "mac": {
-    "target": [
-      "dmg"
-    ],
-    "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
+  files: ['dist', 'dist-electron'],
+  asarUnpack: ['node_modules/better-sqlite3/**'],
+  mac: {
+    target: ['dmg'],
+    artifactName: '${productName}-Mac-${version}-Installer.${ext}',
   },
-  "win": {
-    "icon": "./public/icon.ico",
-    "target": [
+  win: {
+    icon: './public/icon.ico',
+    extraResources: [
       {
-        "target": "nsis",
-        "arch": [
-          "x64"
-        ]
-      }
+        from: '../../packages/AirRingNative/air-ring-native.win32-x64-msvc.node',
+        to: 'native/air-ring-native.win32-x64-msvc.node',
+      },
+      {
+        from: 'FIELD_DEPLOYMENT.md',
+        to: 'docs/现场部署说明.md',
+      },
     ],
-    "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
-  },
-  "nsis": {
-    "oneClick": false,
-    "perMachine": false,
-    "allowToChangeInstallationDirectory": true,
-    "deleteAppDataOnUninstall": false,
-    "shortcutName": "自动风环系统客户端",
-  },
-  "linux": {
-    "target": [
-      "AppImage"
+    target: [
+      {
+        target: 'nsis',
+        arch: ['x64'],
+      },
     ],
-    "artifactName": "${productName}-Linux-${version}.${ext}"
-  }
+    artifactName: '${productName}-Windows-${version}-Setup.${ext}',
+  },
+  nsis: {
+    oneClick: false,
+    perMachine: false,
+    allowToChangeInstallationDirectory: true,
+    deleteAppDataOnUninstall: false,
+    shortcutName: '自动风环系统客户端',
+  },
+  linux: {
+    target: ['AppImage'],
+    artifactName: '${productName}-Linux-${version}.${ext}',
+  },
 }
