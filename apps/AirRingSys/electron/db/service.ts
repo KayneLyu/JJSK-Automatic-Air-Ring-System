@@ -50,6 +50,7 @@ import migrationSqlV5 from './migrations/0005_drop_scan_pass_summary.sql?raw'
 import { FrameRow, RotationRawRow } from './types'
 import type { ThicknessRawRow } from '@/types/ipc'
 import type { RotationTripSummaryRow } from '@/types/ipc'
+import { withPackagedBetterSqlite3Binding } from './betterSqlite3Runtime'
 
 const MIN_VALID_ROTATION_TRIP_MS = 30_000
 const MAX_VALID_ROTATION_TRIP_MS = 900_000
@@ -107,7 +108,10 @@ export class SQLiteService {
   init(dbDir: string): void {
     mkdirSync(dbDir, { recursive: true })
     this.dbPath = join(dbDir, 'jjsk.db')
-    this.sqliteDb = new Database(this.dbPath)
+    this.sqliteDb = new Database(
+      this.dbPath,
+      withPackagedBetterSqlite3Binding()
+    )
     this.sqliteDb.exec('PRAGMA journal_mode=WAL')
     this.sqliteDb.exec('PRAGMA synchronous=NORMAL')
     this.sqliteDb.exec('PRAGMA cache_size=-400000')
@@ -554,7 +558,10 @@ export function createReadOnlyConnection(dbPath: string): {
   db: ReturnType<typeof drizzle<typeof schema>>
   close: () => void
 } {
-  const sqliteDb = new Database(dbPath, { readonly: true })
+  const sqliteDb = new Database(
+    dbPath,
+    withPackagedBetterSqlite3Binding({ readonly: true })
+  )
   sqliteDb.exec('PRAGMA query_only=ON')
   sqliteDb.exec('PRAGMA cache_size=-64000')
   const db = drizzle(sqliteDb, { schema })

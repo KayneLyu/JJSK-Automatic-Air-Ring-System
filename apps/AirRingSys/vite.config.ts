@@ -48,13 +48,6 @@ export default defineConfig({
     electronSimple({
       main: {
         entry: 'electron/main.ts',
-        vite: {
-          build: {
-            rollupOptions: {
-              external: ['better-sqlite3'],
-            },
-          },
-        },
       },
       preload: {
         input: path.join(__dirname, 'electron/preload.ts'),
@@ -93,7 +86,7 @@ export default defineConfig({
               fileName: () => 'historicalCalibrationWorker.js',
             },
             rollupOptions: {
-              external: ['node:worker_threads', 'electron', 'better-sqlite3'],
+              external: ['node:worker_threads', 'electron'],
             },
           },
         },
@@ -111,7 +104,7 @@ export default defineConfig({
               fileName: () => 'bubbleQueryWorker.js',
             },
             rollupOptions: {
-              external: ['node:worker_threads', 'electron', 'better-sqlite3'],
+              external: ['node:worker_threads', 'electron'],
             },
           },
         },
@@ -165,7 +158,7 @@ export default defineConfig({
               fileName: () => 'utilityWorker.js',
             },
             rollupOptions: {
-              external: ['electron', 'better-sqlite3'],
+              external: ['electron'],
             },
           },
         },
@@ -180,9 +173,6 @@ export default defineConfig({
               entry: 'electron/fieldSelfTest.ts',
               formats: ['es'],
               fileName: () => 'fieldSelfTest.js',
-            },
-            rollupOptions: {
-              external: ['better-sqlite3'],
             },
           },
         },

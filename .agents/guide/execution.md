@@ -110,10 +110,10 @@ pnpm exec vitest run algorithms/upperRotation/tests/upperRotation.landscape.test
 
 ### One Task One Stream（任务隔离）
 
-识别到"新任务"时，必须新建并行线程：
+识别到“新任务”时，必须在独立线程中执行：
 - 新会话（新开对话窗口）
-- 新分支：`fix/<task-slug>`、`feat/<task-slug>` 或 `chore/<task-slug>`
-- 新 worktree：`../wt-<task-slug>`
+- 用户已准备并切换到独立工作目录
+- 分支与 worktree 由用户自行创建和切换，Agent 不自动执行相关操作
 
 **禁止**：在当前线程中直接切换任务，避免工作目录串改。
 
@@ -141,9 +141,9 @@ pnpm exec vitest run algorithms/upperRotation/tests/upperRotation.landscape.test
 
 任务切换时：
 1. 检查当前分支是否有未提交修改
-2. 若有修改：尝试 auto-commit（基于 diff 生成描述性 message）
-3. 若 commit 失败：回退到 auto-stash
-4. 切换到新任务的分支与 worktree
+2. 暂停实现并提示用户准备、切换目标工作目录
+3. 记录用户反馈为“已切换”或“未切换”
+4. 仅在用户确认已切换后继续新任务实现
 
 **禁止**：在未处理当前分支状态的情况下切换任务。
 
@@ -155,8 +155,8 @@ pnpm exec vitest run algorithms/upperRotation/tests/upperRotation.landscape.test
 |-----------|--------|----------|--------|
 | bubble-thickness-reconstruction | feat/bubble-thickness-reconstruction | ../wt-bubble-thickness-recon | active |
 
-### Commit/Stash Message 自动生成
+### 分支与 Worktree 边界
 
-- 基于 `git diff --stat` 与变更文件列表
-- 描述核心修改内容，避免空泛（如 "update files"）
-- 格式遵循 gitmoji + 中文
+- Task 生命周期只记录并消费当前会话的工作目录上下文
+- Agent 不因 task 创建或切换而自动执行 commit、stash、建分支或建 worktree
+- 若目录未切换或状态不明确，保持任务暂停并请求用户处理

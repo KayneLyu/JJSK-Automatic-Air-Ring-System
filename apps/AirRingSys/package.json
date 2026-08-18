@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && electron-builder",
+    "build": "vite build && npm run audit:electron-bundles && electron-builder",
+    "audit:electron-bundles": "node scripts/auditElectronBundles.mjs",
     "build:content": "node scripts/buildContentPackage.mjs",
     "build:field": "node scripts/buildFieldPackage.mjs",
     "preview": "vite preview",

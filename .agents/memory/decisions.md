@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-08-13 21:46] Electron 生产包采用 bundle 加显式 Native 资源
+
+**背景**：AirRingSys 1.2.7 的 `app.asar` 为 244.97 MiB，其中生产依赖目录占 237.58 MiB；Renderer 和大部分 Electron 纯 JavaScript 已经进入 Vite bundle。
+
+**结论**：开发态继续使用 pnpm `node_modules`；生产态内联纯 JavaScript、禁止 electron-builder 收集 `node_modules`，并将 AirRingNative 与 `better_sqlite3.node` 作为 `resources/native/` 显式资源。构建必须通过裸导入审计和离线 Native/SQLite/self-test。
+
+**原因**：开发和生产需要不同的模块解析边界；Native 二进制无法内联，但没有必要携带完整 npm 目录结构。
+
+**结果**：完整 `pnpm run build` 通过，`app.asar` 降至 4.63 MiB，ASAR 与 resources 均无 `node_modules`，安装包约 84 MiB。
+
+---
+
+## [2026-08-13 21:26] Task 隔离不自动操作 Git 工作区
+
+**背景**：现有 Task Switch Guard 仍要求 Agent 自动创建分支/worktree，并在切换时自动 commit 或 stash，与当前 `agent-task-lifecycle` 的职责边界不一致。
+
+**结论**：Task 生命周期只负责识别、记录与切换保护；分支和 worktree 由用户创建并切换，Agent 不因 task 生命周期自动 commit、stash、建分支或建 worktree。
+
+**原因**：避免未获授权地改变用户 Git 状态，并让每个 task 明确消费用户已经准备好的独立工作目录。
+
+---
+
 ## [2026-08-02 14:24] Rust 上旋 PoC 通过门槛并进入影子集成
 
 **背景**：napi-rs/Rayon PoC 在 DS01–DS05 最终复跑中取得核心 17.66–19.10 倍、含 TypedArray DTO 端到端 16.49–18.65 倍加速，且 7/7 数值等价测试通过。

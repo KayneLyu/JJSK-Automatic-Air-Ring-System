@@ -7,8 +7,7 @@
   directories: {
     output: 'release/${version}',
   },
-  files: ['dist', 'dist-electron'],
-  asarUnpack: ['node_modules/better-sqlite3/**'],
+  files: ['dist', 'dist-electron', '!node_modules{,/**/*}'],
   mac: {
     target: ['dmg'],
     artifactName: '${productName}-Mac-${version}-Installer.${ext}',
@@ -19,6 +18,10 @@
       {
         from: '../../packages/AirRingNative/air-ring-native.win32-x64-msvc.node',
         to: 'native/air-ring-native.win32-x64-msvc.node',
+      },
+      {
+        from: 'node_modules/better-sqlite3/build/Release/better_sqlite3.node',
+        to: 'native/better_sqlite3.node',
       },
       {
         from: 'FIELD_DEPLOYMENT.md',

@@ -96,20 +96,6 @@ function requiredFile(filePath, label) {
   return filePath
 }
 
-function findFile(directory, targetName) {
-  if (!existsSync(directory)) return undefined
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const entryPath = join(directory, entry.name)
-    if (entry.isDirectory()) {
-      const nested = findFile(entryPath, targetName)
-      if (nested) return nested
-    } else if (entry.name === targetName) {
-      return entryPath
-    }
-  }
-  return undefined
-}
-
 function listFiles(directory) {
   const files = []
   const visit = (currentDirectory) => {
@@ -207,6 +193,7 @@ run(
   { cwd: betterSqliteDirectory }
 )
 runPnpm(['exec', 'vite', 'build'], { cwd: appDirectory })
+runPnpm(['run', 'audit:electron-bundles'], { cwd: appDirectory })
 runPnpm(
   [
     'exec',
@@ -226,16 +213,8 @@ requiredFile(packagedNativePath, '打包 Native addon')
 requiredFile(applyScriptPath, '内容替换脚本')
 requiredFile(runtimeProbePath, 'Electron 运行时探针')
 const sqliteNativePath = requiredFile(
-  findFile(
-    join(
-      resourcesDirectory,
-      'app.asar.unpacked',
-      'node_modules',
-      'better-sqlite3'
-    ),
-    'better_sqlite3.node'
-  ) ?? '',
-  '解包后的 better-sqlite3 addon'
+  join(resourcesDirectory, 'native', 'better_sqlite3.node'),
+  '打包后的 better-sqlite3 addon'
 )
 if (sha256(sourceNativePath) !== sha256(packagedNativePath)) {
   throw new Error('源码 Native addon 与内容目录 Native addon 的 SHA-256 不一致')

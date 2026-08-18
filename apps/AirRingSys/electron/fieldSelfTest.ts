@@ -1,6 +1,11 @@
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
+import Database from 'better-sqlite3'
+import {
+  packagedBetterSqlite3BindingPath,
+  withPackagedBetterSqlite3Binding,
+} from './db/betterSqlite3Runtime'
 
 type NativeBinding = {
   configureThreadPool: (maxThreads: number) => number
@@ -15,11 +20,6 @@ type NativeBinding = {
     lambda: number,
     mu: number
   ) => number[]
-}
-
-type DatabaseConstructor = new (filename: string) => {
-  prepare: (sql: string) => { get: () => unknown }
-  close: () => void
 }
 
 const NATIVE_FILE_NAME = 'air-ring-native.win32-x64-msvc.node'
@@ -51,7 +51,11 @@ const result = {
   resourcesPath,
   rustNative: { loaded: false, upperRotation: false, bubbleBatch: false },
   betterSqlite3: { loaded: false, query: false },
-  packagedFiles: { checked: 0, missing: [] as string[] },
+  packagedFiles: {
+    checked: 0,
+    missing: [] as string[],
+    nodeModulesAbsent: false,
+  },
   error: null as string | null,
 }
 
@@ -91,9 +95,12 @@ try {
     throw new Error('Rust Native 膜泡 Batch 自检返回无效结果')
   }
 
-  const BetterSqlite3 = require('better-sqlite3') as DatabaseConstructor
+  const sqliteNativePath = packagedBetterSqlite3BindingPath()
+  if (!existsSync(sqliteNativePath)) {
+    throw new Error(`缺少 better-sqlite3 Native addon: ${sqliteNativePath}`)
+  }
   result.betterSqlite3.loaded = true
-  const database = new BetterSqlite3(':memory:')
+  const database = new Database(':memory:', withPackagedBetterSqlite3Binding())
   try {
     const row = database.prepare('SELECT 1 AS value').get() as {
       value?: number
@@ -106,7 +113,13 @@ try {
     throw new Error('better-sqlite3 内存查询自检失败')
   }
 
-  const appRoot = join(resourcesPath, 'app.asar', 'dist-electron')
+  const packagedAppRoot = join(resourcesPath, 'app.asar')
+  if (existsSync(join(packagedAppRoot, 'node_modules'))) {
+    throw new Error('生产包不应包含 node_modules')
+  }
+  result.packagedFiles.nodeModulesAbsent = true
+
+  const appRoot = join(packagedAppRoot, 'dist-electron')
   result.packagedFiles.missing = REQUIRED_APP_FILES.filter(
     (fileName) => !existsSync(join(appRoot, fileName))
   )

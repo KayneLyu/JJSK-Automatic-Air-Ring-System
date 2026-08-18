@@ -86,20 +86,6 @@ function sha256(filePath) {
   return createHash('sha256').update(readFileSync(filePath)).digest('hex')
 }
 
-function findFile(directory, targetName) {
-  if (!existsSync(directory)) return undefined
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const entryPath = join(directory, entry.name)
-    if (entry.isDirectory()) {
-      const nested = findFile(entryPath, targetName)
-      if (nested) return nested
-    } else if (entry.name === targetName) {
-      return entryPath
-    }
-  }
-  return undefined
-}
-
 function summarizeDirectory(directory) {
   let fileCount = 0
   let totalBytes = 0
@@ -161,6 +147,7 @@ run(
   { cwd: betterSqliteDirectory }
 )
 runPnpm(['exec', 'vite', 'build'], { cwd: appDirectory })
+runPnpm(['run', 'audit:electron-bundles'], { cwd: appDirectory })
 runPnpm(
   [
     'exec',
@@ -185,16 +172,8 @@ requiredFile(sourceNativePath, '源码 Native addon')
 requiredFile(packagedNativePath, '打包 Native addon')
 requiredFile(archivePath, 'electron-builder 7z 现场包')
 const sqliteNativePath = requiredFile(
-  findFile(
-    join(
-      resourcesDirectory,
-      'app.asar.unpacked',
-      'node_modules',
-      'better-sqlite3'
-    ),
-    'better_sqlite3.node'
-  ) ?? '',
-  '解包后的 better-sqlite3 addon'
+  join(resourcesDirectory, 'native', 'better_sqlite3.node'),
+  '打包后的 better-sqlite3 addon'
 )
 
 const sourceNativeSha256 = sha256(sourceNativePath)
